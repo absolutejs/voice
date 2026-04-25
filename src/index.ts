@@ -31,6 +31,10 @@ export {
 	resolveVoiceAssistantMemoryNamespace
 } from './assistantMemory';
 export {
+	createJSONVoiceAssistantModel,
+	createOpenAIVoiceAssistantModel
+} from './modelAdapters';
+export {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceTraceHTTPSink,
@@ -196,6 +200,11 @@ export type {
 	VoiceAssistantMemoryRecord,
 	VoiceAssistantMemoryStore
 } from './assistantMemory';
+export type {
+	OpenAIVoiceAssistantModelOptions,
+	VoiceJSONAssistantModelHandler,
+	VoiceJSONAssistantModelOptions
+} from './modelAdapters';
 export type {
 	VoiceAgent,
 	VoiceAgentMessage,
