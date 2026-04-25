@@ -8,6 +8,7 @@ import {
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
 	createVoiceFileExternalObjectMapStore,
+	createVoiceFileAssistantMemoryStore,
 	createVoiceFileIntegrationEventStore,
 	createVoiceFileReviewStore,
 	createVoiceFileRuntimeStorage,
@@ -423,4 +424,44 @@ test('createVoiceFileTraceSinkDeliveryStore persists queued trace deliveries', a
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([
 		'trace-delivery-1'
 	]);
+});
+
+test('createVoiceFileAssistantMemoryStore persists namespaced memory records', async () => {
+	const directory = join(tmpdir(), `voice-memory-${crypto.randomUUID()}`);
+	const store = createVoiceFileAssistantMemoryStore({
+		directory
+	});
+
+	await store.set({
+		assistantId: 'support',
+		key: 'caller.name',
+		namespace: 'caller-1',
+		value: 'Alex'
+	});
+
+	expect(await store.get({
+		assistantId: 'support',
+		key: 'caller.name',
+		namespace: 'caller-1'
+	})).toMatchObject({
+		assistantId: 'support',
+		key: 'caller.name',
+		namespace: 'caller-1',
+		value: 'Alex'
+	});
+	expect(await store.list({
+		assistantId: 'support',
+		namespace: 'caller-1'
+	})).toHaveLength(1);
+
+	await store.delete({
+		assistantId: 'support',
+		key: 'caller.name',
+		namespace: 'caller-1'
+	});
+
+	expect(await store.list({
+		assistantId: 'support',
+		namespace: 'caller-1'
+	})).toHaveLength(0);
 });

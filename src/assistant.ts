@@ -12,6 +12,11 @@ import {
 	type VoiceOutcomeRecipeName,
 	type VoiceOutcomeRecipeOptions
 } from './outcomeRecipes';
+import {
+	createVoiceAssistantMemoryHandle,
+	type VoiceAssistantMemoryHandle,
+	type VoiceAssistantMemoryOptions,
+} from './assistantMemory';
 import type {
 	VoiceNormalizedRouteConfig,
 	VoiceOnTurnObjectHandler,
@@ -44,6 +49,7 @@ export type VoiceAssistantGuardrailInput<
 	TResult = unknown
 > = Parameters<VoiceOnTurnObjectHandler<TContext, TSession, TResult>>[0] & {
 	assistantId: string;
+	memory?: VoiceAssistantMemoryHandle;
 };
 
 export type VoiceAssistantOutputGuardrailInput<
@@ -87,6 +93,30 @@ export type VoiceAssistantVariant<
 		VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>
 	>;
 	weight?: number;
+};
+
+export type VoiceAssistantMemoryLifecycleInput<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = Parameters<VoiceOnTurnObjectHandler<TContext, TSession, TResult>>[0] & {
+	assistantId: string;
+	memory: VoiceAssistantMemoryHandle;
+};
+
+export type VoiceAssistantMemoryLifecycle<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = {
+	afterTurn?: (
+		input: VoiceAssistantMemoryLifecycleInput<TContext, TSession, TResult> & {
+			result: VoiceRouteResult<TResult>;
+		}
+	) => Promise<void> | void;
+	beforeTurn?: (
+		input: VoiceAssistantMemoryLifecycleInput<TContext, TSession, TResult>
+	) => Promise<void> | void;
 };
 
 export type VoiceAssistantExperimentResolverInput<
@@ -181,6 +211,8 @@ export type VoiceAssistantOptions<
 	experiment?: VoiceAssistantExperiment<TContext, TSession, TResult>;
 	guardrails?: VoiceAssistantGuardrails<TContext, TSession, TResult>;
 	id: string;
+	memory?: VoiceAssistantMemoryOptions<TContext, TSession>;
+	memoryLifecycle?: VoiceAssistantMemoryLifecycle<TContext, TSession, TResult>;
 	ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
 	trace?: VoiceAgentOptions<TContext, TSession, TResult>['trace'];
 };
@@ -218,6 +250,12 @@ export type VoiceAssistantRunSummary = {
 	toolCalls: Record<string, number>;
 	transferCount: number;
 	variants: Record<string, number>;
+	memory: {
+		deletes: number;
+		gets: number;
+		lists: number;
+		sets: number;
+	};
 };
 
 export type VoiceAssistantRunsSummary = {
@@ -456,12 +494,37 @@ export const createVoiceAssistant = <
 	const onTurn: VoiceOnTurnObjectHandler<TContext, TSession, TResult> = async (
 		input
 	) => {
+		const memory = options.memory
+			? await createVoiceAssistantMemoryHandle({
+					assistantId: options.id,
+					context: input.context,
+					memory: options.memory,
+					session: input.session,
+					trace: options.trace
+				})
+			: undefined;
 		const guardrailInput = {
 			...input,
-			assistantId: options.id
+			assistantId: options.id,
+			memory
 		};
+		if (memory) {
+			await options.memoryLifecycle?.beforeTurn?.({
+				...input,
+				assistantId: options.id,
+				memory
+			});
+		}
 		const blocked = await options.guardrails?.beforeTurn?.(guardrailInput);
 		if (blocked) {
+			if (memory) {
+				await options.memoryLifecycle?.afterTurn?.({
+					...input,
+					assistantId: options.id,
+					memory,
+					result: blocked
+				});
+			}
 			await appendAssistantTrace({
 				assistantId: options.id,
 				event: {
@@ -518,6 +581,14 @@ export const createVoiceAssistant = <
 			result
 		});
 		const finalResult = guarded ?? result;
+		if (memory) {
+			await options.memoryLifecycle?.afterTurn?.({
+				...input,
+				assistantId: options.id,
+				memory,
+				result: finalResult
+			});
+		}
 		if (guarded) {
 			await appendAssistantTrace({
 				assistantId: options.id,
@@ -601,6 +672,12 @@ export const summarizeVoiceAssistantRuns = async (input:
 				escalationCount: 0,
 				experiments: {},
 				guardrailCount: 0,
+				memory: {
+					deletes: 0,
+					gets: 0,
+					lists: 0,
+					sets: 0
+				},
 				outcomes: {},
 				runCount: 0,
 				sessionIds: new Set<string>(),
@@ -664,6 +741,28 @@ export const summarizeVoiceAssistantRuns = async (input:
 				: 'unknown';
 		const summary = getSummary(assistantId);
 		summary.guardrailCount += 1;
+	}
+
+	for (const event of events.filter((event) => event.type === 'assistant.memory')) {
+		const assistantId =
+			typeof event.payload.assistantId === 'string'
+				? event.payload.assistantId
+				: 'unknown';
+		const summary = getSummary(assistantId);
+		switch (event.payload.action) {
+			case 'delete':
+				summary.memory.deletes += 1;
+				break;
+			case 'get':
+				summary.memory.gets += 1;
+				break;
+			case 'list':
+				summary.memory.lists += 1;
+				break;
+			case 'set':
+				summary.memory.sets += 1;
+				break;
+		}
 	}
 
 	const assistants = [...byAssistant.values()].map(

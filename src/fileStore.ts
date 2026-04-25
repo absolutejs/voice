@@ -6,6 +6,11 @@ import {
 	withVoiceOpsTaskId
 } from './ops';
 import { createVoiceSessionRecord, toVoiceSessionSummary } from './store';
+import {
+	createVoiceAssistantMemoryRecord,
+	type VoiceAssistantMemoryRecord,
+	type VoiceAssistantMemoryStore
+} from './assistantMemory';
 import { withVoiceCallReviewId } from './testing/review';
 import {
 	createVoiceTraceEvent,
@@ -46,10 +51,12 @@ export type VoiceFileRuntimeStorage<
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
-	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+	TMemory extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord
 > = {
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
+	memories: VoiceAssistantMemoryStore<TMemory>;
 	reviews: VoiceCallReviewStore<TReview>;
 	session: VoiceSessionStore<TSession>;
 	tasks: VoiceOpsTaskStore<TTask>;
@@ -78,6 +85,12 @@ const encodeStoreId = (id: string) => `${encodeURIComponent(id)}.json`;
 
 const resolveFilePath = (directory: string, id: string) =>
 	join(directory, encodeStoreId(id));
+
+const createMemoryStoreId = (input: {
+	assistantId: string;
+	key: string;
+	namespace: string;
+}) => `${input.assistantId}:${input.namespace}:${input.key}`;
 
 const readJsonFile = async <T>(path: string) =>
 	JSON.parse(await readFile(path, 'utf8')) as T;
@@ -447,6 +460,68 @@ export const createVoiceFileTraceSinkDeliveryStore = <
 	return { get, list, remove, set };
 };
 
+export const createVoiceFileAssistantMemoryStore = <
+	TRecord extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord
+>(
+	options: VoiceFileStoreOptions
+): VoiceAssistantMemoryStore<TRecord> => {
+	const get = async (input: {
+		assistantId: string;
+		key: string;
+		namespace: string;
+	}) => {
+		const path = resolveFilePath(options.directory, createMemoryStoreId(input));
+
+		try {
+			return await readJsonFile<TRecord>(path);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return undefined;
+			}
+
+			throw error;
+		}
+	};
+
+	const list = async (input: { assistantId: string; namespace?: string }) => {
+		const files = await listJsonFiles(options.directory);
+		const records = await Promise.all(
+			files.map((file) => readJsonFile<TRecord>(file))
+		);
+
+		return records
+			.filter(
+				(record) =>
+					record.assistantId === input.assistantId &&
+					(input.namespace === undefined || record.namespace === input.namespace)
+			)
+			.sort((left, right) => right.updatedAt - left.updatedAt);
+	};
+
+	const set: VoiceAssistantMemoryStore<TRecord>['set'] = async (input) => {
+		const existing = await get(input);
+		const record = createVoiceAssistantMemoryRecord({
+			...input,
+			createdAt: input.createdAt ?? existing?.createdAt,
+			updatedAt: input.updatedAt
+		}) as TRecord;
+		await writeJsonFile(
+			resolveFilePath(options.directory, createMemoryStoreId(record)),
+			record,
+			options
+		);
+		return record;
+	};
+
+	const remove: VoiceAssistantMemoryStore<TRecord>['delete'] = async (input) => {
+		await rm(resolveFilePath(options.directory, createMemoryStoreId(input)), {
+			force: true
+		});
+	};
+
+	return { delete: remove, get, list, set };
+};
+
 export const createVoiceFileRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
@@ -454,7 +529,8 @@ export const createVoiceFileRuntimeStorage = <
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
-	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+	TMemory extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord
 >(
 	options: VoiceFileStoreOptions
 ): VoiceFileRuntimeStorage<
@@ -464,7 +540,8 @@ export const createVoiceFileRuntimeStorage = <
 	TEvent,
 	TMapping,
 	TTrace,
-	TTraceDelivery
+	TTraceDelivery,
+	TMemory
 > => ({
 	events: createVoiceFileIntegrationEventStore<TEvent>({
 		...options,
@@ -473,6 +550,10 @@ export const createVoiceFileRuntimeStorage = <
 	externalObjects: createVoiceFileExternalObjectMapStore<TMapping>({
 		...options,
 		directory: join(options.directory, 'external-objects')
+	}),
+	memories: createVoiceFileAssistantMemoryStore<TMemory>({
+		...options,
+		directory: join(options.directory, 'memories')
 	}),
 	reviews: createVoiceFileReviewStore<TReview>({
 		...options,

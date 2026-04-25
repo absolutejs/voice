@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
 	createVoiceAssistant,
 	createVoiceExperiment,
+	createVoiceMemoryAssistantMemoryStore,
 	createVoiceMemoryTraceEventStore,
 	createVoiceSessionRecord,
 	createVoiceAgentTool,
@@ -343,5 +344,60 @@ test('createVoiceAssistant records guardrail analytics', async () => {
 			escalated: 1
 		},
 		runCount: 1
+	});
+});
+
+test('createVoiceAssistant memory lifecycle can read and write namespaced facts', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	const memoryStore = createVoiceMemoryAssistantMemoryStore();
+	const assistant = createVoiceAssistant({
+		id: 'support',
+		memory: {
+			namespace: ({ session }) => session.id,
+			store: memoryStore
+		},
+		memoryLifecycle: {
+			afterTurn: async ({ memory, turn }) => {
+				if (turn.text.includes('Alex')) {
+					await memory.set('caller.name', 'Alex');
+				}
+			},
+			beforeTurn: async ({ memory }) => {
+				await memory.get('caller.name');
+			}
+		},
+		model: {
+			generate: () => ({
+				complete: true
+			})
+		},
+		trace
+	});
+	const session = createVoiceSessionRecord('session-memory');
+
+	await assistant.onTurn({
+		api: createApi(),
+		context: {},
+		session,
+		turn: createTurn('My name is Alex')
+	});
+
+	expect(await memoryStore.get({
+		assistantId: 'support',
+		key: 'caller.name',
+		namespace: 'session-memory'
+	})).toMatchObject({
+		value: 'Alex'
+	});
+	expect(await trace.list({ type: 'assistant.memory' })).toHaveLength(2);
+	expect(await summarizeVoiceAssistantRuns({ store: trace })).toMatchObject({
+		assistants: [
+			{
+				memory: {
+					gets: 1,
+					sets: 1
+				}
+			}
+		]
 	});
 });

@@ -15,6 +15,7 @@ export {
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
 	createVoiceFileExternalObjectMapStore,
+	createVoiceFileAssistantMemoryStore,
 	createVoiceFileIntegrationEventStore,
 	createVoiceFileReviewStore,
 	createVoiceFileRuntimeStorage,
@@ -23,6 +24,12 @@ export {
 	createVoiceFileTraceSinkDeliveryStore,
 	createVoiceFileTraceEventStore
 } from './fileStore';
+export {
+	createVoiceAssistantMemoryHandle,
+	createVoiceAssistantMemoryRecord,
+	createVoiceMemoryAssistantMemoryStore,
+	resolveVoiceAssistantMemoryNamespace
+} from './assistantMemory';
 export {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceSinkDeliveryStore,
@@ -173,6 +180,8 @@ export type {
 	VoiceAssistantExperimentOptions,
 	VoiceAssistantGuardrailInput,
 	VoiceAssistantGuardrails,
+	VoiceAssistantMemoryLifecycle,
+	VoiceAssistantMemoryLifecycleInput,
 	VoiceAssistantOptions,
 	VoiceAssistantOutputGuardrailInput,
 	VoiceAssistantPreset,
@@ -180,6 +189,13 @@ export type {
 	VoiceAssistantRunSummary,
 	VoiceAssistantVariant
 } from './assistant';
+export type {
+	VoiceAssistantMemoryBinding,
+	VoiceAssistantMemoryHandle,
+	VoiceAssistantMemoryOptions,
+	VoiceAssistantMemoryRecord,
+	VoiceAssistantMemoryStore
+} from './assistantMemory';
 export type {
 	VoiceAgent,
 	VoiceAgentMessage,
