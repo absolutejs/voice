@@ -73,6 +73,88 @@ const app = new Elysia()
 
 `createVoiceMemoryStore()` is dev-only. Real deployments should provide a shared store backed by Redis, Postgres, or equivalent.
 
+## Voice Assistants
+
+Use `createVoiceAssistant(...)` when you want one product-level surface for a voice agent instead of wiring tools, guardrails, experiments, traces, and ops recipes separately. It returns a standard `onTurn` handler, plus an `ops` object you can pass to `voice(...)`.
+
+```ts
+import {
+	createVoiceAssistant,
+	createVoiceExperiment,
+	createVoiceFileRuntimeStorage,
+	createVoiceMemoryStore,
+	createVoiceAgentTool,
+	voice
+} from '@absolutejs/voice';
+import { deepgram } from '@absolutejs/voice-deepgram';
+
+const runtimeStorage = createVoiceFileRuntimeStorage({
+	directory: '.voice-runtime/support'
+});
+
+const lookupOrder = createVoiceAgentTool({
+	name: 'lookup_order',
+	description: 'Look up an order by id.',
+	execute: async ({ args }) => ({ orderId: args.orderId, status: 'shipped' })
+});
+
+const assistant = createVoiceAssistant({
+	id: 'support',
+	artifactPlan: {
+		ops: {
+			events: runtimeStorage.events,
+			reviews: runtimeStorage.reviews,
+			tasks: runtimeStorage.tasks
+		},
+		preset: {
+			name: 'support-triage',
+			options: {
+				queue: 'support-triage'
+			}
+		}
+	},
+	experiment: createVoiceExperiment({
+		id: 'support-prompt',
+		variants: [
+			{ id: 'baseline', weight: 1 },
+			{
+				id: 'direct',
+				weight: 1,
+				system: 'You are concise, practical, and resolve the caller quickly.'
+			}
+		]
+	}),
+	guardrails: {
+		beforeTurn: ({ turn }) =>
+			turn.text.toLowerCase().includes('human')
+				? { escalate: { reason: 'caller requested a human' } }
+				: undefined
+	},
+	model: {
+		async generate({ messages, tools }) {
+			return {
+				assistantText: `I can help. Available tools: ${tools.map((tool) => tool.name).join(', ')}`
+			};
+		}
+	},
+	system: 'You are a support voice assistant.',
+	tools: [lookupOrder],
+	trace: runtimeStorage.traces
+});
+
+voice({
+	path: '/voice',
+	session: createVoiceMemoryStore(),
+	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+	trace: runtimeStorage.traces,
+	ops: assistant.ops,
+	onTurn: assistant.onTurn,
+	onComplete: async () => {}
+});
+```
+
+Assistant experiments are deterministic by session id, so a caller stays on the same variant for a call. Variants can change the model, system prompt, tools, and tool-round budget; guardrails can block a turn before model execution or rewrite the returned `VoiceRouteResult`.
+
 ## Agent Tools And Squads
 
 For assistant-style products, use `createVoiceAgent(...)` as the `onTurn` handler. The agent layer is provider-neutral: plug in any model adapter, register server-side tools, and return normal voice route results like `assistantText`, `transfer`, `escalate`, or `complete`.

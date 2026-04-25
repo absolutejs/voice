@@ -1,5 +1,9 @@
 export { voice } from './plugin';
 export {
+	createVoiceAssistant,
+	createVoiceExperiment
+} from './assistant';
+export {
 	createVoiceAgent,
 	createVoiceAgentSquad,
 	createVoiceAgentTool
@@ -161,6 +165,18 @@ export {
 	renderVoiceCallReviewHTML,
 	renderVoiceCallReviewMarkdown
 } from './testing/review';
+export type {
+	VoiceAssistant,
+	VoiceAssistantArtifactPlan,
+	VoiceAssistantExperiment,
+	VoiceAssistantExperimentOptions,
+	VoiceAssistantGuardrailInput,
+	VoiceAssistantGuardrails,
+	VoiceAssistantOptions,
+	VoiceAssistantOutputGuardrailInput,
+	VoiceAssistantPreset,
+	VoiceAssistantVariant
+} from './assistant';
 export type {
 	VoiceAgent,
 	VoiceAgentMessage,
