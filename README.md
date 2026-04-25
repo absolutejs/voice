@@ -73,6 +73,77 @@ const app = new Elysia()
 
 `createVoiceMemoryStore()` is dev-only. Real deployments should provide a shared store backed by Redis, Postgres, or equivalent.
 
+## Agent Tools And Squads
+
+For assistant-style products, use `createVoiceAgent(...)` as the `onTurn` handler. The agent layer is provider-neutral: plug in any model adapter, register server-side tools, and return normal voice route results like `assistantText`, `transfer`, `escalate`, or `complete`.
+
+```ts
+import {
+	createVoiceAgent,
+	createVoiceAgentSquad,
+	createVoiceAgentTool,
+	createVoiceMemoryStore,
+	voice
+} from '@absolutejs/voice';
+import { deepgram } from '@absolutejs/voice-deepgram';
+
+const lookupOrder = createVoiceAgentTool({
+	name: 'lookup_order',
+	description: 'Look up an order by id.',
+	parameters: {
+		type: 'object',
+		properties: {
+			orderId: { type: 'string' }
+		},
+		required: ['orderId']
+	},
+	execute: async ({ args }) => {
+		return { orderId: args.orderId, status: 'shipped' };
+	}
+});
+
+const supportAgent = createVoiceAgent({
+	id: 'support',
+	system: 'You are a concise support voice agent.',
+	tools: [lookupOrder],
+	model: {
+		async generate({ messages, tools }) {
+			// Call your LLM provider here. If it returns tool calls, AbsoluteJS
+			// executes them and calls the model again with tool results.
+			return {
+				assistantText: `I can help. Available tools: ${tools.map((tool) => tool.name).join(', ')}`
+			};
+		}
+	}
+});
+
+const billingAgent = createVoiceAgent({
+	id: 'billing',
+	system: 'You handle billing questions.',
+	model: {
+		async generate() {
+			return { assistantText: 'I can help with billing.' };
+		}
+	}
+});
+
+const frontDesk = createVoiceAgentSquad({
+	id: 'front-desk',
+	defaultAgentId: 'support',
+	agents: [supportAgent, billingAgent]
+});
+
+voice({
+	path: '/voice',
+	session: createVoiceMemoryStore(),
+	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+	onTurn: frontDesk.onTurn,
+	onComplete: async () => {}
+});
+```
+
+`createVoiceAgentSquad(...)` gives you squad-style specialization without locking your app into a hosted voice platform. An agent can return `handoff: { targetAgentId: 'billing' }`; the squad records the handoff, runs the target agent on the same turn, and still returns a standard `VoiceRouteResult`.
+
 ## Production Voice Ops
 
 The recommended production pattern is:

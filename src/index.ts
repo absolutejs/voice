@@ -1,5 +1,10 @@
 export { voice } from './plugin';
 export {
+	createVoiceAgent,
+	createVoiceAgentSquad,
+	createVoiceAgentTool
+} from './agent';
+export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
@@ -122,6 +127,20 @@ export {
 	renderVoiceCallReviewHTML,
 	renderVoiceCallReviewMarkdown
 } from './testing/review';
+export type {
+	VoiceAgent,
+	VoiceAgentMessage,
+	VoiceAgentMessageRole,
+	VoiceAgentModel,
+	VoiceAgentModelInput,
+	VoiceAgentModelOutput,
+	VoiceAgentOptions,
+	VoiceAgentRunResult,
+	VoiceAgentSquadOptions,
+	VoiceAgentTool,
+	VoiceAgentToolCall,
+	VoiceAgentToolResult
+} from './agent';
 export type {
 	VoiceOpsRuntime,
 	VoiceOpsRuntimeConfig,
