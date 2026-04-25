@@ -31,6 +31,8 @@ export {
 	resolveVoiceAssistantMemoryNamespace
 } from './assistantMemory';
 export {
+	createAnthropicVoiceAssistantModel,
+	createGeminiVoiceAssistantModel,
 	createJSONVoiceAssistantModel,
 	createOpenAIVoiceAssistantModel
 } from './modelAdapters';
@@ -201,6 +203,8 @@ export type {
 	VoiceAssistantMemoryStore
 } from './assistantMemory';
 export type {
+	AnthropicVoiceAssistantModelOptions,
+	GeminiVoiceAssistantModelOptions,
 	OpenAIVoiceAssistantModelOptions,
 	VoiceJSONAssistantModelHandler,
 	VoiceJSONAssistantModelOptions

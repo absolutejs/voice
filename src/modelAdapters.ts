@@ -37,6 +37,27 @@ export type OpenAIVoiceAssistantModelOptions = {
 	temperature?: number;
 };
 
+export type AnthropicVoiceAssistantModelOptions = {
+	apiKey: string;
+	baseUrl?: string;
+	fetch?: typeof fetch;
+	maxOutputTokens?: number;
+	model?: string;
+	onUsage?: (usage: Record<string, unknown>) => Promise<void> | void;
+	temperature?: number;
+	version?: string;
+};
+
+export type GeminiVoiceAssistantModelOptions = {
+	apiKey: string;
+	baseUrl?: string;
+	fetch?: typeof fetch;
+	maxOutputTokens?: number;
+	model?: string;
+	onUsage?: (usage: Record<string, unknown>) => Promise<void> | void;
+	temperature?: number;
+};
+
 const OUTPUT_SCHEMA = {
 	additionalProperties: false,
 	properties: {
@@ -105,6 +126,9 @@ const OUTPUT_SCHEMA = {
 	type: 'object'
 };
 
+const ROUTE_RESULT_INSTRUCTION =
+	'Return a JSON object with assistantText, complete, transfer, escalate, voicemail, noAnswer, and result when you are not calling tools.';
+
 const parseJSON = (value: string): Record<string, unknown> => {
 	try {
 		const parsed = JSON.parse(value);
@@ -117,6 +141,29 @@ const parseJSON = (value: string): Record<string, unknown> => {
 		};
 	}
 };
+
+const parseJSONValue = (value: string): unknown => {
+	try {
+		return JSON.parse(value);
+	} catch {
+		return value;
+	}
+};
+
+const getMessageToolCalls = (message: VoiceAgentMessage): VoiceAgentToolCall[] => {
+	const toolCalls = message.metadata?.toolCalls;
+	return Array.isArray(toolCalls)
+		? (toolCalls.filter(
+				(toolCall) =>
+					toolCall &&
+					typeof toolCall === 'object' &&
+					typeof (toolCall as Record<string, unknown>).name === 'string'
+			) as VoiceAgentToolCall[])
+		: [];
+};
+
+const createHTTPError = (provider: string, response: Response) =>
+	new Error(`${provider} voice assistant model failed: HTTP ${response.status}`);
 
 const normalizeRouteOutput = <TResult>(
 	output: Record<string, unknown>
@@ -215,6 +262,142 @@ const messageToOpenAIInput = (message: VoiceAgentMessage) => {
 	return {
 		content: message.content,
 		role: message.role === 'system' ? 'developer' : message.role
+	};
+};
+
+const messageToAnthropicMessage = (message: VoiceAgentMessage) => {
+	if (message.role === 'system') {
+		return undefined;
+	}
+
+	if (message.role === 'tool') {
+		if (!message.toolCallId) {
+			return {
+				content: `Tool result from ${message.name ?? 'tool'}: ${message.content}`,
+				role: 'user'
+			};
+		}
+
+		return {
+			content: [
+				{
+					content: message.content,
+					tool_use_id: message.toolCallId,
+					type: 'tool_result'
+				}
+			],
+			role: 'user'
+		};
+	}
+
+	const toolCalls = getMessageToolCalls(message);
+	if (message.role === 'assistant' && toolCalls.length) {
+		return {
+			content: [
+				...(message.content
+					? [
+							{
+								text: message.content,
+								type: 'text'
+							}
+						]
+					: []),
+				...toolCalls.map((toolCall) => ({
+					id: toolCall.id ?? crypto.randomUUID(),
+					input: toolCall.args,
+					name: toolCall.name,
+					type: 'tool_use'
+				}))
+			],
+			role: 'assistant'
+		};
+	}
+
+	return {
+		content: message.content,
+		role: message.role
+	};
+};
+
+const toGeminiSchema = (schema: Record<string, unknown>): Record<string, unknown> => {
+	const next: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(schema)) {
+		if (key === 'additionalProperties') {
+			continue;
+		}
+		if (key === 'type' && typeof value === 'string') {
+			next[key] = value.toUpperCase();
+			continue;
+		}
+		if (Array.isArray(value)) {
+			next[key] = value.map((item) =>
+				item && typeof item === 'object'
+					? toGeminiSchema(item as Record<string, unknown>)
+					: item
+			);
+			continue;
+		}
+		if (value && typeof value === 'object') {
+			next[key] = toGeminiSchema(value as Record<string, unknown>);
+			continue;
+		}
+		next[key] = value;
+	}
+	return next;
+};
+
+const messageToGeminiContent = (message: VoiceAgentMessage) => {
+	if (message.role === 'system') {
+		return undefined;
+	}
+
+	if (message.role === 'tool') {
+		return {
+			parts: [
+				{
+					functionResponse: {
+						id: message.toolCallId,
+						name: message.name ?? 'tool',
+						response: {
+							result: parseJSONValue(message.content)
+						}
+					}
+				}
+			],
+			role: 'user'
+		};
+	}
+
+	const toolCalls = getMessageToolCalls(message);
+	if (message.role === 'assistant' && toolCalls.length) {
+		return {
+			parts: [
+				...(message.content
+					? [
+							{
+								text: message.content
+							}
+						]
+					: []),
+				...toolCalls.map((toolCall) => ({
+					functionCall: {
+						args: toolCall.args,
+						id: toolCall.id,
+						name: toolCall.name
+					}
+				}))
+			],
+			role: 'model'
+		};
+	}
+
+	return {
+		parts: [
+			{
+				text: message.content
+			}
+		],
+		role: message.role === 'assistant' ? 'model' : 'user'
 	};
 };
 
@@ -328,7 +511,7 @@ export const createOpenAIVoiceAssistantModel = <
 			});
 
 			if (!response.ok) {
-				throw new Error(`OpenAI voice assistant model failed: HTTP ${response.status}`);
+				throw createHTTPError('OpenAI', response);
 			}
 
 			const body = (await response.json()) as Record<string, unknown>;
@@ -344,6 +527,240 @@ export const createOpenAIVoiceAssistantModel = <
 			}
 
 			return normalizeRouteOutput<TResult>(parseJSON(extractText(body)));
+		}
+	};
+};
+
+const extractAnthropicText = (response: Record<string, unknown>) => {
+	const content = Array.isArray(response.content) ? response.content : [];
+	return content
+		.map((item) =>
+			item &&
+			typeof item === 'object' &&
+			(item as Record<string, unknown>).type === 'text' &&
+			typeof (item as Record<string, unknown>).text === 'string'
+				? ((item as Record<string, unknown>).text as string)
+				: ''
+		)
+		.filter(Boolean)
+		.join('\n');
+};
+
+const extractAnthropicToolCalls = (response: Record<string, unknown>) => {
+	const content = Array.isArray(response.content) ? response.content : [];
+	const toolCalls: VoiceAgentToolCall[] = [];
+
+	for (const item of content) {
+		if (!item || typeof item !== 'object') {
+			continue;
+		}
+		const record = item as Record<string, unknown>;
+		if (record.type !== 'tool_use' || typeof record.name !== 'string') {
+			continue;
+		}
+		toolCalls.push({
+			args:
+				record.input && typeof record.input === 'object'
+					? (record.input as Record<string, unknown>)
+					: {},
+			id: typeof record.id === 'string' ? record.id : undefined,
+			name: record.name
+		});
+	}
+
+	return toolCalls;
+};
+
+export const createAnthropicVoiceAssistantModel = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+>(
+	options: AnthropicVoiceAssistantModelOptions
+): VoiceAgentModel<TContext, TSession, TResult> => {
+	const fetchImpl = options.fetch ?? globalThis.fetch;
+	const baseUrl = options.baseUrl ?? 'https://api.anthropic.com/v1';
+	const model = options.model ?? 'claude-sonnet-4-5';
+
+	return {
+		generate: async (input) => {
+			const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/messages`, {
+				body: JSON.stringify({
+					max_tokens: options.maxOutputTokens ?? 1024,
+					messages: input.messages
+						.map(messageToAnthropicMessage)
+						.filter(Boolean),
+					model,
+					system: [input.system, ROUTE_RESULT_INSTRUCTION]
+						.filter(Boolean)
+						.join('\n\n'),
+					temperature: options.temperature,
+					tool_choice: input.tools.length ? { type: 'auto' } : { type: 'none' },
+					tools: input.tools.map((tool) => ({
+						description: tool.description,
+						input_schema: tool.parameters ?? {
+							additionalProperties: true,
+							type: 'object'
+						},
+						name: tool.name
+					}))
+				}),
+				headers: {
+					'anthropic-version': options.version ?? '2023-06-01',
+					'content-type': 'application/json',
+					'x-api-key': options.apiKey
+				},
+				method: 'POST'
+			});
+
+			if (!response.ok) {
+				throw createHTTPError('Anthropic', response);
+			}
+
+			const body = (await response.json()) as Record<string, unknown>;
+			if (body.usage && typeof body.usage === 'object') {
+				await options.onUsage?.(body.usage as Record<string, unknown>);
+			}
+
+			const toolCalls = extractAnthropicToolCalls(body);
+			if (toolCalls.length) {
+				return {
+					assistantText: extractAnthropicText(body) || undefined,
+					toolCalls
+				};
+			}
+
+			return normalizeRouteOutput<TResult>(parseJSON(extractAnthropicText(body)));
+		}
+	};
+};
+
+const extractGeminiCandidateParts = (response: Record<string, unknown>) => {
+	const candidates = Array.isArray(response.candidates) ? response.candidates : [];
+	const first = candidates[0];
+	if (!first || typeof first !== 'object') {
+		return [];
+	}
+	const content = (first as Record<string, unknown>).content;
+	if (!content || typeof content !== 'object') {
+		return [];
+	}
+	const parts = (content as Record<string, unknown>).parts;
+	return Array.isArray(parts) ? parts : [];
+};
+
+const extractGeminiText = (response: Record<string, unknown>) =>
+	extractGeminiCandidateParts(response)
+		.map((part) =>
+			part &&
+			typeof part === 'object' &&
+			typeof (part as Record<string, unknown>).text === 'string'
+				? ((part as Record<string, unknown>).text as string)
+				: ''
+		)
+		.filter(Boolean)
+		.join('\n');
+
+const extractGeminiToolCalls = (response: Record<string, unknown>) => {
+	const toolCalls: VoiceAgentToolCall[] = [];
+	for (const part of extractGeminiCandidateParts(response)) {
+		if (!part || typeof part !== 'object') {
+			continue;
+		}
+		const functionCall = (part as Record<string, unknown>).functionCall;
+		if (!functionCall || typeof functionCall !== 'object') {
+			continue;
+		}
+		const record = functionCall as Record<string, unknown>;
+		if (typeof record.name !== 'string') {
+			continue;
+		}
+		toolCalls.push({
+			args:
+				record.args && typeof record.args === 'object'
+					? (record.args as Record<string, unknown>)
+					: {},
+			id: typeof record.id === 'string' ? record.id : undefined,
+			name: record.name
+		});
+	}
+
+	return toolCalls;
+};
+
+export const createGeminiVoiceAssistantModel = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+>(
+	options: GeminiVoiceAssistantModelOptions
+): VoiceAgentModel<TContext, TSession, TResult> => {
+	const fetchImpl = options.fetch ?? globalThis.fetch;
+	const baseUrl = options.baseUrl ?? 'https://generativelanguage.googleapis.com/v1beta';
+	const model = options.model ?? 'gemini-2.5-flash';
+
+	return {
+		generate: async (input) => {
+			const endpoint = `${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(options.apiKey)}`;
+			const response = await fetchImpl(endpoint, {
+				body: JSON.stringify({
+					contents: input.messages.map(messageToGeminiContent).filter(Boolean),
+					generationConfig: {
+						maxOutputTokens: options.maxOutputTokens,
+						responseMimeType: 'application/json',
+						responseSchema: toGeminiSchema(OUTPUT_SCHEMA),
+						temperature: options.temperature
+					},
+					systemInstruction: {
+						parts: [
+							{
+								text: [input.system, ROUTE_RESULT_INSTRUCTION]
+									.filter(Boolean)
+									.join('\n\n')
+							}
+						]
+					},
+					tools: input.tools.length
+						? [
+								{
+									functionDeclarations: input.tools.map((tool) => ({
+										description: tool.description,
+										name: tool.name,
+										parameters: toGeminiSchema(
+											tool.parameters ?? {
+												additionalProperties: true,
+												type: 'object'
+											}
+										)
+									}))
+								}
+							]
+						: undefined
+				}),
+				headers: {
+					'content-type': 'application/json'
+				},
+				method: 'POST'
+			});
+
+			if (!response.ok) {
+				throw createHTTPError('Gemini', response);
+			}
+
+			const body = (await response.json()) as Record<string, unknown>;
+			if (body.usageMetadata && typeof body.usageMetadata === 'object') {
+				await options.onUsage?.(body.usageMetadata as Record<string, unknown>);
+			}
+
+			const toolCalls = extractGeminiToolCalls(body);
+			if (toolCalls.length) {
+				return {
+					assistantText: extractGeminiText(body) || undefined,
+					toolCalls
+				};
+			}
+
+			return normalizeRouteOutput<TResult>(parseJSON(extractGeminiText(body)));
 		}
 	};
 };

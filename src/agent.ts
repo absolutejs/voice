@@ -299,6 +299,19 @@ export const createVoiceAgent = <
 			if (output.assistantText?.trim()) {
 				messages.push({
 					content: output.assistantText,
+					metadata: output.toolCalls?.length
+						? {
+								toolCalls: output.toolCalls
+							}
+						: undefined,
+					role: 'assistant'
+				});
+			} else if (output.toolCalls?.length) {
+				messages.push({
+					content: '',
+					metadata: {
+						toolCalls: output.toolCalls
+					},
 					role: 'assistant'
 				});
 			}
