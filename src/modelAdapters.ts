@@ -127,7 +127,7 @@ const OUTPUT_SCHEMA = {
 };
 
 const ROUTE_RESULT_INSTRUCTION =
-	'Return a JSON object with assistantText, complete, transfer, escalate, voicemail, noAnswer, and result when you are not calling tools.';
+	'Return only a JSON object with assistantText, complete, transfer, escalate, voicemail, noAnswer, and result when you are not calling tools. Only set transfer, escalate, voicemail, or noAnswer when the user explicitly asks for that lifecycle outcome or a tool result says that exact outcome. Do not infer voicemail from generic words like voice, voice app, or voice integration.';
 
 const parseJSON = (value: string): Record<string, unknown> => {
 	try {
