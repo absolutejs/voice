@@ -14,15 +14,24 @@ export {
 	createVoiceFileReviewStore,
 	createVoiceFileRuntimeStorage,
 	createVoiceFileSessionStore,
-	createVoiceFileTaskStore
+	createVoiceFileTaskStore,
+	createVoiceFileTraceEventStore
 } from './fileStore';
+export {
+	createVoiceMemoryTraceEventStore,
+	createVoiceTraceEvent,
+	createVoiceTraceEventId,
+	exportVoiceTrace,
+	filterVoiceTraceEvents
+} from './trace';
 export {
 	createVoiceSQLiteExternalObjectMapStore,
 	createVoiceSQLiteIntegrationEventStore,
 	createVoiceSQLiteReviewStore,
 	createVoiceSQLiteRuntimeStorage,
 	createVoiceSQLiteSessionStore,
-	createVoiceSQLiteTaskStore
+	createVoiceSQLiteTaskStore,
+	createVoiceSQLiteTraceEventStore
 } from './sqliteStore';
 export {
 	createVoicePostgresExternalObjectMapStore,
@@ -30,7 +39,8 @@ export {
 	createVoicePostgresReviewStore,
 	createVoicePostgresRuntimeStorage,
 	createVoicePostgresSessionStore,
-	createVoicePostgresTaskStore
+	createVoicePostgresTaskStore,
+	createVoicePostgresTraceEventStore
 } from './postgresStore';
 export { createVoiceS3ReviewStore } from './s3Store';
 export { createVoiceMemoryStore } from './memoryStore';
@@ -180,6 +190,13 @@ export type {
 	VoiceCallReviewTimelineEvent
 } from './testing/review';
 export type { VoiceFileRuntimeStorage, VoiceFileStoreOptions } from './fileStore';
+export type {
+	StoredVoiceTraceEvent,
+	VoiceTraceEvent,
+	VoiceTraceEventFilter,
+	VoiceTraceEventStore,
+	VoiceTraceEventType
+} from './trace';
 export type {
 	VoicePostgresClient,
 	VoicePostgresRuntimeStorage,

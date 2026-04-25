@@ -3,6 +3,7 @@ import {
 	createVoiceAgent,
 	createVoiceAgentSquad,
 	createVoiceAgentTool,
+	createVoiceMemoryTraceEventStore,
 	createVoiceSessionRecord,
 	type VoiceAgentModel,
 	type VoiceAgentTool,
@@ -91,6 +92,112 @@ test('createVoiceAgent executes tools and feeds results into the next model pass
 		'user',
 		'tool',
 		'assistant'
+	]);
+});
+
+test('createVoiceAgent records model, tool, and result trace events', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	const agent = createVoiceAgent({
+		id: 'support',
+		model: {
+			generate: ({ messages }) =>
+				messages.some((message) => message.role === 'tool')
+					? {
+							assistantText: 'The account is active.'
+						}
+					: {
+							toolCalls: [
+								{
+									args: {
+										accountId: 'acct-1'
+									},
+									id: 'tool-1',
+									name: 'lookup_account'
+								}
+							]
+						}
+		},
+		trace,
+		tools: [
+			createVoiceAgentTool({
+				execute: () => ({
+					status: 'active'
+				}),
+				name: 'lookup_account'
+			})
+		]
+	});
+
+	await agent.run({
+		api: createApi(),
+		context: {},
+		session: createVoiceSessionRecord('session-agent', 'scenario-agent'),
+		turn: createTurn('Check account')
+	});
+
+	expect((await trace.list()).map((event) => event.type).sort()).toEqual([
+		'agent.model',
+		'agent.model',
+		'agent.result',
+		'agent.tool'
+	].sort());
+	expect(await trace.list({ scenarioId: 'scenario-agent' })).toHaveLength(4);
+	expect((await trace.list({ type: 'agent.tool' }))[0]).toMatchObject({
+		payload: {
+			agentId: 'support',
+			status: 'ok',
+			toolCallId: 'tool-1',
+			toolName: 'lookup_account'
+		},
+		sessionId: 'session-agent',
+		turnId: 'turn-1'
+	});
+});
+
+test('createVoiceAgentSquad records handoff trace events', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	const intake = createVoiceAgent({
+		id: 'intake',
+		model: {
+			generate: () => ({
+				handoff: {
+					reason: 'billing question',
+					targetAgentId: 'billing'
+				}
+			})
+		}
+	});
+	const billing = createVoiceAgent({
+		id: 'billing',
+		model: {
+			generate: () => ({
+				assistantText: 'Billing can help.'
+			})
+		}
+	});
+	const squad = createVoiceAgentSquad({
+		agents: [intake, billing],
+		defaultAgentId: 'intake',
+		id: 'front-desk',
+		trace
+	});
+
+	await squad.run({
+		api: createApi(),
+		context: {},
+		session: createVoiceSessionRecord('session-agent'),
+		turn: createTurn('Billing please')
+	});
+
+	expect(await trace.list({ type: 'agent.handoff' })).toMatchObject([
+		{
+			payload: {
+				agentId: 'front-desk',
+				fromAgentId: 'intake',
+				reason: 'billing question',
+				targetAgentId: 'billing'
+			}
+		}
 	]);
 });
 

@@ -12,7 +12,8 @@ import {
 	createVoiceFileReviewStore,
 	createVoiceFileRuntimeStorage,
 	createVoiceFileSessionStore,
-	createVoiceFileTaskStore
+	createVoiceFileTaskStore,
+	createVoiceFileTraceEventStore
 } from '../src';
 
 const tempDirectories: string[] = [];
@@ -280,6 +281,14 @@ test('createVoiceFileRuntimeStorage exposes persistent tasks and events', async 
 			sourceType: 'task'
 		})
 	);
+	await runtimeStorage.traces.append({
+		at: 400,
+		payload: {
+			agentId: 'support'
+		},
+		sessionId: 'session-2',
+		type: 'agent.result'
+	});
 
 	const secondRuntimeStorage = createVoiceFileRuntimeStorage({
 		directory
@@ -300,4 +309,59 @@ test('createVoiceFileRuntimeStorage exposes persistent tasks and events', async 
 			})
 		)?.externalId
 	).toBe('hubspot-task-runtime');
+	expect((await secondRuntimeStorage.traces.list({ sessionId: 'session-2' }))[0]?.type).toBe(
+		'agent.result'
+	);
+});
+
+test('createVoiceFileTraceEventStore persists and filters trace events', async () => {
+	const directory = await createTempDirectory();
+	const store = createVoiceFileTraceEventStore({
+		directory
+	});
+
+	await store.append({
+		at: 100,
+		payload: {
+			agentId: 'support'
+		},
+		scenarioId: 'scenario-trace',
+		sessionId: 'session-trace',
+		turnId: 'turn-1',
+		type: 'agent.model'
+	});
+	await store.append({
+		at: 200,
+		payload: {
+			agentId: 'support',
+			toolName: 'lookup_order'
+		},
+		scenarioId: 'scenario-trace',
+		sessionId: 'session-trace',
+		turnId: 'turn-1',
+		type: 'agent.tool'
+	});
+
+	const secondStore = createVoiceFileTraceEventStore({
+		directory
+	});
+	const events = await secondStore.list({
+		sessionId: 'session-trace',
+		type: 'agent.tool'
+	});
+
+	expect(events).toHaveLength(1);
+	expect(events[0]).toMatchObject({
+		at: 200,
+		payload: {
+			agentId: 'support',
+			toolName: 'lookup_order'
+		},
+		sessionId: 'session-trace',
+		turnId: 'turn-1',
+		type: 'agent.tool'
+	});
+	expect(await secondStore.get(events[0]!.id)).toMatchObject({
+		type: 'agent.tool'
+	});
 });

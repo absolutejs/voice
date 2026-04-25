@@ -12,7 +12,8 @@ import {
 	createVoiceSQLiteReviewStore,
 	createVoiceSQLiteRuntimeStorage,
 	createVoiceSQLiteSessionStore,
-	createVoiceSQLiteTaskStore
+	createVoiceSQLiteTaskStore,
+	createVoiceSQLiteTraceEventStore
 } from '../src';
 
 const tempPaths: string[] = [];
@@ -192,6 +193,44 @@ test('createVoiceSQLiteExternalObjectMapStore persists and finds vendor object m
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([mapping.id]);
 });
 
+test('createVoiceSQLiteTraceEventStore persists and filters trace events', async () => {
+	const path = createTempSQLitePath();
+	const store = createVoiceSQLiteTraceEventStore({
+		path
+	});
+
+	await store.append({
+		at: 100,
+		payload: {
+			agentId: 'support'
+		},
+		sessionId: 'session-trace',
+		turnId: 'turn-1',
+		type: 'agent.model'
+	});
+	await store.append({
+		at: 200,
+		payload: {
+			agentId: 'support',
+			toolName: 'lookup_order'
+		},
+		sessionId: 'session-trace',
+		turnId: 'turn-1',
+		type: 'agent.tool'
+	});
+
+	const secondStore = createVoiceSQLiteTraceEventStore({
+		path
+	});
+	expect((await secondStore.list({ type: 'agent.tool' }))[0]).toMatchObject({
+		payload: {
+			toolName: 'lookup_order'
+		},
+		sessionId: 'session-trace',
+		type: 'agent.tool'
+	});
+});
+
 test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, tasks, events, and external object maps', async () => {
 	const path = createTempSQLitePath();
 	const runtimeStorage = createVoiceSQLiteRuntimeStorage({
@@ -255,6 +294,14 @@ test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, task
 			sourceType: 'task'
 		})
 	);
+	await runtimeStorage.traces.append({
+		at: 400,
+		payload: {
+			agentId: 'support'
+		},
+		sessionId: 'session-runtime',
+		type: 'agent.result'
+	});
 
 	const secondRuntimeStorage = createVoiceSQLiteRuntimeStorage({
 		path
@@ -281,4 +328,7 @@ test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, task
 			})
 		)?.externalId
 	).toBe('linear-task-runtime');
+	expect((await secondRuntimeStorage.traces.list({ sessionId: 'session-runtime' }))[0]?.type).toBe(
+		'agent.result'
+	);
 });

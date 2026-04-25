@@ -144,6 +144,41 @@ voice({
 
 `createVoiceAgentSquad(...)` gives you squad-style specialization without locking your app into a hosted voice platform. An agent can return `handoff: { targetAgentId: 'billing' }`; the squad records the handoff, runs the target agent on the same turn, and still returns a standard `VoiceRouteResult`.
 
+## Traces And Replay
+
+Use trace stores when you want every call to be inspectable outside a hosted platform. Trace events are append-only records for model passes, tool calls, handoffs, agent results, call lifecycle, turn timing, errors, and cost telemetry.
+
+```ts
+import {
+	createVoiceAgent,
+	createVoiceFileRuntimeStorage,
+	exportVoiceTrace
+} from '@absolutejs/voice';
+
+const runtimeStorage = createVoiceFileRuntimeStorage({
+	directory: '.voice-runtime/support'
+});
+
+const supportAgent = createVoiceAgent({
+	id: 'support',
+	trace: runtimeStorage.traces,
+	model: {
+		async generate() {
+			return { assistantText: 'How can I help?' };
+		}
+	}
+});
+
+const replay = await exportVoiceTrace({
+	store: runtimeStorage.traces,
+	filter: {
+		sessionId: 'session-123'
+	}
+});
+```
+
+`createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` alongside sessions, reviews, tasks, events, and external object mappings.
+
 ## Production Voice Ops
 
 The recommended production pattern is:

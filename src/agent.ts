@@ -5,6 +5,7 @@ import type {
 	VoiceSessionRecord,
 	VoiceTurnRecord
 } from './types';
+import type { VoiceTraceEventStore } from './trace';
 
 export type VoiceAgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
 
@@ -127,6 +128,7 @@ export type VoiceAgentOptions<
 		session: TSession;
 		turn: VoiceTurnRecord;
 	}) => Promise<string | undefined> | string | undefined);
+	trace?: VoiceTraceEventStore;
 	tools?: Array<VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>>;
 };
 
@@ -147,6 +149,7 @@ export type VoiceAgentSquadOptions<
 		targetAgentId: string;
 		turn: VoiceTurnRecord;
 	}) => Promise<void> | void;
+	trace?: VoiceTraceEventStore;
 	selectAgent?: (input: {
 		context: TContext;
 		session: TSession;
@@ -209,6 +212,27 @@ const formatToolResult = (result: unknown): string => {
 	}
 };
 
+const appendVoiceAgentTrace = async (input: {
+	agentId: string;
+	event: Record<string, unknown>;
+	session: VoiceSessionRecord;
+	trace?: VoiceTraceEventStore;
+	turn: VoiceTurnRecord;
+	type: 'agent.handoff' | 'agent.model' | 'agent.result' | 'agent.tool';
+}) => {
+	await input.trace?.append({
+		at: Date.now(),
+		payload: {
+			agentId: input.agentId,
+			...input.event
+		},
+		scenarioId: input.session.scenarioId,
+		sessionId: input.session.id,
+		turnId: input.turn.id,
+		type: input.type
+	});
+};
+
 export const createVoiceAgentTool = <
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -244,6 +268,7 @@ export const createVoiceAgent = <
 		let output: VoiceAgentModelOutput<TResult> = {};
 
 		for (let round = 0; round <= maxToolRounds; round += 1) {
+			const modelStartedAt = Date.now();
 			output = await options.model.generate({
 				agentId: options.id,
 				context: input.context,
@@ -256,6 +281,19 @@ export const createVoiceAgent = <
 					parameters: tool.parameters
 				})),
 				turn: input.turn
+			});
+			await appendVoiceAgentTrace({
+				agentId: options.id,
+				event: {
+					elapsedMs: Date.now() - modelStartedAt,
+					messageCount: messages.length,
+					round,
+					toolCallCount: output.toolCalls?.length ?? 0
+				},
+				session: input.session,
+				trace: options.trace,
+				turn: input.turn,
+				type: 'agent.model'
 			});
 
 			if (output.assistantText?.trim()) {
@@ -279,6 +317,19 @@ export const createVoiceAgent = <
 						toolName: toolCall.name
 					};
 					toolResults.push(missingResult);
+					await appendVoiceAgentTrace({
+						agentId: options.id,
+						event: {
+							error: missingResult.error,
+							status: 'error',
+							toolCallId: toolCall.id,
+							toolName: toolCall.name
+						},
+						session: input.session,
+						trace: options.trace,
+						turn: input.turn,
+						type: 'agent.tool'
+					});
 					messages.push({
 						content: missingResult.error ?? '',
 						name: toolCall.name,
@@ -289,6 +340,7 @@ export const createVoiceAgent = <
 				}
 
 				try {
+					const toolStartedAt = Date.now();
 					const result = await tool.execute({
 						api: input.api,
 						args: toolCall.args,
@@ -305,6 +357,19 @@ export const createVoiceAgent = <
 						toolCallId: toolCall.id,
 						toolName: tool.name
 					});
+					await appendVoiceAgentTrace({
+						agentId: options.id,
+						event: {
+							elapsedMs: Date.now() - toolStartedAt,
+							status: 'ok',
+							toolCallId: toolCall.id,
+							toolName: tool.name
+						},
+						session: input.session,
+						trace: options.trace,
+						turn: input.turn,
+						type: 'agent.tool'
+					});
 					messages.push({
 						content,
 						name: tool.name,
@@ -319,6 +384,19 @@ export const createVoiceAgent = <
 						toolCallId: toolCall.id,
 						toolName: tool.name
 					});
+					await appendVoiceAgentTrace({
+						agentId: options.id,
+						event: {
+							error: errorMessage,
+							status: 'error',
+							toolCallId: toolCall.id,
+							toolName: tool.name
+						},
+						session: input.session,
+						trace: options.trace,
+						turn: input.turn,
+						type: 'agent.tool'
+					});
 					messages.push({
 						content: errorMessage,
 						name: tool.name,
@@ -328,6 +406,23 @@ export const createVoiceAgent = <
 				}
 			}
 		}
+
+		await appendVoiceAgentTrace({
+			agentId: options.id,
+			event: {
+				complete: output.complete,
+				escalated: Boolean(output.escalate),
+				handoffTarget: output.handoff?.targetAgentId,
+				hasAssistantText: Boolean(output.assistantText?.trim()),
+				noAnswer: Boolean(output.noAnswer),
+				transferred: Boolean(output.transfer),
+				voicemail: Boolean(output.voicemail)
+			},
+			session: input.session,
+			trace: options.trace,
+			turn: input.turn,
+			type: 'agent.result'
+		});
 
 		return {
 			agentId: options.id,
@@ -406,6 +501,18 @@ export const createVoiceAgentSquad = <
 				session: input.session,
 				targetAgentId: nextAgent.id,
 				turn: input.turn
+			});
+			await appendVoiceAgentTrace({
+				agentId: options.id,
+				event: {
+					fromAgentId: agent.id,
+					reason: result.handoff.reason,
+					targetAgentId: nextAgent.id
+				},
+				session: input.session,
+				trace: options.trace,
+				turn: input.turn,
+				type: 'agent.handoff'
 			});
 			messages.push({
 				content: result.handoff.reason ?? `Handoff to ${nextAgent.id}`,

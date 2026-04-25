@@ -7,6 +7,13 @@ import {
 } from './ops';
 import { createVoiceSessionRecord, toVoiceSessionSummary } from './store';
 import { withVoiceCallReviewId } from './testing/review';
+import {
+	createVoiceTraceEvent,
+	filterVoiceTraceEvents,
+	type StoredVoiceTraceEvent,
+	type VoiceTraceEvent,
+	type VoiceTraceEventStore
+} from './trace';
 import type {
 	StoredVoiceIntegrationEvent,
 	StoredVoiceExternalObjectMap,
@@ -35,13 +42,15 @@ export type VoiceFileRuntimeStorage<
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
-	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap
+	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
 > = {
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
 	reviews: VoiceCallReviewStore<TReview>;
 	session: VoiceSessionStore<TSession>;
 	tasks: VoiceOpsTaskStore<TTask>;
+	traces: VoiceTraceEventStore<TTrace>;
 };
 
 const listJsonFiles = async (directory: string) => {
@@ -341,15 +350,59 @@ export const createVoiceFileExternalObjectMapStore = <
 	return { find, get, list, remove, set };
 };
 
+export const createVoiceFileTraceEventStore = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	options: VoiceFileStoreOptions
+): VoiceTraceEventStore<TEvent> => {
+	const append: VoiceTraceEventStore<TEvent>['append'] = async (event) => {
+		const stored = createVoiceTraceEvent(event as VoiceTraceEvent) as TEvent;
+		await writeJsonFile(resolveFilePath(options.directory, stored.id), stored, options);
+		return stored;
+	};
+
+	const get = async (id: string) => {
+		const path = resolveFilePath(options.directory, id);
+
+		try {
+			return await readJsonFile<TEvent>(path);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return undefined;
+			}
+
+			throw error;
+		}
+	};
+
+	const list = async (filter = {}) => {
+		const files = await listJsonFiles(options.directory);
+		const events = await Promise.all(
+			files.map((file) => readJsonFile<TEvent>(file))
+		);
+
+		return filterVoiceTraceEvents(events, filter);
+	};
+
+	const remove = async (id: string) => {
+		await rm(resolveFilePath(options.directory, id), {
+			force: true
+		});
+	};
+
+	return { append, get, list, remove };
+};
+
 export const createVoiceFileRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
-	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap
+	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
 >(
 	options: VoiceFileStoreOptions
-): VoiceFileRuntimeStorage<TSession, TReview, TTask, TEvent, TMapping> => ({
+): VoiceFileRuntimeStorage<TSession, TReview, TTask, TEvent, TMapping, TTrace> => ({
 	events: createVoiceFileIntegrationEventStore<TEvent>({
 		...options,
 		directory: join(options.directory, 'events')
@@ -369,6 +422,10 @@ export const createVoiceFileRuntimeStorage = <
 	tasks: createVoiceFileTaskStore<TTask>({
 		...options,
 		directory: join(options.directory, 'tasks')
+	}),
+	traces: createVoiceFileTraceEventStore<TTrace>({
+		...options,
+		directory: join(options.directory, 'traces')
 	})
 });
 

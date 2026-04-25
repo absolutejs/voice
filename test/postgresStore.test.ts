@@ -9,7 +9,8 @@ import {
 	createVoicePostgresReviewStore,
 	createVoicePostgresRuntimeStorage,
 	createVoicePostgresSessionStore,
-	createVoicePostgresTaskStore
+	createVoicePostgresTaskStore,
+	createVoicePostgresTraceEventStore
 } from '../src';
 import type { VoicePostgresClient } from '../src';
 
@@ -258,6 +259,44 @@ test('createVoicePostgresExternalObjectMapStore persists and finds vendor object
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([mapping.id]);
 });
 
+test('createVoicePostgresTraceEventStore persists and filters trace events', async () => {
+	const sql = createFakePostgresClient();
+	const store = createVoicePostgresTraceEventStore({
+		sql
+	});
+
+	await store.append({
+		at: 100,
+		payload: {
+			agentId: 'support'
+		},
+		sessionId: 'session-trace',
+		turnId: 'turn-1',
+		type: 'agent.model'
+	});
+	await store.append({
+		at: 200,
+		payload: {
+			agentId: 'support',
+			toolName: 'lookup_order'
+		},
+		sessionId: 'session-trace',
+		turnId: 'turn-1',
+		type: 'agent.tool'
+	});
+
+	const secondStore = createVoicePostgresTraceEventStore({
+		sql
+	});
+	expect((await secondStore.list({ type: 'agent.tool' }))[0]).toMatchObject({
+		payload: {
+			toolName: 'lookup_order'
+		},
+		sessionId: 'session-trace',
+		type: 'agent.tool'
+	});
+});
+
 test('createVoicePostgresRuntimeStorage exposes persistent sessions, reviews, tasks, events, and external object maps', async () => {
 	const sql = createFakePostgresClient();
 	const runtimeStorage = createVoicePostgresRuntimeStorage({
@@ -321,6 +360,14 @@ test('createVoicePostgresRuntimeStorage exposes persistent sessions, reviews, ta
 			sourceType: 'task'
 		})
 	);
+	await runtimeStorage.traces.append({
+		at: 400,
+		payload: {
+			agentId: 'support'
+		},
+		sessionId: 'session-runtime',
+		type: 'agent.result'
+	});
 
 	const secondRuntimeStorage = createVoicePostgresRuntimeStorage({
 		sql
@@ -347,4 +394,7 @@ test('createVoicePostgresRuntimeStorage exposes persistent sessions, reviews, ta
 			})
 		)?.externalId
 	).toBe('zendesk-task-runtime');
+	expect((await secondRuntimeStorage.traces.list({ sessionId: 'session-runtime' }))[0]?.type).toBe(
+		'agent.result'
+	);
 });
