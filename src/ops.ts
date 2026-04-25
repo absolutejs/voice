@@ -11,10 +11,13 @@ import type {
 export type VoiceOpsTaskStatus = 'open' | 'in-progress' | 'done';
 
 export type VoiceOpsTaskKind =
+	| 'appointment-booking'
 	| 'callback'
 	| 'escalation'
+	| 'lead-qualification'
 	| 'transfer-check'
-	| 'retry-review';
+	| 'retry-review'
+	| 'support-triage';
 
 export type VoiceOpsTaskPriority = 'low' | 'normal' | 'high' | 'urgent';
 

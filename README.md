@@ -261,6 +261,7 @@ import {
 	createVoiceCRMActivitySink,
 	createVoiceFileRuntimeStorage,
 	createVoiceHelpdeskTicketSink,
+	resolveVoiceOutcomeRecipe,
 	voice
 } from '@absolutejs/voice';
 import { deepgram } from '@absolutejs/voice-deepgram';
@@ -295,6 +296,10 @@ const app = new Elysia().use(
 		},
 		onComplete: async () => {},
 		ops: {
+			...resolveVoiceOutcomeRecipe('support-triage', {
+				assignee: 'support-oncall',
+				queue: 'support-triage'
+			}),
 			reviews: runtimeStorage.reviews,
 			tasks: runtimeStorage.tasks,
 			events: runtimeStorage.events,
@@ -330,6 +335,8 @@ That gives you:
 - built-in sink fanout with per-sink delivery metadata on each event
 
 If you need richer review artifacts, pass `ops.buildReview(...)`. If you need custom task routing, pass `ops.createTaskFromReview(...)`. If you need external sync side effects inside your app, use `ops.onEvent(...)`. If you want built-in outbound delivery, use `ops.webhook`. If you want core-managed CRM/helpdesk fanout, use `ops.sinks` with `createVoiceIntegrationHTTPSink(...)`, `createVoiceHelpdeskTicketSink(...)`, or `createVoiceCRMActivitySink(...)`.
+
+For fast production defaults, spread `resolveVoiceOutcomeRecipe(...)` into `ops`. Built-in recipes cover `appointment-booking`, `lead-qualification`, `support-triage`, `voicemail-callback`, and `warm-transfer`; each returns task creation, SLA policies, and urgent routing rules while staying fully self-hosted.
 
 For packaged external systems, core now also includes:
 

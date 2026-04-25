@@ -138,6 +138,7 @@ export {
 } from './runtimeOps';
 export { createVoiceOpsRuntime } from './opsRuntime';
 export { resolveVoiceOpsPreset } from './opsPresets';
+export { resolveVoiceOutcomeRecipe } from './outcomeRecipes';
 export { createId, createVoiceSessionRecord } from './store';
 export {
 	createVoiceSTTRoutingCorrectionHandler,
@@ -188,6 +189,11 @@ export type {
 	VoiceOpsPresetOverrides,
 	VoiceResolvedOpsPreset
 } from './opsPresets';
+export type {
+	VoiceOutcomeRecipe,
+	VoiceOutcomeRecipeName,
+	VoiceOutcomeRecipeOptions
+} from './outcomeRecipes';
 export type {
 	VoiceCRMActivitySinkOptions,
 	VoiceHubSpotTaskSinkOptions,
