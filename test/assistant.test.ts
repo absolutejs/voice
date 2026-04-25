@@ -2,7 +2,10 @@ import { expect, test } from 'bun:test';
 import {
 	createVoiceAssistant,
 	createVoiceExperiment,
+	createVoiceMemoryTraceEventStore,
 	createVoiceSessionRecord,
+	createVoiceAgentTool,
+	summarizeVoiceAssistantRuns,
 	type VoiceAgentModel,
 	type VoiceSessionHandle,
 	type VoiceSessionRecord,
@@ -217,4 +220,128 @@ test('createVoiceAssistant experiment variants can override system prompts', asy
 	});
 
 	expect(result?.assistantText).toBe('Be direct.');
+});
+
+test('createVoiceAssistant records run analytics trace events', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	const assistant = createVoiceAssistant({
+		artifactPlan: {
+			preset: 'support-triage'
+		},
+		experiment: createVoiceExperiment({
+			id: 'copy-test',
+			selectVariant: () => 'direct',
+			variants: [
+				{
+					id: 'baseline'
+				},
+				{
+					id: 'direct'
+				}
+			]
+		}),
+		id: 'support',
+		model: {
+			generate: ({ messages }) =>
+				messages.some((message) => message.role === 'tool')
+					? {
+							complete: true
+						}
+					: {
+							toolCalls: [
+								{
+									args: {},
+									id: 'tool-1',
+									name: 'lookup'
+								}
+							]
+						}
+		},
+		tools: [
+			createVoiceAgentTool({
+				execute: () => ({
+					ok: true
+				}),
+				name: 'lookup'
+			})
+		],
+		trace
+	});
+
+	await assistant.onTurn({
+		api: createApi(),
+		context: {},
+		session: createVoiceSessionRecord('session-assistant'),
+		turn: createTurn('hello')
+	});
+
+	const summary = await summarizeVoiceAssistantRuns({ store: trace });
+
+	expect(await trace.list({ type: 'assistant.run' })).toHaveLength(1);
+	expect(summary).toMatchObject({
+		totalRuns: 1,
+		assistants: [
+			{
+				artifactPlans: {
+					'support-triage': 1
+				},
+				assistantId: 'support',
+				experiments: {
+					'copy-test': 1
+				},
+				outcomes: {
+					completed: 1
+				},
+				runCount: 1,
+				sessions: 1,
+				toolCalls: {
+					lookup: 1
+				},
+				variants: {
+					direct: 1
+				}
+			}
+		]
+	});
+});
+
+test('createVoiceAssistant records guardrail analytics', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	const assistant = createVoiceAssistant({
+		guardrails: {
+			beforeTurn: () => ({
+				escalate: {
+					reason: 'blocked'
+				}
+			})
+		},
+		id: 'support',
+		model: {
+			generate: () => ({
+				assistantText: 'should not run'
+			})
+		},
+		trace
+	});
+
+	await assistant.onTurn({
+		api: createApi(),
+		context: {},
+		session: createVoiceSessionRecord('session-guardrail'),
+		turn: createTurn('human')
+	});
+
+	const summary = await summarizeVoiceAssistantRuns(await trace.list());
+
+	expect(await trace.list({ type: 'assistant.guardrail' })).toHaveLength(1);
+	expect(summary.assistants[0]).toMatchObject({
+		assistantId: 'support',
+		blockedGuardrailCount: 1,
+		escalationCount: 0,
+		guardrailCount: 1,
+		outcomes: {
+			escalated: 1
+		},
+		runCount: 1
+	});
 });

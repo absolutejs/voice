@@ -1,4 +1,6 @@
 export type VoiceTraceEventType =
+	| 'assistant.guardrail'
+	| 'assistant.run'
 	| 'agent.handoff'
 	| 'agent.model'
 	| 'agent.result'

@@ -20,6 +20,7 @@ import type {
 	VoiceRuntimeOpsConfig,
 	VoiceSessionRecord
 } from './types';
+import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from './trace';
 
 export type VoiceAssistantPreset = VoiceOutcomeRecipeName;
 
@@ -203,6 +204,27 @@ export type VoiceAssistant<
 	) => VoiceNormalizedRouteConfig<TContext, TSession, TResult>;
 };
 
+export type VoiceAssistantRunSummary = {
+	assistantId: string;
+	artifactPlans: Record<string, number>;
+	averageElapsedMs?: number;
+	blockedGuardrailCount: number;
+	escalationCount: number;
+	experiments: Record<string, number>;
+	guardrailCount: number;
+	outcomes: Record<string, number>;
+	runCount: number;
+	sessions: number;
+	toolCalls: Record<string, number>;
+	transferCount: number;
+	variants: Record<string, number>;
+};
+
+export type VoiceAssistantRunsSummary = {
+	assistants: VoiceAssistantRunSummary[];
+	totalRuns: number;
+};
+
 const hashString = (value: string) => {
 	let hash = 2166136261;
 	for (let index = 0; index < value.length; index += 1) {
@@ -210,6 +232,65 @@ const hashString = (value: string) => {
 		hash = Math.imul(hash, 16777619);
 	}
 	return hash >>> 0;
+};
+
+const increment = (record: Record<string, number>, key: string) => {
+	record[key] = (record[key] ?? 0) + 1;
+};
+
+const resolveOutcome = <TResult>(result: VoiceRouteResult<TResult>) => {
+	if (result.transfer) {
+		return 'transferred';
+	}
+	if (result.escalate) {
+		return 'escalated';
+	}
+	if (result.voicemail) {
+		return 'voicemail';
+	}
+	if (result.noAnswer) {
+		return 'no-answer';
+	}
+	if (result.complete) {
+		return 'completed';
+	}
+	return 'continued';
+};
+
+const resolveArtifactPlanName = <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	artifactPlan?: VoiceAssistantArtifactPlan<TContext, TSession, TResult>
+) => {
+	const preset = artifactPlan?.preset;
+	if (!preset) {
+		return artifactPlan?.ops ? 'custom' : undefined;
+	}
+
+	return typeof preset === 'string' ? preset : preset.name;
+};
+
+const appendAssistantTrace = async (input: {
+	assistantId: string;
+	event: Record<string, unknown>;
+	session: VoiceSessionRecord;
+	trace?: VoiceTraceEventStore;
+	turnId?: string;
+	type: 'assistant.guardrail' | 'assistant.run';
+}) => {
+	await input.trace?.append({
+		at: Date.now(),
+		payload: {
+			assistantId: input.assistantId,
+			...input.event
+		},
+		scenarioId: input.session.scenarioId,
+		sessionId: input.session.id,
+		turnId: input.turnId,
+		type: input.type
+	});
 };
 
 const resolvePresetOps = <
@@ -338,6 +419,7 @@ export const createVoiceAssistant = <
 		resolvePresetOps(options.artifactPlan),
 		options.ops
 	) as VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
+	const artifactPlanName = resolveArtifactPlanName(options.artifactPlan);
 	let agent: VoiceAgent<TContext, TSession, TResult>;
 	const baseModelOptions =
 		'model' in options && options.model
@@ -380,9 +462,35 @@ export const createVoiceAssistant = <
 		};
 		const blocked = await options.guardrails?.beforeTurn?.(guardrailInput);
 		if (blocked) {
+			await appendAssistantTrace({
+				assistantId: options.id,
+				event: {
+					action: 'blocked',
+					artifactPlan: artifactPlanName,
+					outcome: resolveOutcome(blocked)
+				},
+				session: input.session,
+				trace: options.trace,
+				turnId: input.turn.id,
+				type: 'assistant.guardrail'
+			});
+			await appendAssistantTrace({
+				assistantId: options.id,
+				event: {
+					artifactPlan: artifactPlanName,
+					blocked: true,
+					experimentId: options.experiment?.id,
+					outcome: resolveOutcome(blocked)
+				},
+				session: input.session,
+				trace: options.trace,
+				turnId: input.turn.id,
+				type: 'assistant.run'
+			});
 			return blocked;
 		}
 
+		const startedAt = Date.now();
 		const variant = options.experiment?.resolve({
 			assistantId: options.id,
 			context: input.context,
@@ -401,12 +509,50 @@ export const createVoiceAssistant = <
 						tools: variant.tools ?? baseModelOptions.tools
 					})
 				: agent;
-		const result = (await runner.run(input)) ?? {};
+		const runResult = (await runner.run(input)) ?? {};
+		const result = runResult as VoiceRouteResult<TResult> & {
+			toolResults?: Array<{ toolName: string }>;
+		};
 		const guarded = await options.guardrails?.afterTurn?.({
 			...guardrailInput,
 			result
 		});
-		return guarded ?? result;
+		const finalResult = guarded ?? result;
+		if (guarded) {
+			await appendAssistantTrace({
+				assistantId: options.id,
+				event: {
+					action: 'rewritten',
+					artifactPlan: artifactPlanName,
+					experimentId: options.experiment?.id,
+					outcome: resolveOutcome(finalResult),
+					variantId: variant?.id
+				},
+				session: input.session,
+				trace: options.trace,
+				turnId: input.turn.id,
+				type: 'assistant.guardrail'
+			});
+		}
+		await appendAssistantTrace({
+			assistantId: options.id,
+			event: {
+				artifactPlan: artifactPlanName,
+				blocked: false,
+				elapsedMs: Date.now() - startedAt,
+				escalated: Boolean(finalResult.escalate),
+				experimentId: options.experiment?.id,
+				outcome: resolveOutcome(finalResult),
+				toolNames: result.toolResults?.map((tool) => tool.toolName) ?? [],
+				transferred: Boolean(finalResult.transfer),
+				variantId: variant?.id
+			},
+			session: input.session,
+			trace: options.trace,
+			turnId: input.turn.id,
+			type: 'assistant.run'
+		});
+		return finalResult;
 	};
 
 	return {
@@ -419,5 +565,120 @@ export const createVoiceAssistant = <
 			onComplete: overrides.onComplete ?? (() => undefined),
 			onTurn
 		})
+	};
+};
+
+export const summarizeVoiceAssistantRuns = async (input:
+	| StoredVoiceTraceEvent[]
+	| {
+			events?: StoredVoiceTraceEvent[];
+			store?: VoiceTraceEventStore;
+	  }): Promise<VoiceAssistantRunsSummary> => {
+	const events = Array.isArray(input)
+		? input
+		: (input.events ?? (await input.store?.list()) ?? []);
+	const assistantRuns = events.filter((event) => event.type === 'assistant.run');
+	const guardrails = events.filter(
+		(event) => event.type === 'assistant.guardrail'
+	);
+	const byAssistant = new Map<
+		string,
+		VoiceAssistantRunSummary & {
+			elapsedCount: number;
+			elapsedTotal: number;
+			sessionIds: Set<string>;
+		}
+	>();
+	const getSummary = (assistantId: string) => {
+		let summary = byAssistant.get(assistantId);
+		if (!summary) {
+			summary = {
+				assistantId,
+				artifactPlans: {},
+				blockedGuardrailCount: 0,
+				elapsedCount: 0,
+				elapsedTotal: 0,
+				escalationCount: 0,
+				experiments: {},
+				guardrailCount: 0,
+				outcomes: {},
+				runCount: 0,
+				sessionIds: new Set<string>(),
+				sessions: 0,
+				toolCalls: {},
+				transferCount: 0,
+				variants: {}
+			};
+			byAssistant.set(assistantId, summary);
+		}
+		return summary;
+	};
+
+	for (const event of assistantRuns) {
+		const assistantId =
+			typeof event.payload.assistantId === 'string'
+				? event.payload.assistantId
+				: 'unknown';
+		const summary = getSummary(assistantId);
+		summary.runCount += 1;
+		summary.sessionIds.add(event.sessionId);
+
+		if (typeof event.payload.artifactPlan === 'string') {
+			increment(summary.artifactPlans, event.payload.artifactPlan);
+		}
+		if (typeof event.payload.experimentId === 'string') {
+			increment(summary.experiments, event.payload.experimentId);
+		}
+		if (typeof event.payload.variantId === 'string') {
+			increment(summary.variants, event.payload.variantId);
+		}
+		if (typeof event.payload.outcome === 'string') {
+			increment(summary.outcomes, event.payload.outcome);
+		}
+		if (event.payload.escalated === true) {
+			summary.escalationCount += 1;
+		}
+		if (event.payload.transferred === true) {
+			summary.transferCount += 1;
+		}
+		if (event.payload.blocked === true) {
+			summary.blockedGuardrailCount += 1;
+		}
+		if (typeof event.payload.elapsedMs === 'number') {
+			summary.elapsedCount += 1;
+			summary.elapsedTotal += event.payload.elapsedMs;
+		}
+		if (Array.isArray(event.payload.toolNames)) {
+			for (const toolName of event.payload.toolNames) {
+				if (typeof toolName === 'string') {
+					increment(summary.toolCalls, toolName);
+				}
+			}
+		}
+	}
+
+	for (const event of guardrails) {
+		const assistantId =
+			typeof event.payload.assistantId === 'string'
+				? event.payload.assistantId
+				: 'unknown';
+		const summary = getSummary(assistantId);
+		summary.guardrailCount += 1;
+	}
+
+	const assistants = [...byAssistant.values()].map(
+		({ elapsedCount, elapsedTotal, sessionIds, ...summary }) => ({
+			...summary,
+			averageElapsedMs:
+				elapsedCount > 0 ? Math.round(elapsedTotal / elapsedCount) : undefined,
+			sessions: sessionIds.size
+		})
+	);
+
+	return {
+		assistants: assistants.sort((left, right) =>
+			left.assistantId.localeCompare(right.assistantId)
+		),
+		totalRuns: assistantRuns.length
 	};
 };

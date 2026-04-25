@@ -1,7 +1,8 @@
 export { voice } from './plugin';
 export {
 	createVoiceAssistant,
-	createVoiceExperiment
+	createVoiceExperiment,
+	summarizeVoiceAssistantRuns
 } from './assistant';
 export {
 	createVoiceAgent,
@@ -175,6 +176,8 @@ export type {
 	VoiceAssistantOptions,
 	VoiceAssistantOutputGuardrailInput,
 	VoiceAssistantPreset,
+	VoiceAssistantRunsSummary,
+	VoiceAssistantRunSummary,
 	VoiceAssistantVariant
 } from './assistant';
 export type {
