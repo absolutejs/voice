@@ -3,6 +3,9 @@ import {
 	buildVoiceTraceReplay,
 	createVoiceTraceEvent,
 	evaluateVoiceTrace,
+	exportVoiceTrace,
+	redactVoiceTraceEvents,
+	redactVoiceTraceText,
 	renderVoiceTraceHTML,
 	renderVoiceTraceMarkdown,
 	summarizeVoiceTrace,
@@ -164,4 +167,89 @@ test('trace renderers produce portable markdown and html replay artifacts', () =
 	expect(html).toContain('Support Call Trace');
 	expect(replay.summary.turnCount).toBe(1);
 	expect(replay.evaluation.pass).toBe(false);
+});
+
+test('redactVoiceTraceEvents scrubs PII text and sensitive payload keys', () => {
+	const events = [
+		createVoiceTraceEvent({
+			at: 100,
+			metadata: {
+				token: 'secret-token'
+			},
+			payload: {
+				email: 'customer@example.com',
+				nested: {
+					apiKey: 'api-key-1'
+				},
+				phone: '415-555-1212',
+				text: 'Call Jane at jane@example.com or 415-555-1212'
+			},
+			sessionId: 'session-redact',
+			type: 'turn.transcript'
+		})
+	];
+
+	const redacted = redactVoiceTraceEvents(events);
+
+	expect(redacted[0]?.metadata).toEqual({
+		token: '[redacted]'
+	});
+	expect(redacted[0]?.payload).toEqual({
+		email: '[redacted]',
+		nested: {
+			apiKey: '[redacted]'
+		},
+		phone: '[redacted]',
+		text: 'Call Jane at [redacted] or [redacted]'
+	});
+	expect(events[0]?.payload.text).toBe(
+		'Call Jane at jane@example.com or 415-555-1212'
+	);
+});
+
+test('trace exports and renderers can redact shared artifacts', async () => {
+	const events = [
+		createVoiceTraceEvent({
+			at: 100,
+			payload: {
+				text: 'Email alex@example.com'
+			},
+			sessionId: 'session-redact',
+			type: 'turn.assistant'
+		})
+	];
+	const store = {
+		append: async () => events[0]!,
+		get: async () => events[0],
+		list: async () => events,
+		remove: async () => {}
+	};
+	const exported = await exportVoiceTrace({
+		redact: true,
+		store
+	});
+	const markdown = renderVoiceTraceMarkdown(events, {
+		redact: true
+	});
+	const html = renderVoiceTraceHTML(events, {
+		redact: {
+			replacement: '[safe]'
+		}
+	});
+	const replay = buildVoiceTraceReplay(events, {
+		redact: true
+	});
+
+	expect(exported.events[0]?.payload.text).toBe('Email [redacted]');
+	expect(markdown).toContain('Email [redacted]');
+	expect(html).toContain('Email [safe]');
+	expect(replay.markdown).toContain('[redacted]');
+});
+
+test('redactVoiceTraceText supports custom replacements', () => {
+	expect(
+		redactVoiceTraceText('Reach me at alex@example.com', {
+			replacement: ({ key }) => `[${key ?? 'pii'}]`
+		})
+	).toBe('Reach me at [pii]');
 });

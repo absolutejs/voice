@@ -94,6 +94,36 @@ export type VoiceTraceEvaluation = {
 	summary: VoiceTraceSummary;
 };
 
+export type VoiceTraceRedactionReplacement =
+	| string
+	| ((input: {
+			key?: string;
+			path: string[];
+			value: string;
+	  }) => string);
+
+export type VoiceTraceRedactionOptions = {
+	keys?: string[];
+	redactEmails?: boolean;
+	redactPhoneNumbers?: boolean;
+	redactText?: boolean;
+	replacement?: VoiceTraceRedactionReplacement;
+	textKeys?: string[];
+};
+
+export type VoiceTraceRedactionConfig = boolean | VoiceTraceRedactionOptions;
+
+export type VoiceResolvedTraceRedactionOptions = Required<
+	Pick<
+		VoiceTraceRedactionOptions,
+		'redactEmails' | 'redactPhoneNumbers' | 'redactText'
+	>
+> & {
+	keys: string[];
+	replacement: VoiceTraceRedactionReplacement;
+	textKeys: string[];
+};
+
 export const createVoiceTraceEventId = (event: {
 	at?: number;
 	sessionId: string;
@@ -197,12 +227,17 @@ export const createVoiceMemoryTraceEventStore = <
 
 export const exportVoiceTrace = async (input: {
 	filter?: VoiceTraceEventFilter;
+	redact?: VoiceTraceRedactionConfig;
 	store: VoiceTraceEventStore;
-}) => ({
-	exportedAt: Date.now(),
-	events: await input.store.list(input.filter),
-	filter: input.filter
-});
+}) => {
+	const events = await input.store.list(input.filter);
+	return {
+		exportedAt: Date.now(),
+		events: input.redact ? redactVoiceTraceEvents(events, input.redact) : events,
+		filter: input.filter,
+		redacted: Boolean(input.redact)
+	};
+};
 
 const toNumber = (value: unknown) =>
 	typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -236,6 +271,173 @@ const formatTraceValue = (value: unknown): string => {
 		return String(value);
 	}
 };
+
+const DEFAULT_REDACTION_KEYS = [
+	'apiKey',
+	'authorization',
+	'creditCard',
+	'email',
+	'externalId',
+	'password',
+	'phone',
+	'secret',
+	'ssn',
+	'token'
+];
+
+const DEFAULT_REDACTION_TEXT_KEYS = [
+	'assistantText',
+	'content',
+	'error',
+	'reason',
+	'summary',
+	'text'
+];
+
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const PHONE_PATTERN =
+	/(?<!\d)(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}(?!\d)/g;
+
+const normalizeRedactionKey = (key: string) =>
+	key.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+export const resolveVoiceTraceRedactionOptions = (
+	options: VoiceTraceRedactionConfig = {}
+): VoiceResolvedTraceRedactionOptions => ({
+	keys: typeof options === 'boolean' ? DEFAULT_REDACTION_KEYS : options.keys ?? DEFAULT_REDACTION_KEYS,
+	redactEmails:
+		typeof options === 'boolean' ? true : options.redactEmails ?? true,
+	redactPhoneNumbers:
+		typeof options === 'boolean' ? true : options.redactPhoneNumbers ?? true,
+	redactText: typeof options === 'boolean' ? true : options.redactText ?? true,
+	replacement:
+		typeof options === 'boolean' ? '[redacted]' : options.replacement ?? '[redacted]',
+	textKeys:
+		typeof options === 'boolean'
+			? DEFAULT_REDACTION_TEXT_KEYS
+			: options.textKeys ?? DEFAULT_REDACTION_TEXT_KEYS
+});
+
+const resolveReplacement = (input: {
+	key?: string;
+	options: VoiceResolvedTraceRedactionOptions;
+	path: string[];
+	value: string;
+}) =>
+	typeof input.options.replacement === 'function'
+		? input.options.replacement({
+				key: input.key,
+				path: input.path,
+				value: input.value
+			})
+		: input.options.replacement;
+
+export const redactVoiceTraceText = (
+	value: string,
+	options: VoiceTraceRedactionConfig = {},
+	input: {
+		key?: string;
+		path?: string[];
+	} = {}
+) => {
+	const resolved = resolveVoiceTraceRedactionOptions(options);
+	let redacted = value;
+	const replacement = resolveReplacement({
+		key: input.key,
+		options: resolved,
+		path: input.path ?? [],
+		value
+	});
+
+	if (resolved.redactEmails) {
+		redacted = redacted.replace(EMAIL_PATTERN, replacement);
+	}
+
+	if (resolved.redactPhoneNumbers) {
+		redacted = redacted.replace(PHONE_PATTERN, replacement);
+	}
+
+	return redacted;
+};
+
+const redactTraceValue = (
+	value: unknown,
+	options: VoiceResolvedTraceRedactionOptions,
+	path: string[]
+): unknown => {
+	const key = path.at(-1);
+	const normalizedKey = key ? normalizeRedactionKey(key) : undefined;
+	const sensitiveKeys = new Set(options.keys.map(normalizeRedactionKey));
+	const textKeys = new Set(options.textKeys.map(normalizeRedactionKey));
+
+	if (
+		normalizedKey &&
+		sensitiveKeys.has(normalizedKey) &&
+		(value === null ||
+			['boolean', 'number', 'string', 'undefined'].includes(typeof value))
+	) {
+		return resolveReplacement({
+			key,
+			options,
+			path,
+			value: String(value ?? '')
+		});
+	}
+
+	if (typeof value === 'string') {
+		const shouldRedactText =
+			options.redactText &&
+			(!normalizedKey || textKeys.has(normalizedKey) || path.length === 0);
+		return shouldRedactText
+			? redactVoiceTraceText(value, options, {
+					key,
+					path
+				})
+			: value;
+	}
+
+	if (Array.isArray(value)) {
+		return value.map((item, index) =>
+			redactTraceValue(item, options, [...path, String(index)])
+		);
+	}
+
+	if (typeof value === 'object' && value) {
+		return Object.fromEntries(
+			Object.entries(value).map(([entryKey, entryValue]) => [
+				entryKey,
+				redactTraceValue(entryValue, options, [...path, entryKey])
+			])
+		);
+	}
+
+	return value;
+};
+
+export const redactVoiceTraceEvent = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	event: TEvent,
+	options: VoiceTraceRedactionConfig = {}
+): TEvent => {
+	const resolved = resolveVoiceTraceRedactionOptions(options);
+	return {
+		...event,
+		metadata: redactTraceValue(
+			event.metadata,
+			resolved,
+			['metadata']
+		) as TEvent['metadata'],
+		payload: redactTraceValue(event.payload, resolved, ['payload']) as TEvent['payload']
+	};
+};
+
+export const redactVoiceTraceEvents = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	events: TEvent[],
+	options: VoiceTraceRedactionConfig = {}
+) => events.map((event) => redactVoiceTraceEvent(event, options));
 
 export const summarizeVoiceTrace = (
 	events: StoredVoiceTraceEvent[]
@@ -412,9 +614,12 @@ export const renderVoiceTraceMarkdown = (
 	options: {
 		title?: string;
 		evaluation?: VoiceTraceEvaluationOptions;
+		redact?: VoiceTraceRedactionConfig;
 	} = {}
 ) => {
-	const sorted = filterVoiceTraceEvents(events);
+	const sorted = filterVoiceTraceEvents(
+		options.redact ? redactVoiceTraceEvents(events, options.redact) : events
+	);
 	const summary = summarizeVoiceTrace(sorted);
 	const evaluation = evaluateVoiceTrace(sorted, options.evaluation);
 	const lines = [
@@ -455,12 +660,16 @@ export const renderVoiceTraceHTML = (
 	options: {
 		title?: string;
 		evaluation?: VoiceTraceEvaluationOptions;
+		redact?: VoiceTraceRedactionConfig;
 	} = {}
 ) => {
 	const markdown = renderVoiceTraceMarkdown(events, options);
-	const summary = summarizeVoiceTrace(events);
-	const evaluation = evaluateVoiceTrace(events, options.evaluation);
-	const eventRows = filterVoiceTraceEvents(events)
+	const renderEvents = options.redact
+		? redactVoiceTraceEvents(events, options.redact)
+		: events;
+	const summary = summarizeVoiceTrace(renderEvents);
+	const evaluation = evaluateVoiceTrace(renderEvents, options.evaluation);
+	const eventRows = filterVoiceTraceEvents(renderEvents)
 		.map((event) => {
 			const offset =
 				summary.startedAt === undefined
@@ -520,11 +729,17 @@ export const buildVoiceTraceReplay = (
 	events: StoredVoiceTraceEvent[],
 	options: {
 		evaluation?: VoiceTraceEvaluationOptions;
+		redact?: VoiceTraceRedactionConfig;
 		title?: string;
 	} = {}
 ) => ({
-	evaluation: evaluateVoiceTrace(events, options.evaluation),
+	evaluation: evaluateVoiceTrace(
+		options.redact ? redactVoiceTraceEvents(events, options.redact) : events,
+		options.evaluation
+	),
 	html: renderVoiceTraceHTML(events, options),
 	markdown: renderVoiceTraceMarkdown(events, options),
-	summary: summarizeVoiceTrace(events)
+	summary: summarizeVoiceTrace(
+		options.redact ? redactVoiceTraceEvents(events, options.redact) : events
+	)
 });
