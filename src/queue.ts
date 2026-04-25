@@ -1,6 +1,7 @@
 import type { RedisClient } from 'bun';
 import { deliverVoiceIntegrationEvent } from './ops';
 import { deliverVoiceIntegrationEventToSinks } from './opsSinks';
+import { deliverVoiceTraceEventsToSinks } from './trace';
 import {
 	assignVoiceOpsTask,
 	claimVoiceOpsTask,
@@ -13,6 +14,13 @@ import {
 	requeueVoiceOpsTask
 } from './ops';
 import type { VoiceIntegrationSink } from './opsSinks';
+import type {
+	VoiceTraceRedactionConfig,
+	VoiceTraceSink,
+	VoiceTraceSinkDeliveryRecord,
+	VoiceTraceSinkDeliveryStore,
+	VoiceTraceSinkDeliveryQueueStatus
+} from './trace';
 import type {
 	VoiceOpsTaskPriority,
 	StoredVoiceOpsTask,
@@ -157,6 +165,57 @@ export type VoiceIntegrationSinkWorkerLoop = {
 	start: () => void;
 	stop: () => void;
 	tick: () => Promise<VoiceIntegrationSinkWorkerResult>;
+};
+
+export type VoiceTraceSinkDeliveryWorkerOptions<
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+> = {
+	deadLetters?: VoiceTraceSinkDeliveryStore<TDelivery>;
+	deliveries: VoiceTraceSinkDeliveryStore<TDelivery>;
+	idempotency?: VoiceIdempotencyStore;
+	idempotencyTtlSeconds?: number;
+	leaseMs?: number;
+	leases: VoiceRedisTaskLeaseCoordinator;
+	maxFailures?: number;
+	onDeadLetter?: (delivery: TDelivery) => Promise<void> | void;
+	redact?: VoiceTraceRedactionConfig;
+	sinks: VoiceTraceSink[];
+	statuses?: VoiceTraceSinkDeliveryQueueStatus[];
+	workerId: string;
+};
+
+export type VoiceTraceSinkDeliveryWorkerResult = {
+	alreadyProcessed: number;
+	attempted: number;
+	deadLettered: number;
+	delivered: number;
+	failed: number;
+	skipped: number;
+};
+
+export type VoiceTraceSinkDeliveryWorkerLoopOptions<
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+> = {
+	onError?: (error: unknown) => Promise<void> | void;
+	pollIntervalMs?: number;
+	worker: ReturnType<typeof createVoiceTraceSinkDeliveryWorker<TDelivery>>;
+};
+
+export type VoiceTraceSinkDeliveryWorkerLoop = {
+	isRunning: () => boolean;
+	start: () => void;
+	stop: () => void;
+	tick: () => Promise<VoiceTraceSinkDeliveryWorkerResult>;
+};
+
+export type VoiceTraceSinkDeliveryQueueSummary = {
+	deadLettered: number;
+	delivered: number;
+	failed: number;
+	pending: number;
+	retryEligible: number;
+	skipped: number;
+	total: number;
 };
 
 export type VoiceOpsTaskWorkerOptions<
@@ -391,6 +450,19 @@ const shouldDeadLetterTask = (
 	maxFailures > 0 &&
 	(task.processingAttempts ?? 0) >= maxFailures;
 
+const shouldProcessTraceDeliveryStatus = (
+	status: VoiceTraceSinkDeliveryQueueStatus,
+	allowed: VoiceTraceSinkDeliveryQueueStatus[]
+) => allowed.includes(status);
+
+const shouldDeadLetterTraceDelivery = (
+	delivery: VoiceTraceSinkDeliveryRecord,
+	maxFailures: number | undefined
+) =>
+	typeof maxFailures === 'number' &&
+	maxFailures > 0 &&
+	(delivery.deliveryAttempts ?? 0) >= maxFailures;
+
 export const summarizeVoiceIntegrationEvents = <
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent
 >(
@@ -442,6 +514,62 @@ export const summarizeVoiceIntegrationEvents = <
 		}
 
 		summary.byType = [...byType.entries()].sort((left, right) => right[1] - left[1]);
+		return summary;
+	};
+
+	return buildSummary();
+};
+
+export const summarizeVoiceTraceSinkDeliveries = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	deliveries: TDelivery[],
+	input: {
+		deadLetters?: VoiceTraceSinkDeliveryStore<TDelivery>;
+	} = {}
+):
+	| Promise<VoiceTraceSinkDeliveryQueueSummary>
+	| VoiceTraceSinkDeliveryQueueSummary => {
+	const buildSummary = async () => {
+		const deadLetterIds = new Set(
+			input.deadLetters
+				? (await input.deadLetters.list()).map((delivery) => delivery.id)
+				: []
+		);
+		const summary: VoiceTraceSinkDeliveryQueueSummary = {
+			deadLettered: 0,
+			delivered: 0,
+			failed: 0,
+			pending: 0,
+			retryEligible: 0,
+			skipped: 0,
+			total: deliveries.length
+		};
+
+		for (const delivery of deliveries) {
+			if (deadLetterIds.has(delivery.id)) {
+				summary.deadLettered += 1;
+			}
+
+			switch (delivery.deliveryStatus) {
+				case 'delivered':
+					summary.delivered += 1;
+					break;
+				case 'failed':
+					summary.failed += 1;
+					if ((delivery.deliveryAttempts ?? 0) > 0) {
+						summary.retryEligible += 1;
+					}
+					break;
+				case 'skipped':
+					summary.skipped += 1;
+					break;
+				case 'pending':
+					summary.pending += 1;
+					break;
+			}
+		}
+
 		return summary;
 	};
 
@@ -851,6 +979,168 @@ export const createVoiceIntegrationSinkWorkerLoop = <
 >(
 	options: VoiceIntegrationSinkWorkerLoopOptions<TEvent>
 ): VoiceIntegrationSinkWorkerLoop => {
+	const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
+	let timer: ReturnType<typeof setInterval> | undefined;
+	let running = false;
+
+	const tick = async () => options.worker.drain();
+
+	return {
+		isRunning: () => running,
+		start: () => {
+			if (timer) {
+				return;
+			}
+
+			running = true;
+			timer = setInterval(() => {
+				void tick().catch((error) => {
+					void options.onError?.(error);
+				});
+			}, pollIntervalMs);
+		},
+		stop: () => {
+			if (timer) {
+				clearInterval(timer);
+				timer = undefined;
+			}
+			running = false;
+		},
+		tick
+	};
+};
+
+export const createVoiceTraceSinkDeliveryWorker = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	options: VoiceTraceSinkDeliveryWorkerOptions<TDelivery>
+) => {
+	const allowedStatuses = options.statuses ?? ['pending', 'failed'];
+	const leaseMs = Math.max(1, options.leaseMs ?? 30_000);
+
+	return {
+		drain: async (): Promise<VoiceTraceSinkDeliveryWorkerResult> => {
+			const result: VoiceTraceSinkDeliveryWorkerResult = {
+				alreadyProcessed: 0,
+				attempted: 0,
+				deadLettered: 0,
+				delivered: 0,
+				failed: 0,
+				skipped: 0
+			};
+			const deliveries = [...(await options.deliveries.list())].sort(
+				(left, right) => left.createdAt - right.createdAt
+			);
+
+			for (const delivery of deliveries) {
+				if (
+					!shouldProcessTraceDeliveryStatus(
+						delivery.deliveryStatus,
+						allowedStatuses
+					)
+				) {
+					continue;
+				}
+
+				if (shouldDeadLetterTraceDelivery(delivery, options.maxFailures)) {
+					await options.deadLetters?.set(delivery.id, delivery as TDelivery);
+					await options.onDeadLetter?.(delivery as TDelivery);
+					result.deadLettered += 1;
+					continue;
+				}
+
+				const claimed = await options.leases.claim({
+					leaseMs,
+					taskId: delivery.id,
+					workerId: options.workerId
+				});
+				if (!claimed) {
+					continue;
+				}
+
+				try {
+					const idempotencyKey = `${delivery.id}:trace-sinks`;
+					if (
+						options.idempotency &&
+						(await options.idempotency.has(idempotencyKey))
+					) {
+						result.alreadyProcessed += 1;
+						continue;
+					}
+
+					result.attempted += 1;
+					const fanout = await deliverVoiceTraceEventsToSinks({
+						events: delivery.events,
+						redact: options.redact,
+						sinks: options.sinks
+					});
+					const updatedDelivery = {
+						...delivery,
+						deliveredAt:
+							fanout.status === 'delivered' || fanout.status === 'skipped'
+								? fanout.deliveredAt
+								: delivery.deliveredAt,
+						deliveryAttempts: (delivery.deliveryAttempts ?? 0) + 1,
+						deliveryError:
+							fanout.status === 'failed'
+								? Object.values(fanout.sinkDeliveries)
+										.map((sinkDelivery) => sinkDelivery.error)
+										.find(Boolean)
+								: undefined,
+						deliveryStatus: fanout.status,
+						sinkDeliveries: fanout.sinkDeliveries,
+						updatedAt: Date.now()
+					} as TDelivery;
+
+					await options.deliveries.set(updatedDelivery.id, updatedDelivery);
+
+					if (
+						updatedDelivery.deliveryStatus === 'delivered' ||
+						updatedDelivery.deliveryStatus === 'skipped'
+					) {
+						await options.idempotency?.set(idempotencyKey, {
+							ttlSeconds: options.idempotencyTtlSeconds
+						});
+					}
+
+					if (updatedDelivery.deliveryStatus === 'delivered') {
+						result.delivered += 1;
+					} else if (updatedDelivery.deliveryStatus === 'skipped') {
+						result.skipped += 1;
+					} else if (updatedDelivery.deliveryStatus === 'failed') {
+						result.failed += 1;
+						if (
+							shouldDeadLetterTraceDelivery(
+								updatedDelivery,
+								options.maxFailures
+							)
+						) {
+							await options.deadLetters?.set(
+								updatedDelivery.id,
+								updatedDelivery
+							);
+							await options.onDeadLetter?.(updatedDelivery);
+							result.deadLettered += 1;
+						}
+					}
+				} finally {
+					await options.leases.release({
+						taskId: delivery.id,
+						workerId: options.workerId
+					});
+				}
+			}
+
+			return result;
+		}
+	};
+};
+
+export const createVoiceTraceSinkDeliveryWorkerLoop = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	options: VoiceTraceSinkDeliveryWorkerLoopOptions<TDelivery>
+): VoiceTraceSinkDeliveryWorkerLoop => {
 	const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let running = false;

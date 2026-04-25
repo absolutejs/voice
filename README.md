@@ -153,8 +153,10 @@ import {
 	buildVoiceTraceReplay,
 	createVoiceAgent,
 	createVoiceFileRuntimeStorage,
+	createVoiceRedisTaskLeaseCoordinator,
 	createVoiceTraceHTTPSink,
 	createVoiceTraceSinkStore,
+	createVoiceTraceSinkDeliveryWorker,
 	exportVoiceTrace,
 	pruneVoiceTraceEvents,
 	voice
@@ -164,8 +166,12 @@ import { deepgram } from '@absolutejs/voice-deepgram';
 const runtimeStorage = createVoiceFileRuntimeStorage({
 	directory: '.voice-runtime/support'
 });
+const redisLeases = createVoiceRedisTaskLeaseCoordinator({
+	url: process.env.REDIS_URL
+});
 const trace = createVoiceTraceSinkStore({
 	store: runtimeStorage.traces,
+	deliveryQueue: runtimeStorage.traceDeliveries,
 	redact: true,
 	sinks: [
 		createVoiceTraceHTTPSink({
@@ -173,6 +179,18 @@ const trace = createVoiceTraceSinkStore({
 			url: process.env.TRACE_WAREHOUSE_URL!
 		})
 	]
+});
+const traceSinkWorker = createVoiceTraceSinkDeliveryWorker({
+	deliveries: runtimeStorage.traceDeliveries,
+	leases: redisLeases,
+	redact: true,
+	sinks: [
+		createVoiceTraceHTTPSink({
+			id: 'warehouse',
+			url: process.env.TRACE_WAREHOUSE_URL!
+		})
+	],
+	workerId: 'trace-sink-worker'
 });
 
 const supportAgent = createVoiceAgent({
@@ -216,11 +234,11 @@ await pruneVoiceTraceEvents({
 });
 ```
 
-`createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` alongside sessions, reviews, tasks, events, and external object mappings. Passing `trace` to `voice(...)` records session lifecycle, transcript, committed-turn, assistant, cost, and error events; passing it to agents records model passes, tools, results, and handoffs.
+`createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` and `runtimeStorage.traceDeliveries` alongside sessions, reviews, tasks, events, and external object mappings. Passing `trace` to `voice(...)` records session lifecycle, transcript, committed-turn, assistant, cost, and error events; passing it to agents records model passes, tools, results, and handoffs.
 
 For self-hosted QA and support workflows, use `summarizeVoiceTrace(...)`, `evaluateVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. They turn raw trace events into portable artifacts you can attach to tickets, inspect locally, or fail in CI when a call has missing transcripts, missing turns, tool errors, session errors, or excessive handoffs.
 
-For observability pipelines, wrap any trace store with `createVoiceTraceSinkStore(...)` and pass sinks such as `createVoiceTraceHTTPSink(...)`. The wrapper still writes to your normal file, SQLite, or Postgres store, then fans out appended events to your warehouse, logs, S3 bridge, or analytics endpoint. Use `awaitDelivery: true` only when you want trace delivery to block append completion.
+For observability pipelines, wrap any trace store with `createVoiceTraceSinkStore(...)` and pass sinks such as `createVoiceTraceHTTPSink(...)`. The wrapper still writes to your normal file, SQLite, or Postgres store, then fans out appended events to your warehouse, logs, S3 bridge, or analytics endpoint. Use `awaitDelivery: true` only when you want trace delivery to block append completion. For durable delivery, pass `deliveryQueue` and run `createVoiceTraceSinkDeliveryWorker(...)` or `createVoiceTraceSinkDeliveryWorkerLoop(...)`; the worker uses the same Redis lease/idempotency primitives as ops workers and supports retries plus dead-letter stores.
 
 When traces may leave your private runtime, pass `redact: true` or a redaction config to `exportVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. The built-in redactor scrubs common email addresses, phone numbers, and sensitive keys like `token`, `secret`, `password`, `apiKey`, `authorization`, `phone`, and `email`; you can pass custom keys or replacement text for stricter policies.
 

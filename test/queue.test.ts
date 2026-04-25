@@ -9,12 +9,18 @@ import {
 	createVoiceHelpdeskTicketSink,
 	createVoiceIntegrationSinkWorker,
 	createVoiceIntegrationSinkWorkerLoop,
+	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceRedisIdempotencyStore,
 	createVoiceRedisTaskLeaseCoordinator,
+	createVoiceTraceSinkDeliveryRecord,
+	createVoiceTraceSinkDeliveryWorker,
+	createVoiceTraceSinkDeliveryWorkerLoop,
+	createVoiceTraceEvent,
 	createVoiceWebhookDeliveryWorker,
 	createVoiceWebhookDeliveryWorkerLoop,
 	summarizeVoiceOpsTaskQueue,
-	summarizeVoiceIntegrationEvents
+	summarizeVoiceIntegrationEvents,
+	summarizeVoiceTraceSinkDeliveries
 } from '../src';
 import type {
 	StoredVoiceOpsTask,
@@ -530,6 +536,128 @@ test('createVoiceIntegrationSinkWorkerLoop exposes manual ticks and lifecycle st
 		workerId: 'sink-loop'
 	});
 	const loop = createVoiceIntegrationSinkWorkerLoop({
+		pollIntervalMs: 10_000,
+		worker
+	});
+
+	expect(loop.isRunning()).toBe(false);
+	const result = await loop.tick();
+	expect(result).toEqual({
+		alreadyProcessed: 0,
+		attempted: 0,
+		deadLettered: 0,
+		delivered: 0,
+		failed: 0,
+		skipped: 0
+	});
+	loop.start();
+	expect(loop.isRunning()).toBe(true);
+	loop.stop();
+	expect(loop.isRunning()).toBe(false);
+});
+
+test('createVoiceTraceSinkDeliveryWorker retries queued trace deliveries and dead-letters failures', async () => {
+	const deliveries = createVoiceMemoryTraceSinkDeliveryStore();
+	const deadLetters = createVoiceMemoryTraceSinkDeliveryStore();
+	const success = createVoiceTraceSinkDeliveryRecord({
+		createdAt: 100,
+		events: [
+			createVoiceTraceEvent({
+				at: 100,
+				payload: {
+					text: 'Email alex@example.com'
+				},
+				sessionId: 'session-success',
+				type: 'turn.assistant'
+			})
+		],
+		id: 'trace-delivery-success'
+	});
+	const failed = createVoiceTraceSinkDeliveryRecord({
+		createdAt: 200,
+		deliveryAttempts: 1,
+		deliveryStatus: 'failed',
+		events: [
+			createVoiceTraceEvent({
+				at: 200,
+				payload: {
+					text: 'fail me'
+				},
+				sessionId: 'session-failed',
+				type: 'turn.assistant'
+			})
+		],
+		id: 'trace-delivery-failed'
+	});
+	await deliveries.set(success.id, success);
+	await deliveries.set(failed.id, failed);
+
+	const redis = createFakeRedisClient();
+	const deliveredPayloads: string[] = [];
+	const worker = createVoiceTraceSinkDeliveryWorker({
+		deadLetters,
+		deliveries,
+		idempotency: createVoiceRedisIdempotencyStore({
+			client: redis,
+			ttlSeconds: 120
+		}),
+		leases: createVoiceRedisTaskLeaseCoordinator({
+			client: redis
+		}),
+		maxFailures: 2,
+		redact: true,
+		sinks: [
+			{
+				deliver: async ({ events }) => {
+					const text = String(events[0]?.payload.text ?? '');
+					deliveredPayloads.push(text);
+					return {
+						attempts: 1,
+						error: text.includes('fail') ? 'failed trace sink' : undefined,
+						eventCount: events.length,
+						status: text.includes('fail') ? 'failed' : 'delivered'
+					};
+				},
+				id: 'warehouse'
+			}
+		],
+		workerId: 'trace-sink-worker'
+	});
+
+	const result = await worker.drain();
+
+	expect(result).toEqual({
+		alreadyProcessed: 0,
+		attempted: 2,
+		deadLettered: 1,
+		delivered: 1,
+		failed: 1,
+		skipped: 0
+	});
+	expect(deliveredPayloads).toEqual(['Email [redacted]', 'fail me']);
+	expect((await deliveries.get(success.id))?.deliveryStatus).toBe('delivered');
+	expect((await deliveries.get(failed.id))?.deliveryAttempts).toBe(2);
+	expect((await deadLetters.get(failed.id))?.deliveryStatus).toBe('failed');
+	expect(await summarizeVoiceTraceSinkDeliveries(await deliveries.list(), { deadLetters }))
+		.toMatchObject({
+			deadLettered: 1,
+			delivered: 1,
+			failed: 1,
+			retryEligible: 1,
+			total: 2
+		});
+});
+
+test('createVoiceTraceSinkDeliveryWorkerLoop exposes manual ticks and lifecycle state', async () => {
+	const worker = createVoiceTraceSinkDeliveryWorker({
+		deliveries: createVoiceMemoryTraceSinkDeliveryStore(),
+		leases: createVoiceRedisTaskLeaseCoordinator({
+			client: createFakeRedisClient()
+		}),
+		sinks: [],
+		workerId: 'trace-sink-loop'
+	});
+	const loop = createVoiceTraceSinkDeliveryWorkerLoop({
 		pollIntervalMs: 10_000,
 		worker
 	});

@@ -13,7 +13,10 @@ import {
 	createVoiceSQLiteRuntimeStorage,
 	createVoiceSQLiteSessionStore,
 	createVoiceSQLiteTaskStore,
-	createVoiceSQLiteTraceEventStore
+	createVoiceSQLiteTraceSinkDeliveryStore,
+	createVoiceSQLiteTraceEventStore,
+	createVoiceTraceEvent,
+	createVoiceTraceSinkDeliveryRecord
 } from '../src';
 
 const tempPaths: string[] = [];
@@ -302,6 +305,23 @@ test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, task
 		sessionId: 'session-runtime',
 		type: 'agent.result'
 	});
+	await runtimeStorage.traceDeliveries.set(
+		'trace-delivery-runtime',
+		createVoiceTraceSinkDeliveryRecord({
+			createdAt: 500,
+			events: [
+				createVoiceTraceEvent({
+					at: 500,
+					payload: {
+						text: 'queued'
+					},
+					sessionId: 'session-runtime',
+					type: 'turn.assistant'
+				})
+			],
+			id: 'trace-delivery-runtime'
+		})
+	);
 
 	const secondRuntimeStorage = createVoiceSQLiteRuntimeStorage({
 		path
@@ -331,4 +351,42 @@ test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, task
 	expect((await secondRuntimeStorage.traces.list({ sessionId: 'session-runtime' }))[0]?.type).toBe(
 		'agent.result'
 	);
+	expect((await secondRuntimeStorage.traceDeliveries.list())[0]?.id).toBe(
+		'trace-delivery-runtime'
+	);
+});
+
+test('createVoiceSQLiteTraceSinkDeliveryStore persists queued trace deliveries', async () => {
+	const path = createTempSQLitePath();
+	const store = createVoiceSQLiteTraceSinkDeliveryStore({
+		path
+	});
+	const delivery = createVoiceTraceSinkDeliveryRecord({
+		createdAt: 100,
+		events: [
+			createVoiceTraceEvent({
+				at: 100,
+				payload: {
+					text: 'durable trace'
+				},
+				sessionId: 'session-delivery',
+				type: 'turn.assistant'
+			})
+		],
+		id: 'trace-delivery-1'
+	});
+
+	await store.set(delivery.id, delivery);
+
+	const secondStore = createVoiceSQLiteTraceSinkDeliveryStore({
+		path
+	});
+
+	expect(await secondStore.get(delivery.id)).toMatchObject({
+		deliveryStatus: 'pending',
+		id: 'trace-delivery-1'
+	});
+	expect((await secondStore.list()).map((item) => item.id)).toEqual([
+		'trace-delivery-1'
+	]);
 });

@@ -8,6 +8,8 @@ import {
 	createVoiceTraceEvent,
 	filterVoiceTraceEvents,
 	type StoredVoiceTraceEvent,
+	type VoiceTraceSinkDeliveryRecord,
+	type VoiceTraceSinkDeliveryStore,
 	type VoiceTraceEvent,
 	type VoiceTraceEventStore
 } from './trace';
@@ -49,13 +51,15 @@ export type VoicePostgresRuntimeStorage<
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
-	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 > = {
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
 	reviews: VoiceCallReviewStore<TReview>;
 	session: VoiceSessionStore<TSession>;
 	tasks: VoiceOpsTaskStore<TTask>;
+	traceDeliveries: VoiceTraceSinkDeliveryStore<TTraceDelivery>;
 	traces: VoiceTraceEventStore<TTrace>;
 };
 
@@ -349,6 +353,26 @@ const createPostgresTraceEventStoreWithClient = <
 	};
 };
 
+const createPostgresTraceSinkDeliveryStoreWithClient = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	client: Promise<VoicePostgresClient>,
+	options: VoicePostgresStoreOptions
+): VoiceTraceSinkDeliveryStore<TDelivery> =>
+	createPostgresRecordStore<TDelivery>({
+		decorate: (id, value) =>
+			({
+				...value,
+				id
+			}) as TDelivery,
+		getSortAt: (value) => value.createdAt,
+		qualifiedTableName: resolveQualifiedTableName({
+			fallback: 'trace_deliveries',
+			options
+		}),
+		sql: client
+	});
+
 export const createVoicePostgresSessionStore = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 >(
@@ -397,16 +421,35 @@ export const createVoicePostgresTraceEventStore = <
 ): VoiceTraceEventStore<TEvent> =>
 	createPostgresTraceEventStoreWithClient(createVoicePostgresClient(options), options);
 
+export const createVoicePostgresTraceSinkDeliveryStore = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	options: VoicePostgresStoreOptions
+): VoiceTraceSinkDeliveryStore<TDelivery> =>
+	createPostgresTraceSinkDeliveryStoreWithClient(
+		createVoicePostgresClient(options),
+		options
+	);
+
 export const createVoicePostgresRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
-	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 >(
 	options: VoicePostgresStoreOptions
-): VoicePostgresRuntimeStorage<TSession, TReview, TTask, TEvent, TMapping, TTrace> => {
+): VoicePostgresRuntimeStorage<
+	TSession,
+	TReview,
+	TTask,
+	TEvent,
+	TMapping,
+	TTrace,
+	TTraceDelivery
+> => {
 	const client = createVoicePostgresClient(options);
 
 	return {
@@ -418,6 +461,10 @@ export const createVoicePostgresRuntimeStorage = <
 		reviews: createPostgresReviewStoreWithClient<TReview>(client, options),
 		session: createPostgresSessionStoreWithClient<TSession>(client, options),
 		tasks: createPostgresTaskStoreWithClient<TTask>(client, options),
+		traceDeliveries: createPostgresTraceSinkDeliveryStoreWithClient<TTraceDelivery>(
+			client,
+			options
+		),
 		traces: createPostgresTraceEventStoreWithClient<TTrace>(client, options)
 	};
 };

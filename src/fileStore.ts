@@ -11,6 +11,8 @@ import {
 	createVoiceTraceEvent,
 	filterVoiceTraceEvents,
 	type StoredVoiceTraceEvent,
+	type VoiceTraceSinkDeliveryRecord,
+	type VoiceTraceSinkDeliveryStore,
 	type VoiceTraceEvent,
 	type VoiceTraceEventStore
 } from './trace';
@@ -43,13 +45,15 @@ export type VoiceFileRuntimeStorage<
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
-	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 > = {
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
 	reviews: VoiceCallReviewStore<TReview>;
 	session: VoiceSessionStore<TSession>;
 	tasks: VoiceOpsTaskStore<TTask>;
+	traceDeliveries: VoiceTraceSinkDeliveryStore<TTraceDelivery>;
 	traces: VoiceTraceEventStore<TTrace>;
 };
 
@@ -393,16 +397,75 @@ export const createVoiceFileTraceEventStore = <
 	return { append, get, list, remove };
 };
 
+export const createVoiceFileTraceSinkDeliveryStore = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	options: VoiceFileStoreOptions
+): VoiceTraceSinkDeliveryStore<TDelivery> => {
+	const get = async (id: string) => {
+		const path = resolveFilePath(options.directory, id);
+
+		try {
+			return await readJsonFile<TDelivery>(path);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return undefined;
+			}
+
+			throw error;
+		}
+	};
+
+	const list = async () => {
+		const files = await listJsonFiles(options.directory);
+		const deliveries = await Promise.all(
+			files.map((file) => readJsonFile<TDelivery>(file))
+		);
+
+		return deliveries.sort(
+			(left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+		);
+	};
+
+	const set = async (id: string, delivery: TDelivery) => {
+		await writeJsonFile(
+			resolveFilePath(options.directory, id),
+			{
+				...delivery,
+				id
+			},
+			options
+		);
+	};
+
+	const remove = async (id: string) => {
+		await rm(resolveFilePath(options.directory, id), {
+			force: true
+		});
+	};
+
+	return { get, list, remove, set };
+};
+
 export const createVoiceFileRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
-	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 >(
 	options: VoiceFileStoreOptions
-): VoiceFileRuntimeStorage<TSession, TReview, TTask, TEvent, TMapping, TTrace> => ({
+): VoiceFileRuntimeStorage<
+	TSession,
+	TReview,
+	TTask,
+	TEvent,
+	TMapping,
+	TTrace,
+	TTraceDelivery
+> => ({
 	events: createVoiceFileIntegrationEventStore<TEvent>({
 		...options,
 		directory: join(options.directory, 'events')
@@ -422,6 +485,10 @@ export const createVoiceFileRuntimeStorage = <
 	tasks: createVoiceFileTaskStore<TTask>({
 		...options,
 		directory: join(options.directory, 'tasks')
+	}),
+	traceDeliveries: createVoiceFileTraceSinkDeliveryStore<TTraceDelivery>({
+		...options,
+		directory: join(options.directory, 'trace-deliveries')
 	}),
 	traces: createVoiceFileTraceEventStore<TTrace>({
 		...options,

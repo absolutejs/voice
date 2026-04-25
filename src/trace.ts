@@ -68,6 +68,9 @@ export type VoiceTracePruneResult = {
 };
 
 export type VoiceTraceSinkDeliveryStatus = 'delivered' | 'failed' | 'skipped';
+export type VoiceTraceSinkDeliveryQueueStatus =
+	| VoiceTraceSinkDeliveryStatus
+	| 'pending';
 
 export type VoiceTraceSinkDeliveryResult = {
 	attempts: number;
@@ -95,6 +98,27 @@ export type VoiceTraceSinkFanoutResult = {
 	status: VoiceTraceSinkDeliveryStatus;
 };
 
+export type VoiceTraceSinkDeliveryRecord = {
+	createdAt: number;
+	deliveredAt?: number;
+	deliveryAttempts?: number;
+	deliveryError?: string;
+	deliveryStatus: VoiceTraceSinkDeliveryQueueStatus;
+	events: StoredVoiceTraceEvent[];
+	id: string;
+	sinkDeliveries?: Record<string, VoiceTraceSinkDeliveryResult>;
+	updatedAt: number;
+};
+
+export type VoiceTraceSinkDeliveryStore<
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+> = {
+	get: (id: string) => Promise<TDelivery | undefined> | TDelivery | undefined;
+	list: () => Promise<TDelivery[]> | TDelivery[];
+	remove: (id: string) => Promise<void> | void;
+	set: (id: string, delivery: TDelivery) => Promise<void> | void;
+};
+
 export type VoiceTraceHTTPSinkOptions<
 	TBody extends Record<string, unknown> = Record<string, unknown>
 > = {
@@ -118,6 +142,7 @@ export type VoiceTraceSinkStoreOptions<
 	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
 > = {
 	awaitDelivery?: boolean;
+	deliveryQueue?: VoiceTraceSinkDeliveryStore;
 	onDelivery?: (result: VoiceTraceSinkFanoutResult) => Promise<void> | void;
 	onError?: (error: unknown) => Promise<void> | void;
 	redact?: VoiceTraceRedactionConfig;
@@ -233,6 +258,44 @@ export const createVoiceTraceEvent = <
 			type: event.type
 		})
 });
+
+export const createVoiceTraceSinkDeliveryId = (events: StoredVoiceTraceEvent[]) => {
+	const firstEvent = events[0];
+	return [
+		firstEvent?.sessionId ?? 'trace',
+		firstEvent?.traceId ?? 'sink',
+		String(firstEvent?.at ?? Date.now()),
+		crypto.randomUUID()
+	]
+		.map(encodeURIComponent)
+		.join(':');
+};
+
+export const createVoiceTraceSinkDeliveryRecord = (
+	input: {
+		createdAt?: number;
+		events: StoredVoiceTraceEvent[];
+		id?: string;
+	} & Partial<
+		Omit<
+			VoiceTraceSinkDeliveryRecord,
+			'createdAt' | 'events' | 'id'
+		>
+	>
+): VoiceTraceSinkDeliveryRecord => {
+	const createdAt = input.createdAt ?? Date.now();
+	return {
+		createdAt,
+		deliveredAt: input.deliveredAt,
+		deliveryAttempts: input.deliveryAttempts,
+		deliveryError: input.deliveryError,
+		deliveryStatus: input.deliveryStatus ?? 'pending',
+		events: input.events,
+		id: input.id ?? createVoiceTraceSinkDeliveryId(input.events),
+		sinkDeliveries: input.sinkDeliveries,
+		updatedAt: input.updatedAt ?? createdAt
+	};
+};
 
 const matchesTraceFilter = (
 	event: StoredVoiceTraceEvent,
@@ -577,6 +640,15 @@ export const createVoiceTraceSinkStore = <
 	return {
 		append: async (event) => {
 			const stored = await options.store.append(event);
+
+			if (options.deliveryQueue) {
+				const delivery = createVoiceTraceSinkDeliveryRecord({
+					events: [stored]
+				});
+				await options.deliveryQueue.set(delivery.id, delivery);
+				return stored;
+			}
+
 			const delivery = deliver(stored);
 
 			if (options.awaitDelivery) {
@@ -592,6 +664,27 @@ export const createVoiceTraceSinkStore = <
 		get: (id) => options.store.get(id),
 		list: (filter) => options.store.list(filter),
 		remove: (id) => options.store.remove(id)
+	};
+};
+
+export const createVoiceMemoryTraceSinkDeliveryStore = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(): VoiceTraceSinkDeliveryStore<TDelivery> => {
+	const deliveries = new Map<string, TDelivery>();
+
+	return {
+		get: async (id) => deliveries.get(id),
+		list: async () =>
+			[...deliveries.values()].sort(
+				(left, right) =>
+					left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+			),
+		remove: async (id) => {
+			deliveries.delete(id);
+		},
+		set: async (id, delivery) => {
+			deliveries.set(id, delivery);
+		}
 	};
 };
 

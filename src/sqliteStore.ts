@@ -9,6 +9,8 @@ import {
 	createVoiceTraceEvent,
 	filterVoiceTraceEvents,
 	type StoredVoiceTraceEvent,
+	type VoiceTraceSinkDeliveryRecord,
+	type VoiceTraceSinkDeliveryStore,
 	type VoiceTraceEvent,
 	type VoiceTraceEventStore
 } from './trace';
@@ -42,13 +44,15 @@ export type VoiceSQLiteRuntimeStorage<
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
-	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 > = {
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
 	reviews: VoiceCallReviewStore<TReview>;
 	session: VoiceSessionStore<TSession>;
 	tasks: VoiceOpsTaskStore<TTask>;
+	traceDeliveries: VoiceTraceSinkDeliveryStore<TTraceDelivery>;
 	traces: VoiceTraceEventStore<TTrace>;
 };
 
@@ -290,6 +294,23 @@ const createSQLiteTraceEventStoreWithDatabase = <
 	};
 };
 
+const createSQLiteTraceSinkDeliveryStoreWithDatabase = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	database: Database,
+	tableName: string
+): VoiceTraceSinkDeliveryStore<TDelivery> =>
+	createSQLiteRecordStore<TDelivery>({
+		database,
+		decorate: (id, value) =>
+			({
+				...value,
+				id
+			}) as TDelivery,
+		getSortAt: (value) => value.createdAt,
+		tableName
+	});
+
 export const createVoiceSQLiteSessionStore = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 >(
@@ -368,16 +389,38 @@ export const createVoiceSQLiteTraceEventStore = <
 		})
 	);
 
+export const createVoiceSQLiteTraceSinkDeliveryStore = <
+	TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+>(
+	options: VoiceSQLiteStoreOptions
+): VoiceTraceSinkDeliveryStore<TDelivery> =>
+	createSQLiteTraceSinkDeliveryStoreWithDatabase(
+		openVoiceSQLiteDatabase(options.path),
+		resolveTableName({
+			fallback: 'trace_deliveries',
+			options
+		})
+	);
+
 export const createVoiceSQLiteRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
 	TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
-	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 >(
 	options: VoiceSQLiteStoreOptions
-): VoiceSQLiteRuntimeStorage<TSession, TReview, TTask, TEvent, TMapping, TTrace> => {
+): VoiceSQLiteRuntimeStorage<
+	TSession,
+	TReview,
+	TTask,
+	TEvent,
+	TMapping,
+	TTrace,
+	TTraceDelivery
+> => {
 	const database = openVoiceSQLiteDatabase(options.path);
 
 	return {
@@ -413,6 +456,13 @@ export const createVoiceSQLiteRuntimeStorage = <
 			database,
 			resolveTableName({
 				fallback: 'tasks',
+				options
+			})
+		),
+		traceDeliveries: createSQLiteTraceSinkDeliveryStoreWithDatabase<TTraceDelivery>(
+			database,
+			resolveTableName({
+				fallback: 'trace_deliveries',
 				options
 			})
 		),

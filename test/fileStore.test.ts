@@ -13,7 +13,10 @@ import {
 	createVoiceFileRuntimeStorage,
 	createVoiceFileSessionStore,
 	createVoiceFileTaskStore,
-	createVoiceFileTraceEventStore
+	createVoiceFileTraceSinkDeliveryStore,
+	createVoiceFileTraceEventStore,
+	createVoiceTraceEvent,
+	createVoiceTraceSinkDeliveryRecord
 } from '../src';
 
 const tempDirectories: string[] = [];
@@ -289,6 +292,23 @@ test('createVoiceFileRuntimeStorage exposes persistent tasks and events', async 
 		sessionId: 'session-2',
 		type: 'agent.result'
 	});
+	await runtimeStorage.traceDeliveries.set(
+		'trace-delivery-runtime',
+		createVoiceTraceSinkDeliveryRecord({
+			createdAt: 500,
+			events: [
+				createVoiceTraceEvent({
+					at: 500,
+					payload: {
+						text: 'queued'
+					},
+					sessionId: 'session-2',
+					type: 'turn.assistant'
+				})
+			],
+			id: 'trace-delivery-runtime'
+		})
+	);
 
 	const secondRuntimeStorage = createVoiceFileRuntimeStorage({
 		directory
@@ -311,6 +331,9 @@ test('createVoiceFileRuntimeStorage exposes persistent tasks and events', async 
 	).toBe('hubspot-task-runtime');
 	expect((await secondRuntimeStorage.traces.list({ sessionId: 'session-2' }))[0]?.type).toBe(
 		'agent.result'
+	);
+	expect((await secondRuntimeStorage.traceDeliveries.list())[0]?.id).toBe(
+		'trace-delivery-runtime'
 	);
 });
 
@@ -364,4 +387,40 @@ test('createVoiceFileTraceEventStore persists and filters trace events', async (
 	expect(await secondStore.get(events[0]!.id)).toMatchObject({
 		type: 'agent.tool'
 	});
+});
+
+test('createVoiceFileTraceSinkDeliveryStore persists queued trace deliveries', async () => {
+	const directory = await createTempDirectory();
+	const store = createVoiceFileTraceSinkDeliveryStore({
+		directory
+	});
+	const delivery = createVoiceTraceSinkDeliveryRecord({
+		createdAt: 100,
+		events: [
+			createVoiceTraceEvent({
+				at: 100,
+				payload: {
+					text: 'durable trace'
+				},
+				sessionId: 'session-delivery',
+				type: 'turn.assistant'
+			})
+		],
+		id: 'trace-delivery-1'
+	});
+
+	await store.set(delivery.id, delivery);
+
+	const secondStore = createVoiceFileTraceSinkDeliveryStore({
+		directory
+	});
+	const restored = await secondStore.get(delivery.id);
+
+	expect(restored).toMatchObject({
+		deliveryStatus: 'pending',
+		id: 'trace-delivery-1'
+	});
+	expect((await secondStore.list()).map((item) => item.id)).toEqual([
+		'trace-delivery-1'
+	]);
 });

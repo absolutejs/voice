@@ -15,12 +15,16 @@ export {
 	createVoiceFileRuntimeStorage,
 	createVoiceFileSessionStore,
 	createVoiceFileTaskStore,
+	createVoiceFileTraceSinkDeliveryStore,
 	createVoiceFileTraceEventStore
 } from './fileStore';
 export {
 	buildVoiceTraceReplay,
+	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceTraceHTTPSink,
 	createVoiceMemoryTraceEventStore,
+	createVoiceTraceSinkDeliveryId,
+	createVoiceTraceSinkDeliveryRecord,
 	createVoiceTraceSinkStore,
 	createVoiceTraceEvent,
 	createVoiceTraceEventId,
@@ -45,6 +49,7 @@ export {
 	createVoiceSQLiteRuntimeStorage,
 	createVoiceSQLiteSessionStore,
 	createVoiceSQLiteTaskStore,
+	createVoiceSQLiteTraceSinkDeliveryStore,
 	createVoiceSQLiteTraceEventStore
 } from './sqliteStore';
 export {
@@ -54,6 +59,7 @@ export {
 	createVoicePostgresRuntimeStorage,
 	createVoicePostgresSessionStore,
 	createVoicePostgresTaskStore,
+	createVoicePostgresTraceSinkDeliveryStore,
 	createVoicePostgresTraceEventStore
 } from './postgresStore';
 export { createVoiceS3ReviewStore } from './s3Store';
@@ -81,8 +87,11 @@ export {
 	createVoiceOpsTaskProcessorWorkerLoop,
 	createVoiceRedisIdempotencyStore,
 	createVoiceRedisTaskLeaseCoordinator,
+	createVoiceTraceSinkDeliveryWorker,
+	createVoiceTraceSinkDeliveryWorkerLoop,
 	createVoiceWebhookDeliveryWorker,
 	createVoiceWebhookDeliveryWorkerLoop,
+	summarizeVoiceTraceSinkDeliveries,
 	summarizeVoiceOpsTaskQueue,
 	summarizeVoiceIntegrationEvents
 } from './queue';
@@ -223,8 +232,11 @@ export type {
 	VoiceTraceRedactionReplacement,
 	VoiceResolvedTraceRedactionOptions,
 	VoiceTraceSink,
+	VoiceTraceSinkDeliveryQueueStatus,
+	VoiceTraceSinkDeliveryRecord,
 	VoiceTraceSinkDeliveryResult,
 	VoiceTraceSinkDeliveryStatus,
+	VoiceTraceSinkDeliveryStore,
 	VoiceTraceSinkFanoutResult,
 	VoiceTraceSinkStoreOptions,
 	VoiceTraceSummary
@@ -249,6 +261,11 @@ export type {
 	VoiceRedisTaskLeaseClient,
 	VoiceRedisTaskLeaseCoordinator,
 	VoiceRedisTaskLeaseCoordinatorOptions,
+	VoiceTraceSinkDeliveryQueueSummary,
+	VoiceTraceSinkDeliveryWorkerLoop,
+	VoiceTraceSinkDeliveryWorkerLoopOptions,
+	VoiceTraceSinkDeliveryWorkerOptions,
+	VoiceTraceSinkDeliveryWorkerResult,
 	VoiceOpsTaskClaimFilters,
 	VoiceWebhookDeliveryWorkerLoop,
 	VoiceWebhookDeliveryWorkerLoopOptions,
