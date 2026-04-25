@@ -138,15 +138,38 @@ test('createOpenAIVoiceAssistantModel sends tool outputs as function call output
 		}
 	});
 	const input = createInput();
-	input.messages.push({
-		content: '{"status":"shipped"}',
-		name: 'lookup_order',
-		role: 'tool',
-		toolCallId: 'call-1'
-	});
+	input.messages.push(
+		{
+			content: '',
+			metadata: {
+				toolCalls: [
+					{
+						args: {
+							orderId: '123'
+						},
+						id: 'call-1',
+						name: 'lookup_order'
+					}
+				]
+			},
+			role: 'assistant'
+		},
+		{
+			content: '{"status":"shipped"}',
+			name: 'lookup_order',
+			role: 'tool',
+			toolCallId: 'call-1'
+		}
+	);
 
 	await model.generate(input);
 
+	expect(requests[0].input).toContainEqual({
+		arguments: '{"orderId":"123"}',
+		call_id: 'call-1',
+		name: 'lookup_order',
+		type: 'function_call'
+	});
 	expect(requests[0].input).toContainEqual({
 		call_id: 'call-1',
 		output: '{"status":"shipped"}',

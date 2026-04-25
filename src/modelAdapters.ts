@@ -250,20 +250,39 @@ export const createJSONVoiceAssistantModel = <
 	}
 });
 
-const messageToOpenAIInput = (message: VoiceAgentMessage) => {
+const messageToOpenAIInput = (
+	message: VoiceAgentMessage
+): Array<Record<string, unknown>> => {
 	if (message.role === 'tool') {
-		return {
-			call_id: message.toolCallId ?? message.name ?? crypto.randomUUID(),
-			output: message.content,
-			type: 'function_call_output'
-		};
+		return [
+			{
+				call_id: message.toolCallId ?? message.name ?? crypto.randomUUID(),
+				output: message.content,
+				type: 'function_call_output'
+			}
+		];
 	}
 
-	return {
-		content: message.content,
-		role: message.role === 'system' ? 'developer' : message.role
-	};
+	const toolCalls = getMessageToolCalls(message);
+	if (message.role === 'assistant' && toolCalls.length) {
+		return toolCalls.map((toolCall) => ({
+			arguments: JSON.stringify(toolCall.args),
+			call_id: toolCall.id ?? crypto.randomUUID(),
+			name: toolCall.name,
+			type: 'function_call'
+		}));
+	}
+
+	return [
+		{
+			content: message.content,
+			role: message.role === 'system' ? 'developer' : message.role
+		}
+	];
 };
+
+const messagesToOpenAIInput = (messages: VoiceAgentMessage[]) =>
+	messages.flatMap(messageToOpenAIInput);
 
 const messageToAnthropicMessage = (message: VoiceAgentMessage) => {
 	if (message.role === 'system') {
@@ -473,7 +492,7 @@ export const createOpenAIVoiceAssistantModel = <
 		generate: async (input) => {
 			const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/responses`, {
 				body: JSON.stringify({
-					input: input.messages.map(messageToOpenAIInput),
+					input: messagesToOpenAIInput(input.messages),
 					instructions: [
 						input.system,
 						'Return a JSON object with assistantText, complete, transfer, escalate, voicemail, noAnswer, and result when you are not calling tools.'
