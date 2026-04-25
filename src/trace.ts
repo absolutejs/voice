@@ -67,6 +67,64 @@ export type VoiceTracePruneResult = {
 	scannedCount: number;
 };
 
+export type VoiceTraceSinkDeliveryStatus = 'delivered' | 'failed' | 'skipped';
+
+export type VoiceTraceSinkDeliveryResult = {
+	attempts: number;
+	deliveredAt?: number;
+	deliveredTo?: string;
+	error?: string;
+	eventCount: number;
+	responseBody?: unknown;
+	status: VoiceTraceSinkDeliveryStatus;
+};
+
+export type VoiceTraceSink = {
+	deliver: (input: {
+		events: StoredVoiceTraceEvent[];
+	}) => Promise<VoiceTraceSinkDeliveryResult> | VoiceTraceSinkDeliveryResult;
+	eventTypes?: VoiceTraceEventType[];
+	id: string;
+	kind?: string;
+};
+
+export type VoiceTraceSinkFanoutResult = {
+	deliveredAt: number;
+	eventCount: number;
+	sinkDeliveries: Record<string, VoiceTraceSinkDeliveryResult>;
+	status: VoiceTraceSinkDeliveryStatus;
+};
+
+export type VoiceTraceHTTPSinkOptions<
+	TBody extends Record<string, unknown> = Record<string, unknown>
+> = {
+	backoffMs?: number;
+	body?: (input: {
+		events: StoredVoiceTraceEvent[];
+	}) => Promise<TBody> | TBody;
+	eventTypes?: VoiceTraceEventType[];
+	fetch?: typeof fetch;
+	headers?: Record<string, string>;
+	id: string;
+	kind?: string;
+	method?: 'POST' | 'PUT' | 'PATCH';
+	retries?: number;
+	signingSecret?: string;
+	timeoutMs?: number;
+	url: string;
+};
+
+export type VoiceTraceSinkStoreOptions<
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+> = {
+	awaitDelivery?: boolean;
+	onDelivery?: (result: VoiceTraceSinkFanoutResult) => Promise<void> | void;
+	onError?: (error: unknown) => Promise<void> | void;
+	redact?: VoiceTraceRedactionConfig;
+	sinks: VoiceTraceSink[];
+	store: VoiceTraceEventStore<TEvent>;
+};
+
 export type VoiceTraceSummary = {
 	assistantReplyCount: number;
 	callDurationMs?: number;
@@ -276,6 +334,264 @@ export const pruneVoiceTraceEvents = async (
 		deletedCount: deleted.length,
 		dryRun: Boolean(options.dryRun),
 		scannedCount: events.length
+	};
+};
+
+const sleep = async (delayMs: number) => {
+	if (delayMs <= 0) {
+		return;
+	}
+
+	await new Promise((resolve) => setTimeout(resolve, delayMs));
+};
+
+const toHex = (bytes: Uint8Array) =>
+	Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+
+const signVoiceTraceSinkBody = async (input: {
+	body: string;
+	secret: string;
+	timestamp: string;
+}) => {
+	const encoder = new TextEncoder();
+	const key = await crypto.subtle.importKey(
+		'raw',
+		encoder.encode(input.secret),
+		{
+			hash: 'SHA-256',
+			name: 'HMAC'
+		},
+		false,
+		['sign']
+	);
+	const payload = encoder.encode(`${input.timestamp}.${input.body}`);
+	const signature = await crypto.subtle.sign('HMAC', key, payload);
+
+	return `sha256=${toHex(new Uint8Array(signature))}`;
+};
+
+const createVoiceTraceSinkDeliveryError = (input: {
+	attempt: number;
+	error?: unknown;
+	response?: Response;
+}) => {
+	if (input.response) {
+		const statusText = input.response.statusText?.trim();
+		return `Attempt ${input.attempt} failed with trace sink response ${input.response.status}${statusText ? ` ${statusText}` : ''}.`;
+	}
+
+	if (input.error instanceof Error) {
+		return `Attempt ${input.attempt} failed: ${input.error.message}`;
+	}
+
+	return `Attempt ${input.attempt} failed: ${String(input.error)}`;
+};
+
+const aggregateVoiceTraceSinkDeliveryStatus = (
+	deliveries: Record<string, VoiceTraceSinkDeliveryResult>
+): VoiceTraceSinkDeliveryStatus => {
+	const statuses = Object.values(deliveries).map((delivery) => delivery.status);
+	if (statuses.length === 0 || statuses.every((status) => status === 'skipped')) {
+		return 'skipped';
+	}
+
+	if (statuses.some((status) => status === 'failed')) {
+		return 'failed';
+	}
+
+	return 'delivered';
+};
+
+export const createVoiceTraceHTTPSink = <
+	TBody extends Record<string, unknown> = Record<string, unknown>
+>(
+	options: VoiceTraceHTTPSinkOptions<TBody>
+): VoiceTraceSink => ({
+	deliver: async ({ events }) => {
+		const fetchImpl = options.fetch ?? globalThis.fetch;
+		if (typeof fetchImpl !== 'function') {
+			return {
+				attempts: 0,
+				deliveredTo: options.url,
+				error: 'Trace sink delivery failed: fetch is not available in this runtime.',
+				eventCount: events.length,
+				status: 'failed'
+			};
+		}
+
+		const maxRetries = Math.max(0, options.retries ?? 0);
+		const backoffMs = Math.max(0, options.backoffMs ?? 250);
+		const timeoutMs = Math.max(0, options.timeoutMs ?? 10_000);
+		const payload = options.body
+			? await options.body({ events })
+			: {
+					eventCount: events.length,
+					events,
+					source: 'absolutejs-voice'
+				};
+		const body = JSON.stringify(payload);
+		let lastError = 'Trace sink delivery failed.';
+
+		for (let attempt = 1; attempt <= maxRetries + 1; attempt += 1) {
+			let controller: AbortController | undefined;
+			let timeout: ReturnType<typeof setTimeout> | undefined;
+
+			try {
+				const headers: Record<string, string> = {
+					'content-type': 'application/json',
+					...options.headers
+				};
+
+				if (options.signingSecret) {
+					const timestamp = String(Date.now());
+					headers['x-absolutejs-timestamp'] = timestamp;
+					headers['x-absolutejs-signature'] = await signVoiceTraceSinkBody({
+						body,
+						secret: options.signingSecret,
+						timestamp
+					});
+				}
+
+				controller = timeoutMs > 0 ? new AbortController() : undefined;
+				if (controller && timeoutMs > 0) {
+					timeout = setTimeout(() => controller?.abort(), timeoutMs);
+				}
+
+				const response = await fetchImpl(options.url, {
+					body,
+					headers,
+					method: options.method ?? 'POST',
+					signal: controller?.signal
+				});
+				if (response.ok) {
+					let responseBody: unknown;
+					try {
+						responseBody = await response.clone().json();
+					} catch {
+						responseBody = undefined;
+					}
+
+					return {
+						attempts: attempt,
+						deliveredAt: Date.now(),
+						deliveredTo: options.url,
+						eventCount: events.length,
+						responseBody,
+						status: 'delivered'
+					};
+				}
+
+				lastError = createVoiceTraceSinkDeliveryError({
+					attempt,
+					response
+				});
+			} catch (error) {
+				lastError = createVoiceTraceSinkDeliveryError({
+					attempt,
+					error
+				});
+			} finally {
+				if (timeout) {
+					clearTimeout(timeout);
+				}
+			}
+
+			if (attempt <= maxRetries) {
+				await sleep(backoffMs * attempt);
+			}
+		}
+
+		return {
+			attempts: maxRetries + 1,
+			deliveredTo: options.url,
+			error: lastError,
+			eventCount: events.length,
+			status: 'failed'
+		};
+	},
+	eventTypes: options.eventTypes,
+	id: options.id,
+	kind: options.kind ?? 'http'
+});
+
+export const deliverVoiceTraceEventsToSinks = async (input: {
+	events: StoredVoiceTraceEvent[];
+	redact?: VoiceTraceRedactionConfig;
+	sinks: VoiceTraceSink[];
+}): Promise<VoiceTraceSinkFanoutResult> => {
+	const events = input.redact
+		? redactVoiceTraceEvents(input.events, input.redact)
+		: input.events;
+	const sinkDeliveries: Record<string, VoiceTraceSinkDeliveryResult> = {};
+
+	for (const sink of input.sinks) {
+		const sinkEvents = sink.eventTypes?.length
+			? events.filter((event) => sink.eventTypes?.includes(event.type))
+			: events;
+
+		if (sinkEvents.length === 0) {
+			sinkDeliveries[sink.id] = {
+				attempts: 0,
+				eventCount: 0,
+				status: 'skipped'
+			};
+			continue;
+		}
+
+		try {
+			sinkDeliveries[sink.id] = await sink.deliver({
+				events: sinkEvents
+			});
+		} catch (error) {
+			sinkDeliveries[sink.id] = {
+				attempts: 1,
+				error: error instanceof Error ? error.message : String(error),
+				eventCount: sinkEvents.length,
+				status: 'failed'
+			};
+		}
+	}
+
+	return {
+		deliveredAt: Date.now(),
+		eventCount: events.length,
+		sinkDeliveries,
+		status: aggregateVoiceTraceSinkDeliveryStatus(sinkDeliveries)
+	};
+};
+
+export const createVoiceTraceSinkStore = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	options: VoiceTraceSinkStoreOptions<TEvent>
+): VoiceTraceEventStore<TEvent> => {
+	const deliver = async (event: TEvent) => {
+		const result = await deliverVoiceTraceEventsToSinks({
+			events: [event],
+			redact: options.redact,
+			sinks: options.sinks
+		});
+		await options.onDelivery?.(result);
+	};
+
+	return {
+		append: async (event) => {
+			const stored = await options.store.append(event);
+			const delivery = deliver(stored);
+
+			if (options.awaitDelivery) {
+				await delivery;
+			} else {
+				delivery.catch((error) => {
+					void options.onError?.(error);
+				});
+			}
+
+			return stored;
+		},
+		get: (id) => options.store.get(id),
+		list: (filter) => options.store.list(filter),
+		remove: (id) => options.store.remove(id)
 	};
 };
 

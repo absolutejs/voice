@@ -19,9 +19,12 @@ export {
 } from './fileStore';
 export {
 	buildVoiceTraceReplay,
+	createVoiceTraceHTTPSink,
 	createVoiceMemoryTraceEventStore,
+	createVoiceTraceSinkStore,
 	createVoiceTraceEvent,
 	createVoiceTraceEventId,
+	deliverVoiceTraceEventsToSinks,
 	evaluateVoiceTrace,
 	exportVoiceTrace,
 	filterVoiceTraceEvents,
@@ -211,6 +214,7 @@ export type {
 	VoiceTraceEventType,
 	VoiceTraceIssue,
 	VoiceTraceIssueSeverity,
+	VoiceTraceHTTPSinkOptions,
 	VoiceTracePruneFilter,
 	VoiceTracePruneOptions,
 	VoiceTracePruneResult,
@@ -218,6 +222,11 @@ export type {
 	VoiceTraceRedactionOptions,
 	VoiceTraceRedactionReplacement,
 	VoiceResolvedTraceRedactionOptions,
+	VoiceTraceSink,
+	VoiceTraceSinkDeliveryResult,
+	VoiceTraceSinkDeliveryStatus,
+	VoiceTraceSinkFanoutResult,
+	VoiceTraceSinkStoreOptions,
 	VoiceTraceSummary
 } from './trace';
 export type {

@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test';
 import {
 	buildVoiceTraceReplay,
+	createVoiceMemoryTraceEventStore,
+	createVoiceTraceHTTPSink,
 	createVoiceTraceEvent,
+	createVoiceTraceSinkStore,
+	deliverVoiceTraceEventsToSinks,
 	evaluateVoiceTrace,
 	exportVoiceTrace,
 	pruneVoiceTraceEvents,
@@ -380,6 +384,143 @@ test('pruneVoiceTraceEvents supports dry runs and store removal', async () => {
 		'b-150',
 		'a-300'
 	]);
+});
+
+test('deliverVoiceTraceEventsToSinks fans out filtered trace batches', async () => {
+	const events = createTraceEvents();
+	const delivered: StoredVoiceTraceEvent[][] = [];
+
+	const result = await deliverVoiceTraceEventsToSinks({
+		events,
+		sinks: [
+			{
+				deliver: async ({ events: sinkEvents }) => {
+					delivered.push(sinkEvents);
+					return {
+						attempts: 1,
+						deliveredAt: 1000,
+						eventCount: sinkEvents.length,
+						status: 'delivered'
+					};
+				},
+				eventTypes: ['agent.tool'],
+				id: 'tool-traces',
+				kind: 'memory'
+			},
+			{
+				deliver: async ({ events: sinkEvents }) => ({
+					attempts: 1,
+					eventCount: sinkEvents.length,
+					status: 'delivered'
+				}),
+				eventTypes: ['session.error'],
+				id: 'errors-only'
+			}
+		]
+	});
+
+	expect(result.status).toBe('delivered');
+	expect(result.sinkDeliveries['tool-traces']).toMatchObject({
+		eventCount: 1,
+		status: 'delivered'
+	});
+	expect(result.sinkDeliveries['errors-only']).toMatchObject({
+		attempts: 0,
+		eventCount: 0,
+		status: 'skipped'
+	});
+	expect(delivered[0]?.map((event) => event.type)).toEqual(['agent.tool']);
+});
+
+test('createVoiceTraceHTTPSink posts trace envelopes with optional redaction', async () => {
+	const requests: Array<{
+		body: Record<string, unknown>;
+		headers: Headers;
+		url: string;
+	}> = [];
+	const event = createVoiceTraceEvent({
+		at: 100,
+		payload: {
+			text: 'Email alex@example.com'
+		},
+		sessionId: 'session-http',
+		type: 'turn.assistant'
+	});
+
+	const result = await deliverVoiceTraceEventsToSinks({
+		events: [event],
+		redact: true,
+		sinks: [
+			createVoiceTraceHTTPSink({
+				fetch: async (url, init) => {
+					requests.push({
+						body: JSON.parse(String(init?.body ?? '{}')),
+						headers: new Headers(init?.headers),
+						url: String(url)
+					});
+					return Response.json({
+						ok: true
+					});
+				},
+				id: 'warehouse',
+				signingSecret: 'trace-secret',
+				url: 'https://example.test/traces'
+			})
+		]
+	});
+
+	expect(result.status).toBe('delivered');
+	expect(requests).toHaveLength(1);
+	expect(requests[0]?.body).toMatchObject({
+		eventCount: 1,
+		source: 'absolutejs-voice'
+	});
+	expect(
+		(requests[0]?.body.events as StoredVoiceTraceEvent[] | undefined)?.[0]?.payload
+			.text
+	).toBe('Email [redacted]');
+	expect(requests[0]?.headers.get('x-absolutejs-signature')).toStartWith(
+		'sha256='
+	);
+});
+
+test('createVoiceTraceSinkStore mirrors appends to sinks', async () => {
+	const base = createVoiceMemoryTraceEventStore();
+	const delivered: StoredVoiceTraceEvent[] = [];
+	const deliveryResults: string[] = [];
+	const store = createVoiceTraceSinkStore({
+		awaitDelivery: true,
+		onDelivery: (result) => {
+			deliveryResults.push(result.status);
+		},
+		sinks: [
+			{
+				deliver: async ({ events }) => {
+					delivered.push(...events);
+					return {
+						attempts: 1,
+						eventCount: events.length,
+						status: 'delivered'
+					};
+				},
+				id: 'memory-sink'
+			}
+		],
+		store: base
+	});
+
+	const event = await store.append({
+		at: 100,
+		payload: {
+			text: 'stored'
+		},
+		sessionId: 'session-sink-store',
+		type: 'turn.assistant'
+	});
+
+	expect(await base.get(event.id)).toEqual(event);
+	expect(delivered).toEqual([event]);
+	expect(deliveryResults).toEqual(['delivered']);
 });
 
 test('redactVoiceTraceText supports custom replacements', () => {

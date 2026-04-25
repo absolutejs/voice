@@ -153,6 +153,8 @@ import {
 	buildVoiceTraceReplay,
 	createVoiceAgent,
 	createVoiceFileRuntimeStorage,
+	createVoiceTraceHTTPSink,
+	createVoiceTraceSinkStore,
 	exportVoiceTrace,
 	pruneVoiceTraceEvents,
 	voice
@@ -162,10 +164,20 @@ import { deepgram } from '@absolutejs/voice-deepgram';
 const runtimeStorage = createVoiceFileRuntimeStorage({
 	directory: '.voice-runtime/support'
 });
+const trace = createVoiceTraceSinkStore({
+	store: runtimeStorage.traces,
+	redact: true,
+	sinks: [
+		createVoiceTraceHTTPSink({
+			id: 'warehouse',
+			url: process.env.TRACE_WAREHOUSE_URL!
+		})
+	]
+});
 
 const supportAgent = createVoiceAgent({
 	id: 'support',
-	trace: runtimeStorage.traces,
+	trace,
 	model: {
 		async generate() {
 			return { assistantText: 'How can I help?' };
@@ -177,7 +189,7 @@ voice({
 	path: '/voice',
 	session: runtimeStorage.session,
 	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-	trace: runtimeStorage.traces,
+	trace,
 	onTurn: supportAgent.onTurn,
 	onComplete: async () => {}
 });
@@ -207,6 +219,8 @@ await pruneVoiceTraceEvents({
 `createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` alongside sessions, reviews, tasks, events, and external object mappings. Passing `trace` to `voice(...)` records session lifecycle, transcript, committed-turn, assistant, cost, and error events; passing it to agents records model passes, tools, results, and handoffs.
 
 For self-hosted QA and support workflows, use `summarizeVoiceTrace(...)`, `evaluateVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. They turn raw trace events into portable artifacts you can attach to tickets, inspect locally, or fail in CI when a call has missing transcripts, missing turns, tool errors, session errors, or excessive handoffs.
+
+For observability pipelines, wrap any trace store with `createVoiceTraceSinkStore(...)` and pass sinks such as `createVoiceTraceHTTPSink(...)`. The wrapper still writes to your normal file, SQLite, or Postgres store, then fans out appended events to your warehouse, logs, S3 bridge, or analytics endpoint. Use `awaitDelivery: true` only when you want trace delivery to block append completion.
 
 When traces may leave your private runtime, pass `redact: true` or a redaction config to `exportVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. The built-in redactor scrubs common email addresses, phone numbers, and sensitive keys like `token`, `secret`, `password`, `apiKey`, `authorization`, `phone`, and `email`; you can pass custom keys or replacement text for stricter policies.
 
