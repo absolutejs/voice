@@ -1,0 +1,121 @@
+import type {
+	VoiceStreamState,
+	VoiceStoreAction,
+	VoiceTurnRecord
+} from '../types';
+
+const createInitialState = (): VoiceStreamState => ({
+	assistantAudio: [],
+	assistantTexts: [],
+	error: null,
+	isConnected: false,
+	scenarioId: null,
+	partial: '',
+	sessionId: null,
+	status: 'idle',
+	turns: []
+});
+
+export const createVoiceStreamStore = <TResult = unknown>() => {
+	let state = createInitialState() as VoiceStreamState<TResult>;
+	const subscribers = new Set<() => void>();
+
+	const notify = () => {
+		subscribers.forEach((subscriber) => subscriber());
+	};
+
+	const dispatch = (action: VoiceStoreAction<TResult>) => {
+		switch (action.type) {
+			case 'audio':
+				state = {
+					...state,
+					assistantAudio: [
+						...state.assistantAudio,
+						{
+							chunk: action.chunk,
+							format: action.format,
+							receivedAt: action.receivedAt,
+							turnId: action.turnId
+						}
+					]
+				};
+				break;
+			case 'assistant':
+				state = {
+					...state,
+					assistantTexts: [...state.assistantTexts, action.text]
+				};
+				break;
+			case 'complete':
+				state = {
+					...state,
+					sessionId: action.sessionId,
+					status: 'completed'
+				};
+				break;
+			case 'connected':
+				state = {
+					...state,
+					isConnected: true
+				};
+				break;
+			case 'disconnected':
+				state = {
+					...state,
+					isConnected: false
+				};
+				break;
+			case 'error':
+				state = {
+					...state,
+					error: action.message
+				};
+				break;
+			case 'final':
+				state = {
+					...state,
+					partial: action.transcript.text,
+					turns: state.turns.map((turn) => turn),
+				};
+				break;
+			case 'partial':
+				state = {
+					...state,
+					partial: action.transcript.text
+				};
+				break;
+			case 'session':
+				state = {
+					...state,
+					error: null,
+					scenarioId: action.scenarioId ?? state.scenarioId,
+					isConnected: action.status === 'active',
+					sessionId: action.sessionId,
+					status: action.status
+				};
+				break;
+			case 'turn':
+				state = {
+					...state,
+					partial: '',
+					turns: [...state.turns, action.turn as VoiceTurnRecord<TResult>]
+				};
+				break;
+		}
+
+		notify();
+	};
+
+	return {
+		dispatch,
+		getServerSnapshot: () => state,
+		getSnapshot: () => state,
+		subscribe: (subscriber: () => void) => {
+			subscribers.add(subscriber);
+
+			return () => {
+				subscribers.delete(subscriber);
+			};
+		}
+	};
+};

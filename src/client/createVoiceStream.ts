@@ -1,0 +1,89 @@
+import { serverMessageToAction } from './actions';
+import { createVoiceConnection } from './connection';
+import { createVoiceStreamStore } from './store';
+import type { VoiceConnectionOptions, VoiceStream } from '../types';
+
+export const createVoiceStream = <TResult = unknown>(
+	path: string,
+	options: VoiceConnectionOptions = {}
+): VoiceStream<TResult> => {
+	const connection = createVoiceConnection(path, options);
+	const store = createVoiceStreamStore<TResult>();
+	const subscribers = new Set<() => void>();
+	const start = (input?: { scenarioId?: string; sessionId?: string }) =>
+		Promise.resolve().then(() => {
+			if (!input?.sessionId && !input?.scenarioId) {
+				return;
+			}
+
+			connection.start(input);
+		});
+
+	const notify = () => {
+		subscribers.forEach((subscriber) => subscriber());
+	};
+
+	const unsubscribeConnection = connection.subscribe((message) => {
+		const action = serverMessageToAction<TResult>(message as never);
+		if (action) {
+			store.dispatch(action as never);
+			notify();
+		}
+	});
+
+	return {
+		close() {
+			unsubscribeConnection();
+			connection.close();
+			store.dispatch({ type: 'disconnected' });
+			notify();
+		},
+		endTurn() {
+			connection.endTurn();
+		},
+		get error() {
+			return store.getSnapshot().error;
+		},
+		getServerSnapshot() {
+			return store.getServerSnapshot();
+		},
+		getSnapshot() {
+			return store.getSnapshot();
+		},
+		get isConnected() {
+			return store.getSnapshot().isConnected;
+		},
+		get scenarioId() {
+			return store.getSnapshot().scenarioId;
+		},
+		start,
+		get partial() {
+			return store.getSnapshot().partial;
+		},
+		get sessionId() {
+			return connection.getSessionId();
+		},
+		get status() {
+			return store.getSnapshot().status;
+		},
+		get turns() {
+			return store.getSnapshot().turns;
+		},
+		get assistantTexts() {
+			return store.getSnapshot().assistantTexts;
+		},
+		get assistantAudio() {
+			return store.getSnapshot().assistantAudio;
+		},
+		sendAudio(audio: Uint8Array | ArrayBuffer) {
+			connection.sendAudio(audio);
+		},
+		subscribe(subscriber: () => void) {
+			subscribers.add(subscriber);
+
+			return () => {
+				subscribers.delete(subscriber);
+			};
+		}
+	};
+};

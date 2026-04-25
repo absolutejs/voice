@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.*
+node_modules
+src
+test
+fixtures
+bun.lock
+tsconfig.json
+
