@@ -18,11 +18,16 @@ export {
 	createVoiceFileTraceEventStore
 } from './fileStore';
 export {
+	buildVoiceTraceReplay,
 	createVoiceMemoryTraceEventStore,
 	createVoiceTraceEvent,
 	createVoiceTraceEventId,
+	evaluateVoiceTrace,
 	exportVoiceTrace,
-	filterVoiceTraceEvents
+	filterVoiceTraceEvents,
+	renderVoiceTraceHTML,
+	renderVoiceTraceMarkdown,
+	summarizeVoiceTrace
 } from './trace';
 export {
 	createVoiceSQLiteExternalObjectMapStore,
@@ -192,10 +197,15 @@ export type {
 export type { VoiceFileRuntimeStorage, VoiceFileStoreOptions } from './fileStore';
 export type {
 	StoredVoiceTraceEvent,
+	VoiceTraceEvaluation,
+	VoiceTraceEvaluationOptions,
 	VoiceTraceEvent,
 	VoiceTraceEventFilter,
 	VoiceTraceEventStore,
-	VoiceTraceEventType
+	VoiceTraceEventType,
+	VoiceTraceIssue,
+	VoiceTraceIssueSeverity,
+	VoiceTraceSummary
 } from './trace';
 export type {
 	VoicePostgresClient,

@@ -150,6 +150,7 @@ Use trace stores when you want every call to be inspectable outside a hosted pla
 
 ```ts
 import {
+	buildVoiceTraceReplay,
 	createVoiceAgent,
 	createVoiceFileRuntimeStorage,
 	exportVoiceTrace,
@@ -186,9 +187,19 @@ const replay = await exportVoiceTrace({
 		sessionId: 'session-123'
 	}
 });
+
+const report = buildVoiceTraceReplay(replay.events, {
+	title: 'Support call session-123'
+});
+
+console.log(report.summary);
+console.log(report.evaluation.pass);
+await Bun.write('trace.html', report.html);
 ```
 
 `createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` alongside sessions, reviews, tasks, events, and external object mappings. Passing `trace` to `voice(...)` records session lifecycle, transcript, committed-turn, assistant, cost, and error events; passing it to agents records model passes, tools, results, and handoffs.
+
+For self-hosted QA and support workflows, use `summarizeVoiceTrace(...)`, `evaluateVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. They turn raw trace events into portable artifacts you can attach to tickets, inspect locally, or fail in CI when a call has missing transcripts, missing turns, tool errors, session errors, or excessive handoffs.
 
 ## Production Voice Ops
 
