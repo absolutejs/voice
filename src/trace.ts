@@ -48,6 +48,25 @@ export type VoiceTraceEventStore<
 	remove: (id: string) => Promise<void>;
 };
 
+export type VoiceTracePruneFilter = Omit<VoiceTraceEventFilter, 'limit'>;
+
+export type VoiceTracePruneOptions = {
+	before?: number;
+	beforeOrAt?: number;
+	dryRun?: boolean;
+	filter?: VoiceTracePruneFilter;
+	keepNewest?: number;
+	limit?: number;
+	store: VoiceTraceEventStore;
+};
+
+export type VoiceTracePruneResult = {
+	deleted: StoredVoiceTraceEvent[];
+	deletedCount: number;
+	dryRun: boolean;
+	scannedCount: number;
+};
+
 export type VoiceTraceSummary = {
 	assistantReplyCount: number;
 	callDurationMs?: number;
@@ -200,6 +219,64 @@ export const filterVoiceTraceEvents = <
 	return typeof filter.limit === 'number' && filter.limit >= 0
 		? sorted.slice(0, filter.limit)
 		: sorted;
+};
+
+const isPruneTimeMatch = (
+	event: StoredVoiceTraceEvent,
+	options: Pick<VoiceTracePruneOptions, 'before' | 'beforeOrAt'>
+) => {
+	if (typeof options.before === 'number' && event.at >= options.before) {
+		return false;
+	}
+
+	if (typeof options.beforeOrAt === 'number' && event.at > options.beforeOrAt) {
+		return false;
+	}
+
+	return true;
+};
+
+export const selectVoiceTraceEventsForPrune = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	events: TEvent[],
+	options: Omit<VoiceTracePruneOptions, 'store'> = {}
+) => {
+	let candidates = filterVoiceTraceEvents(events, options.filter).filter((event) =>
+		isPruneTimeMatch(event, options)
+	);
+
+	if (typeof options.keepNewest === 'number' && options.keepNewest >= 0) {
+		const newestIds = new Set(
+			[...candidates]
+				.sort((left, right) => right.at - left.at || right.id.localeCompare(left.id))
+				.slice(0, options.keepNewest)
+				.map((event) => event.id)
+		);
+		candidates = candidates.filter((event) => !newestIds.has(event.id));
+	}
+
+	return typeof options.limit === 'number' && options.limit >= 0
+		? candidates.slice(0, options.limit)
+		: candidates;
+};
+
+export const pruneVoiceTraceEvents = async (
+	options: VoiceTracePruneOptions
+): Promise<VoiceTracePruneResult> => {
+	const events = await options.store.list(options.filter);
+	const deleted = selectVoiceTraceEventsForPrune(events, options);
+
+	if (!options.dryRun) {
+		await Promise.all(deleted.map((event) => options.store.remove(event.id)));
+	}
+
+	return {
+		deleted,
+		deletedCount: deleted.length,
+		dryRun: Boolean(options.dryRun),
+		scannedCount: events.length
+	};
 };
 
 export const createVoiceMemoryTraceEventStore = <

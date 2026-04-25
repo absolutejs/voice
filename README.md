@@ -154,6 +154,7 @@ import {
 	createVoiceAgent,
 	createVoiceFileRuntimeStorage,
 	exportVoiceTrace,
+	pruneVoiceTraceEvents,
 	voice
 } from '@absolutejs/voice';
 import { deepgram } from '@absolutejs/voice-deepgram';
@@ -196,6 +197,11 @@ const report = buildVoiceTraceReplay(replay.events, {
 console.log(report.summary);
 console.log(report.evaluation.pass);
 await Bun.write('trace.html', report.html);
+
+await pruneVoiceTraceEvents({
+	store: runtimeStorage.traces,
+	before: Date.now() - 30 * 24 * 60 * 60 * 1000
+});
 ```
 
 `createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` alongside sessions, reviews, tasks, events, and external object mappings. Passing `trace` to `voice(...)` records session lifecycle, transcript, committed-turn, assistant, cost, and error events; passing it to agents records model passes, tools, results, and handoffs.
@@ -203,6 +209,8 @@ await Bun.write('trace.html', report.html);
 For self-hosted QA and support workflows, use `summarizeVoiceTrace(...)`, `evaluateVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. They turn raw trace events into portable artifacts you can attach to tickets, inspect locally, or fail in CI when a call has missing transcripts, missing turns, tool errors, session errors, or excessive handoffs.
 
 When traces may leave your private runtime, pass `redact: true` or a redaction config to `exportVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. The built-in redactor scrubs common email addresses, phone numbers, and sensitive keys like `token`, `secret`, `password`, `apiKey`, `authorization`, `phone`, and `email`; you can pass custom keys or replacement text for stricter policies.
+
+For retention jobs, `pruneVoiceTraceEvents(...)` works against any trace store. Use `dryRun: true` before deleting, filter by session, trace, scenario, turn, or event type, cap each run with `limit`, or keep only the newest N matching events with `keepNewest`.
 
 ## Production Voice Ops
 

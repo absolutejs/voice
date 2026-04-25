@@ -25,12 +25,14 @@ export {
 	evaluateVoiceTrace,
 	exportVoiceTrace,
 	filterVoiceTraceEvents,
+	pruneVoiceTraceEvents,
 	redactVoiceTraceEvent,
 	redactVoiceTraceEvents,
 	redactVoiceTraceText,
 	renderVoiceTraceHTML,
 	renderVoiceTraceMarkdown,
 	resolveVoiceTraceRedactionOptions,
+	selectVoiceTraceEventsForPrune,
 	summarizeVoiceTrace
 } from './trace';
 export {
@@ -209,6 +211,9 @@ export type {
 	VoiceTraceEventType,
 	VoiceTraceIssue,
 	VoiceTraceIssueSeverity,
+	VoiceTracePruneFilter,
+	VoiceTracePruneOptions,
+	VoiceTracePruneResult,
 	VoiceTraceRedactionConfig,
 	VoiceTraceRedactionOptions,
 	VoiceTraceRedactionReplacement,

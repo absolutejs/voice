@@ -4,10 +4,12 @@ import {
 	createVoiceTraceEvent,
 	evaluateVoiceTrace,
 	exportVoiceTrace,
+	pruneVoiceTraceEvents,
 	redactVoiceTraceEvents,
 	redactVoiceTraceText,
 	renderVoiceTraceHTML,
 	renderVoiceTraceMarkdown,
+	selectVoiceTraceEventsForPrune,
 	summarizeVoiceTrace,
 	type StoredVoiceTraceEvent
 } from '../src';
@@ -244,6 +246,140 @@ test('trace exports and renderers can redact shared artifacts', async () => {
 	expect(markdown).toContain('Email [redacted]');
 	expect(html).toContain('Email [safe]');
 	expect(replay.markdown).toContain('[redacted]');
+});
+
+test('selectVoiceTraceEventsForPrune filters by retention policy', () => {
+	const events = [
+		createVoiceTraceEvent({
+			at: 100,
+			id: 'a-100',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.transcript'
+		}),
+		createVoiceTraceEvent({
+			at: 200,
+			id: 'a-200',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.assistant'
+		}),
+		createVoiceTraceEvent({
+			at: 300,
+			id: 'a-300',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.cost'
+		}),
+		createVoiceTraceEvent({
+			at: 150,
+			id: 'b-150',
+			payload: {},
+			sessionId: 'session-b',
+			type: 'turn.transcript'
+		})
+	];
+
+	expect(
+		selectVoiceTraceEventsForPrune(events, {
+			beforeOrAt: 200,
+			filter: {
+				sessionId: 'session-a'
+			}
+		}).map((event) => event.id)
+	).toEqual(['a-100', 'a-200']);
+
+	expect(
+		selectVoiceTraceEventsForPrune(events, {
+			filter: {
+				sessionId: 'session-a'
+			},
+			keepNewest: 1
+		}).map((event) => event.id)
+	).toEqual(['a-100', 'a-200']);
+
+	expect(
+		selectVoiceTraceEventsForPrune(events, {
+			keepNewest: 1,
+			limit: 1
+		}).map((event) => event.id)
+	).toEqual(['a-100']);
+});
+
+test('pruneVoiceTraceEvents supports dry runs and store removal', async () => {
+	const events = [
+		createVoiceTraceEvent({
+			at: 100,
+			id: 'a-100',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.transcript'
+		}),
+		createVoiceTraceEvent({
+			at: 200,
+			id: 'a-200',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.assistant'
+		}),
+		createVoiceTraceEvent({
+			at: 300,
+			id: 'a-300',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.cost'
+		}),
+		createVoiceTraceEvent({
+			at: 150,
+			id: 'b-150',
+			payload: {},
+			sessionId: 'session-b',
+			type: 'turn.transcript'
+		})
+	];
+	const stored = new Map(events.map((event) => [event.id, event]));
+	const store = {
+		append: async (event: StoredVoiceTraceEvent) => {
+			stored.set(event.id, event);
+			return event;
+		},
+		get: async (id: string) => stored.get(id),
+		list: async () =>
+			[...stored.values()].sort(
+				(left, right) => left.at - right.at || left.id.localeCompare(right.id)
+			),
+		remove: async (id: string) => {
+			stored.delete(id);
+		}
+	};
+
+	const dryRun = await pruneVoiceTraceEvents({
+		beforeOrAt: 200,
+		dryRun: true,
+		filter: {
+			sessionId: 'session-a'
+		},
+		store
+	});
+	expect(dryRun).toMatchObject({
+		deletedCount: 2,
+		dryRun: true,
+		scannedCount: 4
+	});
+	expect(await store.list()).toHaveLength(4);
+
+	const pruned = await pruneVoiceTraceEvents({
+		filter: {
+			sessionId: 'session-a'
+		},
+		keepNewest: 1,
+		store
+	});
+	expect(pruned.deleted.map((event) => event.id)).toEqual(['a-100', 'a-200']);
+	expect((await store.list()).map((event) => event.id)).toEqual([
+		'b-150',
+		'a-300'
+	]);
 });
 
 test('redactVoiceTraceText supports custom replacements', () => {
