@@ -152,8 +152,10 @@ Use trace stores when you want every call to be inspectable outside a hosted pla
 import {
 	createVoiceAgent,
 	createVoiceFileRuntimeStorage,
-	exportVoiceTrace
+	exportVoiceTrace,
+	voice
 } from '@absolutejs/voice';
+import { deepgram } from '@absolutejs/voice-deepgram';
 
 const runtimeStorage = createVoiceFileRuntimeStorage({
 	directory: '.voice-runtime/support'
@@ -169,6 +171,15 @@ const supportAgent = createVoiceAgent({
 	}
 });
 
+voice({
+	path: '/voice',
+	session: runtimeStorage.session,
+	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+	trace: runtimeStorage.traces,
+	onTurn: supportAgent.onTurn,
+	onComplete: async () => {}
+});
+
 const replay = await exportVoiceTrace({
 	store: runtimeStorage.traces,
 	filter: {
@@ -177,7 +188,7 @@ const replay = await exportVoiceTrace({
 });
 ```
 
-`createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` alongside sessions, reviews, tasks, events, and external object mappings.
+`createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` alongside sessions, reviews, tasks, events, and external object mappings. Passing `trace` to `voice(...)` records session lifecycle, transcript, committed-turn, assistant, cost, and error events; passing it to agents records model passes, tools, results, and handoffs.
 
 ## Production Voice Ops
 

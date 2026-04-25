@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createVoiceMemoryStore } from '../src/memoryStore';
 import { createVoiceSession } from '../src/session';
+import { createVoiceMemoryTraceEventStore } from '../src/trace';
 import type {
 	AudioChunk,
 	STTAdapter,
@@ -305,6 +306,119 @@ test('voice session commits a turn after silence and only once', async () => {
 	expect(
 		socket.messages.some((message) => message.includes('"type":"turn"'))
 	).toBe(true);
+});
+
+test('voice session records trace events for lifecycle, transcripts, turns, assistant replies, and cost', async () => {
+	const store = createVoiceMemoryStore();
+	const trace = createVoiceMemoryTraceEventStore();
+	const adapter = createFakeAdapter();
+	const tts = createFakeTTSAdapter();
+	const socket = createMockSocket();
+
+	const session = createVoiceSession({
+		context: {},
+		costTelemetry: {
+			primaryPassCostUnit: 2
+		},
+		id: 'session-trace-core',
+		logger: {},
+		reconnect: {
+			maxAttempts: 1,
+			strategy: 'resume-last-turn',
+			timeout: 5_000
+		},
+		route: {
+			onComplete: async () => {},
+			onTurn: async ({ turn }) => ({
+				assistantText: `Replying to ${turn.text}`
+			})
+		},
+		socket: socket.socket,
+		store,
+		stt: adapter.adapter,
+		trace,
+		tts: tts.adapter,
+		turnDetection: {
+			silenceMs: 20,
+			speechThreshold: 0.01,
+			transcriptStabilityMs: 5
+		}
+	});
+
+	await session.connect(socket.socket);
+	await adapter.emitCurrent('partial', {
+		receivedAt: Date.now(),
+		transcript: {
+			confidence: 0.7,
+			id: 'partial-trace-1',
+			isFinal: false,
+			text: 'hello'
+		},
+		type: 'partial'
+	});
+	await adapter.emitCurrent('final', {
+		receivedAt: Date.now(),
+		transcript: {
+			confidence: 0.9,
+			id: 'final-trace-1',
+			isFinal: true,
+			text: 'hello there',
+			vendor: 'fake-stt'
+		},
+		type: 'final'
+	});
+	await session.receiveAudio(createSpeechChunk(16_000));
+	await session.commitTurn('manual');
+
+	const events = await trace.list({ sessionId: 'session-trace-core' });
+	const eventTypes = events.map((event) => event.type);
+
+	expect(eventTypes).toContain('call.lifecycle');
+	expect(eventTypes).toContain('turn.transcript');
+	expect(eventTypes).toContain('turn.committed');
+	expect(eventTypes).toContain('turn.cost');
+	expect(eventTypes).toContain('turn.assistant');
+	const transcriptTraces = await trace.list({ type: 'turn.transcript' });
+	expect(
+		transcriptTraces.find((event) => event.payload.transcriptId === 'partial-trace-1')
+	).toMatchObject({
+		payload: {
+			isFinal: false,
+			text: 'hello',
+			transcriptId: 'partial-trace-1'
+		}
+	});
+	expect(
+		transcriptTraces.find((event) => event.payload.transcriptId === 'final-trace-1')
+	).toMatchObject({
+		payload: {
+			isFinal: true,
+			text: 'hello there',
+			transcriptId: 'final-trace-1',
+			vendor: 'fake-stt'
+		}
+	});
+	expect((await trace.list({ type: 'turn.committed' }))[0]).toMatchObject({
+		payload: {
+			reason: 'manual',
+			text: 'hello there',
+			transcriptCount: 1
+		}
+	});
+	const assistantTraces = await trace.list({ type: 'turn.assistant' });
+	expect(
+		assistantTraces.find((event) => event.payload.text === 'Replying to hello there')
+	).toMatchObject({
+		payload: {
+			text: 'Replying to hello there',
+			ttsConfigured: true
+		}
+	});
+	expect((await trace.list({ type: 'turn.cost' }))[0]?.payload).toMatchObject({
+		fallbackAttemptCount: 0,
+		fallbackReplayAudioMs: 0
+	});
+	expect(tts.getSentTexts()).toEqual(['Replying to hello there']);
 });
 
 test('voice session ignores duplicate end-of-turn signals for the same turn', async () => {

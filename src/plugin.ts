@@ -453,6 +453,7 @@ export const voice = <
 			scenarioId,
 			socket: createSocketAdapter(ws),
 			store: config.session,
+			trace: config.trace,
 			stt: config.stt,
 			sttFallback: sessionOptions.sttFallback,
 			sttLifecycle: sessionOptions.sttLifecycle,

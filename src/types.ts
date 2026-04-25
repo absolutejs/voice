@@ -17,6 +17,7 @@ import type {
 	VoiceCallReviewArtifact,
 	VoiceCallReviewStore
 } from './testing/review';
+import type { VoiceTraceEventStore } from './trace';
 
 export type AudioFormat = {
 	container: 'raw';
@@ -786,6 +787,7 @@ export type VoicePluginConfig<
 	logger?: VoiceLogger;
 	htmx?: boolean | VoiceHTMXConfig<TSession, NoInfer<TResult>>;
 	ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
+	trace?: VoiceTraceEventStore;
 } & VoiceRouteConfig<TContext, TSession, TResult>;
 
 export type CreateVoiceSessionOptions<
@@ -803,6 +805,7 @@ export type CreateVoiceSessionOptions<
 	lexicon?: VoiceLexiconEntry[];
 	sttFallback?: VoiceResolvedSTTFallbackConfig;
 	store: VoiceSessionStore<TSession>;
+	trace?: VoiceTraceEventStore;
 	reconnect: Required<VoiceReconnectConfig>;
 	phraseHints?: VoicePhraseHint[];
 	scenarioId?: string;

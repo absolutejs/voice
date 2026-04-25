@@ -399,8 +399,32 @@ export const createVoiceSession = <
 					options.sttFallback.settleMs ??
 					DEFAULT_FALLBACK_SETTLE_MS,
 				trigger: options.sttFallback.trigger ?? 'empty-or-low-confidence'
-		  }
+		}
 		: undefined;
+
+	const appendTrace = async (input: {
+		metadata?: Record<string, unknown>;
+		payload: Record<string, unknown>;
+		session?: TSession;
+		turnId?: string;
+		type:
+			| 'call.lifecycle'
+			| 'session.error'
+			| 'turn.assistant'
+			| 'turn.committed'
+			| 'turn.cost'
+			| 'turn.transcript';
+	}) => {
+		await options.trace?.append({
+			at: Date.now(),
+			metadata: input.metadata,
+			payload: input.payload,
+			scenarioId: input.session?.scenarioId ?? options.scenarioId,
+			sessionId: options.id,
+			turnId: input.turnId,
+			type: input.type
+		});
+	};
 	const phraseHints = options.phraseHints ?? [];
 	const lexicon = options.lexicon ?? [];
 
@@ -661,6 +685,23 @@ export const createVoiceSession = <
 			return;
 		}
 		const resolvedError = toError(error);
+		await appendTrace({
+			payload: {
+				error: resolvedError.message,
+				recoverable: false
+			},
+			session,
+			type: 'session.error'
+		});
+		await appendTrace({
+			payload: {
+				disposition: 'failed',
+				reason: resolvedError.message,
+				type: 'end'
+			},
+			session,
+			type: 'call.lifecycle'
+		});
 
 		await send({
 			message: resolvedError.message,
@@ -739,6 +780,16 @@ export const createVoiceSession = <
 			return;
 		}
 
+		await appendTrace({
+			payload: {
+				disposition,
+				reason: input.reason,
+				target: input.target,
+				type: 'end'
+			},
+			session,
+			type: 'call.lifecycle'
+		});
 		await send({
 			sessionId: options.id,
 			type: 'complete'
@@ -806,13 +857,23 @@ export const createVoiceSession = <
 		result?: TResult;
 		target: string;
 	}) => {
-		await writeSession((currentSession) => {
+		const session = await writeSession((currentSession) => {
 			pushCallLifecycleEvent(currentSession, {
 				metadata: input.metadata,
 				reason: input.reason,
 				target: input.target,
 				type: 'transfer'
 			});
+		});
+		await appendTrace({
+			metadata: input.metadata,
+			payload: {
+				reason: input.reason,
+				target: input.target,
+				type: 'transfer'
+			},
+			session,
+			type: 'call.lifecycle'
 		});
 		await completeInternal(input.result, {
 			disposition: 'transferred',
@@ -828,12 +889,21 @@ export const createVoiceSession = <
 		reason: string;
 		result?: TResult;
 	}) => {
-		await writeSession((currentSession) => {
+		const session = await writeSession((currentSession) => {
 			pushCallLifecycleEvent(currentSession, {
 				metadata: input.metadata,
 				reason: input.reason,
 				type: 'escalation'
 			});
+		});
+		await appendTrace({
+			metadata: input.metadata,
+			payload: {
+				reason: input.reason,
+				type: 'escalation'
+			},
+			session,
+			type: 'call.lifecycle'
 		});
 		await completeInternal(input.result, {
 			disposition: 'escalated',
@@ -847,11 +917,19 @@ export const createVoiceSession = <
 		metadata?: Record<string, unknown>;
 		result?: TResult;
 	}) => {
-		await writeSession((currentSession) => {
+		const session = await writeSession((currentSession) => {
 			pushCallLifecycleEvent(currentSession, {
 				metadata: input?.metadata,
 				type: 'no-answer'
 			});
+		});
+		await appendTrace({
+			metadata: input?.metadata,
+			payload: {
+				type: 'no-answer'
+			},
+			session,
+			type: 'call.lifecycle'
 		});
 		await completeInternal(input?.result, {
 			disposition: 'no-answer',
@@ -864,11 +942,19 @@ export const createVoiceSession = <
 		metadata?: Record<string, unknown>;
 		result?: TResult;
 	}) => {
-		await writeSession((currentSession) => {
+		const session = await writeSession((currentSession) => {
 			pushCallLifecycleEvent(currentSession, {
 				metadata: input?.metadata,
 				type: 'voicemail'
 			});
+		});
+		await appendTrace({
+			metadata: input?.metadata,
+			payload: {
+				type: 'voicemail'
+			},
+			session,
+			type: 'call.lifecycle'
 		});
 		await completeInternal(input?.result, {
 			disposition: 'voicemail',
@@ -878,6 +964,14 @@ export const createVoiceSession = <
 	};
 
 	const handleError = async (event: VoiceErrorEvent) => {
+		await appendTrace({
+			payload: {
+				code: event.code,
+				error: event.error.message,
+				recoverable: event.recoverable
+			},
+			type: 'session.error'
+		});
 		await send({
 			message: event.error.message,
 			recoverable: event.recoverable,
@@ -1288,6 +1382,20 @@ export const createVoiceSession = <
 			transcript,
 			type: 'partial'
 		});
+		await appendTrace({
+			payload: {
+				confidence: transcript.confidence,
+				isFinal: false,
+				language: transcript.language,
+				receivedAt: Date.now(),
+				speaker: transcript.speaker,
+				text: transcript.text,
+				transcriptId: transcript.id,
+				vendor: transcript.vendor
+			},
+			session,
+			type: 'turn.transcript'
+		});
 	};
 
 	const handleFinal = async (transcript: Transcript) => {
@@ -1327,6 +1435,20 @@ export const createVoiceSession = <
 		await send({
 			transcript,
 			type: 'final'
+		});
+		await appendTrace({
+			payload: {
+				confidence: transcript.confidence,
+				isFinal: true,
+				language: transcript.language,
+				receivedAt: Date.now(),
+				speaker: transcript.speaker,
+				text: transcript.text,
+				transcriptId: transcript.id,
+				vendor: transcript.vendor
+			},
+			session,
+			type: 'turn.transcript'
 		});
 	};
 
@@ -1541,18 +1663,46 @@ export const createVoiceSession = <
 				turnId: turn.id,
 				type: 'assistant'
 			});
+			await appendTrace({
+				payload: {
+					text: output.assistantText,
+					ttsConfigured: Boolean(options.tts)
+				},
+				session,
+				turnId: turn.id,
+				type: 'turn.assistant'
+			});
 
 			try {
 				const activeTTSSession = await ensureTTSSession();
 				if (activeTTSSession) {
+					const ttsStartedAt = Date.now();
 					activeTTSTurnId = turn.id;
 					await activeTTSSession.send(output.assistantText);
+					await appendTrace({
+						payload: {
+							elapsedMs: Date.now() - ttsStartedAt,
+							status: 'sent'
+						},
+						session,
+						turnId: turn.id,
+						type: 'turn.assistant'
+					});
 				}
 			} catch (error) {
 				logger.warn('voice tts send failed', {
 					error: toError(error).message,
 					sessionId: options.id,
 					turnId: turn.id
+				});
+				await appendTrace({
+					payload: {
+						error: toError(error).message,
+						status: 'tts-send-failed'
+					},
+					session,
+					turnId: turn.id,
+					type: 'session.error'
 				});
 			}
 		}
@@ -1762,6 +1912,28 @@ export const createVoiceSession = <
 			session: updatedSession,
 			turn
 		});
+		await appendTrace({
+			payload: {
+				correctionChanged: correctionDiagnostics?.changed,
+				correctionProvider: correctionDiagnostics?.provider,
+				fallbackUsed,
+				reason,
+				source,
+				text: turn.text,
+				transcriptCount: turn.transcripts.length
+			},
+			session: updatedSession,
+			turnId: turn.id,
+			type: 'turn.committed'
+		});
+		await appendTrace({
+			payload: {
+				...costEstimate
+			},
+			session: updatedSession,
+			turnId: turn.id,
+			type: 'turn.cost'
+		});
 
 		await send({
 			turn,
@@ -1859,6 +2031,15 @@ export const createVoiceSession = <
 		}
 
 		await options.store.set(options.id, session);
+		if (shouldFireOnSession) {
+			await appendTrace({
+				payload: {
+					type: 'start'
+				},
+				session,
+				type: 'call.lifecycle'
+			});
+		}
 		await send({
 			sessionId: options.id,
 			status: session.status,
@@ -2004,6 +2185,15 @@ export const createVoiceSession = <
 				await closeAdapter(reason);
 				await Promise.resolve(socket.close(1000, reason));
 				if (session.call?.endedAt && session.call.disposition === 'closed') {
+					await appendTrace({
+						payload: {
+							disposition: 'closed',
+							reason,
+							type: 'end'
+						},
+						session,
+						type: 'call.lifecycle'
+					});
 					await options.route.onCallEnd?.({
 						api,
 						context: options.context,
