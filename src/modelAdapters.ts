@@ -53,6 +53,7 @@ export type GeminiVoiceAssistantModelOptions = {
 	baseUrl?: string;
 	fetch?: typeof fetch;
 	maxOutputTokens?: number;
+	maxRetries?: number;
 	model?: string;
 	onUsage?: (usage: Record<string, unknown>) => Promise<void> | void;
 	temperature?: number;
@@ -170,6 +171,11 @@ const getMessageToolCalls = (message: VoiceAgentMessage): VoiceAgentToolCall[] =
 
 const createHTTPError = (provider: string, response: Response) =>
 	new Error(`${provider} voice assistant model failed: HTTP ${response.status}`);
+
+const sleep = (ms: number) =>
+	new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
 
 const normalizeRouteOutput = <TResult>(
 	output: Record<string, unknown>
@@ -723,55 +729,77 @@ export const createGeminiVoiceAssistantModel = <
 	const fetchImpl = options.fetch ?? globalThis.fetch;
 	const baseUrl = options.baseUrl ?? 'https://generativelanguage.googleapis.com/v1beta';
 	const model = options.model ?? 'gemini-2.5-flash';
+	const maxRetries = Math.max(0, options.maxRetries ?? 2);
 
 	return {
 		generate: async (input) => {
 			const endpoint = `${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(options.apiKey)}`;
-			const response = await fetchImpl(endpoint, {
-				body: JSON.stringify({
-					contents: input.messages.map(messageToGeminiContent).filter(Boolean),
-					generationConfig: {
-						maxOutputTokens: options.maxOutputTokens,
-						...(input.tools.length
-							? {}
-							: {
-									responseMimeType: 'application/json',
-									responseSchema: toGeminiSchema(OUTPUT_SCHEMA)
-								}),
-						temperature: options.temperature
-					},
-					systemInstruction: {
-						parts: [
-							{
-								text: [input.system, ROUTE_RESULT_INSTRUCTION]
-									.filter(Boolean)
-									.join('\n\n')
-							}
-						]
-					},
-					tools: input.tools.length
-						? [
+			let response: Response | undefined;
+			for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+				response = await fetchImpl(endpoint, {
+					body: JSON.stringify({
+						contents: input.messages.map(messageToGeminiContent).filter(Boolean),
+						generationConfig: {
+							maxOutputTokens: options.maxOutputTokens,
+							...(input.tools.length
+								? {}
+								: {
+										responseMimeType: 'application/json',
+										responseSchema: toGeminiSchema(OUTPUT_SCHEMA)
+									}),
+							temperature: options.temperature
+						},
+						systemInstruction: {
+							parts: [
 								{
-									functionDeclarations: input.tools.map((tool) => ({
-										description: tool.description,
-										name: tool.name,
-										parameters: toGeminiSchema(
-											tool.parameters ?? {
-												additionalProperties: true,
-												type: 'object'
-											}
-										)
-									}))
+									text: [input.system, ROUTE_RESULT_INSTRUCTION]
+										.filter(Boolean)
+										.join('\n\n')
 								}
 							]
-						: undefined
-				}),
-				headers: {
-					'content-type': 'application/json'
-				},
-				method: 'POST'
-			});
+						},
+						tools: input.tools.length
+							? [
+									{
+										functionDeclarations: input.tools.map((tool) => ({
+											description: tool.description,
+											name: tool.name,
+											parameters: toGeminiSchema(
+												tool.parameters ?? {
+													additionalProperties: true,
+													type: 'object'
+												}
+											)
+										}))
+									}
+								]
+							: undefined
+					}),
+					headers: {
+						'content-type': 'application/json'
+					},
+					method: 'POST'
+				});
 
+				if (
+					response.ok ||
+					(response.status !== 429 && response.status < 500) ||
+					attempt === maxRetries
+				) {
+					break;
+				}
+
+				const retryAfter = Number(response.headers.get('retry-after'));
+				await sleep(
+					Number.isFinite(retryAfter) && retryAfter > 0
+						? retryAfter * 1000
+						: 500 * 2 ** attempt
+				);
+			}
+
+			if (!response) {
+				throw new Error('Gemini voice assistant model failed: no response');
+			}
 			if (!response.ok) {
 				throw createHTTPError('Gemini', response);
 			}
