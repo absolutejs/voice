@@ -129,9 +129,15 @@ const OUTPUT_SCHEMA = {
 const ROUTE_RESULT_INSTRUCTION =
 	'Return only a JSON object with assistantText, complete, transfer, escalate, voicemail, noAnswer, and result when you are not calling tools. Only set transfer, escalate, voicemail, or noAnswer when the user explicitly asks for that lifecycle outcome or a tool result says that exact outcome. Do not infer voicemail from generic words like voice, voice app, or voice integration.';
 
+const stripJSONCodeFence = (value: string) => {
+	const trimmed = value.trim();
+	const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+	return match?.[1]?.trim() ?? value;
+};
+
 const parseJSON = (value: string): Record<string, unknown> => {
 	try {
-		const parsed = JSON.parse(value);
+		const parsed = JSON.parse(stripJSONCodeFence(value));
 		return parsed && typeof parsed === 'object'
 			? (parsed as Record<string, unknown>)
 			: {};
@@ -726,8 +732,12 @@ export const createGeminiVoiceAssistantModel = <
 					contents: input.messages.map(messageToGeminiContent).filter(Boolean),
 					generationConfig: {
 						maxOutputTokens: options.maxOutputTokens,
-						responseMimeType: 'application/json',
-						responseSchema: toGeminiSchema(OUTPUT_SCHEMA),
+						...(input.tools.length
+							? {}
+							: {
+									responseMimeType: 'application/json',
+									responseSchema: toGeminiSchema(OUTPUT_SCHEMA)
+								}),
 						temperature: options.temperature
 					},
 					systemInstruction: {

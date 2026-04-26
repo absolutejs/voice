@@ -308,6 +308,28 @@ test('createAnthropicVoiceAssistantModel sends tool results as tool_result block
 	});
 });
 
+test('createAnthropicVoiceAssistantModel maps fenced JSON text into route results', async () => {
+	const model = createAnthropicVoiceAssistantModel({
+		apiKey: 'test-key',
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					content: [
+						{
+							text: '```json\n{"assistantText":"Done.","complete":true}\n```',
+							type: 'text'
+						}
+					]
+				})
+			)
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'Done.',
+		complete: true
+	});
+});
+
 test('createGeminiVoiceAssistantModel maps function calls from candidate parts', async () => {
 	const requests: Array<Record<string, unknown>> = [];
 	const model = createGeminiVoiceAssistantModel({
@@ -344,6 +366,7 @@ test('createGeminiVoiceAssistantModel maps function calls from candidate parts',
 	const result = await model.generate(createInput());
 
 	expect(requests[0]).toMatchObject({
+		generationConfig: {},
 		tools: [
 			{
 				functionDeclarations: [
