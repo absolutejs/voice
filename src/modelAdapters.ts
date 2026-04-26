@@ -65,9 +65,12 @@ export type VoiceProviderRouterEvent<TProvider extends string = string> = {
 	error?: string;
 	fallbackProvider?: TProvider;
 	provider: TProvider;
+	providerHealth?: VoiceProviderRouterProviderHealth<TProvider>;
 	rateLimited?: boolean;
 	recovered?: boolean;
 	selectedProvider: TProvider;
+	suppressionRemainingMs?: number;
+	suppressedUntil?: number;
 	status: 'error' | 'fallback' | 'success';
 };
 
@@ -422,6 +425,25 @@ export const createVoiceProviderRouter = <
 		return next;
 	};
 
+	const cloneHealth = (provider: TProvider) => {
+		if (!healthOptions) {
+			return undefined;
+		}
+		return {
+			...getHealth(provider)
+		};
+	};
+
+	const getSuppressionRemainingMs = (provider: TProvider) => {
+		if (!healthOptions) {
+			return undefined;
+		}
+		const suppressedUntil = getHealth(provider).suppressedUntil;
+		return typeof suppressedUntil === 'number'
+			? Math.max(0, suppressedUntil - now())
+			: undefined;
+	};
+
 	const isSuppressed = (provider: TProvider) => {
 		if (!healthOptions) {
 			return false;
@@ -435,12 +457,13 @@ export const createVoiceProviderRouter = <
 
 	const recordProviderSuccess = (provider: TProvider) => {
 		if (!healthOptions) {
-			return;
+			return undefined;
 		}
 		const health = getHealth(provider);
 		health.consecutiveFailures = 0;
 		health.status = 'healthy';
 		health.suppressedUntil = undefined;
+		return cloneHealth(provider);
 	};
 
 	const recordProviderError = (
@@ -449,7 +472,7 @@ export const createVoiceProviderRouter = <
 		rateLimited: boolean
 	) => {
 		if (!healthOptions || !isProviderError) {
-			return;
+			return cloneHealth(provider);
 		}
 		const currentTime = now();
 		const health = getHealth(provider);
@@ -463,6 +486,7 @@ export const createVoiceProviderRouter = <
 			health.suppressedUntil =
 				currentTime + (rateLimited ? rateLimitCooldownMs : cooldownMs);
 		}
+		return cloneHealth(provider);
 	};
 
 	const resolveAllowedProviders = async (
@@ -580,7 +604,7 @@ export const createVoiceProviderRouter = <
 				const startedAt = Date.now();
 				try {
 					const output = await model.generate(input);
-					recordProviderSuccess(provider);
+					const providerHealth = recordProviderSuccess(provider);
 					await emit(
 						{
 							at: Date.now(),
@@ -588,6 +612,7 @@ export const createVoiceProviderRouter = <
 							fallbackProvider:
 								provider === selectedProvider ? undefined : provider,
 							provider,
+							providerHealth,
 							recovered: provider !== selectedProvider,
 							selectedProvider,
 							status: provider === selectedProvider ? 'success' : 'fallback'
@@ -609,7 +634,11 @@ export const createVoiceProviderRouter = <
 							: fallbackMode === 'rate-limit'
 								? isProviderError && rateLimited
 								: false;
-					recordProviderError(provider, isProviderError, rateLimited);
+					const providerHealth = recordProviderError(
+						provider,
+						isProviderError,
+						rateLimited
+					);
 					const nextProvider = hasNextProvider ? order[index + 1] : undefined;
 
 					await emit(
@@ -619,8 +648,11 @@ export const createVoiceProviderRouter = <
 							error: errorMessage(error),
 							fallbackProvider: shouldFallback ? nextProvider : undefined,
 							provider,
+							providerHealth,
 							rateLimited,
 							selectedProvider,
+							suppressionRemainingMs: getSuppressionRemainingMs(provider),
+							suppressedUntil: providerHealth?.suppressedUntil,
 							status: 'error'
 						},
 						input

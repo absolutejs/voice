@@ -251,8 +251,12 @@ test('createVoiceProviderRouter can fall back only on rate limits', async () => 
 test('createVoiceProviderRouter suppresses unhealthy providers until cooldown expires', async () => {
 	let currentTime = 1_000;
 	const calls: string[] = [];
+	const events: Array<Record<string, unknown>> = [];
 	const model = createVoiceProviderRouter({
 		fallback: ['primary', 'backup'],
+		onProviderEvent: (event) => {
+			events.push(event);
+		},
 		providerHealth: {
 			cooldownMs: 500,
 			now: () => currentTime,
@@ -294,6 +298,24 @@ test('createVoiceProviderRouter suppresses unhealthy providers until cooldown ex
 		assistantText: 'primary'
 	});
 	expect(calls).toEqual(['primary', 'backup', 'backup', 'primary']);
+	expect(events[0]).toMatchObject({
+		provider: 'primary',
+		providerHealth: {
+			consecutiveFailures: 1,
+			status: 'suppressed',
+			suppressedUntil: 2_000
+		},
+		suppressionRemainingMs: 1_000,
+		suppressedUntil: 2_000
+	});
+	expect(events.at(-1)).toMatchObject({
+		provider: 'primary',
+		providerHealth: {
+			consecutiveFailures: 0,
+			status: 'healthy'
+		},
+		status: 'success'
+	});
 });
 
 test('createOpenAIVoiceAssistantModel maps tool calls from responses output', async () => {
