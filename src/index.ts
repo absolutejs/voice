@@ -209,8 +209,10 @@ export type {
 	OpenAIVoiceAssistantModelOptions,
 	VoiceProviderRouterEvent,
 	VoiceProviderRouterFallbackMode,
+	VoiceProviderRouterHealthOptions,
 	VoiceProviderRouterOptions,
 	VoiceProviderRouterPolicy,
+	VoiceProviderRouterProviderHealth,
 	VoiceProviderRouterProviderProfile,
 	VoiceJSONAssistantModelHandler,
 	VoiceJSONAssistantModelOptions

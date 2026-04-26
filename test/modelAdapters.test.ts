@@ -248,6 +248,54 @@ test('createVoiceProviderRouter can fall back only on rate limits', async () => 
 	expect(calls).toEqual(['primary']);
 });
 
+test('createVoiceProviderRouter suppresses unhealthy providers until cooldown expires', async () => {
+	let currentTime = 1_000;
+	const calls: string[] = [];
+	const model = createVoiceProviderRouter({
+		fallback: ['primary', 'backup'],
+		providerHealth: {
+			cooldownMs: 500,
+			now: () => currentTime,
+			rateLimitCooldownMs: 1_000
+		},
+		providers: {
+			backup: {
+				generate: async () => {
+					calls.push('backup');
+					return {
+						assistantText: 'backup'
+					};
+				}
+			},
+			primary: {
+				generate: async () => {
+					calls.push('primary');
+					if (calls.filter((call) => call === 'primary').length === 1) {
+						throw new Error('OpenAI voice assistant model failed: HTTP 429');
+					}
+					return {
+						assistantText: 'primary'
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>,
+		selectProvider: () => 'primary'
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'backup'
+	});
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'backup'
+	});
+
+	currentTime = 2_001;
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'primary'
+	});
+	expect(calls).toEqual(['primary', 'backup', 'backup', 'primary']);
+});
+
 test('createOpenAIVoiceAssistantModel maps tool calls from responses output', async () => {
 	const requests: Array<Record<string, unknown>> = [];
 	const model = createOpenAIVoiceAssistantModel({

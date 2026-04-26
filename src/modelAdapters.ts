@@ -105,6 +105,24 @@ export type VoiceProviderRouterProviderProfile = {
 	priority?: number;
 };
 
+export type VoiceProviderRouterHealthOptions = {
+	cooldownMs?: number;
+	failureThreshold?: number;
+	now?: () => number;
+	rateLimitCooldownMs?: number;
+};
+
+export type VoiceProviderRouterProviderHealth<
+	TProvider extends string = string
+> = {
+	consecutiveFailures: number;
+	lastFailureAt?: number;
+	lastRateLimitedAt?: number;
+	provider: TProvider;
+	status: 'healthy' | 'suppressed';
+	suppressedUntil?: number;
+};
+
 export type VoiceProviderRouterOptions<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -129,6 +147,7 @@ export type VoiceProviderRouterOptions<
 		input: VoiceAgentModelInput<TContext, TSession>
 	) => Promise<void> | void;
 	policy?: VoiceProviderRouterPolicy<TContext, TSession, TProvider>;
+	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
 	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
 	providers: Partial<
 		Record<TProvider, VoiceAgentModel<TContext, TSession, TResult>>
@@ -371,6 +390,80 @@ export const createVoiceProviderRouter = <
 	const strategy = policy?.strategy ?? 'prefer-selected';
 	const fallbackMode =
 		policy?.fallbackMode ?? options.fallbackMode ?? 'provider-error';
+	const healthOptions =
+		typeof options.providerHealth === 'object'
+			? options.providerHealth
+			: options.providerHealth
+				? {}
+				: undefined;
+	const healthState = new Map<
+		TProvider,
+		VoiceProviderRouterProviderHealth<TProvider>
+	>();
+	const now = () => healthOptions?.now?.() ?? Date.now();
+	const failureThreshold = Math.max(1, healthOptions?.failureThreshold ?? 1);
+	const cooldownMs = Math.max(0, healthOptions?.cooldownMs ?? 30_000);
+	const rateLimitCooldownMs = Math.max(
+		0,
+		healthOptions?.rateLimitCooldownMs ?? 60_000
+	);
+
+	const getHealth = (provider: TProvider) => {
+		const existing = healthState.get(provider);
+		if (existing) {
+			return existing;
+		}
+		const next: VoiceProviderRouterProviderHealth<TProvider> = {
+			consecutiveFailures: 0,
+			provider,
+			status: 'healthy'
+		};
+		healthState.set(provider, next);
+		return next;
+	};
+
+	const isSuppressed = (provider: TProvider) => {
+		if (!healthOptions) {
+			return false;
+		}
+		const health = getHealth(provider);
+		return (
+			typeof health.suppressedUntil === 'number' &&
+			health.suppressedUntil > now()
+		);
+	};
+
+	const recordProviderSuccess = (provider: TProvider) => {
+		if (!healthOptions) {
+			return;
+		}
+		const health = getHealth(provider);
+		health.consecutiveFailures = 0;
+		health.status = 'healthy';
+		health.suppressedUntil = undefined;
+	};
+
+	const recordProviderError = (
+		provider: TProvider,
+		isProviderError: boolean,
+		rateLimited: boolean
+	) => {
+		if (!healthOptions || !isProviderError) {
+			return;
+		}
+		const currentTime = now();
+		const health = getHealth(provider);
+		health.consecutiveFailures += 1;
+		health.lastFailureAt = currentTime;
+		if (rateLimited) {
+			health.lastRateLimitedAt = currentTime;
+		}
+		if (rateLimited || health.consecutiveFailures >= failureThreshold) {
+			health.status = 'suppressed';
+			health.suppressedUntil =
+				currentTime + (rateLimited ? rateLimitCooldownMs : cooldownMs);
+		}
+	};
 
 	const resolveAllowedProviders = async (
 		input: VoiceAgentModelInput<TContext, TSession>
@@ -420,16 +513,30 @@ export const createVoiceProviderRouter = <
 		const rankedProviders = sortProviders([
 			...(fallbackOrder ?? providerIds)
 		]).filter((provider) => allowedProviders.has(provider));
+		const healthyRankedProviders = healthOptions
+			? rankedProviders.filter((provider) => !isSuppressed(provider))
+			: rankedProviders;
+		const candidateRankedProviders = healthyRankedProviders.length
+			? healthyRankedProviders
+			: rankedProviders;
 		const preferred =
-			selectedProvider && allowedProviders.has(selectedProvider)
+			selectedProvider &&
+			allowedProviders.has(selectedProvider) &&
+			(!healthOptions || !isSuppressed(selectedProvider))
 				? selectedProvider
-				: rankedProviders[0] ?? firstProvider;
+				: candidateRankedProviders[0] ?? firstProvider;
 		const seen = new Set<TProvider>();
 		const order: TProvider[] = [];
 		const candidates =
 			strategy === 'ordered'
-				? rankedProviders
-				: [preferred, ...rankedProviders, ...providerIds];
+				? candidateRankedProviders
+				: [
+						preferred,
+						...candidateRankedProviders,
+						...providerIds.filter(
+							(provider) => !healthOptions || !isSuppressed(provider)
+						)
+					];
 
 		for (const provider of candidates) {
 			if (
@@ -473,6 +580,7 @@ export const createVoiceProviderRouter = <
 				const startedAt = Date.now();
 				try {
 					const output = await model.generate(input);
+					recordProviderSuccess(provider);
 					await emit(
 						{
 							at: Date.now(),
@@ -501,6 +609,7 @@ export const createVoiceProviderRouter = <
 							: fallbackMode === 'rate-limit'
 								? isProviderError && rateLimited
 								: false;
+					recordProviderError(provider, isProviderError, rateLimited);
 					const nextProvider = hasNextProvider ? order[index + 1] : undefined;
 
 					await emit(
