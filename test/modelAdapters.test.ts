@@ -171,6 +171,83 @@ test('createVoiceProviderRouter does not fall back on fatal errors', async () =>
 	expect(events[0].fallbackProvider).toBeUndefined();
 });
 
+test('createVoiceProviderRouter can prefer the cheapest allowed provider', async () => {
+	const calls: string[] = [];
+	const model = createVoiceProviderRouter({
+		allowProviders: ['fast', 'cheap'],
+		policy: 'prefer-cheapest',
+		providerProfiles: {
+			cheap: {
+				cost: 1,
+				latencyMs: 900
+			},
+			fast: {
+				cost: 10,
+				latencyMs: 100
+			}
+		},
+		providers: {
+			cheap: {
+				generate: async () => {
+					calls.push('cheap');
+					return {
+						assistantText: 'cheap'
+					};
+				}
+			},
+			fast: {
+				generate: async () => {
+					calls.push('fast');
+					return {
+						assistantText: 'fast'
+					};
+				}
+			},
+			premium: {
+				generate: async () => {
+					calls.push('premium');
+					return {
+						assistantText: 'premium'
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'cheap'
+	});
+	expect(calls).toEqual(['cheap']);
+});
+
+test('createVoiceProviderRouter can fall back only on rate limits', async () => {
+	const calls: string[] = [];
+	const model = createVoiceProviderRouter({
+		fallback: ['primary', 'backup'],
+		fallbackMode: 'rate-limit',
+		providers: {
+			backup: {
+				generate: async () => {
+					calls.push('backup');
+					return {
+						assistantText: 'backup'
+					};
+				}
+			},
+			primary: {
+				generate: async () => {
+					calls.push('primary');
+					throw new Error('OpenAI voice assistant model failed: HTTP 500');
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>,
+		selectProvider: () => 'primary'
+	});
+
+	await expect(model.generate(createInput())).rejects.toThrow('HTTP 500');
+	expect(calls).toEqual(['primary']);
+});
+
 test('createOpenAIVoiceAssistantModel maps tool calls from responses output', async () => {
 	const requests: Array<Record<string, unknown>> = [];
 	const model = createOpenAIVoiceAssistantModel({

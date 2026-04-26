@@ -208,7 +208,10 @@ export type {
 	GeminiVoiceAssistantModelOptions,
 	OpenAIVoiceAssistantModelOptions,
 	VoiceProviderRouterEvent,
+	VoiceProviderRouterFallbackMode,
 	VoiceProviderRouterOptions,
+	VoiceProviderRouterPolicy,
+	VoiceProviderRouterProviderProfile,
 	VoiceJSONAssistantModelHandler,
 	VoiceJSONAssistantModelOptions
 } from './modelAdapters';

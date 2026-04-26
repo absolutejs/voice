@@ -71,23 +71,65 @@ export type VoiceProviderRouterEvent<TProvider extends string = string> = {
 	status: 'error' | 'fallback' | 'success';
 };
 
+export type VoiceProviderRouterFallbackMode =
+	| 'never'
+	| 'provider-error'
+	| 'rate-limit';
+
+export type VoiceProviderRouterPolicy<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string
+> =
+	| 'ordered'
+	| 'prefer-cheapest'
+	| 'prefer-fastest'
+	| 'prefer-selected'
+	| {
+			allowProviders?:
+				| readonly TProvider[]
+				| ((
+						input: VoiceAgentModelInput<TContext, TSession>
+					) => readonly TProvider[] | Promise<readonly TProvider[]>);
+			fallbackMode?: VoiceProviderRouterFallbackMode;
+			strategy?:
+				| 'ordered'
+				| 'prefer-cheapest'
+				| 'prefer-fastest'
+				| 'prefer-selected';
+	  };
+
+export type VoiceProviderRouterProviderProfile = {
+	cost?: number;
+	latencyMs?: number;
+	priority?: number;
+};
+
 export type VoiceProviderRouterOptions<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TResult = unknown,
 	TProvider extends string = string
 > = {
+	allowProviders?:
+		| readonly TProvider[]
+		| ((
+				input: VoiceAgentModelInput<TContext, TSession>
+			) => readonly TProvider[] | Promise<readonly TProvider[]>);
 	fallback?:
 		| TProvider[]
 		| ((
 				input: VoiceAgentModelInput<TContext, TSession>
 			) => readonly TProvider[] | Promise<readonly TProvider[]>);
+	fallbackMode?: VoiceProviderRouterFallbackMode;
 	isProviderError?: (error: unknown, provider: TProvider) => boolean;
 	isRateLimitError?: (error: unknown, provider: TProvider) => boolean;
 	onProviderEvent?: (
 		event: VoiceProviderRouterEvent<TProvider>,
 		input: VoiceAgentModelInput<TContext, TSession>
 	) => Promise<void> | void;
+	policy?: VoiceProviderRouterPolicy<TContext, TSession, TProvider>;
+	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
 	providers: Partial<
 		Record<TProvider, VoiceAgentModel<TContext, TSession, TResult>>
 	>;
@@ -320,25 +362,82 @@ export const createVoiceProviderRouter = <
 ): VoiceAgentModel<TContext, TSession, TResult> => {
 	const providerIds = Object.keys(options.providers) as TProvider[];
 	const firstProvider = providerIds[0];
+	const policy =
+		typeof options.policy === 'string'
+			? {
+					strategy: options.policy
+				}
+			: options.policy;
+	const strategy = policy?.strategy ?? 'prefer-selected';
+	const fallbackMode =
+		policy?.fallbackMode ?? options.fallbackMode ?? 'provider-error';
+
+	const resolveAllowedProviders = async (
+		input: VoiceAgentModelInput<TContext, TSession>
+	) => {
+		const allowProviders = policy?.allowProviders ?? options.allowProviders;
+		const allowed =
+			typeof allowProviders === 'function'
+				? await allowProviders(input)
+				: allowProviders;
+		return new Set(allowed ?? providerIds);
+	};
+
+	const sortProviders = (providers: TProvider[]) => {
+		if (strategy !== 'prefer-cheapest' && strategy !== 'prefer-fastest') {
+			return providers;
+		}
+
+		return [...providers].sort((left, right) => {
+			const leftProfile = options.providerProfiles?.[left];
+			const rightProfile = options.providerProfiles?.[right];
+			const leftValue =
+				strategy === 'prefer-cheapest'
+					? (leftProfile?.cost ?? Number.MAX_SAFE_INTEGER)
+					: (leftProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER);
+			const rightValue =
+				strategy === 'prefer-cheapest'
+					? (rightProfile?.cost ?? Number.MAX_SAFE_INTEGER)
+					: (rightProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER);
+
+			return (
+				leftValue - rightValue ||
+				(leftProfile?.priority ?? Number.MAX_SAFE_INTEGER) -
+					(rightProfile?.priority ?? Number.MAX_SAFE_INTEGER)
+			);
+		});
+	};
 
 	const resolveOrder = async (
 		input: VoiceAgentModelInput<TContext, TSession>
 	) => {
 		const selectedProvider = await options.selectProvider?.(input);
+		const allowedProviders = await resolveAllowedProviders(input);
 		const fallbackOrder =
 			typeof options.fallback === 'function'
 				? await options.fallback(input)
 				: options.fallback;
-		const preferred = selectedProvider ?? fallbackOrder?.[0] ?? firstProvider;
+		const rankedProviders = sortProviders([
+			...(fallbackOrder ?? providerIds)
+		]).filter((provider) => allowedProviders.has(provider));
+		const preferred =
+			selectedProvider && allowedProviders.has(selectedProvider)
+				? selectedProvider
+				: rankedProviders[0] ?? firstProvider;
 		const seen = new Set<TProvider>();
 		const order: TProvider[] = [];
+		const candidates =
+			strategy === 'ordered'
+				? rankedProviders
+				: [preferred, ...rankedProviders, ...providerIds];
 
-		for (const provider of [
-			preferred,
-			...(fallbackOrder ?? []),
-			...providerIds
-		]) {
-			if (!provider || seen.has(provider) || !options.providers[provider]) {
+		for (const provider of candidates) {
+			if (
+				!provider ||
+				seen.has(provider) ||
+				!allowedProviders.has(provider) ||
+				!options.providers[provider]
+			) {
 				continue;
 			}
 			seen.add(provider);
@@ -393,6 +492,15 @@ export const createVoiceProviderRouter = <
 					const hasNextProvider = index < order.length - 1;
 					const isProviderError =
 						options.isProviderError?.(error, provider) ?? true;
+					const rateLimited =
+						options.isRateLimitError?.(error, provider) ??
+						defaultIsRateLimitError(error);
+					const shouldFallback =
+						fallbackMode === 'provider-error'
+							? isProviderError
+							: fallbackMode === 'rate-limit'
+								? isProviderError && rateLimited
+								: false;
 					const nextProvider = hasNextProvider ? order[index + 1] : undefined;
 
 					await emit(
@@ -400,18 +508,16 @@ export const createVoiceProviderRouter = <
 							at: Date.now(),
 							elapsedMs: Date.now() - startedAt,
 							error: errorMessage(error),
-							fallbackProvider: isProviderError ? nextProvider : undefined,
+							fallbackProvider: shouldFallback ? nextProvider : undefined,
 							provider,
-							rateLimited:
-								options.isRateLimitError?.(error, provider) ??
-								defaultIsRateLimitError(error),
+							rateLimited,
 							selectedProvider,
 							status: 'error'
 						},
 						input
 					);
 
-					if (!hasNextProvider || !isProviderError) {
+					if (!hasNextProvider || !shouldFallback) {
 						throw error;
 					}
 				}
