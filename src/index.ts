@@ -34,7 +34,8 @@ export {
 	createAnthropicVoiceAssistantModel,
 	createGeminiVoiceAssistantModel,
 	createJSONVoiceAssistantModel,
-	createOpenAIVoiceAssistantModel
+	createOpenAIVoiceAssistantModel,
+	createVoiceProviderRouter
 } from './modelAdapters';
 export {
 	buildVoiceTraceReplay,
@@ -206,6 +207,8 @@ export type {
 	AnthropicVoiceAssistantModelOptions,
 	GeminiVoiceAssistantModelOptions,
 	OpenAIVoiceAssistantModelOptions,
+	VoiceProviderRouterEvent,
+	VoiceProviderRouterOptions,
 	VoiceJSONAssistantModelHandler,
 	VoiceJSONAssistantModelOptions
 } from './modelAdapters';

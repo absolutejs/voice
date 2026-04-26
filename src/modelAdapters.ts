@@ -59,6 +59,43 @@ export type GeminiVoiceAssistantModelOptions = {
 	temperature?: number;
 };
 
+export type VoiceProviderRouterEvent<TProvider extends string = string> = {
+	at: number;
+	elapsedMs: number;
+	error?: string;
+	fallbackProvider?: TProvider;
+	provider: TProvider;
+	rateLimited?: boolean;
+	recovered?: boolean;
+	selectedProvider: TProvider;
+	status: 'error' | 'fallback' | 'success';
+};
+
+export type VoiceProviderRouterOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown,
+	TProvider extends string = string
+> = {
+	fallback?:
+		| TProvider[]
+		| ((
+				input: VoiceAgentModelInput<TContext, TSession>
+			) => readonly TProvider[] | Promise<readonly TProvider[]>);
+	isProviderError?: (error: unknown, provider: TProvider) => boolean;
+	isRateLimitError?: (error: unknown, provider: TProvider) => boolean;
+	onProviderEvent?: (
+		event: VoiceProviderRouterEvent<TProvider>,
+		input: VoiceAgentModelInput<TContext, TSession>
+	) => Promise<void> | void;
+	providers: Partial<
+		Record<TProvider, VoiceAgentModel<TContext, TSession, TResult>>
+	>;
+	selectProvider?: (
+		input: VoiceAgentModelInput<TContext, TSession>
+	) => TProvider | undefined | Promise<TProvider | undefined>;
+};
+
 const OUTPUT_SCHEMA = {
 	additionalProperties: false,
 	properties: {
@@ -177,6 +214,12 @@ const sleep = (ms: number) =>
 		setTimeout(resolve, ms);
 	});
 
+const errorMessage = (error: unknown) =>
+	error instanceof Error ? error.message : String(error);
+
+const defaultIsRateLimitError = (error: unknown) =>
+	/(\b429\b|rate limit|quota|too many requests)/i.test(errorMessage(error));
+
 const normalizeRouteOutput = <TResult>(
 	output: Record<string, unknown>
 ): VoiceAgentModelOutput<TResult> => {
@@ -261,6 +304,123 @@ export const createJSONVoiceAssistantModel = <
 		return options.mapOutput?.(output) ?? normalizeRouteOutput<TResult>(output);
 	}
 });
+
+export const createVoiceProviderRouter = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown,
+	TProvider extends string = string
+>(
+	options: VoiceProviderRouterOptions<
+		TContext,
+		TSession,
+		TResult,
+		TProvider
+	>
+): VoiceAgentModel<TContext, TSession, TResult> => {
+	const providerIds = Object.keys(options.providers) as TProvider[];
+	const firstProvider = providerIds[0];
+
+	const resolveOrder = async (
+		input: VoiceAgentModelInput<TContext, TSession>
+	) => {
+		const selectedProvider = await options.selectProvider?.(input);
+		const fallbackOrder =
+			typeof options.fallback === 'function'
+				? await options.fallback(input)
+				: options.fallback;
+		const preferred = selectedProvider ?? fallbackOrder?.[0] ?? firstProvider;
+		const seen = new Set<TProvider>();
+		const order: TProvider[] = [];
+
+		for (const provider of [
+			preferred,
+			...(fallbackOrder ?? []),
+			...providerIds
+		]) {
+			if (!provider || seen.has(provider) || !options.providers[provider]) {
+				continue;
+			}
+			seen.add(provider);
+			order.push(provider);
+		}
+
+		return {
+			order,
+			selectedProvider: preferred
+		};
+	};
+
+	const emit = async (
+		event: VoiceProviderRouterEvent<TProvider>,
+		input: VoiceAgentModelInput<TContext, TSession>
+	) => {
+		await options.onProviderEvent?.(event, input);
+	};
+
+	return {
+		generate: async (input) => {
+			const { order, selectedProvider } = await resolveOrder(input);
+			if (!selectedProvider || order.length === 0) {
+				throw new Error('Voice provider router has no available providers.');
+			}
+
+			let lastError: unknown;
+			for (const [index, provider] of order.entries()) {
+				const model = options.providers[provider];
+				if (!model) {
+					continue;
+				}
+				const startedAt = Date.now();
+				try {
+					const output = await model.generate(input);
+					await emit(
+						{
+							at: Date.now(),
+							elapsedMs: Date.now() - startedAt,
+							fallbackProvider:
+								provider === selectedProvider ? undefined : provider,
+							provider,
+							recovered: provider !== selectedProvider,
+							selectedProvider,
+							status: provider === selectedProvider ? 'success' : 'fallback'
+						},
+						input
+					);
+					return output;
+				} catch (error) {
+					lastError = error;
+					const hasNextProvider = index < order.length - 1;
+					const isProviderError =
+						options.isProviderError?.(error, provider) ?? true;
+					const nextProvider = hasNextProvider ? order[index + 1] : undefined;
+
+					await emit(
+						{
+							at: Date.now(),
+							elapsedMs: Date.now() - startedAt,
+							error: errorMessage(error),
+							fallbackProvider: isProviderError ? nextProvider : undefined,
+							provider,
+							rateLimited:
+								options.isRateLimitError?.(error, provider) ??
+								defaultIsRateLimitError(error),
+							selectedProvider,
+							status: 'error'
+						},
+						input
+					);
+
+					if (!hasNextProvider || !isProviderError) {
+						throw error;
+					}
+				}
+			}
+
+			throw lastError ?? new Error('Voice provider router did not run a provider.');
+		}
+	};
+};
 
 const messageToOpenAIInput = (
 	message: VoiceAgentMessage

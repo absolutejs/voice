@@ -4,7 +4,9 @@ import {
 	createGeminiVoiceAssistantModel,
 	createJSONVoiceAssistantModel,
 	createOpenAIVoiceAssistantModel,
+	createVoiceProviderRouter,
 	createVoiceSessionRecord,
+	type VoiceAgentModel,
 	type VoiceAgentModelInput
 } from '../src';
 
@@ -53,6 +55,120 @@ test('createJSONVoiceAssistantModel maps JSON into route results', async () => {
 		assistantText: 'Done.',
 		complete: true
 	});
+});
+
+test('createVoiceProviderRouter uses the selected provider when healthy', async () => {
+	const calls: string[] = [];
+	const model = createVoiceProviderRouter({
+		fallback: ['primary', 'backup'],
+		providers: {
+			backup: {
+				generate: async () => {
+					calls.push('backup');
+					return {
+						assistantText: 'backup'
+					};
+				}
+			},
+			primary: {
+				generate: async () => {
+					calls.push('primary');
+					return {
+						assistantText: 'primary',
+						complete: true
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>,
+		selectProvider: () => 'primary'
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'primary',
+		complete: true
+	});
+	expect(calls).toEqual(['primary']);
+});
+
+test('createVoiceProviderRouter falls back on provider errors', async () => {
+	const events: Array<Record<string, unknown>> = [];
+	const model = createVoiceProviderRouter({
+		fallback: ['primary', 'backup'],
+		onProviderEvent: (event) => {
+			events.push(event);
+		},
+		providers: {
+			backup: {
+				generate: async () => ({
+					assistantText: 'backup',
+					complete: true
+				})
+			},
+			primary: {
+				generate: async () => {
+					throw new Error('OpenAI voice assistant model failed: HTTP 429');
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>,
+		selectProvider: () => 'primary'
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'backup',
+		complete: true
+	});
+	expect(events).toMatchObject([
+		{
+			fallbackProvider: 'backup',
+			provider: 'primary',
+			rateLimited: true,
+			selectedProvider: 'primary',
+			status: 'error'
+		},
+		{
+			fallbackProvider: 'backup',
+			provider: 'backup',
+			recovered: true,
+			selectedProvider: 'primary',
+			status: 'fallback'
+		}
+	]);
+});
+
+test('createVoiceProviderRouter does not fall back on fatal errors', async () => {
+	const events: Array<Record<string, unknown>> = [];
+	const model = createVoiceProviderRouter({
+		fallback: ['primary', 'backup'],
+		isProviderError: () => false,
+		onProviderEvent: (event) => {
+			events.push(event);
+		},
+		providers: {
+			backup: {
+				generate: async () => ({
+					assistantText: 'backup'
+				})
+			},
+			primary: {
+				generate: async () => {
+					throw new Error('tool serialization bug');
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>,
+		selectProvider: () => 'primary'
+	});
+
+	await expect(model.generate(createInput())).rejects.toThrow(
+		'tool serialization bug'
+	);
+	expect(events).toMatchObject([
+		{
+			provider: 'primary',
+			selectedProvider: 'primary',
+			status: 'error'
+		}
+	]);
+	expect(events[0].fallbackProvider).toBeUndefined();
 });
 
 test('createOpenAIVoiceAssistantModel maps tool calls from responses output', async () => {
