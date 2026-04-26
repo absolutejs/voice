@@ -38,6 +38,10 @@ export {
 	createVoiceProviderRouter
 } from './modelAdapters';
 export {
+	renderVoiceProviderHealthHTML,
+	summarizeVoiceProviderHealth
+} from './providerHealth';
+export {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceTraceHTTPSink,
@@ -217,6 +221,11 @@ export type {
 	VoiceJSONAssistantModelHandler,
 	VoiceJSONAssistantModelOptions
 } from './modelAdapters';
+export type {
+	VoiceProviderHealthStatus,
+	VoiceProviderHealthSummary,
+	VoiceProviderHealthSummaryOptions
+} from './providerHealth';
 export type {
 	VoiceAgent,
 	VoiceAgentMessage,
