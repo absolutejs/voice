@@ -5,6 +5,13 @@ export {
 	summarizeVoiceAssistantRuns
 } from './assistant';
 export {
+	createVoiceAssistantHealthHTMLHandler,
+	createVoiceAssistantHealthJSONHandler,
+	createVoiceAssistantHealthRoutes,
+	renderVoiceAssistantHealthHTML,
+	summarizeVoiceAssistantHealth
+} from './assistantHealth';
+export {
 	createVoiceAgent,
 	createVoiceAgentSquad,
 	createVoiceAgentTool
@@ -203,6 +210,13 @@ export type {
 	VoiceAssistantRunSummary,
 	VoiceAssistantVariant
 } from './assistant';
+export type {
+	VoiceAssistantHealthFailure,
+	VoiceAssistantHealthHTMLHandlerOptions,
+	VoiceAssistantHealthRoutesOptions,
+	VoiceAssistantHealthSummary,
+	VoiceAssistantHealthSummaryOptions
+} from './assistantHealth';
 export type {
 	VoiceAssistantMemoryBinding,
 	VoiceAssistantMemoryHandle,

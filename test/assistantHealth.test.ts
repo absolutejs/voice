@@ -1,0 +1,131 @@
+import { expect, test } from 'bun:test';
+import {
+	createVoiceAssistantHealthHTMLHandler,
+	createVoiceAssistantHealthRoutes,
+	createVoiceMemoryTraceEventStore,
+	createVoiceTraceEvent,
+	renderVoiceAssistantHealthHTML,
+	summarizeVoiceAssistantHealth
+} from '../src';
+
+test('summarizeVoiceAssistantHealth combines assistant, provider, and failure summaries', async () => {
+	const events = [
+		createVoiceTraceEvent({
+			at: 1_000,
+			payload: {
+				assistantId: 'support',
+				elapsedMs: 25,
+				outcome: 'completed',
+				toolNames: ['lookup'],
+				variantId: 'openai'
+			},
+			sessionId: 'session-health',
+			type: 'assistant.run'
+		}),
+		createVoiceTraceEvent({
+			at: 1_010,
+			payload: {
+				error: 'OpenAI voice assistant model failed: HTTP 429',
+				provider: 'openai',
+				providerStatus: 'error',
+				rateLimited: true,
+				selectedProvider: 'openai'
+			},
+			sessionId: 'session-health',
+			type: 'session.error'
+		})
+	];
+
+	expect(
+		await summarizeVoiceAssistantHealth({
+			events,
+			providers: ['openai', 'anthropic']
+		})
+	).toMatchObject({
+		assistantRuns: {
+			assistants: [
+				{
+					assistantId: 'support',
+					averageElapsedMs: 25,
+					outcomes: {
+						completed: 1
+					},
+					runCount: 1,
+					toolCalls: {
+						lookup: 1
+					}
+				}
+			],
+			totalRuns: 1
+		},
+		providerHealth: [
+			{
+				provider: 'openai',
+				rateLimited: true,
+				status: 'rate-limited'
+			},
+			{
+				provider: 'anthropic',
+				status: 'idle'
+			}
+		],
+		recentFailures: [
+			{
+				error: 'OpenAI voice assistant model failed: HTTP 429',
+				provider: 'openai',
+				rateLimited: true,
+				status: 'error'
+			}
+		]
+	});
+});
+
+test('renderVoiceAssistantHealthHTML renders portable dashboard sections', async () => {
+	const summary = await summarizeVoiceAssistantHealth({
+		events: [],
+		providers: ['openai']
+	});
+
+	expect(renderVoiceAssistantHealthHTML(summary)).toContain('Provider Health');
+	expect(renderVoiceAssistantHealthHTML(summary)).toContain('Recent Failures');
+});
+
+test('createVoiceAssistantHealthHTMLHandler returns an HTMX-ready panel', async () => {
+	const response = await createVoiceAssistantHealthHTMLHandler({
+		events: [],
+		providers: ['openai']
+	})();
+
+	expect(response.headers.get('Content-Type')).toBe(
+		'text/html; charset=utf-8'
+	);
+	expect(await response.text()).toContain('voice-assistant-health');
+});
+
+test('createVoiceAssistantHealthRoutes exposes json and html endpoints', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	const routes = createVoiceAssistantHealthRoutes({
+		providers: ['openai'],
+		store
+	});
+
+	const json = await routes.handle(
+		new Request('http://localhost/api/assistant-health')
+	);
+	const html = await routes.handle(
+		new Request('http://localhost/api/assistant-health/htmx')
+	);
+
+	expect(await json.json()).toMatchObject({
+		assistantRuns: {
+			totalRuns: 0
+		},
+		providerHealth: [
+			{
+				provider: 'openai',
+				status: 'idle'
+			}
+		]
+	});
+	expect(await html.text()).toContain('voice-assistant-health');
+});
