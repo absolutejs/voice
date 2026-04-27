@@ -29,5 +29,12 @@ export const useVoiceTurnLatency = (
 		store.close();
 	});
 
-	return { error, isLoading, refresh: store.refresh, report, updatedAt };
+	return {
+		error,
+		isLoading,
+		refresh: store.refresh,
+		report,
+		runProof: store.runProof,
+		updatedAt
+	};
 };

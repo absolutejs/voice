@@ -29,6 +29,7 @@ export const useVoiceTurnLatency = (
 			store.getSnapshot,
 			store.getServerSnapshot
 		),
-		refresh: store.refresh
+		refresh: store.refresh,
+		runProof: store.runProof
 	};
 };

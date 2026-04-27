@@ -12,12 +12,16 @@ export const VoiceTurnLatency = defineComponent({
 		description: { default: undefined, type: String },
 		intervalMs: { default: 5000, type: Number },
 		path: { default: '/api/turn-latency', type: String },
+		proofLabel: { default: undefined, type: String },
+		proofPath: { default: undefined, type: String },
 		title: { default: undefined, type: String }
 	},
 	setup(props) {
 		const options = {
 			description: props.description,
 			intervalMs: props.intervalMs,
+			proofLabel: props.proofLabel,
+			proofPath: props.proofPath,
 			title: props.title
 		} satisfies VoiceTurnLatencyWidgetOptions;
 		const latency = useVoiceTurnLatency(props.path, options);
@@ -61,6 +65,19 @@ export const VoiceTurnLatency = defineComponent({
 						{ class: 'absolute-voice-turn-latency__description' },
 						model.value.description
 					),
+					model.value.showProofAction
+						? h(
+								'button',
+								{
+									class: 'absolute-voice-turn-latency__proof',
+									onClick: () => {
+										void latency.runProof().catch(() => {});
+									},
+									type: 'button'
+								},
+								model.value.proofLabel
+							)
+						: null,
 					model.value.turns.length
 						? h(
 								'div',

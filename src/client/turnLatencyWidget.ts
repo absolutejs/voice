@@ -15,6 +15,8 @@ export type VoiceTurnLatencyViewModel = {
 	error: string | null;
 	isLoading: boolean;
 	label: string;
+	proofLabel?: string;
+	showProofAction: boolean;
 	status: 'empty' | 'error' | 'loading' | 'ready' | 'warning';
 	title: string;
 	turns: VoiceTurnLatencyCardView[];
@@ -23,12 +25,14 @@ export type VoiceTurnLatencyViewModel = {
 
 export type VoiceTurnLatencyWidgetOptions = VoiceTurnLatencyClientOptions & {
 	description?: string;
+	proofLabel?: string;
 	title?: string;
 };
 
 const DEFAULT_TITLE = 'Turn Latency';
 const DEFAULT_DESCRIPTION =
 	'Per-turn timing from first transcript to commit and assistant response start.';
+const DEFAULT_PROOF_LABEL = 'Run latency proof';
 
 const escapeHtml = (value: string) =>
 	value
@@ -75,6 +79,10 @@ export const createVoiceTurnLatencyViewModel = (
 				: snapshot.isLoading
 					? 'Checking'
 					: 'No turns',
+		proofLabel: options.proofPath
+			? (options.proofLabel ?? DEFAULT_PROOF_LABEL)
+			: undefined,
+		showProofAction: Boolean(options.proofPath),
 		status: snapshot.error
 			? 'error'
 			: turns.length
@@ -122,6 +130,11 @@ export const renderVoiceTurnLatencyHTML = (
     <strong class="absolute-voice-turn-latency__label">${escapeHtml(model.label)}</strong>
   </header>
   <p class="absolute-voice-turn-latency__description">${escapeHtml(model.description)}</p>
+  ${
+		model.showProofAction
+			? `<button class="absolute-voice-turn-latency__proof" data-absolute-voice-turn-latency-proof type="button">${escapeHtml(model.proofLabel ?? DEFAULT_PROOF_LABEL)}</button>`
+			: ''
+	}
   ${turns}
   ${model.error ? `<p class="absolute-voice-turn-latency__error">${escapeHtml(model.error)}</p>` : ''}
 </section>`;
@@ -136,12 +149,23 @@ export const mountVoiceTurnLatency = (
 	const render = () => {
 		element.innerHTML = renderVoiceTurnLatencyHTML(store.getSnapshot(), options);
 	};
+	const handleClick = (event: Event) => {
+		const target = event.target;
+		if (
+			target instanceof Element &&
+			target.closest('[data-absolute-voice-turn-latency-proof]')
+		) {
+			void store.runProof().catch(() => {});
+		}
+	};
 	const unsubscribe = store.subscribe(render);
+	element.addEventListener('click', handleClick);
 	render();
 	void store.refresh().catch(() => {});
 
 	return {
 		close: () => {
+			element.removeEventListener('click', handleClick);
 			unsubscribe();
 			store.close();
 		},
@@ -173,6 +197,8 @@ export const defineVoiceTurnLatencyElement = (
 					{
 						description: this.getAttribute('description') ?? undefined,
 						intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+						proofLabel: this.getAttribute('proof-label') ?? undefined,
+						proofPath: this.getAttribute('proof-path') ?? undefined,
 						title: this.getAttribute('title') ?? undefined
 					}
 				);

@@ -43,7 +43,8 @@ export {
 } from './turnQuality';
 export {
 	createVoiceTurnLatencyStore,
-	fetchVoiceTurnLatency
+	fetchVoiceTurnLatency,
+	runVoiceTurnLatencyProof
 } from './turnLatency';
 export {
 	createVoiceTraceTimelineStore,

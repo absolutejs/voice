@@ -3,6 +3,7 @@ import type { VoiceTurnLatencyReport } from '../turnLatency';
 export type VoiceTurnLatencyClientOptions = {
 	fetch?: typeof fetch;
 	intervalMs?: number;
+	proofPath?: string;
 };
 
 export type VoiceTurnLatencySnapshot = {
@@ -22,6 +23,18 @@ export const fetchVoiceTurnLatency = async (
 		throw new Error(`Voice turn latency failed: HTTP ${response.status}`);
 	}
 	return (await response.json()) as VoiceTurnLatencyReport;
+};
+
+export const runVoiceTurnLatencyProof = async (
+	path: string,
+	options: Pick<VoiceTurnLatencyClientOptions, 'fetch'> = {}
+) => {
+	const fetchImpl = options.fetch ?? globalThis.fetch;
+	const response = await fetchImpl(path, { method: 'POST' });
+	if (!response.ok) {
+		throw new Error(`Voice turn latency proof failed: HTTP ${response.status}`);
+	}
+	return response.json() as Promise<unknown>;
 };
 
 export const createVoiceTurnLatencyStore = (
@@ -66,6 +79,25 @@ export const createVoiceTurnLatencyStore = (
 			throw error;
 		}
 	};
+	const runProof = async () => {
+		if (!options.proofPath) {
+			throw new Error('Voice turn latency proof path is not configured.');
+		}
+		snapshot = { ...snapshot, error: null, isLoading: true };
+		emit();
+		try {
+			await runVoiceTurnLatencyProof(options.proofPath, options);
+			return await refresh();
+		} catch (error) {
+			snapshot = {
+				...snapshot,
+				error: error instanceof Error ? error.message : String(error),
+				isLoading: false
+			};
+			emit();
+			throw error;
+		}
+	};
 	const close = () => {
 		closed = true;
 		if (timer) {
@@ -86,6 +118,7 @@ export const createVoiceTurnLatencyStore = (
 		getServerSnapshot: () => snapshot,
 		getSnapshot: () => snapshot,
 		refresh,
+		runProof,
 		subscribe: (listener: () => void) => {
 			listeners.add(listener);
 			return () => {

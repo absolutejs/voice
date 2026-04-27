@@ -36,6 +36,7 @@ export class VoiceTurnLatencyService {
 			isLoading: computed(() => isLoadingSignal()),
 			refresh: store.refresh,
 			report: computed(() => reportSignal()),
+			runProof: store.runProof,
 			updatedAt: computed(() => updatedAtSignal())
 		};
 	}

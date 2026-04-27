@@ -14,8 +14,8 @@ export const VoiceTurnLatency = ({
 	path = '/api/turn-latency',
 	...options
 }: VoiceTurnLatencyProps) => {
-	const snapshot = useVoiceTurnLatency(path, options);
-	const model = createVoiceTurnLatencyViewModel(snapshot, options);
+	const latency = useVoiceTurnLatency(path, options);
+	const model = createVoiceTurnLatencyViewModel(latency, options);
 
 	return (
 		<section
@@ -38,6 +38,17 @@ export const VoiceTurnLatency = ({
 			<p className="absolute-voice-turn-latency__description">
 				{model.description}
 			</p>
+			{model.showProofAction ? (
+				<button
+					className="absolute-voice-turn-latency__proof"
+					onClick={() => {
+						void latency.runProof().catch(() => {});
+					}}
+					type="button"
+				>
+					{model.proofLabel}
+				</button>
+			) : null}
 			{model.turns.length ? (
 				<div className="absolute-voice-turn-latency__turns">
 					{model.turns.map((turn) => (
