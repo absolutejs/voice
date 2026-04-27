@@ -136,6 +136,76 @@ test('createVoiceSTTProviderRouter falls back when provider open fails', async (
 	]);
 });
 
+test('createVoiceSTTProviderRouter suppresses unhealthy providers until cooldown expires', async () => {
+	let currentTime = 1_000;
+	const calls: string[] = [];
+	const events: Array<Record<string, unknown>> = [];
+	const router = createVoiceSTTProviderRouter({
+		adapters: {
+			backup: {
+				kind: 'stt',
+				open: () => {
+					calls.push('backup');
+					return createSTTSession();
+				}
+			},
+			primary: {
+				kind: 'stt',
+				open: () => {
+					calls.push('primary');
+					if (calls.filter((call) => call === 'primary').length === 1) {
+						throw new Error('primary unavailable');
+					}
+					return createSTTSession();
+				}
+			}
+		},
+		fallback: ['primary', 'backup'],
+		onProviderEvent: (event) => {
+			events.push(event);
+		},
+		providerHealth: {
+			cooldownMs: 500,
+			now: () => currentTime
+		},
+		selectProvider: () => 'primary'
+	});
+
+	const openInput = {
+		format: {
+			channels: 1 as const,
+			container: 'raw' as const,
+			encoding: 'pcm_s16le' as const,
+			sampleRateHz: 16000
+		},
+		sessionId: 'stt-router-health'
+	};
+
+	await router.open(openInput);
+	await router.open(openInput);
+	currentTime = 1_501;
+	await router.open(openInput);
+
+	expect(calls).toEqual(['primary', 'backup', 'backup', 'primary']);
+	expect(events[0]).toMatchObject({
+		provider: 'primary',
+		providerHealth: {
+			consecutiveFailures: 1,
+			status: 'suppressed',
+			suppressedUntil: 1_500
+		},
+		suppressionRemainingMs: 500
+	});
+	expect(events.at(-1)).toMatchObject({
+		provider: 'primary',
+		providerHealth: {
+			consecutiveFailures: 0,
+			status: 'healthy'
+		},
+		status: 'success'
+	});
+});
+
 test('createVoiceTTSProviderRouter retries send on fallback provider', async () => {
 	const sent: string[] = [];
 	const events: Array<Record<string, unknown>> = [];
@@ -188,6 +258,40 @@ test('createVoiceTTSProviderRouter retries send on fallback provider', async () 
 			status: 'fallback'
 		}
 	]);
+});
+
+test('createVoiceTTSProviderRouter skips suppressed provider on later sessions', async () => {
+	const calls: string[] = [];
+	const router = createVoiceTTSProviderRouter({
+		adapters: {
+			backup: createTTSAdapter({
+				onOpen: () => {
+					calls.push('backup');
+				}
+			}),
+			primary: createTTSAdapter({
+				onOpen: () => {
+					calls.push('primary');
+					throw new Error('tts open failed');
+				}
+			})
+		},
+		fallback: ['primary', 'backup'],
+		providerHealth: {
+			cooldownMs: 1_000,
+			now: () => 1_000
+		},
+		selectProvider: () => 'primary'
+	});
+
+	await router.open({
+		sessionId: 'tts-router-health-1'
+	});
+	await router.open({
+		sessionId: 'tts-router-health-2'
+	});
+
+	expect(calls).toEqual(['primary', 'backup', 'backup']);
 });
 
 test('createVoiceTTSProviderRouter falls back on open timeout', async () => {

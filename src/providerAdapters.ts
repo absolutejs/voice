@@ -7,7 +7,11 @@ import type {
 	TTSSessionEventMap,
 	VoiceCloseEvent
 } from './types';
-import type { VoiceProviderRouterProviderProfile } from './modelAdapters';
+import type {
+	VoiceProviderRouterHealthOptions,
+	VoiceProviderRouterProviderHealth,
+	VoiceProviderRouterProviderProfile
+} from './modelAdapters';
 
 type MaybePromise<T> = T | Promise<T>;
 type VoiceIOProviderKind = 'stt' | 'tts';
@@ -23,8 +27,11 @@ export type VoiceIOProviderRouterEvent<TProvider extends string = string> = {
 	latencyBudgetMs?: number;
 	operation: 'open' | 'send';
 	provider: TProvider;
+	providerHealth?: VoiceProviderRouterProviderHealth<TProvider>;
 	selectedProvider: TProvider;
 	status: VoiceIOProviderStatus;
+	suppressionRemainingMs?: number;
+	suppressedUntil?: number;
 	timedOut?: boolean;
 };
 
@@ -40,6 +47,7 @@ export type VoiceIOProviderRouterOptions<
 		event: VoiceIOProviderRouterEvent<TProvider>,
 		input: TOpenOptions
 	) => Promise<void> | void;
+	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
 	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
 	selectProvider?: (input: TOpenOptions) => MaybePromise<TProvider | undefined>;
 	timeoutMs?: number;
@@ -146,6 +154,86 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
 ) => {
 	const providerIds = Object.keys(options.adapters) as TProvider[];
 	const firstProvider = providerIds[0];
+	const healthOptions =
+		typeof options.providerHealth === 'object'
+			? options.providerHealth
+			: options.providerHealth
+				? {}
+				: undefined;
+	const healthState = new Map<
+		TProvider,
+		VoiceProviderRouterProviderHealth<TProvider>
+	>();
+	const now = () => healthOptions?.now?.() ?? Date.now();
+	const failureThreshold = Math.max(1, healthOptions?.failureThreshold ?? 1);
+	const cooldownMs = Math.max(0, healthOptions?.cooldownMs ?? 30_000);
+
+	const getHealth = (provider: TProvider) => {
+		const existing = healthState.get(provider);
+		if (existing) {
+			return existing;
+		}
+		const next: VoiceProviderRouterProviderHealth<TProvider> = {
+			consecutiveFailures: 0,
+			provider,
+			status: 'healthy'
+		};
+		healthState.set(provider, next);
+		return next;
+	};
+
+	const cloneHealth = (provider: TProvider) => {
+		if (!healthOptions) {
+			return undefined;
+		}
+		return {
+			...getHealth(provider)
+		};
+	};
+
+	const getSuppressionRemainingMs = (provider: TProvider) => {
+		if (!healthOptions) {
+			return undefined;
+		}
+		const suppressedUntil = getHealth(provider).suppressedUntil;
+		return typeof suppressedUntil === 'number'
+			? Math.max(0, suppressedUntil - now())
+			: undefined;
+	};
+
+	const isSuppressed = (provider: TProvider) => {
+		if (!healthOptions) {
+			return false;
+		}
+		const suppressedUntil = getHealth(provider).suppressedUntil;
+		return typeof suppressedUntil === 'number' && suppressedUntil > now();
+	};
+
+	const recordSuccess = (provider: TProvider) => {
+		if (!healthOptions) {
+			return undefined;
+		}
+		const health = getHealth(provider);
+		health.consecutiveFailures = 0;
+		health.status = 'healthy';
+		health.suppressedUntil = undefined;
+		return cloneHealth(provider);
+	};
+
+	const recordError = (provider: TProvider, isProviderError: boolean) => {
+		if (!healthOptions || !isProviderError) {
+			return cloneHealth(provider);
+		}
+		const health = getHealth(provider);
+		health.consecutiveFailures += 1;
+		health.lastFailureAt = now();
+		if (health.consecutiveFailures >= failureThreshold) {
+			health.status = 'suppressed';
+			health.suppressedUntil = now() + cooldownMs;
+		}
+		return cloneHealth(provider);
+	};
+
 	const resolveOrder = async (input: TOpenOptions) => {
 		const selectedProvider = (await options.selectProvider?.(input)) ?? firstProvider;
 		const fallbackOrder =
@@ -154,17 +242,24 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
 				: options.fallback;
 		const candidates = [selectedProvider, ...(fallbackOrder ?? providerIds)];
 		const seen = new Set<TProvider>();
-		const order = candidates.filter((provider): provider is TProvider => {
+		const rankedOrder = candidates.filter((provider): provider is TProvider => {
 			if (!provider || seen.has(provider) || !options.adapters[provider]) {
 				return false;
 			}
 			seen.add(provider);
 			return true;
 		});
+		const healthyOrder = healthOptions
+			? rankedOrder.filter((provider) => !isSuppressed(provider))
+			: rankedOrder;
+		const order = healthyOrder.length ? healthyOrder : rankedOrder;
 
 		return {
 			order,
-			selectedProvider
+			selectedProvider:
+				selectedProvider && !isSuppressed(selectedProvider)
+					? selectedProvider
+					: order[0]
 		};
 	};
 
@@ -177,7 +272,10 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
 
 	return {
 		emit,
+		getSuppressionRemainingMs,
 		providerIds,
+		recordError,
+		recordSuccess,
 		resolveOrder
 	};
 };
@@ -213,6 +311,7 @@ export const createVoiceSTTProviderRouter = <
 						run: () => adapter.open(input),
 						timeoutMs: getTimeoutMs(options, provider)
 					});
+					const providerHealth = resolver.recordSuccess(provider);
 					await resolver.emit(
 						{
 							at: Date.now(),
@@ -224,6 +323,7 @@ export const createVoiceSTTProviderRouter = <
 							latencyBudgetMs: getTimeoutMs(options, provider),
 							operation: 'open',
 							provider,
+							providerHealth,
 							selectedProvider,
 							status: provider === selectedProvider ? 'success' : 'fallback'
 						},
@@ -235,6 +335,10 @@ export const createVoiceSTTProviderRouter = <
 					const hasNextProvider = index < order.length - 1;
 					const shouldFallback =
 						options.isProviderError?.(error, provider) ?? true;
+					const providerHealth = resolver.recordError(
+						provider,
+						shouldFallback
+					);
 					await resolver.emit(
 						{
 							at: Date.now(),
@@ -246,8 +350,12 @@ export const createVoiceSTTProviderRouter = <
 							latencyBudgetMs: getTimeoutMs(options, provider),
 							operation: 'open',
 							provider,
+							providerHealth,
 							selectedProvider,
 							status: 'error',
+							suppressionRemainingMs:
+								resolver.getSuppressionRemainingMs(provider),
+							suppressedUntil: providerHealth?.suppressedUntil,
 							timedOut: error instanceof VoiceIOProviderTimeoutError
 						},
 						input
@@ -305,6 +413,7 @@ export const createVoiceTTSProviderRouter = <
 				attach(session);
 				activeSession = session;
 				activeProvider = provider;
+				const providerHealth = resolver.recordSuccess(provider);
 				await resolver.emit(
 					{
 						at: Date.now(),
@@ -316,6 +425,7 @@ export const createVoiceTTSProviderRouter = <
 						latencyBudgetMs: getTimeoutMs(options, provider),
 						operation: 'open',
 						provider,
+						providerHealth,
 						selectedProvider,
 						status: provider === selectedProvider ? 'success' : 'fallback'
 					},
@@ -334,6 +444,10 @@ export const createVoiceTTSProviderRouter = <
 				const shouldFallback =
 					options.isProviderError?.(inputEvent.error, inputEvent.provider) ??
 					true;
+				const providerHealth = resolver.recordError(
+					inputEvent.provider,
+					shouldFallback
+				);
 				await resolver.emit(
 					{
 						at: Date.now(),
@@ -345,8 +459,13 @@ export const createVoiceTTSProviderRouter = <
 						latencyBudgetMs: getTimeoutMs(options, inputEvent.provider),
 						operation: inputEvent.operation,
 						provider: inputEvent.provider,
+						providerHealth,
 						selectedProvider,
 						status: 'error',
+						suppressionRemainingMs: resolver.getSuppressionRemainingMs(
+							inputEvent.provider
+						),
+						suppressedUntil: providerHealth?.suppressedUntil,
 						timedOut: inputEvent.error instanceof VoiceIOProviderTimeoutError
 					},
 					input
