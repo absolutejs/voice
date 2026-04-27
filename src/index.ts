@@ -738,6 +738,7 @@ export {
 	transcodePCMToTwilioOutboundPayload,
 	transcodeTwilioInboundPayloadToPCM16
 } from './telephony/twilio';
+export { evaluateVoiceTelephonyContract } from './telephony/contract';
 export type {
 	TwilioInboundMessage,
 	TwilioMediaStreamBridge,
@@ -756,6 +757,16 @@ export type {
 	TwilioVoiceSetupStatus,
 	TwilioVoiceRoutesOptions
 } from './telephony/twilio';
+export type {
+	VoiceTelephonyContractIssue,
+	VoiceTelephonyContractOptions,
+	VoiceTelephonyContractReport,
+	VoiceTelephonyContractRequirement,
+	VoiceTelephonyProvider,
+	VoiceTelephonySetupStatus,
+	VoiceTelephonySmokeCheck,
+	VoiceTelephonySmokeReport
+} from './telephony/contract';
 export { shapeTelephonyAssistantText } from './telephony/response';
 export type {
 	TelephonyResponseShapeMode,

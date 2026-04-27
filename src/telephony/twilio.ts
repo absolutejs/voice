@@ -4,6 +4,11 @@ import { resolveAudioConditioningConfig } from '../audioConditioning';
 import { resolveLogger } from '../logger';
 import { resolveVoiceRuntimePreset } from '../presets';
 import { createVoiceSession } from '../session';
+import type {
+	VoiceTelephonySetupStatus,
+	VoiceTelephonySmokeCheck,
+	VoiceTelephonySmokeReport
+} from './contract';
 import {
 	createVoiceTelephonyOutcomePolicy,
 	createVoiceTelephonyWebhookRoutes,
@@ -193,22 +198,10 @@ export type TwilioVoiceRouteParameters =
 			| Promise<Record<string, string | number | boolean | undefined>>
 			| Record<string, string | number | boolean | undefined>);
 
-export type TwilioVoiceSetupStatus = {
-	generatedAt: number;
-	missing: string[];
-	provider: 'twilio';
-	ready: boolean;
-	signing: {
-		configured: boolean;
-		mode: 'custom' | 'none' | 'twilio-signature';
-		verificationUrl?: string;
-	};
-	urls: {
-		stream: string;
+export type TwilioVoiceSetupStatus = VoiceTelephonySetupStatus<'twilio'> & {
+	urls: VoiceTelephonySetupStatus<'twilio'>['urls'] & {
 		twiml: string;
-		webhook: string;
 	};
-	warnings: string[];
 };
 
 export type TwilioVoiceSetupOptions = {
@@ -217,27 +210,10 @@ export type TwilioVoiceSetupOptions = {
 	title?: string;
 };
 
-export type TwilioVoiceSmokeCheck = {
-	details?: Record<string, unknown>;
-	message?: string;
-	name: string;
-	status: 'fail' | 'pass' | 'warn';
-};
+export type TwilioVoiceSmokeCheck = VoiceTelephonySmokeCheck;
 
-export type TwilioVoiceSmokeReport = {
-	checks: TwilioVoiceSmokeCheck[];
-	generatedAt: number;
-	pass: boolean;
-	provider: 'twilio';
+export type TwilioVoiceSmokeReport = VoiceTelephonySmokeReport<'twilio'> & {
 	setup: TwilioVoiceSetupStatus;
-	twiml?: {
-		status: number;
-		streamUrl?: string;
-	};
-	webhook?: {
-		body?: unknown;
-		status: number;
-	};
 };
 
 export type TwilioVoiceSmokeOptions = {
