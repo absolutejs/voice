@@ -121,6 +121,24 @@ export type VoiceCampaignTickResult = {
 	started: VoiceCampaignAttempt[];
 };
 
+export type VoiceCampaignProofOptions = {
+	campaign?: VoiceCampaignCreateInput;
+	completeAttempts?: boolean;
+	recipients?: VoiceCampaignRecipientInput[];
+	runtime?: VoiceCampaignRuntime;
+	store?: VoiceCampaignStore;
+};
+
+export type VoiceCampaignProofReport = {
+	campaign: VoiceCampaignRecord;
+	created: VoiceCampaignRecord;
+	final: VoiceCampaignRecord;
+	proof: 'voice-campaign';
+	recipients: VoiceCampaignRecord;
+	summary: VoiceCampaignSummary;
+	tick: VoiceCampaignTickResult;
+};
+
 export type VoiceCampaignSummary = {
 	attempts: {
 		failed: number;
@@ -470,6 +488,86 @@ export const createVoiceCampaign = (
 			await saveRecord(store, record);
 			return result;
 		}
+	};
+};
+
+const defaultProofRecipients = (): VoiceCampaignRecipientInput[] => [
+	{
+		id: 'campaign-proof-recipient-1',
+		name: 'Proof Recipient One',
+		phone: '+15550001001',
+		variables: {
+			firstName: 'Ari',
+			reason: 'demo'
+		}
+	},
+	{
+		id: 'campaign-proof-recipient-2',
+		name: 'Proof Recipient Two',
+		phone: '+15550001002',
+		variables: {
+			firstName: 'Sam',
+			reason: 'follow-up'
+		}
+	}
+];
+
+export const runVoiceCampaignProof = async (
+	options: VoiceCampaignProofOptions = {}
+): Promise<VoiceCampaignProofReport> => {
+	const runtime =
+		options.runtime ??
+		createVoiceCampaign({
+			dialer: ({ attempt, recipient }) => ({
+				externalCallId: `proof-call-${attempt.id}`,
+				metadata: {
+					mode: 'simulation',
+					phone: recipient.phone
+				},
+				status: 'running'
+			}),
+			store: options.store ?? createVoiceMemoryCampaignStore()
+		});
+	const created = await runtime.create({
+		description: 'Synthetic outbound campaign proof.',
+		id: `campaign-proof-${crypto.randomUUID()}`,
+		maxAttempts: 1,
+		maxConcurrentAttempts: 10,
+		name: 'AbsoluteJS Voice Campaign Proof',
+		...options.campaign
+	});
+	const recipients = await runtime.addRecipients(
+		created.campaign.id,
+		options.recipients ?? defaultProofRecipients()
+	);
+	const campaign = await runtime.enqueue(recipients.campaign.id);
+	const tick = await runtime.tick(campaign.campaign.id);
+
+	if (options.completeAttempts !== false) {
+		for (const attempt of tick.started) {
+			await runtime.completeAttempt(campaign.campaign.id, attempt.id, {
+				externalCallId: attempt.externalCallId,
+				metadata: {
+					proof: true
+				},
+				status: 'succeeded'
+			});
+		}
+	}
+
+	const final = await runtime.get(campaign.campaign.id);
+	if (!final) {
+		throw new Error('Campaign proof did not persist the final campaign record.');
+	}
+
+	return {
+		campaign,
+		created,
+		final,
+		proof: 'voice-campaign',
+		recipients,
+		summary: await runtime.summarize(),
+		tick
 	};
 };
 

@@ -9,6 +9,7 @@ export {
 	createVoiceCampaignRoutes,
 	createVoiceMemoryCampaignStore,
 	renderVoiceCampaignsHTML,
+	runVoiceCampaignProof,
 	summarizeVoiceCampaigns
 } from './campaign';
 export {
@@ -394,6 +395,8 @@ export type {
 	VoiceCampaignDialer,
 	VoiceCampaignDialerInput,
 	VoiceCampaignDialerResult,
+	VoiceCampaignProofOptions,
+	VoiceCampaignProofReport,
 	VoiceCampaignRecipient,
 	VoiceCampaignRecipientInput,
 	VoiceCampaignRecipientStatus,
