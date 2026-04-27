@@ -1,11 +1,48 @@
 # `@absolutejs/voice`
 
-`@absolutejs/voice` is the voice session layer for AbsoluteJS. It owns the duplex WebSocket lifecycle, transcript buffering, turn commits, reconnect behavior, and client primitives, while keeping speech vendors and session storage pluggable.
+`@absolutejs/voice` is the self-hosted voice operations layer for AbsoluteJS.
+
+It gives your app the primitives hosted voice platforms usually keep behind their dashboards: browser voice sessions, phone-call routes, provider routing, assistant tools, handoffs, traces, evals, production-readiness checks, latency proof, storage adapters, and framework-native UI helpers.
+
+Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you want the orchestration, data, traces, storage, and UI to live inside the AbsoluteJS server you already operate.
+
+## Why AbsoluteJS Voice
+
+- Self-hosted by default: your app owns sessions, traces, reviews, tasks, handoffs, retention, and provider keys.
+- Provider-neutral: use Deepgram, AssemblyAI, OpenAI, Anthropic, Gemini, ElevenLabs-style TTS, or your own adapters without rewriting app workflow code.
+- Browser and phone surfaces: mount browser WebSocket voice routes plus Twilio, Telnyx, and Plivo telephony routes from the same package.
+- Production proof: App Kit, production readiness, turn quality, turn latency, live browser p50/p95 latency, trace timelines, evals, fixtures, and contracts are package primitives.
+- Framework parity: React, Vue, Svelte, Angular, HTML, HTMX, and plain client entrypoints share the same core behavior.
+- No hosted platform tax: AbsoluteJS Voice does not add a mandatory per-minute orchestration fee between your app and your providers.
+
+## Start Here
+
+Pick the path that matches what you are building:
+
+- Browser voice agent: mount `voice(...)`, choose an STT adapter, and use the React/Vue/Svelte/Angular/HTML/HTMX client helpers for mic, transcript, reconnect, and status UI.
+- Phone voice agent: mount Twilio, Telnyx, or Plivo routes, normalize carrier outcomes, inspect carrier readiness, and persist call lifecycle traces.
+- Production readiness: mount `createVoiceAppKitRoutes(...)` to get ops console/status, quality, evals, provider health, sessions, handoffs, diagnostics, and readiness gates.
+- Provider routing and fallback: use LLM/STT/TTS provider routers, provider health, provider simulation controls, and cost/latency-aware routing policies.
+- Evals and simulation: run scenario fixtures, workflow contracts, tool contracts, outcome contracts, baseline comparisons, and saved benchmark artifacts before live traffic.
+
+## How This Differs From Hosted Voice Platforms
+
+Hosted voice-agent platforms are strongest when you want a managed dashboard, phone-number provisioning, hosted orchestration, and campaign tooling out of the box.
+
+AbsoluteJS Voice is strongest when voice is part of your own product and you need code-owned primitives:
+
+- Your app stores the call data instead of a vendor dashboard being the source of truth.
+- Your app controls provider routing, fallback, retries, handoffs, and retention.
+- Your team can inspect and extend every primitive.
+- Your framework UI can render first-class voice state without iframe/dashboard handoffs.
+- Your production checks and evals can run in CI, smoke tests, or your own admin UI.
+
+The goal is not to clone a hosted platform. The goal is to make AbsoluteJS the best place to build and operate self-hosted voice products.
 
 ## Install
 
 ```bash
-bun add @absolutejs/voice
+bun add @absolutejs/voice @absolutejs/voice-deepgram
 ```
 
 Peer dependencies:
@@ -21,7 +58,12 @@ Optional framework entrypoints:
 - `@absolutejs/voice/angular`
 - `@absolutejs/voice/client`
 
-## Route Setup
+Common optional adapters:
+
+- `@absolutejs/voice-deepgram`
+- `@absolutejs/voice-assemblyai`
+
+## Browser Voice Agent
 
 ```ts
 import { Elysia } from 'elysia';
@@ -72,6 +114,128 @@ const app = new Elysia()
 ```
 
 `createVoiceMemoryStore()` is dev-only. Real deployments should provide a shared store backed by Redis, Postgres, or equivalent.
+
+## Production Readiness Path
+
+Once the basic route works, mount the App Kit. This gives you the self-hosted operational surface that hosted platforms usually make mandatory:
+
+```ts
+import {
+	createVoiceAppKitRoutes,
+	createVoiceFileRuntimeStorage,
+	createVoiceLiveLatencyRoutes,
+	createVoiceProductionReadinessRoutes,
+	createVoiceTraceTimelineRoutes,
+	createVoiceTurnLatencyRoutes,
+	createVoiceTurnQualityRoutes
+} from '@absolutejs/voice';
+
+const runtime = createVoiceFileRuntimeStorage({
+	directory: '.voice-runtime/support'
+});
+
+app
+	.use(
+		createVoiceAppKitRoutes({
+			store: runtime.traces,
+			llmProviders: ['openai', 'anthropic', 'gemini'],
+			sttProviders: ['deepgram', 'assemblyai']
+		}).routes
+	)
+	.use(
+		createVoiceTurnLatencyRoutes({
+			htmlPath: '/turn-latency',
+			path: '/api/turn-latency',
+			store: runtime.session,
+			traceStore: runtime.traces
+		})
+	)
+	.use(
+		createVoiceLiveLatencyRoutes({
+			htmlPath: '/live-latency',
+			path: '/api/live-latency',
+			store: runtime.traces
+		})
+	)
+	.use(
+		createVoiceTurnQualityRoutes({
+			htmlPath: '/turn-quality',
+			path: '/api/turn-quality',
+			store: runtime.session
+		})
+	)
+	.use(
+		createVoiceTraceTimelineRoutes({
+			htmlPath: '/traces',
+			path: '/api/voice-traces',
+			store: runtime.traces
+		})
+	)
+	.use(
+		createVoiceProductionReadinessRoutes({
+			htmlPath: '/production-readiness',
+			path: '/api/production-readiness',
+			store: runtime.traces
+		})
+	);
+```
+
+Recommended proof routes:
+
+- `/app-kit/status`: compact customer-facing app status.
+- `/production-readiness`: production gate summary.
+- `/traces`: per-session trace timelines.
+- `/turn-latency`: server-side turn-stage latency.
+- `/live-latency`: browser-measured speech-to-assistant p50/p95 latency.
+- `/turn-quality`: STT confidence, correction, fallback, and transcript diagnostics.
+
+## Phone Voice Agent Path
+
+Use the telephony primitives when the agent needs to answer or place calls through your own carrier account:
+
+```ts
+import {
+	createTwilioVoiceRoutes,
+	createVoiceTelephonyCarrierMatrixRoutes,
+	createVoiceTelephonyOutcomePolicy
+} from '@absolutejs/voice';
+import { deepgram } from '@absolutejs/voice-deepgram';
+
+const outcomePolicy = createVoiceTelephonyOutcomePolicy({
+	transferTarget: '+15551234567'
+});
+
+app
+	.use(
+		createVoiceTelephonyCarrierMatrixRoutes({
+			load: loadCarrierMatrixInputs,
+			path: '/api/carriers'
+		})
+	)
+	.use(
+		createTwilioVoiceRoutes({
+			context: {},
+			outcomePolicy,
+			session: runtime.session,
+			stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+			streamPath: '/api/voice/twilio/stream',
+			twiml: {
+				path: '/api/voice/twilio',
+				streamUrl: process.env.TWILIO_STREAM_URL
+			},
+			webhook: {
+				path: '/api/voice/twilio/webhook',
+				signingSecret: process.env.TWILIO_AUTH_TOKEN
+			},
+			async onTurn({ turn }) {
+				return { assistantText: `I heard: ${turn.text}` };
+			},
+			onComplete: async () => {}
+		})
+	);
+```
+
+Telnyx and Plivo expose equivalent route helpers. The carrier matrix and telephony outcome primitives exist so phone behavior is testable before live traffic: setup, signatures, stream URLs, media bridge shape, voicemail/no-answer/transfer mapping, and lifecycle traces.
 
 ## App Kit And Status Widgets
 
