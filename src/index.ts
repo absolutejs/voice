@@ -1,7 +1,8 @@
 export { voice } from './plugin';
 export {
 	createVoiceAppKit,
-	createVoiceAppKitRoutes
+	createVoiceAppKitRoutes,
+	summarizeVoiceAppKitStatus
 } from './appKit';
 export {
 	createVoiceAssistant,
@@ -283,6 +284,9 @@ export type {
 	VoiceAppKitLink,
 	VoiceAppKitRoutes,
 	VoiceAppKitRoutesOptions,
+	VoiceAppKitStatus,
+	VoiceAppKitStatusOptions,
+	VoiceAppKitStatusReport,
 	VoiceAppKitSurface
 } from './appKit';
 export type {

@@ -9,11 +9,13 @@ import {
 } from './diagnosticsRoutes';
 import {
 	createVoiceEvalRoutes,
+	runVoiceScenarioEvals,
 	type VoiceEvalRoutesOptions,
 	type VoiceEvalLink
 } from './evalRoutes';
 import {
 	createVoiceHandoffHealthRoutes,
+	summarizeVoiceHandoffHealth,
 	type VoiceHandoffHealthRoutesOptions
 } from './handoffHealth';
 import {
@@ -23,10 +25,12 @@ import {
 } from './opsConsoleRoutes';
 import {
 	createVoiceProviderHealthRoutes,
+	summarizeVoiceProviderHealth,
 	type VoiceProviderHealthRoutesOptions
 } from './providerHealth';
 import {
 	createVoiceQualityRoutes,
+	evaluateVoiceQuality,
 	type VoiceQualityLink,
 	type VoiceQualityRoutesOptions
 } from './qualityRoutes';
@@ -38,10 +42,15 @@ import {
 import {
 	createVoiceSessionListRoutes,
 	createVoiceSessionReplayRoutes,
+	summarizeVoiceSessions,
 	type VoiceSessionListRoutesOptions,
 	type VoiceSessionReplayRoutesOptions
 } from './sessionReplay';
-import type { VoiceTraceEventStore } from './trace';
+import {
+	filterVoiceTraceEvents,
+	type StoredVoiceTraceEvent,
+	type VoiceTraceEventStore
+} from './trace';
 
 export type VoiceAppKitSurface =
 	| 'assistantHealth'
@@ -61,6 +70,7 @@ export type VoiceAppKitLink = VoiceEvalLink & {
 };
 
 export type VoiceAppKitRoutesOptions<TProvider extends string = string> = {
+	appStatus?: false | VoiceAppKitStatusOptions;
 	assistantHealth?: false | Partial<VoiceAssistantHealthRoutesOptions<TProvider>>;
 	diagnostics?: false | Partial<Omit<VoiceDiagnosticsRoutesOptions, 'store'>>;
 	evals?: false | Partial<VoiceEvalRoutesOptions>;
@@ -79,6 +89,46 @@ export type VoiceAppKitRoutesOptions<TProvider extends string = string> = {
 	sttProviders?: readonly string[];
 	title?: string;
 	ttsProviders?: readonly string[];
+};
+
+export type VoiceAppKitStatus = 'pass' | 'fail';
+
+export type VoiceAppKitStatusOptions = {
+	path?: string;
+};
+
+export type VoiceAppKitStatusReport = {
+	checkedAt: number;
+	failed: number;
+	links: VoiceAppKitLink[];
+	passed: number;
+	status: VoiceAppKitStatus;
+	surfaces: {
+		handoffs?: {
+			failed: number;
+			status: VoiceAppKitStatus;
+			total: number;
+		};
+		providers?: {
+			degraded: number;
+			status: VoiceAppKitStatus;
+			total: number;
+		};
+		quality?: {
+			status: VoiceAppKitStatus;
+		};
+		sessions?: {
+			failed: number;
+			status: VoiceAppKitStatus;
+			total: number;
+		};
+		workflows?: {
+			failed: number;
+			status: VoiceAppKitStatus;
+			total: number;
+		};
+	};
+	total: number;
 };
 
 export type VoiceAppKitRoutes<TProvider extends string = string> = {
@@ -144,6 +194,111 @@ const toOpsLinks = (links: VoiceAppKitLink[]): VoiceOpsConsoleLink[] =>
 const toResilienceLinks = (links: VoiceAppKitLink[]): VoiceResilienceLink[] =>
 	links.map(({ href, label }) => ({ href, label }));
 
+const countStatus = (statuses: VoiceAppKitStatus[]) => ({
+	failed: statuses.filter((status) => status === 'fail').length,
+	passed: statuses.filter((status) => status === 'pass').length,
+	total: statuses.length
+});
+
+export const summarizeVoiceAppKitStatus = async <
+	TProvider extends string = string
+>(
+	options: VoiceAppKitRoutesOptions<TProvider>
+): Promise<VoiceAppKitStatusReport> => {
+	const links = resolveLinks(options.links);
+	const events: StoredVoiceTraceEvent[] = filterVoiceTraceEvents(
+		await options.store.list()
+	);
+	const [quality, workflows, providers, sessions, handoffs] = await Promise.all([
+		options.quality === false
+			? undefined
+			: evaluateVoiceQuality({
+					events,
+					thresholds: options.quality?.thresholds
+				}),
+		options.evals === false
+			? undefined
+			: runVoiceScenarioEvals({
+					events,
+					scenarios: options.evals?.scenarios
+				}),
+		options.providerHealth === false
+			? undefined
+			: summarizeVoiceProviderHealth({
+					events,
+					providers: options.llmProviders
+				}),
+		options.sessions === false
+			? undefined
+			: summarizeVoiceSessions({
+					events
+				}),
+		options.handoffs === false
+			? undefined
+			: summarizeVoiceHandoffHealth({
+					events
+				})
+	]);
+	const surfaces: VoiceAppKitStatusReport['surfaces'] = {};
+	const statuses: VoiceAppKitStatus[] = [];
+
+	if (quality) {
+		surfaces.quality = { status: quality.status };
+		statuses.push(quality.status);
+	}
+	if (workflows) {
+		const status = workflows.status;
+		surfaces.workflows = {
+			failed: workflows.failed,
+			status,
+			total: workflows.total
+		};
+		statuses.push(status);
+	}
+	if (providers) {
+		const degraded = providers.filter(
+			(provider) =>
+				provider.status === 'degraded' ||
+				provider.status === 'rate-limited' ||
+				provider.status === 'suppressed'
+		).length;
+		const status = degraded > 0 ? 'fail' : 'pass';
+		surfaces.providers = {
+			degraded,
+			status,
+			total: providers.length
+		};
+		statuses.push(status);
+	}
+	if (sessions) {
+		const failed = sessions.filter((session) => session.status === 'failed').length;
+		const status = failed > 0 ? 'fail' : 'pass';
+		surfaces.sessions = {
+			failed,
+			status,
+			total: sessions.length
+		};
+		statuses.push(status);
+	}
+	if (handoffs) {
+		const status = handoffs.failed > 0 ? 'fail' : 'pass';
+		surfaces.handoffs = {
+			failed: handoffs.failed,
+			status,
+			total: handoffs.total
+		};
+		statuses.push(status);
+	}
+
+	return {
+		checkedAt: Date.now(),
+		links,
+		status: statuses.includes('fail') ? 'fail' : 'pass',
+		surfaces,
+		...countStatus(statuses)
+	};
+};
+
 export const createVoiceAppKitRoutes = <TProvider extends string = string>(
 	options: VoiceAppKitRoutesOptions<TProvider>
 ): VoiceAppKitRoutes<TProvider> => {
@@ -157,6 +312,11 @@ export const createVoiceAppKitRoutes = <TProvider extends string = string>(
 	};
 	const surfaces: VoiceAppKitSurface[] = [];
 
+	if (options.appStatus !== false) {
+		routes.get(options.appStatus?.path ?? '/app-kit/status', () =>
+			summarizeVoiceAppKitStatus(options)
+		);
+	}
 	if (options.providerHealth !== false) {
 		surfaces.push('providerHealth');
 		routes.use(

@@ -34,6 +34,21 @@ test('createVoiceAppKitRoutes mounts the standard operations surfaces', async ()
 			expect.objectContaining({ provider: 'gemini' })
 		])
 	);
+
+	const status = await kit.routes.handle(
+		new Request('http://localhost/app-kit/status')
+	);
+	expect(status.status).toBe(200);
+	await expect(status.json()).resolves.toMatchObject({
+		surfaces: {
+			providers: {
+				total: 2
+			},
+			quality: {
+				status: 'pass'
+			}
+		}
+	});
 });
 
 test('createVoiceAppKitRoutes can disable individual surfaces', async () => {

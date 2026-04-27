@@ -6,6 +6,10 @@ export { bindVoiceBargeIn, createVoiceDuplexController } from './duplex';
 export { bindVoiceHTMX } from './htmx';
 export { createMicrophoneCapture } from './microphone';
 export {
+	createVoiceAppKitStatusStore,
+	fetchVoiceAppKitStatus
+} from './appKitStatus';
+export {
 	createVoiceProviderStatusStore,
 	fetchVoiceProviderStatus
 } from './providerStatus';
@@ -13,6 +17,10 @@ export {
 	createVoiceWorkflowStatusStore,
 	fetchVoiceWorkflowStatus
 } from './workflowStatus';
+export type {
+	VoiceAppKitStatusClientOptions,
+	VoiceAppKitStatusSnapshot
+} from './appKitStatus';
 export type {
 	VoiceProviderStatusClientOptions,
 	VoiceProviderStatusSnapshot
