@@ -79,7 +79,11 @@ export const createVoiceWorkflowStatusStore = (
 		listeners.clear();
 	};
 
-	if (options.intervalMs && options.intervalMs > 0) {
+	if (
+		typeof window !== 'undefined' &&
+		options.intervalMs &&
+		options.intervalMs > 0
+	) {
 		timer = setInterval(() => {
 			void refresh().catch(() => {});
 		}, options.intervalMs);

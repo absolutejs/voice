@@ -23,7 +23,9 @@ export const useVoiceWorkflowStatus = (
 	};
 	const unsubscribe = store.subscribe(sync);
 	sync();
-	void store.refresh().catch(() => {});
+	if (typeof window !== 'undefined') {
+		void store.refresh().catch(() => {});
+	}
 
 	onUnmounted(() => {
 		unsubscribe();
