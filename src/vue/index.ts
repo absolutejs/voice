@@ -1,4 +1,5 @@
 export { VoiceOpsStatus } from './VoiceOpsStatus';
+export { VoiceProviderStatus } from './VoiceProviderStatus';
 export { VoiceRoutingStatus } from './VoiceRoutingStatus';
 export { useVoiceAppKitStatus } from './useVoiceAppKitStatus';
 export { useVoiceStream } from './useVoiceStream';

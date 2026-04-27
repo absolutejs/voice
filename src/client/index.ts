@@ -33,6 +33,13 @@ export {
 	fetchVoiceProviderStatus
 } from './providerStatus';
 export {
+	createVoiceProviderStatusViewModel,
+	defineVoiceProviderStatusElement,
+	getVoiceProviderStatusCSS,
+	mountVoiceProviderStatus,
+	renderVoiceProviderStatusHTML
+} from './providerStatusWidget';
+export {
 	createVoiceWorkflowStatusStore,
 	fetchVoiceWorkflowStatus
 } from './workflowStatus';
@@ -57,6 +64,11 @@ export type {
 	VoiceProviderStatusClientOptions,
 	VoiceProviderStatusSnapshot
 } from './providerStatus';
+export type {
+	VoiceProviderStatusCardView,
+	VoiceProviderStatusViewModel,
+	VoiceProviderStatusWidgetOptions
+} from './providerStatusWidget';
 export type {
 	VoiceWorkflowStatusClientOptions,
 	VoiceWorkflowStatusSnapshot

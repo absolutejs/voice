@@ -5,6 +5,11 @@ import {
 	createVoiceOpsStatusViewModel,
 	renderVoiceOpsStatusHTML
 } from '../src/client/opsStatusWidget';
+import { createVoiceProviderStatusStore } from '../src/client/providerStatus';
+import {
+	createVoiceProviderStatusViewModel,
+	renderVoiceProviderStatusHTML
+} from '../src/client/providerStatusWidget';
 import { createVoiceRoutingStatusStore } from '../src/client/routingStatus';
 import {
 	createVoiceRoutingStatusViewModel,
@@ -236,4 +241,86 @@ test('voice routing status widget renders latest provider decision', () => {
 	expect(html).toContain('Voice Routing');
 	expect(html).toContain('assemblyai');
 	expect(html).toContain('6000ms');
+});
+
+test('voice provider status store fetches provider health summaries', async () => {
+	const store = createVoiceProviderStatusStore('/api/provider-status', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify([
+					{
+						averageElapsedMs: 420,
+						errorCount: 0,
+						fallbackCount: 2,
+						provider: 'deepgram',
+						rateLimited: false,
+						recommended: true,
+						runCount: 8,
+						status: 'healthy',
+						timeoutCount: 0
+					}
+				])
+			)
+	});
+
+	const providers = await store.refresh();
+
+	expect(providers[0]).toMatchObject({
+		provider: 'deepgram',
+		recommended: true,
+		status: 'healthy'
+	});
+	expect(store.getSnapshot()).toMatchObject({
+		error: null,
+		isLoading: false,
+		providers: [
+			{
+				averageElapsedMs: 420,
+				fallbackCount: 2
+			}
+		]
+	});
+	store.close();
+});
+
+test('voice provider status widget renders fallback and suppression state', () => {
+	const snapshot = {
+		error: null,
+		isLoading: false,
+		providers: [
+			{
+				averageElapsedMs: 420,
+				errorCount: 0,
+				fallbackCount: 2,
+				provider: 'deepgram',
+				rateLimited: false,
+				recommended: true,
+				runCount: 8,
+				status: 'healthy' as const,
+				timeoutCount: 0
+			},
+			{
+				errorCount: 3,
+				fallbackCount: 0,
+				lastError: 'timeout',
+				provider: 'assemblyai',
+				rateLimited: false,
+				recommended: false,
+				runCount: 1,
+				status: 'suppressed' as const,
+				suppressionRemainingMs: 12_000,
+				timeoutCount: 3
+			}
+		],
+		updatedAt: 110
+	};
+	const model = createVoiceProviderStatusViewModel(snapshot);
+	const html = renderVoiceProviderStatusHTML(snapshot);
+
+	expect(model.label).toBe('1 needs attention');
+	expect(model.providers[0]?.label).toBe('Deepgram recommended');
+	expect(model.providers[1]?.detail).toBe('Suppressed for 12s after timeout.');
+	expect(html).toContain('Voice Providers');
+	expect(html).toContain('Deepgram recommended');
+	expect(html).toContain('timeout');
 });
