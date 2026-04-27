@@ -1,6 +1,9 @@
 import { expect, test } from 'bun:test';
 import {
 	applyVoiceTelephonyOutcome,
+	createVoiceTelephonyWebhookHandler,
+	createVoiceTelephonyWebhookRoutes,
+	parseVoiceTelephonyWebhookEvent,
 	resolveVoiceTelephonyOutcome,
 	voiceTelephonyOutcomeToRouteResult,
 	type VoiceSessionHandle
@@ -121,4 +124,96 @@ test('voiceTelephonyOutcomeToRouteResult and applyVoiceTelephonyOutcome drive li
 	await applyVoiceTelephonyOutcome(api, decision, { ok: true });
 
 	expect(calls).toEqual(['transfer:sales']);
+});
+
+test('parseVoiceTelephonyWebhookEvent normalizes Twilio-style form payloads', () => {
+	const event = parseVoiceTelephonyWebhookEvent({
+		body: {
+			AnsweredBy: 'machine_start',
+			CallDuration: '2',
+			CallSid: 'CA123',
+			CallStatus: 'completed',
+			From: '+15551230000',
+			To: '+15559870000'
+		},
+		headers: new Headers(),
+		provider: 'twilio',
+		query: {},
+		request: new Request('http://localhost')
+	});
+
+	expect(event).toMatchObject({
+		answeredBy: 'machine_start',
+		durationMs: 2000,
+		from: '+15551230000',
+		provider: 'twilio',
+		status: 'completed',
+		to: '+15559870000'
+	});
+});
+
+test('createVoiceTelephonyWebhookHandler resolves and applies session outcomes', async () => {
+	const calls: string[] = [];
+	const handler = createVoiceTelephonyWebhookHandler({
+		apply: true,
+		getSessionHandle: ({ sessionId }) => {
+			calls.push(`session:${sessionId}`);
+			return {
+				markVoicemail: async () => {
+					calls.push('voicemail');
+				}
+			} as VoiceSessionHandle;
+		},
+		provider: 'twilio'
+	});
+	const report = await handler({
+		request: new Request('http://localhost/webhook', {
+			body: new URLSearchParams({
+				AnsweredBy: 'machine_start',
+				CallSid: 'CA123',
+				CallStatus: 'completed'
+			}),
+			headers: {
+				'content-type': 'application/x-www-form-urlencoded'
+			},
+			method: 'POST'
+		})
+	});
+
+	expect(report).toMatchObject({
+		applied: true,
+		decision: {
+			action: 'voicemail'
+		},
+		sessionId: 'CA123'
+	});
+	expect(calls).toEqual(['session:CA123', 'voicemail']);
+});
+
+test('createVoiceTelephonyWebhookRoutes exposes webhook decisions', async () => {
+	const routes = createVoiceTelephonyWebhookRoutes({
+		path: '/carrier',
+		provider: 'twilio'
+	});
+	const response = await routes.handle(
+		new Request('http://localhost/carrier?sessionId=session-1', {
+			body: new URLSearchParams({
+				CallStatus: 'busy',
+				SipResponseCode: '486'
+			}),
+			headers: {
+				'content-type': 'application/x-www-form-urlencoded'
+			},
+			method: 'POST'
+		})
+	);
+	const body = await response.json();
+
+	expect(body).toMatchObject({
+		applied: false,
+		decision: {
+			action: 'no-answer'
+		},
+		sessionId: 'session-1'
+	});
 });

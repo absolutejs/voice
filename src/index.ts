@@ -89,6 +89,9 @@ export {
 export {
 	applyVoiceTelephonyOutcome,
 	createVoiceTelephonyOutcomePolicy,
+	createVoiceTelephonyWebhookHandler,
+	createVoiceTelephonyWebhookRoutes,
+	parseVoiceTelephonyWebhookEvent,
 	resolveVoiceTelephonyOutcome,
 	voiceTelephonyOutcomeToRouteResult
 } from './telephonyOutcome';
@@ -464,7 +467,12 @@ export type {
 	VoiceTelephonyOutcomePolicy,
 	VoiceTelephonyOutcomeProviderEvent,
 	VoiceTelephonyOutcomeRouteResult,
-	VoiceTelephonyOutcomeStatusDecision
+	VoiceTelephonyOutcomeStatusDecision,
+	VoiceTelephonyWebhookDecision,
+	VoiceTelephonyWebhookHandlerOptions,
+	VoiceTelephonyWebhookParseInput,
+	VoiceTelephonyWebhookProvider,
+	VoiceTelephonyWebhookRoutesOptions
 } from './telephonyOutcome';
 export type {
 	VoiceOpsConsoleLink,
