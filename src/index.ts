@@ -19,6 +19,11 @@ export {
 	summarizeVoiceCampaigns
 } from './campaign';
 export {
+	createVoicePlivoCampaignDialer,
+	createVoiceTelnyxCampaignDialer,
+	createVoiceTwilioCampaignDialer
+} from './campaignDialers';
+export {
 	createVoiceAssistant,
 	createVoiceExperiment,
 	summarizeVoiceAssistantRuns

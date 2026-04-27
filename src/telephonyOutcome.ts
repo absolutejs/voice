@@ -906,7 +906,10 @@ export const parseVoiceTelephonyWebhookEvent = (
 		]),
 		durationMs,
 		from,
-		metadata: payload,
+		metadata: {
+			...input.query,
+			...payload
+		},
 		provider,
 		reason: firstString(payload, [
 			'Reason',
