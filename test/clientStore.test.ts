@@ -10,6 +10,11 @@ import {
 	createVoiceProviderStatusViewModel,
 	renderVoiceProviderStatusHTML
 } from '../src/client/providerStatusWidget';
+import { createVoiceProviderSimulationControlsStore } from '../src/client/providerSimulationControls';
+import {
+	createVoiceProviderSimulationControlsViewModel,
+	renderVoiceProviderSimulationControlsHTML
+} from '../src/client/providerSimulationControlsWidget';
 import { createVoiceRoutingStatusStore } from '../src/client/routingStatus';
 import {
 	createVoiceRoutingStatusViewModel,
@@ -323,4 +328,75 @@ test('voice provider status widget renders fallback and suppression state', () =
 	expect(html).toContain('Voice Providers');
 	expect(html).toContain('Deepgram recommended');
 	expect(html).toContain('timeout');
+});
+
+test('voice provider simulation controls posts failure and recovery requests', async () => {
+	const requests: Array<{ method: string; url: string }> = [];
+	const store = createVoiceProviderSimulationControlsStore({
+		fetch: async (input, init) => {
+			requests.push({
+				method: init?.method ?? 'GET',
+				url: String(input)
+			});
+			return new Response(
+				JSON.stringify({
+					mode: String(input).includes('/recovery') ? 'recovery' : 'failure',
+					provider: 'deepgram',
+					sessionId: 'sim-1',
+					status: 'simulated'
+				})
+			);
+		},
+		kind: 'stt',
+		providers: [{ provider: 'deepgram' }, { provider: 'assemblyai' }]
+	});
+
+	await store.run('deepgram', 'failure');
+	await store.run('deepgram', 'recovery');
+
+	expect(requests).toEqual([
+		{
+			method: 'POST',
+			url: '/api/stt-simulate/failure?provider=deepgram'
+		},
+		{
+			method: 'POST',
+			url: '/api/stt-simulate/recovery?provider=deepgram'
+		}
+	]);
+	expect(store.getSnapshot()).toMatchObject({
+		error: null,
+		isRunning: false,
+		lastResult: {
+			mode: 'recovery',
+			provider: 'deepgram'
+		}
+	});
+	store.close();
+});
+
+test('voice provider simulation controls widget renders configured actions', () => {
+	const snapshot = {
+		error: null,
+		isRunning: false,
+		lastResult: null,
+		mode: null,
+		provider: null
+	};
+	const options = {
+		failureProviders: ['deepgram'] as const,
+		fallbackRequiredProvider: 'assemblyai',
+		kind: 'stt',
+		providers: [{ provider: 'deepgram' }, { provider: 'assemblyai' }]
+	};
+	const model = createVoiceProviderSimulationControlsViewModel(
+		snapshot,
+		options
+	);
+	const html = renderVoiceProviderSimulationControlsHTML(snapshot, options);
+
+	expect(model.canSimulateFailure).toBe(true);
+	expect(model.label).toBe('2 configured');
+	expect(html).toContain('Simulate deepgram STT failure');
+	expect(html).toContain('Mark assemblyai recovered');
 });
