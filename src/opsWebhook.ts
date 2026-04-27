@@ -289,11 +289,11 @@ export const createVoiceOpsWebhookReceiverRoutes = (
 ) => {
 	const path = options.path ?? '/api/voice-ops/webhook';
 
-	return new Elysia().post(path, async ({ request, set }) => {
-		const body = await request.text();
+	return new Elysia().post(path, async ({ body, request, set }) => {
+		const bodyText = typeof body === 'string' ? body : JSON.stringify(body);
 		if (options.signingSecret) {
 			const verification = await verifyVoiceOpsWebhookSignature({
-				body,
+				body: bodyText,
 				secret: options.signingSecret,
 				signature: request.headers.get('x-absolutejs-signature'),
 				timestamp: request.headers.get('x-absolutejs-timestamp'),
@@ -308,7 +308,7 @@ export const createVoiceOpsWebhookReceiverRoutes = (
 			}
 		}
 
-		const envelope = JSON.parse(body) as VoiceOpsWebhookEnvelope;
+		const envelope = JSON.parse(bodyText) as VoiceOpsWebhookEnvelope;
 		await options.onEnvelope?.({
 			envelope,
 			request
@@ -319,5 +319,7 @@ export const createVoiceOpsWebhookReceiverRoutes = (
 			ok: true,
 			type: envelope.event?.type
 		};
+	}, {
+		parse: 'text'
 	});
 };
