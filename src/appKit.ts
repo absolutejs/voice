@@ -9,6 +9,7 @@ import {
 } from './diagnosticsRoutes';
 import {
 	createVoiceEvalRoutes,
+	runVoiceScenarioFixtureEvals,
 	runVoiceScenarioEvals,
 	type VoiceEvalRoutesOptions,
 	type VoiceEvalLink
@@ -94,7 +95,15 @@ export type VoiceAppKitRoutesOptions<TProvider extends string = string> = {
 export type VoiceAppKitStatus = 'pass' | 'fail';
 
 export type VoiceAppKitStatusOptions = {
+	include?: {
+		handoffs?: boolean;
+		providers?: boolean;
+		quality?: boolean;
+		sessions?: boolean;
+		workflows?: boolean;
+	};
 	path?: string;
+	preferFixtureWorkflows?: boolean;
 };
 
 export type VoiceAppKitStatusReport = {
@@ -124,6 +133,7 @@ export type VoiceAppKitStatusReport = {
 		};
 		workflows?: {
 			failed: number;
+			source: 'fixtures' | 'live';
 			status: VoiceAppKitStatus;
 			total: number;
 		};
@@ -206,34 +216,69 @@ export const summarizeVoiceAppKitStatus = async <
 	options: VoiceAppKitRoutesOptions<TProvider>
 ): Promise<VoiceAppKitStatusReport> => {
 	const links = resolveLinks(options.links);
+	const statusOptions =
+		options.appStatus && typeof options.appStatus === 'object'
+			? options.appStatus
+			: undefined;
+	const evalOptions = options.evals === false ? undefined : options.evals;
+	const include = statusOptions?.include;
+	const shouldInclude = (surface: keyof NonNullable<typeof include>) =>
+		include?.[surface] !== false;
 	const events: StoredVoiceTraceEvent[] = filterVoiceTraceEvents(
 		await options.store.list()
 	);
 	const [quality, workflows, providers, sessions, handoffs] = await Promise.all([
-		options.quality === false
+		options.quality === false || !shouldInclude('quality')
 			? undefined
 			: evaluateVoiceQuality({
 					events,
 					thresholds: options.quality?.thresholds
 				}),
-		options.evals === false
+		!evalOptions || !shouldInclude('workflows')
 			? undefined
-			: runVoiceScenarioEvals({
-					events,
-					scenarios: options.evals?.scenarios
-				}),
-		options.providerHealth === false
+			: (async () => {
+					const fixtureReport = await runVoiceScenarioFixtureEvals({
+						fixtures: evalOptions.fixtures,
+						fixtureStore: evalOptions.fixtureStore,
+						scenarios: evalOptions.scenarios
+					});
+
+					if (
+						(statusOptions?.preferFixtureWorkflows ?? true) &&
+						fixtureReport.total > 0
+					) {
+						return {
+							failed: fixtureReport.failed,
+							source: 'fixtures' as const,
+							status: fixtureReport.status,
+							total: fixtureReport.total
+						};
+					}
+
+					const liveReport = await runVoiceScenarioEvals({
+						events,
+						scenarios: evalOptions.scenarios
+					});
+
+					return {
+						failed: liveReport.failed,
+						source: 'live' as const,
+						status: liveReport.status,
+						total: liveReport.total
+					};
+				})(),
+		options.providerHealth === false || !shouldInclude('providers')
 			? undefined
 			: summarizeVoiceProviderHealth({
 					events,
 					providers: options.llmProviders
 				}),
-		options.sessions === false
+		options.sessions === false || !shouldInclude('sessions')
 			? undefined
 			: summarizeVoiceSessions({
 					events
 				}),
-		options.handoffs === false
+		options.handoffs === false || !shouldInclude('handoffs')
 			? undefined
 			: summarizeVoiceHandoffHealth({
 					events
@@ -250,6 +295,7 @@ export const summarizeVoiceAppKitStatus = async <
 		const status = workflows.status;
 		surfaces.workflows = {
 			failed: workflows.failed,
+			source: workflows.source,
 			status,
 			total: workflows.total
 		};
