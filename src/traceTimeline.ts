@@ -152,6 +152,8 @@ const timelineLabel = (event: StoredVoiceTraceEvent) => {
 			return `Guardrail ${eventStatus(event) ?? 'check'}`;
 		case 'call.handoff':
 			return `Call handoff ${eventStatus(event) ?? ''}`.trim();
+		case 'client.live_latency':
+			return `Live latency${eventElapsedMs(event) !== undefined ? ` ${eventElapsedMs(event)}ms` : ''}`;
 		case 'session.error':
 			return `Error${getString(event.payload.error) ? `: ${getString(event.payload.error)}` : ''}`;
 		case 'turn.cost':

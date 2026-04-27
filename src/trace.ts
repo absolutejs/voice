@@ -9,6 +9,7 @@ export type VoiceTraceEventType =
 	| 'call.handoff'
 	| 'call.lifecycle'
 	| 'client.barge_in'
+	| 'client.live_latency'
 	| 'session.error'
 	| 'turn.assistant'
 	| 'turn.committed'

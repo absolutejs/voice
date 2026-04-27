@@ -30,7 +30,10 @@ export type VoiceLiveTurnLatencySnapshot = {
 export type VoiceLiveTurnLatencyMonitorOptions = {
 	clock?: () => number;
 	failAfterMs?: number;
+	fetch?: typeof fetch;
 	maxEvents?: number;
+	onComplete?: (event: VoiceLiveTurnLatencyEvent) => Promise<void> | void;
+	reportPath?: string;
 	speechThreshold?: number;
 	warnAfterMs?: number;
 };
@@ -78,6 +81,23 @@ export const createVoiceLiveTurnLatencyMonitor = (
 			listener();
 		}
 	};
+	const reportCompletedEvent = async (event: VoiceLiveTurnLatencyEvent) => {
+		await options.onComplete?.(event);
+		if (!options.reportPath) {
+			return;
+		}
+		const fetchImpl = options.fetch ?? globalThis.fetch;
+		const response = await fetchImpl(options.reportPath, {
+			body: JSON.stringify(event),
+			headers: {
+				'content-type': 'application/json'
+			},
+			method: 'POST'
+		});
+		if (!response.ok) {
+			throw new Error(`Voice live turn latency report failed: HTTP ${response.status}`);
+		}
+	};
 	const completePending = (
 		input: Pick<VoiceLiveTurnLatencyEvent, 'assistantAudioAt' | 'assistantTextAt'>
 	) => {
@@ -96,6 +116,7 @@ export const createVoiceLiveTurnLatencyMonitor = (
 			status
 		};
 		events = [pending, ...events].slice(0, maxEvents);
+		void reportCompletedEvent(pending).catch(() => {});
 		pending = undefined;
 		emit();
 	};
