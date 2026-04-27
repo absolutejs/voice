@@ -13,9 +13,11 @@ test('createVoiceProviderFailureSimulator falls back on simulated provider failu
 	await expect(simulator.run('openai', 'failure')).resolves.toMatchObject({
 		mode: 'failure',
 		provider: 'openai',
+		replayHref: expect.stringContaining('/api/voice-sessions/provider-sim-'),
 		result: {
 			assistantText: 'Simulated anthropic provider recovered.'
 		},
+		sessionId: expect.stringContaining('provider-sim-'),
 		status: 'simulated'
 	});
 	expect(events).toMatchObject([
@@ -57,5 +59,16 @@ test('createVoiceProviderFailureSimulator can force provider recovery', async ()
 		provider: 'openai',
 		selectedProvider: 'openai',
 		status: 'success'
+	});
+});
+
+test('createVoiceProviderFailureSimulator supports custom replay hrefs', async () => {
+	const simulator = createVoiceProviderFailureSimulator({
+		providers: ['openai'],
+		replayHref: ({ sessionId }) => `/debug/${sessionId}`
+	});
+
+	await expect(simulator.run('openai', 'recovery')).resolves.toMatchObject({
+		replayHref: expect.stringContaining('/debug/provider-sim-')
 	});
 });

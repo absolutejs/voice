@@ -29,8 +29,11 @@ export type VoiceProviderFailureSimulationResult<
 > = {
 	mode: VoiceProviderFailureSimulationMode;
 	provider: TProvider;
+	replayHref?: string;
 	result: VoiceAgentModelOutput<TResult>;
+	sessionId: string;
 	status: 'simulated';
+	turnId: string;
 };
 
 type ProviderListResolver<
@@ -65,6 +68,10 @@ export type VoiceProviderFailureSimulatorOptions<
 	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
 	providerLabel?: (provider: TProvider) => string;
 	providers: readonly TProvider[];
+	replayHref?:
+		| false
+		| string
+		| ((input: { provider: TProvider; sessionId: string; turnId: string }) => string);
 	response?: (
 		input: {
 			mode: VoiceProviderFailureSimulationMode;
@@ -219,8 +226,20 @@ export const createVoiceProviderFailureSimulator = <
 		return {
 			mode,
 			provider,
+			replayHref:
+				options.replayHref === false
+					? undefined
+					: typeof options.replayHref === 'function'
+						? options.replayHref({
+								provider,
+								sessionId: session.id,
+								turnId: turn.id
+							})
+						: `${options.replayHref ?? '/api/voice-sessions'}/${encodeURIComponent(session.id)}/replay/htmx`,
 			result,
-			status: 'simulated'
+			sessionId: session.id,
+			status: 'simulated',
+			turnId: turn.id
 		};
 	};
 
