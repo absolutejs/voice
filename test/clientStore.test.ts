@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
 import { serverMessageToAction } from '../src/client/actions';
 import { createVoiceAppKitStatusStore } from '../src/client/appKitStatus';
+import {
+	createVoiceOpsStatusViewModel,
+	renderVoiceOpsStatusHTML
+} from '../src/client/opsStatusWidget';
 import { createVoiceWorkflowStatusStore } from '../src/client/workflowStatus';
 import { createVoiceStreamStore } from '../src/client/store';
 
@@ -90,6 +94,44 @@ test('voice workflow status store fetches scenario eval reports', async () => {
 		}
 	});
 	store.close();
+});
+
+test('voice ops status widget renders app-kit readiness', () => {
+	const snapshot = {
+		error: null,
+		isLoading: false,
+		report: {
+			checkedAt: 100,
+			failed: 0,
+			links: [{ href: '/ops-console', label: 'Ops Console' }],
+			passed: 3,
+			status: 'pass' as const,
+			surfaces: {
+				handoffs: { failed: 0, status: 'pass' as const, total: 0 },
+				providers: { degraded: 0, status: 'pass' as const, total: 2 },
+				workflows: {
+					failed: 0,
+					source: 'fixtures' as const,
+					status: 'pass' as const,
+					total: 1
+				}
+			},
+			total: 3
+		},
+		updatedAt: 110
+	};
+	const model = createVoiceOpsStatusViewModel(snapshot);
+	const html = renderVoiceOpsStatusHTML(snapshot);
+
+	expect(model.label).toBe('Passing');
+	expect(model.surfaces.map((surface) => surface.label)).toEqual([
+		'Handoffs',
+		'Providers',
+		'Workflows'
+	]);
+	expect(html).toContain('Voice Ops Status');
+	expect(html).toContain('1 passing from fixtures');
+	expect(html).toContain('/ops-console');
 });
 
 test('voice app kit status store fetches integrated status reports', async () => {

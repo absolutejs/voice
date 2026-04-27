@@ -10,6 +10,13 @@ export {
 	fetchVoiceAppKitStatus
 } from './appKitStatus';
 export {
+	createVoiceOpsStatusViewModel,
+	getVoiceOpsStatusCSS,
+	getVoiceOpsStatusLabel,
+	mountVoiceOpsStatus,
+	renderVoiceOpsStatusHTML
+} from './opsStatusWidget';
+export {
 	createVoiceProviderStatusStore,
 	fetchVoiceProviderStatus
 } from './providerStatus';
@@ -21,6 +28,11 @@ export type {
 	VoiceAppKitStatusClientOptions,
 	VoiceAppKitStatusSnapshot
 } from './appKitStatus';
+export type {
+	VoiceOpsStatusSurfaceView,
+	VoiceOpsStatusViewModel,
+	VoiceOpsStatusWidgetOptions
+} from './opsStatusWidget';
 export type {
 	VoiceProviderStatusClientOptions,
 	VoiceProviderStatusSnapshot

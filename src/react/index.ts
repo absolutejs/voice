@@ -1,3 +1,4 @@
+export { VoiceOpsStatus } from './VoiceOpsStatus';
 export { useVoiceAppKitStatus } from './useVoiceAppKitStatus';
 export { useVoiceStream } from './useVoiceStream';
 export { useVoiceController } from './useVoiceController';
