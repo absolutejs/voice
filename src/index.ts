@@ -63,6 +63,11 @@ export {
 	summarizeVoiceProviderHealth
 } from './providerHealth';
 export {
+	createVoiceResilienceRoutes,
+	listVoiceRoutingEvents,
+	renderVoiceResilienceHTML
+} from './resilienceRoutes';
+export {
 	createVoiceSTTProviderRouter,
 	createVoiceTTSProviderRouter
 } from './providerAdapters';
@@ -295,6 +300,15 @@ export type {
 	VoiceProviderHealthSummary,
 	VoiceProviderHealthSummaryOptions
 } from './providerHealth';
+export type {
+	VoiceResilienceIOSimulator,
+	VoiceResilienceLink,
+	VoiceResiliencePageData,
+	VoiceResilienceRoutesOptions,
+	VoiceResilienceSimulationProvider,
+	VoiceRoutingEvent,
+	VoiceRoutingEventKind
+} from './resilienceRoutes';
 export type {
 	VoiceIOProviderRouterEvent,
 	VoiceSTTProviderRouterOptions,
