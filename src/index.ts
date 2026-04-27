@@ -124,6 +124,12 @@ export {
 	deliverVoiceIntegrationEventToSinks
 } from './opsSinks';
 export {
+	createVoiceOpsWebhookEnvelope,
+	createVoiceOpsWebhookReceiverRoutes,
+	createVoiceOpsWebhookSink,
+	verifyVoiceOpsWebhookSignature
+} from './opsWebhook';
+export {
 	createVoiceIntegrationSinkWorker,
 	createVoiceIntegrationSinkWorkerLoop,
 	createVoiceOpsTaskWorker,
@@ -312,6 +318,14 @@ export type {
 	VoiceZendeskTicketSinkOptions,
 	VoiceZendeskTicketUpdateSinkOptions
 } from './opsSinks';
+export type {
+	VoiceOpsWebhookEnvelope,
+	VoiceOpsWebhookEntity,
+	VoiceOpsWebhookLinkResolver,
+	VoiceOpsWebhookReceiverRoutesOptions,
+	VoiceOpsWebhookSinkOptions,
+	VoiceOpsWebhookVerificationResult
+} from './opsWebhook';
 export type {
 	StoredVoiceCallReviewArtifact,
 	VoiceCallReviewArtifact,
