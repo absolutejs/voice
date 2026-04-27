@@ -82,9 +82,32 @@ export type VoiceTelephonyWebhookParseInput = {
 export type VoiceTelephonyWebhookDecision<TResult = unknown> = {
 	applied: boolean;
 	decision: VoiceTelephonyOutcomeDecision;
+	duplicate?: boolean;
 	event: VoiceTelephonyOutcomeProviderEvent;
+	idempotencyKey?: string;
 	routeResult: VoiceTelephonyOutcomeRouteResult<TResult>;
 	sessionId?: string;
+};
+
+export type StoredVoiceTelephonyWebhookDecision<TResult = unknown> =
+	VoiceTelephonyWebhookDecision<TResult> & {
+		createdAt: number;
+		updatedAt: number;
+	};
+
+export type VoiceTelephonyWebhookIdempotencyStore<
+	TResult = unknown
+> = {
+	get: (
+		key: string
+	) =>
+		| Promise<StoredVoiceTelephonyWebhookDecision<TResult> | undefined>
+		| StoredVoiceTelephonyWebhookDecision<TResult>
+		| undefined;
+	set: (
+		key: string,
+		decision: StoredVoiceTelephonyWebhookDecision<TResult>
+	) => Promise<void> | void;
 };
 
 export type VoiceTelephonyWebhookVerificationResult =
@@ -117,6 +140,18 @@ export type VoiceTelephonyWebhookHandlerOptions<
 		| Promise<VoiceSessionHandle<TContext, TSession, TResult> | undefined>
 		| VoiceSessionHandle<TContext, TSession, TResult>
 		| undefined;
+	idempotency?: {
+		enabled?: boolean;
+		key?: (input: {
+			body: unknown;
+			event: VoiceTelephonyOutcomeProviderEvent;
+			provider: VoiceTelephonyWebhookProvider;
+			query: Record<string, unknown>;
+			request: Request;
+			sessionId?: string;
+		}) => Promise<string | undefined> | string | undefined;
+		store?: VoiceTelephonyWebhookIdempotencyStore<TResult>;
+	};
 	onDecision?: (input: VoiceTelephonyWebhookDecision<TResult> & {
 		context: TContext;
 		request: Request;
@@ -224,6 +259,19 @@ export class VoiceTelephonyWebhookVerificationError extends Error {
 		this.result = result;
 	}
 }
+
+export const createMemoryVoiceTelephonyWebhookIdempotencyStore = <
+	TResult = unknown
+>(): VoiceTelephonyWebhookIdempotencyStore<TResult> => {
+	const decisions = new Map<string, StoredVoiceTelephonyWebhookDecision<TResult>>();
+
+	return {
+		get: (key) => decisions.get(key),
+		set: (key, decision) => {
+			decisions.set(key, decision);
+		}
+	};
+};
 
 const normalizeToken = (value: unknown) =>
 	typeof value === 'string'
@@ -897,6 +945,39 @@ const defaultSessionId = (input: {
 		(typeof metadataSessionId === 'string' ? metadataSessionId : undefined);
 };
 
+const defaultIdempotencyKey = (input: {
+	body: unknown;
+	event: VoiceTelephonyOutcomeProviderEvent;
+	provider: VoiceTelephonyWebhookProvider;
+	sessionId?: string;
+}) => {
+	const payload = flattenPayload(input.body);
+	const eventId = firstString(payload, [
+		'id',
+		'event_id',
+		'eventId',
+		'EventSid',
+		'event_sid',
+		'MessageSid',
+		'message_sid',
+		'CallSid',
+		'call_sid',
+		'CallUUID',
+		'call_uuid',
+		'callControlId',
+		'call_control_id'
+	]);
+	const status = normalizeToken(input.event.status) ?? 'unknown';
+
+	if (eventId) {
+		return `${input.provider}:${eventId}:${status}`;
+	}
+
+	if (input.sessionId) {
+		return `${input.provider}:${input.sessionId}:${status}`;
+	}
+};
+
 export const createVoiceTelephonyWebhookHandler =
 	<
 		TContext = unknown,
@@ -944,6 +1025,34 @@ export const createVoiceTelephonyWebhookHandler =
 			query,
 			request: input.request
 		}) ?? defaultSessionId({ body, event, query }));
+		const idempotencyEnabled = options.idempotency?.enabled !== false;
+		const idempotencyKey = idempotencyEnabled
+			? await (options.idempotency?.key?.({
+					body,
+					event,
+					provider,
+					query,
+					request: input.request,
+					sessionId
+				}) ?? defaultIdempotencyKey({ body, event, provider, sessionId }))
+			: undefined;
+		const idempotencyStore = options.idempotency?.store;
+		if (idempotencyKey && idempotencyStore) {
+			const existing = await idempotencyStore.get(idempotencyKey);
+			if (existing) {
+				const duplicateDecision = {
+					...existing,
+					duplicate: true
+				};
+				await options.onDecision?.({
+					...duplicateDecision,
+					context: options.context as TContext,
+					request: input.request
+				});
+
+				return duplicateDecision;
+			}
+		}
 		const decision = resolveVoiceTelephonyOutcome(event, options.policy);
 		const resultResolver = options.result as
 			| ((
@@ -998,9 +1107,18 @@ export const createVoiceTelephonyWebhookHandler =
 			applied,
 			decision,
 			event,
+			idempotencyKey,
 			routeResult,
 			sessionId
 		};
+		if (idempotencyKey && idempotencyStore) {
+			const now = Date.now();
+			await idempotencyStore.set(idempotencyKey, {
+				...webhookDecision,
+				createdAt: now,
+				updatedAt: now
+			});
+		}
 
 		await options.onDecision?.({
 			...webhookDecision,

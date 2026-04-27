@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
 	applyVoiceTelephonyOutcome,
+	createMemoryVoiceTelephonyWebhookIdempotencyStore,
 	createVoiceTelephonyWebhookHandler,
 	createVoiceTelephonyWebhookRoutes,
 	parseVoiceTelephonyWebhookEvent,
@@ -321,5 +322,90 @@ test('createVoiceTelephonyWebhookHandler accepts valid signed Twilio callbacks',
 			action: 'no-answer'
 		},
 		sessionId: 'CA123'
+	});
+});
+
+test('createVoiceTelephonyWebhookHandler dedupes provider retries before applying', async () => {
+	const calls: string[] = [];
+	const store = createMemoryVoiceTelephonyWebhookIdempotencyStore();
+	const handler = createVoiceTelephonyWebhookHandler({
+		apply: true,
+		getSessionHandle: () =>
+			({
+				markNoAnswer: async () => {
+					calls.push('no-answer');
+				}
+			}) as VoiceSessionHandle,
+		idempotency: {
+			store
+		},
+		provider: 'twilio'
+	});
+	const request = () =>
+		new Request('http://localhost/carrier', {
+			body: new URLSearchParams({
+				CallSid: 'CA123',
+				CallStatus: 'busy',
+				SipResponseCode: '486'
+			}),
+			headers: {
+				'content-type': 'application/x-www-form-urlencoded'
+			},
+			method: 'POST'
+		});
+	const first = await handler({ request: request() });
+	const duplicate = await handler({ request: request() });
+
+	expect(first).toMatchObject({
+		applied: true,
+		idempotencyKey: 'twilio:CA123:busy'
+	});
+	expect(first.duplicate).toBeUndefined();
+	expect(duplicate).toMatchObject({
+		applied: true,
+		duplicate: true,
+		idempotencyKey: 'twilio:CA123:busy'
+	});
+	expect(calls).toEqual(['no-answer']);
+});
+
+test('createVoiceTelephonyWebhookHandler supports custom idempotency keys', async () => {
+	const store = createMemoryVoiceTelephonyWebhookIdempotencyStore();
+	const handler = createVoiceTelephonyWebhookHandler({
+		idempotency: {
+			key: ({ body }) =>
+				`custom:${(body as Record<string, unknown>).providerEventId}`,
+			store
+		}
+	});
+	const first = await handler({
+		request: new Request('http://localhost/carrier', {
+			body: JSON.stringify({
+				providerEventId: 'evt-1',
+				status: 'completed'
+			}),
+			headers: {
+				'content-type': 'application/json'
+			},
+			method: 'POST'
+		})
+	});
+	const second = await handler({
+		request: new Request('http://localhost/carrier', {
+			body: JSON.stringify({
+				providerEventId: 'evt-1',
+				status: 'completed'
+			}),
+			headers: {
+				'content-type': 'application/json'
+			},
+			method: 'POST'
+		})
+	});
+
+	expect(first.idempotencyKey).toBe('custom:evt-1');
+	expect(second).toMatchObject({
+		duplicate: true,
+		idempotencyKey: 'custom:evt-1'
 	});
 });

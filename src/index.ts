@@ -88,6 +88,7 @@ export {
 } from './outcomeContract';
 export {
 	applyVoiceTelephonyOutcome,
+	createMemoryVoiceTelephonyWebhookIdempotencyStore,
 	createVoiceTelephonyOutcomePolicy,
 	createVoiceTelephonyWebhookHandler,
 	createVoiceTelephonyWebhookRoutes,
@@ -472,10 +473,12 @@ export type {
 	VoiceTelephonyOutcomeStatusDecision,
 	VoiceTelephonyWebhookDecision,
 	VoiceTelephonyWebhookHandlerOptions,
+	VoiceTelephonyWebhookIdempotencyStore,
 	VoiceTelephonyWebhookParseInput,
 	VoiceTelephonyWebhookProvider,
 	VoiceTelephonyWebhookRoutesOptions,
-	VoiceTelephonyWebhookVerificationResult
+	VoiceTelephonyWebhookVerificationResult,
+	StoredVoiceTelephonyWebhookDecision
 } from './telephonyOutcome';
 export type {
 	VoiceOpsConsoleLink,
