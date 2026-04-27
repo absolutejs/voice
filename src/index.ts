@@ -17,7 +17,10 @@ export {
 	resolveVoiceDiagnosticsTraceFilter
 } from './diagnosticsRoutes';
 export {
+	compareVoiceEvalBaseline,
+	createVoiceFileEvalBaselineStore,
 	createVoiceEvalRoutes,
+	renderVoiceEvalBaselineHTML,
 	renderVoiceEvalHTML,
 	runVoiceSessionEvals
 } from './evalRoutes';
@@ -291,6 +294,10 @@ export type {
 } from './assistantMemory';
 export type { VoiceDiagnosticsRoutesOptions } from './diagnosticsRoutes';
 export type {
+	VoiceEvalBaselineComparison,
+	VoiceEvalBaselineComparisonOptions,
+	VoiceEvalBaselineStore,
+	VoiceEvalBaselineSummary,
 	VoiceEvalLink,
 	VoiceEvalReport,
 	VoiceEvalRoutesOptions,

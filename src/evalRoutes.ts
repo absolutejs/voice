@@ -1,4 +1,6 @@
 import { Elysia } from 'elysia';
+import { mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import {
 	evaluateVoiceQuality,
 	type VoiceQualityReport,
@@ -42,12 +44,50 @@ export type VoiceEvalReport = {
 	trend: VoiceEvalTrendBucket[];
 };
 
+export type VoiceEvalBaselineSummary = {
+	failed: number;
+	failedSessionIds: string[];
+	passRate: number;
+	passed: number;
+	total: number;
+};
+
+export type VoiceEvalBaselineComparison = {
+	baseline: VoiceEvalBaselineSummary;
+	checkedAt: number;
+	current: VoiceEvalBaselineSummary;
+	deltas: {
+		failed: number;
+		passRate: number;
+		passed: number;
+		total: number;
+	};
+	newFailedSessionIds: string[];
+	recoveredSessionIds: string[];
+	reasons: string[];
+	status: VoiceEvalStatus;
+};
+
+export type VoiceEvalBaselineComparisonOptions = {
+	failOnNewFailedSessions?: boolean;
+	maxFailedDelta?: number;
+	maxPassRateDrop?: number;
+};
+
+export type VoiceEvalBaselineStore = {
+	get: () => Promise<VoiceEvalReport | undefined>;
+	set: (report: VoiceEvalReport) => Promise<void>;
+};
+
 export type VoiceEvalLink = {
 	href: string;
 	label: string;
 };
 
 export type VoiceEvalRoutesOptions = {
+	baseline?: VoiceEvalReport | (() => Promise<VoiceEvalReport | undefined>);
+	baselineComparison?: VoiceEvalBaselineComparisonOptions;
+	baselineStore?: VoiceEvalBaselineStore;
 	events?: StoredVoiceTraceEvent[];
 	headers?: HeadersInit;
 	links?: VoiceEvalLink[];
@@ -66,6 +106,8 @@ const escapeHtml = (value: string) =>
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;')
 		.replaceAll("'", '&#39;');
+
+const rate = (count: number, total: number) => count / Math.max(1, total);
 
 const sessionTime = (events: StoredVoiceTraceEvent[]) => {
 	const sorted = filterVoiceTraceEvents(events);
@@ -165,8 +207,98 @@ export const runVoiceSessionEvals = async (
 	};
 };
 
+const summarizeEvalBaseline = (
+	report: VoiceEvalReport
+): VoiceEvalBaselineSummary => {
+	const failedSessionIds = report.sessions
+		.filter((session) => session.status === 'fail')
+		.map((session) => session.sessionId)
+		.sort();
+
+	return {
+		failed: report.failed,
+		failedSessionIds,
+		passRate: rate(report.passed, report.total),
+		passed: report.passed,
+		total: report.total
+	};
+};
+
+export const compareVoiceEvalBaseline = (
+	currentReport: VoiceEvalReport,
+	baselineReport: VoiceEvalReport,
+	options: VoiceEvalBaselineComparisonOptions = {}
+): VoiceEvalBaselineComparison => {
+	const baseline = summarizeEvalBaseline(baselineReport);
+	const current = summarizeEvalBaseline(currentReport);
+	const maxFailedDelta = options.maxFailedDelta ?? 0;
+	const maxPassRateDrop = options.maxPassRateDrop ?? 0;
+	const failOnNewFailedSessions = options.failOnNewFailedSessions ?? true;
+	const baselineFailed = new Set(baseline.failedSessionIds);
+	const currentFailed = new Set(current.failedSessionIds);
+	const newFailedSessionIds = current.failedSessionIds.filter(
+		(sessionId) => !baselineFailed.has(sessionId)
+	);
+	const recoveredSessionIds = baseline.failedSessionIds.filter(
+		(sessionId) => !currentFailed.has(sessionId)
+	);
+	const deltas = {
+		failed: current.failed - baseline.failed,
+		passRate: current.passRate - baseline.passRate,
+		passed: current.passed - baseline.passed,
+		total: current.total - baseline.total
+	};
+	const reasons: string[] = [];
+
+	if (deltas.failed > maxFailedDelta) {
+		reasons.push(
+			`Failed sessions increased by ${deltas.failed}, above allowed delta ${maxFailedDelta}.`
+		);
+	}
+	if (deltas.passRate < -maxPassRateDrop) {
+		reasons.push(
+			`Pass rate dropped by ${Math.abs(deltas.passRate).toFixed(4)}, above allowed drop ${maxPassRateDrop}.`
+		);
+	}
+	if (failOnNewFailedSessions && newFailedSessionIds.length > 0) {
+		reasons.push(
+			`${newFailedSessionIds.length} session(s) failed that were not failing in the baseline.`
+		);
+	}
+
+	return {
+		baseline,
+		checkedAt: Date.now(),
+		current,
+		deltas,
+		newFailedSessionIds,
+		recoveredSessionIds,
+		reasons,
+		status: reasons.length > 0 ? 'fail' : 'pass'
+	};
+};
+
+export const createVoiceFileEvalBaselineStore = (
+	filePath: string
+): VoiceEvalBaselineStore => ({
+	get: async () => {
+		const file = Bun.file(filePath);
+		if (!(await file.exists())) {
+			return undefined;
+		}
+		const text = await file.text();
+		return text.trim() ? (JSON.parse(text) as VoiceEvalReport) : undefined;
+	},
+	set: async (report) => {
+		await mkdir(dirname(filePath), { recursive: true });
+		await Bun.write(filePath, JSON.stringify(report, null, 2));
+	}
+});
+
 const formatTime = (value: number | undefined) =>
 	value === undefined ? 'unknown' : new Date(value).toLocaleString();
+
+const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`;
 
 export const renderVoiceEvalHTML = (
 	report: VoiceEvalReport,
@@ -204,6 +336,34 @@ export const renderVoiceEvalHTML = (
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.pass{color:#166534}.fail{color:#991b1b}.status.pass{background:#dcfce7}.status.fail{background:#fee2e2}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}table{border-collapse:collapse;background:white;width:100%;margin:1rem 0 2rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div><h2>Trend</h2><table><thead><tr><th>Day</th><th>Total</th><th>Passed</th><th>Failed</th></tr></thead><tbody>${trend}</tbody></table><h2>Session Eval Results</h2><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Last event</th><th>Failed metrics</th></tr></thead><tbody>${sessions}</tbody></table></main></body></html>`;
 };
 
+export const renderVoiceEvalBaselineHTML = (
+	comparison: VoiceEvalBaselineComparison,
+	options: { links?: VoiceEvalLink[]; title?: string } = {}
+) => {
+	const title = options.title ?? 'AbsoluteJS Voice Eval Baseline';
+	const links = options.links?.length
+		? `<nav>${options.links
+				.map(
+					(link) =>
+						`<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`
+				)
+				.join('')}</nav>`
+		: '';
+	const reasons = comparison.reasons.length
+		? comparison.reasons
+				.map((reason) => `<li>${escapeHtml(reason)}</li>`)
+				.join('')
+		: '<li>No baseline regressions detected.</li>';
+	const newFailures = comparison.newFailedSessionIds.length
+		? comparison.newFailedSessionIds.map((id) => `<li>${escapeHtml(id)}</li>`).join('')
+		: '<li>none</li>';
+	const recovered = comparison.recoveredSessionIds.length
+		? comparison.recoveredSessionIds.map((id) => `<li>${escapeHtml(id)}</li>`).join('')
+		: '<li>none</li>';
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1000px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.pass{background:#dcfce7;color:#166534}.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:1rem 0}.card{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}section{background:white;border:1px solid #e7e5e4;border-radius:1rem;margin:1rem 0;padding:1rem}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${comparison.status}">${comparison.status}</p><div class="grid"><article class="card"><span>Baseline pass rate</span><strong>${escapeHtml(formatPercent(comparison.baseline.passRate))}</strong></article><article class="card"><span>Current pass rate</span><strong>${escapeHtml(formatPercent(comparison.current.passRate))}</strong></article><article class="card"><span>Failed delta</span><strong>${comparison.deltas.failed}</strong></article><article class="card"><span>Pass rate delta</span><strong>${escapeHtml(formatPercent(comparison.deltas.passRate))}</strong></article></div><section><h2>Regression Reasons</h2><ul>${reasons}</ul></section><section><h2>New Failed Sessions</h2><ul>${newFailures}</ul></section><section><h2>Recovered Sessions</h2><ul>${recovered}</ul></section></main></body></html>`;
+};
+
 export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 	const path = options.path ?? '/evals';
 	const routes = new Elysia({
@@ -216,6 +376,16 @@ export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 			store: options.store,
 			thresholds: options.thresholds
 		});
+	const getBaseline = async () =>
+		typeof options.baseline === 'function'
+			? options.baseline()
+			: (options.baseline ?? (await options.baselineStore?.get()));
+	const getBaselineComparison = async () => {
+		const [current, baseline] = await Promise.all([getReport(), getBaseline()]);
+		return baseline
+			? compareVoiceEvalBaseline(current, baseline, options.baselineComparison)
+			: undefined;
+	};
 
 	routes.get(path, async () => {
 		const report = await getReport();
@@ -239,6 +409,56 @@ export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 			set.status = 503;
 		}
 		return report;
+	});
+	routes.get(`${path}/baseline`, async ({ set }) => {
+		const comparison = await getBaselineComparison();
+		if (!comparison) {
+			set.status = 404;
+			return Response.json({ error: 'No voice eval baseline found.' });
+		}
+		return new Response(
+			renderVoiceEvalBaselineHTML(comparison, {
+				links: options.links,
+				title: `${options.title ?? 'AbsoluteJS Voice Evals'} Baseline`
+			}),
+			{
+				headers: {
+					'Content-Type': 'text/html; charset=utf-8',
+					...options.headers
+				}
+			}
+		);
+	});
+	routes.get(`${path}/baseline/json`, async ({ set }) => {
+		const comparison = await getBaselineComparison();
+		if (!comparison) {
+			set.status = 404;
+			return { error: 'No voice eval baseline found.' };
+		}
+		return comparison;
+	});
+	routes.get(`${path}/baseline/status`, async ({ set }) => {
+		const comparison = await getBaselineComparison();
+		if (!comparison) {
+			set.status = 404;
+			return { error: 'No voice eval baseline found.' };
+		}
+		if (comparison.status === 'fail') {
+			set.status = 503;
+		}
+		return comparison;
+	});
+	routes.post(`${path}/baseline`, async ({ set }) => {
+		if (!options.baselineStore) {
+			set.status = 501;
+			return { error: 'No voice eval baseline store configured.' };
+		}
+		const report = await getReport();
+		await options.baselineStore.set(report);
+		return {
+			baseline: report,
+			status: 'saved'
+		};
 	});
 
 	return routes;
