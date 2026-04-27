@@ -40,6 +40,44 @@ export type VoiceSessionReplay = {
 	turns: VoiceSessionReplayTurn[];
 };
 
+export type VoiceSessionListStatus = 'failed' | 'healthy';
+
+export type VoiceSessionListItem = {
+	endedAt?: number;
+	errorCount: number;
+	eventCount: number;
+	latestOutcome?: string;
+	providerErrors: Record<string, number>;
+	providers: string[];
+	replayHref: string;
+	sessionId: string;
+	startedAt?: number;
+	status: VoiceSessionListStatus;
+	transcriptCount: number;
+	turnCount: number;
+};
+
+export type VoiceSessionListOptions = {
+	events?: StoredVoiceTraceEvent[];
+	limit?: number;
+	provider?: string;
+	q?: string;
+	replayHref?: false | string | ((session: Omit<VoiceSessionListItem, 'replayHref'>) => string);
+	status?: VoiceSessionListStatus | 'all';
+	store?: VoiceTraceEventStore;
+};
+
+export type VoiceSessionListHTMLHandlerOptions = VoiceSessionListOptions & {
+	headers?: HeadersInit;
+	render?: (sessions: VoiceSessionListItem[]) => string | Promise<string>;
+};
+
+export type VoiceSessionListRoutesOptions = VoiceSessionListHTMLHandlerOptions & {
+	htmlPath?: false | string;
+	name?: string;
+	path?: string;
+};
+
 export type VoiceSessionReplayOptions = {
 	evaluation?: VoiceTraceEvaluationOptions;
 	events?: StoredVoiceTraceEvent[];
@@ -66,6 +104,18 @@ export type VoiceSessionReplayRoutesOptions =
 
 const getString = (value: unknown) =>
 	typeof value === 'string' ? value : undefined;
+
+const escapeHtml = (value: string) =>
+	value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;');
+
+const increment = (record: Record<string, number>, key: string) => {
+	record[key] = (record[key] ?? 0) + 1;
+};
 
 const buildReplayTurns = (
 	events: StoredVoiceTraceEvent[]
@@ -158,6 +208,191 @@ export const summarizeVoiceSessionReplay = async (
 		})),
 		turns: buildReplayTurns(events)
 	};
+};
+
+export const summarizeVoiceSessions = async (
+	options: VoiceSessionListOptions = {}
+): Promise<VoiceSessionListItem[]> => {
+	const events = options.events ?? (await options.store?.list()) ?? [];
+	const grouped = new Map<string, StoredVoiceTraceEvent[]>();
+
+	for (const event of events) {
+		grouped.set(event.sessionId, [...(grouped.get(event.sessionId) ?? []), event]);
+	}
+
+	const sessions = [...grouped.entries()].map(([sessionId, sessionEvents]) => {
+		const sorted = filterVoiceTraceEvents(sessionEvents);
+		const summary = buildVoiceTraceReplay(sorted, {
+			evaluation: {
+				requireAssistantReply: false,
+				requireCompletedCall: false,
+				requireTranscript: false,
+				requireTurn: false
+			}
+		}).summary;
+		const providerErrors: Record<string, number> = {};
+		const providers = new Set<string>();
+		let latestOutcome: string | undefined;
+
+		for (const event of sorted) {
+			const provider = getString(event.payload.provider);
+			if (provider) {
+				providers.add(provider);
+			}
+			if (
+				event.type === 'session.error' &&
+				(event.payload.providerStatus === 'error' ||
+					typeof event.payload.error === 'string')
+			) {
+				increment(providerErrors, provider ?? 'unknown');
+			}
+			const outcome = getString(event.payload.outcome);
+			if (outcome) {
+				latestOutcome = outcome;
+			}
+		}
+
+		const item: Omit<VoiceSessionListItem, 'replayHref'> = {
+			endedAt: summary.endedAt,
+			errorCount: summary.errorCount,
+			eventCount: summary.eventCount,
+			latestOutcome,
+			providerErrors,
+			providers: [...providers].sort(),
+			sessionId,
+			startedAt: summary.startedAt,
+			status: summary.failed ? 'failed' : 'healthy',
+			transcriptCount: summary.transcriptCount,
+			turnCount: summary.turnCount
+		};
+		const replayHref =
+			options.replayHref === false
+				? ''
+				: typeof options.replayHref === 'function'
+					? options.replayHref(item)
+					: `${options.replayHref ?? '/api/voice-sessions'}/${encodeURIComponent(sessionId)}/replay/htmx`;
+
+		return {
+			...item,
+			replayHref
+		};
+	});
+	const search = options.q?.trim().toLowerCase();
+
+	return sessions
+		.filter((session) => {
+			if (options.status && options.status !== 'all' && session.status !== options.status) {
+				return false;
+			}
+			if (options.provider && !session.providers.includes(options.provider)) {
+				return false;
+			}
+			if (!search) {
+				return true;
+			}
+
+			return [
+				session.sessionId,
+				session.latestOutcome,
+				session.status,
+				...session.providers
+			].some((value) => value?.toLowerCase().includes(search));
+		})
+		.sort(
+			(left, right) =>
+				(right.endedAt ?? right.startedAt ?? 0) -
+				(left.endedAt ?? left.startedAt ?? 0)
+		)
+		.slice(0, options.limit ?? 50);
+};
+
+export const renderVoiceSessionsHTML = (sessions: VoiceSessionListItem[]) =>
+	sessions.length === 0
+		? '<p class="voice-sessions-empty">No voice sessions found.</p>'
+		: [
+				'<div class="voice-sessions-list">',
+				...sessions.map((session) =>
+					[
+						`<article class="voice-session-card ${escapeHtml(session.status)}">`,
+						'<div class="voice-session-card-header">',
+						`<strong>${escapeHtml(session.sessionId)}</strong>`,
+						`<span>${escapeHtml(session.status)}</span>`,
+						'</div>',
+						'<dl>',
+						`<div><dt>Events</dt><dd>${String(session.eventCount)}</dd></div>`,
+						`<div><dt>Turns</dt><dd>${String(session.turnCount)}</dd></div>`,
+						`<div><dt>Transcripts</dt><dd>${String(session.transcriptCount)}</dd></div>`,
+						`<div><dt>Errors</dt><dd>${String(session.errorCount)}</dd></div>`,
+						'</dl>',
+						session.latestOutcome
+							? `<p>Outcome: ${escapeHtml(session.latestOutcome)}</p>`
+							: '',
+						session.providers.length
+							? `<p>Providers: ${session.providers.map(escapeHtml).join(', ')}</p>`
+							: '',
+						session.replayHref
+							? `<p><a href="${escapeHtml(session.replayHref)}">Open replay</a></p>`
+							: '',
+						'</article>'
+					].join('')
+				),
+				'</div>'
+			].join('');
+
+export const createVoiceSessionsJSONHandler =
+	(options: VoiceSessionListOptions = {}) =>
+	async ({ query }: { query?: Record<string, string | undefined> }) =>
+		summarizeVoiceSessions({
+			...options,
+			limit:
+				typeof query?.limit === 'string' ? Number(query.limit) : options.limit,
+			provider: query?.provider ?? options.provider,
+			q: query?.q ?? options.q,
+			status:
+				query?.status === 'failed' || query?.status === 'healthy' || query?.status === 'all'
+					? query.status
+					: options.status
+		});
+
+export const createVoiceSessionsHTMLHandler =
+	(options: VoiceSessionListHTMLHandlerOptions = {}) =>
+	async ({ query }: { query?: Record<string, string | undefined> }) => {
+		const sessions = await summarizeVoiceSessions({
+			...options,
+			limit:
+				typeof query?.limit === 'string' ? Number(query.limit) : options.limit,
+			provider: query?.provider ?? options.provider,
+			q: query?.q ?? options.q,
+			status:
+				query?.status === 'failed' || query?.status === 'healthy' || query?.status === 'all'
+					? query.status
+					: options.status
+		});
+		const body = await (options.render?.(sessions) ?? renderVoiceSessionsHTML(sessions));
+
+		return new Response(body, {
+			headers: {
+				'Content-Type': 'text/html; charset=utf-8',
+				...options.headers
+			}
+		});
+	};
+
+export const createVoiceSessionListRoutes = (
+	options: VoiceSessionListRoutesOptions = {}
+) => {
+	const path = options.path ?? '/api/voice-sessions';
+	const htmlPath =
+		options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-session-list'
+	}).get(path, createVoiceSessionsJSONHandler(options));
+
+	if (htmlPath) {
+		routes.get(htmlPath, createVoiceSessionsHTMLHandler(options));
+	}
+
+	return routes;
 };
 
 export const createVoiceSessionReplayJSONHandler =

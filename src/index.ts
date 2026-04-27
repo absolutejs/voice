@@ -12,9 +12,14 @@ export {
 	summarizeVoiceAssistantHealth
 } from './assistantHealth';
 export {
+	createVoiceSessionListRoutes,
 	createVoiceSessionReplayHTMLHandler,
 	createVoiceSessionReplayJSONHandler,
 	createVoiceSessionReplayRoutes,
+	createVoiceSessionsHTMLHandler,
+	createVoiceSessionsJSONHandler,
+	renderVoiceSessionsHTML,
+	summarizeVoiceSessions,
 	summarizeVoiceSessionReplay
 } from './sessionReplay';
 export {
@@ -231,6 +236,11 @@ export type {
 	VoiceAssistantMemoryStore
 } from './assistantMemory';
 export type {
+	VoiceSessionListHTMLHandlerOptions,
+	VoiceSessionListItem,
+	VoiceSessionListOptions,
+	VoiceSessionListRoutesOptions,
+	VoiceSessionListStatus,
 	VoiceSessionReplay,
 	VoiceSessionReplayHTMLHandlerOptions,
 	VoiceSessionReplayOptions,

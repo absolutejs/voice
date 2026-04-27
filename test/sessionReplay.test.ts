@@ -1,9 +1,12 @@
 import { expect, test } from 'bun:test';
 import {
 	createVoiceMemoryTraceEventStore,
+	createVoiceSessionListRoutes,
 	createVoiceSessionReplayHTMLHandler,
 	createVoiceSessionReplayRoutes,
 	createVoiceTraceEvent,
+	renderVoiceSessionsHTML,
+	summarizeVoiceSessions,
 	summarizeVoiceSessionReplay
 } from '../src';
 
@@ -143,4 +146,65 @@ test('createVoiceSessionReplayRoutes exposes json and html replay endpoints', as
 		}
 	});
 	expect(await html.text()).toContain('Voice Session session-replay');
+});
+
+test('summarizeVoiceSessions lists searchable sessions with replay links', async () => {
+	const sessions = await summarizeVoiceSessions({
+		events: createReplayEvents(),
+		q: 'replay'
+	});
+
+	expect(sessions).toMatchObject([
+		{
+			errorCount: 1,
+			eventCount: 5,
+			providerErrors: {
+				openai: 1
+			},
+			providers: ['openai'],
+			replayHref: '/api/voice-sessions/session-replay/replay/htmx',
+			sessionId: 'session-replay',
+			status: 'failed',
+			turnCount: 1
+		}
+	]);
+	expect(
+		await summarizeVoiceSessions({
+			events: createReplayEvents(),
+			provider: 'openai',
+			status: 'failed'
+		})
+	).toHaveLength(1);
+});
+
+test('renderVoiceSessionsHTML renders replay links', async () => {
+	const sessions = await summarizeVoiceSessions({
+		events: createReplayEvents()
+	});
+
+	expect(renderVoiceSessionsHTML(sessions)).toContain('Open replay');
+});
+
+test('createVoiceSessionListRoutes exposes json and html session list endpoints', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	for (const event of createReplayEvents()) {
+		await store.append(event);
+	}
+	const routes = createVoiceSessionListRoutes({
+		store
+	});
+	const json = await routes.handle(
+		new Request('http://localhost/api/voice-sessions?status=failed')
+	);
+	const html = await routes.handle(
+		new Request('http://localhost/api/voice-sessions/htmx?provider=openai')
+	);
+
+	expect(await json.json()).toMatchObject([
+		{
+			sessionId: 'session-replay',
+			status: 'failed'
+		}
+	]);
+	expect(await html.text()).toContain('session-replay');
 });
