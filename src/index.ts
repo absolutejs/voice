@@ -7,6 +7,8 @@ export {
 export {
 	createVoiceCampaign,
 	createVoiceCampaignRoutes,
+	createVoiceCampaignWorker,
+	createVoiceCampaignWorkerLoop,
 	createVoiceMemoryCampaignStore,
 	renderVoiceCampaignsHTML,
 	runVoiceCampaignProof,

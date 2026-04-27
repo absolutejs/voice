@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import type { VoiceRedisTaskLeaseCoordinator } from './queue';
 
 export type VoiceCampaignStatus =
 	| 'canceled'
@@ -198,6 +199,42 @@ export type VoiceCampaignRoutesOptions = VoiceCampaignRuntimeOptions & {
 	name?: string;
 	path?: string;
 	title?: string;
+};
+
+export type VoiceCampaignWorkerOptions = {
+	campaignIds?: string[];
+	leaseMs?: number;
+	leases: VoiceRedisTaskLeaseCoordinator;
+	maxCampaigns?: number;
+	runtime?: VoiceCampaignRuntime;
+	statuses?: VoiceCampaignStatus[];
+	store?: VoiceCampaignStore;
+	workerId: string;
+};
+
+export type VoiceCampaignWorkerResult = {
+	attempted: number;
+	campaigns: number;
+	errors: Array<{ campaignId: string; error: string }>;
+	skipped: number;
+	started: VoiceCampaignAttempt[];
+};
+
+export type VoiceCampaignWorker = {
+	drain: () => Promise<VoiceCampaignWorkerResult>;
+};
+
+export type VoiceCampaignWorkerLoopOptions = {
+	onError?: (error: unknown) => void | Promise<void>;
+	pollIntervalMs?: number;
+	worker: VoiceCampaignWorker;
+};
+
+export type VoiceCampaignWorkerLoop = {
+	isRunning: () => boolean;
+	start: () => void;
+	stop: () => void;
+	tick: () => Promise<VoiceCampaignWorkerResult>;
 };
 
 const createId = () => crypto.randomUUID();
@@ -488,6 +525,114 @@ export const createVoiceCampaign = (
 			await saveRecord(store, record);
 			return result;
 		}
+	};
+};
+
+const getCampaignLeaseTaskId = (campaignId: string) =>
+	`voice-campaign:${campaignId}`;
+
+export const createVoiceCampaignWorker = (
+	options: VoiceCampaignWorkerOptions
+): VoiceCampaignWorker => {
+	const leaseMs = Math.max(1, options.leaseMs ?? 30_000);
+	const runtime =
+		options.runtime ??
+		createVoiceCampaign({
+			store: options.store ?? createVoiceMemoryCampaignStore()
+		});
+	const statuses = options.statuses ?? ['running'];
+	const campaignIds = new Set(options.campaignIds);
+	const maxCampaigns = Math.max(1, options.maxCampaigns ?? Number.MAX_SAFE_INTEGER);
+
+	return {
+		drain: async () => {
+			const result: VoiceCampaignWorkerResult = {
+				attempted: 0,
+				campaigns: 0,
+				errors: [],
+				skipped: 0,
+				started: []
+			};
+			const campaigns = [...(await runtime.list())]
+				.filter(
+					(record) =>
+						(campaignIds.size === 0 || campaignIds.has(record.campaign.id)) &&
+						statuses.includes(record.campaign.status)
+				)
+				.sort((left, right) => left.campaign.createdAt - right.campaign.createdAt)
+				.slice(0, maxCampaigns);
+
+			for (const record of campaigns) {
+				const campaignId = record.campaign.id;
+				const taskId = getCampaignLeaseTaskId(campaignId);
+				const claimed = await options.leases.claim({
+					leaseMs,
+					taskId,
+					workerId: options.workerId
+				});
+				if (!claimed) {
+					result.skipped += 1;
+					continue;
+				}
+
+				try {
+					const tick = await runtime.tick(campaignId);
+					result.campaigns += 1;
+					result.attempted += tick.attempted;
+					result.started.push(...tick.started);
+					result.errors.push(...tick.errors.map((error) => ({
+						campaignId,
+						error: error.error
+					})));
+				} catch (error) {
+					result.errors.push({
+						campaignId,
+						error: error instanceof Error ? error.message : String(error)
+					});
+				} finally {
+					await options.leases.release({
+						taskId,
+						workerId: options.workerId
+					});
+				}
+			}
+
+			return result;
+		}
+	};
+};
+
+export const createVoiceCampaignWorkerLoop = (
+	options: VoiceCampaignWorkerLoopOptions
+): VoiceCampaignWorkerLoop => {
+	const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
+	let timer: ReturnType<typeof setInterval> | undefined;
+	let running = false;
+
+	const tick = async () => options.worker.drain();
+
+	return {
+		isRunning: () => running,
+		start: () => {
+			if (timer) {
+				return;
+			}
+
+			running = true;
+			timer = setInterval(() => {
+				void tick().catch((error) => {
+					void options.onError?.(error);
+				});
+			}, pollIntervalMs);
+		},
+		stop: () => {
+			if (timer) {
+				clearInterval(timer);
+				timer = undefined;
+			}
+			running = false;
+		},
+		tick
 	};
 };
 
