@@ -127,6 +127,7 @@ export {
 	resolveVoiceProviderRoutingPolicyPreset,
 	createVoiceProviderRouter
 } from './modelAdapters';
+export { createOpenAIVoiceTTS } from './openaiTTS';
 export {
 	createVoiceProviderHealthHTMLHandler,
 	createVoiceProviderHealthJSONHandler,
@@ -434,6 +435,7 @@ export type {
 	VoiceJSONAssistantModelHandler,
 	VoiceJSONAssistantModelOptions
 } from './modelAdapters';
+export type { OpenAIVoiceTTSOptions, OpenAIVoiceTTSVoice } from './openaiTTS';
 export type {
 	VoiceProviderHealthStatus,
 	VoiceProviderHealthSummary,
