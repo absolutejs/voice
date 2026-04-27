@@ -40,6 +40,10 @@ export {
 	createVoiceTurnQualityStore,
 	fetchVoiceTurnQuality
 } from './turnQuality';
+export {
+	createVoiceTraceTimelineStore,
+	fetchVoiceTraceTimeline
+} from './traceTimeline';
 export { createVoiceProviderSimulationControlsStore } from './providerSimulationControls';
 export {
 	bindVoiceProviderSimulationControls,
@@ -69,6 +73,13 @@ export {
 	mountVoiceTurnQuality,
 	renderVoiceTurnQualityHTML
 } from './turnQualityWidget';
+export {
+	createVoiceTraceTimelineViewModel,
+	defineVoiceTraceTimelineElement,
+	getVoiceTraceTimelineCSS,
+	mountVoiceTraceTimeline,
+	renderVoiceTraceTimelineWidgetHTML
+} from './traceTimelineWidget';
 export {
 	createVoiceWorkflowStatusStore,
 	fetchVoiceWorkflowStatus
@@ -103,6 +114,10 @@ export type {
 	VoiceTurnQualitySnapshot
 } from './turnQuality';
 export type {
+	VoiceTraceTimelineClientOptions,
+	VoiceTraceTimelineSnapshot
+} from './traceTimeline';
+export type {
 	VoiceProviderSimulationControlsOptions,
 	VoiceProviderSimulationControlsSnapshot,
 	VoiceProviderSimulationProvider
@@ -123,6 +138,11 @@ export type {
 	VoiceTurnQualityViewModel,
 	VoiceTurnQualityWidgetOptions
 } from './turnQualityWidget';
+export type {
+	VoiceTraceTimelineSessionView,
+	VoiceTraceTimelineViewModel,
+	VoiceTraceTimelineWidgetOptions
+} from './traceTimelineWidget';
 export type {
 	VoiceWorkflowStatusClientOptions,
 	VoiceWorkflowStatusSnapshot

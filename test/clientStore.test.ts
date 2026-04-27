@@ -30,6 +30,11 @@ import {
 	createVoiceTurnQualityViewModel,
 	renderVoiceTurnQualityHTML
 } from '../src/client/turnQualityWidget';
+import { createVoiceTraceTimelineStore } from '../src/client/traceTimeline';
+import {
+	createVoiceTraceTimelineViewModel,
+	renderVoiceTraceTimelineWidgetHTML
+} from '../src/client/traceTimelineWidget';
 import { createVoiceWorkflowStatusStore } from '../src/client/workflowStatus';
 import { createVoiceStreamStore } from '../src/client/store';
 
@@ -442,6 +447,64 @@ test('voice turn quality store and widget render fallback diagnostics', async ()
 	);
 	expect(html).toContain('book a demo');
 	expect(html).toContain('93%');
+});
+
+test('voice trace timeline store and widget render recent call timelines', async () => {
+	const store = createVoiceTraceTimelineStore('/api/voice-traces', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					checkedAt: 100,
+					failed: 1,
+					sessions: [
+						{
+							events: [],
+							evaluation: {
+								issues: [],
+								pass: false,
+								summary: { eventCount: 3 }
+							},
+							providers: [
+								{
+									averageElapsedMs: 220,
+									errorCount: 1,
+									eventCount: 2,
+									fallbackCount: 1,
+									provider: 'openai',
+									successCount: 1,
+									timeoutCount: 0
+								}
+							],
+							sessionId: 'session-trace',
+							status: 'failed',
+							summary: {
+								callDurationMs: 1200,
+								errorCount: 1,
+								eventCount: 3,
+								turnCount: 1
+							}
+						}
+					],
+					total: 1,
+					warnings: 0
+				})
+			)
+	});
+
+	await store.refresh();
+	const snapshot = store.getSnapshot();
+	const model = createVoiceTraceTimelineViewModel(snapshot);
+	const html = renderVoiceTraceTimelineWidgetHTML(snapshot);
+
+	expect(model.label).toBe('1 failed');
+	expect(model.sessions[0]).toMatchObject({
+		detailHref: '/traces/session-trace',
+		durationLabel: '1200ms',
+		providerLabel: 'openai'
+	});
+	expect(html).toContain('Voice Traces');
+	expect(html).toContain('Open timeline');
+	store.close();
 });
 
 test('voice provider simulation controls posts failure and recovery requests', async () => {

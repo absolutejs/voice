@@ -3,6 +3,7 @@ export { VoiceProviderSimulationControls } from './VoiceProviderSimulationContro
 export { VoiceProviderCapabilities } from './VoiceProviderCapabilities';
 export { VoiceProviderStatus } from './VoiceProviderStatus';
 export { VoiceRoutingStatus } from './VoiceRoutingStatus';
+export { VoiceTraceTimeline } from './VoiceTraceTimeline';
 export { VoiceTurnQuality } from './VoiceTurnQuality';
 export { useVoiceAppKitStatus } from './useVoiceAppKitStatus';
 export { useVoiceStream } from './useVoiceStream';
@@ -11,5 +12,6 @@ export { useVoiceProviderStatus } from './useVoiceProviderStatus';
 export { useVoiceProviderCapabilities } from './useVoiceProviderCapabilities';
 export { useVoiceProviderSimulationControls } from './useVoiceProviderSimulationControls';
 export { useVoiceRoutingStatus } from './useVoiceRoutingStatus';
+export { useVoiceTraceTimeline } from './useVoiceTraceTimeline';
 export { useVoiceTurnQuality } from './useVoiceTurnQuality';
 export { useVoiceWorkflowStatus } from './useVoiceWorkflowStatus';

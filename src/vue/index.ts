@@ -11,5 +11,6 @@ export { useVoiceProviderStatus } from './useVoiceProviderStatus';
 export { useVoiceProviderCapabilities } from './useVoiceProviderCapabilities';
 export { useVoiceProviderSimulationControls } from './useVoiceProviderSimulationControls';
 export { useVoiceRoutingStatus } from './useVoiceRoutingStatus';
+export { useVoiceTraceTimeline } from './useVoiceTraceTimeline';
 export { useVoiceTurnQuality } from './useVoiceTurnQuality';
 export { useVoiceWorkflowStatus } from './useVoiceWorkflowStatus';
