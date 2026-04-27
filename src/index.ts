@@ -194,6 +194,12 @@ export {
 	summarizeVoiceTrace
 } from './trace';
 export {
+	createVoiceTraceTimelineRoutes,
+	renderVoiceTraceTimelineHTML,
+	renderVoiceTraceTimelineSessionHTML,
+	summarizeVoiceTraceTimeline
+} from './traceTimeline';
+export {
 	createVoiceSQLiteExternalObjectMapStore,
 	createVoiceSQLiteIntegrationEventStore,
 	createVoiceSQLiteReviewStore,
@@ -664,6 +670,13 @@ export type {
 	VoiceTraceSinkStoreOptions,
 	VoiceTraceSummary
 } from './trace';
+export type {
+	VoiceTraceTimelineEvent,
+	VoiceTraceTimelineProviderSummary,
+	VoiceTraceTimelineReport,
+	VoiceTraceTimelineRoutesOptions,
+	VoiceTraceTimelineSession
+} from './traceTimeline';
 export type {
 	VoicePostgresClient,
 	VoicePostgresRuntimeStorage,

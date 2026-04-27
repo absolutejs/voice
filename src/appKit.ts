@@ -60,6 +60,10 @@ import {
 	type StoredVoiceTraceEvent,
 	type VoiceTraceEventStore
 } from './trace';
+import {
+	createVoiceTraceTimelineRoutes,
+	type VoiceTraceTimelineRoutesOptions
+} from './traceTimeline';
 
 export type VoiceAppKitSurface =
 	| 'assistantHealth'
@@ -73,7 +77,8 @@ export type VoiceAppKitSurface =
 	| 'quality'
 	| 'resilience'
 	| 'sessionReplay'
-	| 'sessions';
+	| 'sessions'
+	| 'traceTimeline';
 
 export type VoiceAppKitLink = VoiceEvalLink & {
 	description?: string;
@@ -103,6 +108,7 @@ export type VoiceAppKitRoutesOptions<TProvider extends string = string> = {
 	store: VoiceTraceEventStore;
 	sttProviders?: readonly string[];
 	title?: string;
+	traceTimeline?: false | Partial<VoiceTraceTimelineRoutesOptions>;
 	ttsProviders?: readonly string[];
 };
 
@@ -485,6 +491,20 @@ export const createVoiceAppKitRoutes = <TProvider extends string = string>(
 					? `${options.title} Diagnostics`
 					: undefined,
 				...options.diagnostics
+			})
+		);
+	}
+	if (options.traceTimeline !== false) {
+		surfaces.push('traceTimeline');
+		routes.use(
+			createVoiceTraceTimelineRoutes({
+				...common,
+				htmlPath: '/traces',
+				path: '/api/voice-traces',
+				title: options.title
+					? `${options.title} Trace Timelines`
+					: undefined,
+				...options.traceTimeline
 			})
 		);
 	}

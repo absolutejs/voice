@@ -15,6 +15,7 @@ test('createVoiceAppKitRoutes mounts the standard operations surfaces', async ()
 	expect(kit.surfaces).toContain('opsConsole');
 	expect(kit.surfaces).toContain('evals');
 	expect(kit.surfaces).toContain('providerCapabilities');
+	expect(kit.surfaces).toContain('traceTimeline');
 	expect(kit.links.map((link) => link.href)).toContain('/quality');
 
 	const quality = await kit.routes.handle(
@@ -42,6 +43,14 @@ test('createVoiceAppKitRoutes mounts the standard operations surfaces', async ()
 	expect(capabilities.status).toBe(200);
 	await expect(capabilities.json()).resolves.toMatchObject({
 		total: 3
+	});
+
+	const traces = await kit.routes.handle(
+		new Request('http://localhost/api/voice-traces')
+	);
+	expect(traces.status).toBe(200);
+	await expect(traces.json()).resolves.toMatchObject({
+		total: 0
 	});
 
 	const status = await kit.routes.handle(
