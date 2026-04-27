@@ -12,6 +12,12 @@ export {
 	summarizeVoiceAssistantHealth
 } from './assistantHealth';
 export {
+	createVoiceSessionReplayHTMLHandler,
+	createVoiceSessionReplayJSONHandler,
+	createVoiceSessionReplayRoutes,
+	summarizeVoiceSessionReplay
+} from './sessionReplay';
+export {
 	createVoiceAgent,
 	createVoiceAgentSquad,
 	createVoiceAgentTool
@@ -224,6 +230,13 @@ export type {
 	VoiceAssistantMemoryRecord,
 	VoiceAssistantMemoryStore
 } from './assistantMemory';
+export type {
+	VoiceSessionReplay,
+	VoiceSessionReplayHTMLHandlerOptions,
+	VoiceSessionReplayOptions,
+	VoiceSessionReplayRoutesOptions,
+	VoiceSessionReplayTurn
+} from './sessionReplay';
 export type {
 	AnthropicVoiceAssistantModelOptions,
 	GeminiVoiceAssistantModelOptions,
