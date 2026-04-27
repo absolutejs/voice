@@ -744,6 +744,12 @@ export {
 	createTelnyxVoiceRoutes,
 	verifyVoiceTelnyxWebhookSignature
 } from './telephony/telnyx';
+export {
+	createPlivoVoiceResponse,
+	createPlivoVoiceRoutes,
+	signVoicePlivoWebhook,
+	verifyVoicePlivoWebhookSignature
+} from './telephony/plivo';
 export type {
 	TwilioInboundMessage,
 	TwilioMediaStreamBridge,
@@ -781,6 +787,15 @@ export type {
 	TelnyxVoiceSmokeOptions,
 	TelnyxVoiceSmokeReport
 } from './telephony/telnyx';
+export type {
+	PlivoVoiceResponseOptions,
+	PlivoVoiceRoutesOptions,
+	PlivoVoiceSetupOptions,
+	PlivoVoiceSetupStatus,
+	PlivoVoiceSmokeCheck,
+	PlivoVoiceSmokeOptions,
+	PlivoVoiceSmokeReport
+} from './telephony/plivo';
 export { shapeTelephonyAssistantText } from './telephony/response';
 export type {
 	TelephonyResponseShapeMode,
