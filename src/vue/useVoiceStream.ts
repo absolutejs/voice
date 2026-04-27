@@ -12,6 +12,7 @@ export const useVoiceStream = <TResult = unknown>(
 	const stream = createVoiceStream<TResult>(path, options);
 	const assistantAudio = shallowRef<typeof stream.assistantAudio>([]);
 	const assistantTexts = shallowRef<string[]>([]);
+	const call = shallowRef<typeof stream.call>(null);
 	const error = ref<string | null>(null);
 	const isConnected = ref(false);
 	const partial = ref('');
@@ -22,6 +23,7 @@ export const useVoiceStream = <TResult = unknown>(
 	const sync = () => {
 		assistantAudio.value = [...stream.assistantAudio];
 		assistantTexts.value = [...stream.assistantTexts];
+		call.value = stream.call;
 		error.value = stream.error;
 		isConnected.value = stream.isConnected;
 		partial.value = stream.partial;
@@ -43,6 +45,9 @@ export const useVoiceStream = <TResult = unknown>(
 	return {
 		assistantAudio,
 		assistantTexts,
+		call,
+		callControl: (message: Parameters<typeof stream.callControl>[0]) =>
+			stream.callControl(message),
 		close: () => destroy(),
 		endTurn: () => stream.endTurn(),
 		error,

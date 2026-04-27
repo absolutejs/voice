@@ -5,6 +5,7 @@ import type { VoiceConnectionOptions } from '../types';
 const EMPTY_SNAPSHOT = {
 	assistantAudio: [],
 	assistantTexts: [],
+	call: null,
 	error: null,
 	isConnected: false,
 	partial: '',
@@ -38,6 +39,8 @@ export const useVoiceStream = <TResult = unknown>(
 
 	return {
 		...snapshot,
+		callControl: (message: Parameters<typeof stream.callControl>[0]) =>
+			stream.callControl(message),
 		close: () => stream.close(),
 		endTurn: () => stream.endTurn(),
 		sendAudio: (audio: Uint8Array | ArrayBuffer) => stream.sendAudio(audio)

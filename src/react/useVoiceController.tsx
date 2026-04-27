@@ -5,6 +5,7 @@ import type { VoiceControllerOptions } from '../types';
 const EMPTY_SNAPSHOT = {
 	assistantAudio: [],
 	assistantTexts: [],
+	call: null,
 	error: null,
 	isConnected: false,
 	isRecording: false,
@@ -41,6 +42,8 @@ export const useVoiceController = <TResult = unknown>(
 	return {
 		...snapshot,
 		bindHTMX: controller.bindHTMX,
+		callControl: (message: Parameters<typeof controller.callControl>[0]) =>
+			controller.callControl(message),
 		close: () => controller.close(),
 		endTurn: () => controller.endTurn(),
 		sendAudio: (audio: Uint8Array | ArrayBuffer) => controller.sendAudio(audio),
