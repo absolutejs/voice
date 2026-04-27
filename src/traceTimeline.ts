@@ -156,6 +156,8 @@ const timelineLabel = (event: StoredVoiceTraceEvent) => {
 			return `Error${getString(event.payload.error) ? `: ${getString(event.payload.error)}` : ''}`;
 		case 'turn.cost':
 			return 'Cost telemetry';
+		case 'turn_latency.stage':
+			return `Latency ${getString(event.payload.stage) ?? 'stage'}`;
 		case 'workflow.contract':
 			return `Workflow contract ${eventStatus(event) ?? ''}`.trim();
 		default:

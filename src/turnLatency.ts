@@ -1,5 +1,9 @@
 import { Elysia } from 'elysia';
 import type {
+	StoredVoiceTraceEvent,
+	VoiceTraceEventStore
+} from './trace';
+import type {
 	VoiceSessionRecord,
 	VoiceSessionStore,
 	VoiceSessionSummary,
@@ -44,6 +48,7 @@ export type VoiceTurnLatencyOptions<
 	sessionIds?: string[];
 	sessions?: TSession[];
 	store?: VoiceSessionStore<TSession>;
+	traceStore?: VoiceTraceEventStore;
 	warnAfterMs?: number;
 	failAfterMs?: number;
 };
@@ -80,31 +85,74 @@ const firstNumber = (values: Array<number | undefined>) =>
 		.filter((value): value is number => typeof value === 'number')
 		.sort((left, right) => left - right)[0];
 
+const getString = (value: unknown) =>
+	typeof value === 'string' && value.trim() ? value : undefined;
+
+const createTraceStageIndex = (events: StoredVoiceTraceEvent[]) => {
+	const index = new Map<string, Map<string, number>>();
+	for (const event of events) {
+		if (event.type !== 'turn_latency.stage' || !event.turnId) {
+			continue;
+		}
+		const stage = getString(event.payload.stage);
+		if (!stage) {
+			continue;
+		}
+		const key = `${event.sessionId}:${event.turnId}`;
+		const stages = index.get(key) ?? new Map<string, number>();
+		const previous = stages.get(stage);
+		if (previous === undefined || event.at < previous) {
+			stages.set(stage, event.at);
+		}
+		index.set(key, stages);
+	}
+	return index;
+};
+
 const summarizeTurn = (
 	sessionId: string,
 	turn: VoiceTurnRecord,
-	options: { failAfterMs: number; warnAfterMs: number }
+	options: {
+		failAfterMs: number;
+		stageIndex?: Map<string, Map<string, number>>;
+		warnAfterMs: number;
+	}
 ): VoiceTurnLatencyItem => {
-	const firstTranscriptAt = firstNumber(
-		turn.transcripts.map(
-			(transcript) => transcript.endedAtMs ?? transcript.startedAtMs
-		)
-	);
-	const finalTranscriptAt = firstNumber(
-		turn.transcripts
-			.filter((transcript) => transcript.isFinal)
-			.map((transcript) => transcript.endedAtMs ?? transcript.startedAtMs)
-	);
+	const traceStages = options.stageIndex?.get(`${sessionId}:${turn.id}`);
+	const firstTranscriptAt =
+		traceStages?.get('speech_detected') ??
+		firstNumber(
+			turn.transcripts.map(
+				(transcript) => transcript.endedAtMs ?? transcript.startedAtMs
+			)
+		);
+	const finalTranscriptAt =
+		traceStages?.get('final_transcript') ??
+		firstNumber(
+			turn.transcripts
+				.filter((transcript) => transcript.isFinal)
+				.map((transcript) => transcript.endedAtMs ?? transcript.startedAtMs)
+		);
+	const committedAt = traceStages?.get('turn_committed') ?? turn.committedAt;
+	const assistantTextStartedAt =
+		traceStages?.get('assistant_text_started') ??
+		(turn.assistantText ? committedAt : undefined);
+	const ttsSendStartedAt = traceStages?.get('tts_send_started');
+	const ttsSendCompletedAt = traceStages?.get('tts_send_completed');
+	const assistantAudioReceivedAt = traceStages?.get('assistant_audio_received');
 	const commitAfterFirstMs =
 		firstTranscriptAt === undefined
 			? undefined
-			: Math.max(0, turn.committedAt - firstTranscriptAt);
+			: Math.max(0, committedAt - firstTranscriptAt);
 	const commitAfterFinalMs =
 		finalTranscriptAt === undefined
 			? undefined
-			: Math.max(0, turn.committedAt - finalTranscriptAt);
-	const assistantTextStartedAt = turn.assistantText ? turn.committedAt : undefined;
-	const totalMs = commitAfterFirstMs;
+			: Math.max(0, committedAt - finalTranscriptAt);
+	const totalEndAt = assistantAudioReceivedAt ?? assistantTextStartedAt ?? committedAt;
+	const totalMs =
+		firstTranscriptAt === undefined
+			? commitAfterFirstMs
+			: Math.max(0, totalEndAt - firstTranscriptAt);
 	const status: VoiceTurnLatencyStatus =
 		totalMs === undefined
 			? 'warn'
@@ -116,7 +164,7 @@ const summarizeTurn = (
 
 	return {
 		assistantTextStartedAt,
-		committedAt: turn.committedAt,
+		committedAt,
 		finalTranscriptAt,
 		firstTranscriptAt,
 		sessionId,
@@ -125,7 +173,32 @@ const summarizeTurn = (
 			{ label: 'Final transcript to commit', valueMs: commitAfterFinalMs },
 			{
 				label: 'Commit to assistant text',
-				valueMs: assistantTextStartedAt === undefined ? undefined : 0
+				valueMs:
+					assistantTextStartedAt === undefined
+						? undefined
+						: Math.max(0, assistantTextStartedAt - committedAt)
+			},
+			{
+				label: 'Assistant text to TTS send',
+				valueMs:
+					ttsSendStartedAt === undefined || assistantTextStartedAt === undefined
+						? undefined
+						: Math.max(0, ttsSendStartedAt - assistantTextStartedAt)
+			},
+			{
+				label: 'TTS send duration',
+				valueMs:
+					ttsSendCompletedAt === undefined || ttsSendStartedAt === undefined
+						? undefined
+						: Math.max(0, ttsSendCompletedAt - ttsSendStartedAt)
+			},
+			{
+				label: 'TTS to first audio',
+				valueMs:
+					assistantAudioReceivedAt === undefined ||
+					ttsSendCompletedAt === undefined
+						? undefined
+						: Math.max(0, assistantAudioReceivedAt - ttsSendCompletedAt)
 			}
 		],
 		status,
@@ -166,12 +239,19 @@ export const summarizeVoiceTurnLatency = async <
 	options: VoiceTurnLatencyOptions<TSession>
 ): Promise<VoiceTurnLatencyReport> => {
 	const sessions = await resolveSessions(options);
+	const traceEvents = options.traceStore
+		? await options.traceStore.list({
+				limit: 1000,
+				type: 'turn_latency.stage'
+			})
+		: [];
+	const stageIndex = createTraceStageIndex(traceEvents);
 	const warnAfterMs = options.warnAfterMs ?? DEFAULT_WARN_AFTER_MS;
 	const failAfterMs = options.failAfterMs ?? DEFAULT_FAIL_AFTER_MS;
 	const turns = sessions
 		.flatMap((session) =>
 			session.turns.map((turn) =>
-				summarizeTurn(session.id, turn, { failAfterMs, warnAfterMs })
+				summarizeTurn(session.id, turn, { failAfterMs, stageIndex, warnAfterMs })
 			)
 		)
 		.sort((left, right) => right.committedAt - left.committedAt);

@@ -13,6 +13,7 @@ export type VoiceTraceEventType =
 	| 'turn.assistant'
 	| 'turn.committed'
 	| 'turn.cost'
+	| 'turn_latency.stage'
 	| 'turn.transcript'
 	| 'workflow.contract';
 

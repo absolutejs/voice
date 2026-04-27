@@ -413,6 +413,7 @@ export const createVoiceSession = <
 		: undefined;
 
 	const appendTrace = async (input: {
+		at?: number;
 		metadata?: Record<string, unknown>;
 		payload: Record<string, unknown>;
 		session?: TSession;
@@ -424,10 +425,11 @@ export const createVoiceSession = <
 			| 'turn.assistant'
 			| 'turn.committed'
 			| 'turn.cost'
+			| 'turn_latency.stage'
 			| 'turn.transcript';
 	}) => {
 		await options.trace?.append({
-			at: Date.now(),
+			at: input.at ?? Date.now(),
 			metadata: input.metadata,
 			payload: input.payload,
 			scenarioId: input.session?.scenarioId ?? options.scenarioId,
@@ -436,6 +438,19 @@ export const createVoiceSession = <
 			type: input.type
 		});
 	};
+	const appendTurnLatencyStage = async (input: {
+		at?: number;
+		session?: TSession;
+		stage: string;
+		turnId?: string;
+	}) =>
+		appendTrace({
+			at: input.at,
+			payload: { stage: input.stage },
+			session: input.session,
+			turnId: input.turnId,
+			type: 'turn_latency.stage'
+		});
 	const phraseHints = options.phraseHints ?? [];
 	const lexicon = options.lexicon ?? [];
 
@@ -1710,6 +1725,13 @@ export const createVoiceSession = <
 						turnId: activeTTSTurnId,
 						type: 'audio'
 					});
+					if (activeTTSTurnId) {
+						await appendTurnLatencyStage({
+							at: receivedAt,
+							stage: 'assistant_audio_received',
+							turnId: activeTTSTurnId
+						});
+					}
 				});
 			});
 			openedSession.on('error', (event) => {
@@ -1778,6 +1800,7 @@ export const createVoiceSession = <
 		};
 
 		if (output?.assistantText) {
+			const assistantTextStartedAt = Date.now();
 			await writeSession((currentSession) => {
 				setTurnResult(currentSession, turn.id, {
 					assistantText: output.assistantText
@@ -1787,6 +1810,12 @@ export const createVoiceSession = <
 				text: output.assistantText,
 				turnId: turn.id,
 				type: 'assistant'
+			});
+			await appendTurnLatencyStage({
+				at: assistantTextStartedAt,
+				session,
+				stage: 'assistant_text_started',
+				turnId: turn.id
 			});
 			await appendTrace({
 				payload: {
@@ -1803,7 +1832,18 @@ export const createVoiceSession = <
 				if (activeTTSSession) {
 					const ttsStartedAt = Date.now();
 					activeTTSTurnId = turn.id;
+					await appendTurnLatencyStage({
+						at: ttsStartedAt,
+						session,
+						stage: 'tts_send_started',
+						turnId: turn.id
+					});
 					await activeTTSSession.send(output.assistantText);
+					await appendTurnLatencyStage({
+						session,
+						stage: 'tts_send_completed',
+						turnId: turn.id
+					});
 					await appendTrace({
 						payload: {
 							elapsedMs: Date.now() - ttsStartedAt,
@@ -2058,6 +2098,37 @@ export const createVoiceSession = <
 			session: updatedSession,
 			turnId: turn.id,
 			type: 'turn.cost'
+		});
+		const firstTranscriptAt = turn.transcripts
+			.map((transcript) => transcript.endedAtMs ?? transcript.startedAtMs)
+			.filter((value): value is number => typeof value === 'number')
+			.sort((left, right) => left - right)[0];
+		const finalTranscriptAt = turn.transcripts
+			.filter((transcript) => transcript.isFinal)
+			.map((transcript) => transcript.endedAtMs ?? transcript.startedAtMs)
+			.filter((value): value is number => typeof value === 'number')
+			.sort((left, right) => left - right)[0];
+		if (firstTranscriptAt !== undefined) {
+			await appendTurnLatencyStage({
+				at: firstTranscriptAt,
+				session: updatedSession,
+				stage: 'speech_detected',
+				turnId: turn.id
+			});
+		}
+		if (finalTranscriptAt !== undefined) {
+			await appendTurnLatencyStage({
+				at: finalTranscriptAt,
+				session: updatedSession,
+				stage: 'final_transcript',
+				turnId: turn.id
+			});
+		}
+		await appendTurnLatencyStage({
+			at: turn.committedAt,
+			session: updatedSession,
+			stage: 'turn_committed',
+			turnId: turn.id
 		});
 
 		await send({
