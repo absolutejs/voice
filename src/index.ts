@@ -73,6 +73,13 @@ export {
 	runVoiceToolContract
 } from './toolContract';
 export {
+	createVoiceTurnQualityHTMLHandler,
+	createVoiceTurnQualityJSONHandler,
+	createVoiceTurnQualityRoutes,
+	renderVoiceTurnQualityHTML,
+	summarizeVoiceTurnQuality
+} from './turnQuality';
+export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
@@ -420,6 +427,14 @@ export type {
 	VoiceProviderCapabilityRoutesOptions,
 	VoiceProviderCapabilitySummary
 } from './providerCapabilities';
+export type {
+	VoiceTurnQualityHTMLHandlerOptions,
+	VoiceTurnQualityItem,
+	VoiceTurnQualityOptions,
+	VoiceTurnQualityReport,
+	VoiceTurnQualityRoutesOptions,
+	VoiceTurnQualityStatus
+} from './turnQuality';
 export type {
 	VoiceOpsConsoleLink,
 	VoiceOpsConsoleReport,

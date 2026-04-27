@@ -4,4 +4,5 @@ export { VoiceControllerService } from './voice-controller.service';
 export { VoiceProviderCapabilitiesService } from './voice-provider-capabilities.service';
 export { VoiceProviderStatusService } from './voice-provider-status.service';
 export { VoiceRoutingStatusService } from './voice-routing-status.service';
+export { VoiceTurnQualityService } from './voice-turn-quality.service';
 export { VoiceWorkflowStatusService } from './voice-workflow-status.service';

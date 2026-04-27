@@ -21,10 +21,15 @@ import {
 	renderVoiceProviderSimulationControlsHTML
 } from '../src/client/providerSimulationControlsWidget';
 import { createVoiceRoutingStatusStore } from '../src/client/routingStatus';
+import { createVoiceTurnQualityStore } from '../src/client/turnQuality';
 import {
 	createVoiceRoutingStatusViewModel,
 	renderVoiceRoutingStatusHTML
 } from '../src/client/routingStatusWidget';
+import {
+	createVoiceTurnQualityViewModel,
+	renderVoiceTurnQualityHTML
+} from '../src/client/turnQualityWidget';
 import { createVoiceWorkflowStatusStore } from '../src/client/workflowStatus';
 import { createVoiceStreamStore } from '../src/client/store';
 
@@ -392,6 +397,51 @@ test('voice provider capabilities store and widget render selected provider cove
 	expect(html).toContain('Provider Capabilities');
 	expect(html).toContain('gpt-4.1-mini');
 	expect(html).toContain('tool calling, fallback routing');
+});
+
+test('voice turn quality store and widget render fallback diagnostics', async () => {
+	const store = createVoiceTurnQualityStore('/api/turn-quality', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					checkedAt: 100,
+					failed: 0,
+					sessions: 1,
+					status: 'warn',
+					total: 1,
+					turns: [
+						{
+							averageConfidence: 0.93,
+							committedAt: 100,
+							correctionChanged: false,
+							fallbackSelectionReason: 'confidence-margin',
+							fallbackUsed: true,
+							finalTranscriptCount: 1,
+							partialTranscriptCount: 0,
+							selectedTranscriptCount: 1,
+							sessionId: 'session-1',
+							source: 'fallback',
+							status: 'warn',
+							text: 'book a demo',
+							turnId: 'turn-1'
+						}
+					],
+					warnings: 1
+				})
+			)
+	});
+
+	await store.refresh();
+	const snapshot = store.getSnapshot();
+	const model = createVoiceTurnQualityViewModel(snapshot);
+	const html = renderVoiceTurnQualityHTML(snapshot);
+
+	expect(model.label).toBe('1 warnings');
+	expect(model.turns[0]?.detail).toBe(
+		'Fallback STT selected by confidence-margin.'
+	);
+	expect(html).toContain('book a demo');
+	expect(html).toContain('93%');
 });
 
 test('voice provider simulation controls posts failure and recovery requests', async () => {

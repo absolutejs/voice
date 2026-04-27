@@ -5,5 +5,6 @@ export { createVoiceProviderCapabilities } from './createVoiceProviderCapabiliti
 export { createVoiceStream } from './createVoiceStream';
 export { createVoiceProviderStatus } from './createVoiceProviderStatus';
 export { createVoiceRoutingStatus } from './createVoiceRoutingStatus';
+export { createVoiceTurnQuality } from './createVoiceTurnQuality';
 export { createVoiceWorkflowStatus } from './createVoiceWorkflowStatus';
 export { createVoiceController } from '../client/controller';

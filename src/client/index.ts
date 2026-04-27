@@ -36,6 +36,10 @@ export {
 	createVoiceProviderCapabilitiesStore,
 	fetchVoiceProviderCapabilities
 } from './providerCapabilities';
+export {
+	createVoiceTurnQualityStore,
+	fetchVoiceTurnQuality
+} from './turnQuality';
 export { createVoiceProviderSimulationControlsStore } from './providerSimulationControls';
 export {
 	bindVoiceProviderSimulationControls,
@@ -58,6 +62,13 @@ export {
 	mountVoiceProviderCapabilities,
 	renderVoiceProviderCapabilitiesHTML
 } from './providerCapabilitiesWidget';
+export {
+	createVoiceTurnQualityViewModel,
+	defineVoiceTurnQualityElement,
+	getVoiceTurnQualityCSS,
+	mountVoiceTurnQuality,
+	renderVoiceTurnQualityHTML
+} from './turnQualityWidget';
 export {
 	createVoiceWorkflowStatusStore,
 	fetchVoiceWorkflowStatus
@@ -88,6 +99,10 @@ export type {
 	VoiceProviderCapabilitiesSnapshot
 } from './providerCapabilities';
 export type {
+	VoiceTurnQualityClientOptions,
+	VoiceTurnQualitySnapshot
+} from './turnQuality';
+export type {
 	VoiceProviderSimulationControlsOptions,
 	VoiceProviderSimulationControlsSnapshot,
 	VoiceProviderSimulationProvider
@@ -103,6 +118,11 @@ export type {
 	VoiceProviderCapabilitiesWidgetOptions,
 	VoiceProviderCapabilityCardView
 } from './providerCapabilitiesWidget';
+export type {
+	VoiceTurnQualityCardView,
+	VoiceTurnQualityViewModel,
+	VoiceTurnQualityWidgetOptions
+} from './turnQualityWidget';
 export type {
 	VoiceWorkflowStatusClientOptions,
 	VoiceWorkflowStatusSnapshot
