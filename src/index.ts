@@ -130,9 +130,13 @@ export {
 	verifyVoiceOpsWebhookSignature
 } from './opsWebhook';
 export {
+	applyVoiceHandoffDeliveryResult,
+	createVoiceHandoffDeliveryRecord,
+	createVoiceMemoryHandoffDeliveryStore,
 	createVoiceTwilioRedirectHandoffAdapter,
 	createVoiceWebhookHandoffAdapter,
-	deliverVoiceHandoff
+	deliverVoiceHandoff,
+	deliverVoiceHandoffDelivery
 } from './handoff';
 export {
 	createVoiceHandoffHealthHTMLHandler,
@@ -142,6 +146,8 @@ export {
 	summarizeVoiceHandoffHealth
 } from './handoffHealth';
 export {
+	createVoiceHandoffDeliveryWorker,
+	createVoiceHandoffDeliveryWorkerLoop,
 	createVoiceIntegrationSinkWorker,
 	createVoiceIntegrationSinkWorkerLoop,
 	createVoiceOpsTaskWorker,
@@ -153,6 +159,7 @@ export {
 	createVoiceTraceSinkDeliveryWorkerLoop,
 	createVoiceWebhookDeliveryWorker,
 	createVoiceWebhookDeliveryWorkerLoop,
+	summarizeVoiceHandoffDeliveries,
 	summarizeVoiceTraceSinkDeliveries,
 	summarizeVoiceOpsTaskQueue,
 	summarizeVoiceIntegrationEvents
@@ -340,7 +347,10 @@ export type {
 } from './opsWebhook';
 export type {
 	VoiceHandoffDelivery,
+	VoiceHandoffDeliveryRecord,
+	VoiceHandoffDeliveryRecordInput,
 	VoiceHandoffFanoutResult,
+	VoiceQueuedHandoffDeliveryOptions,
 	VoiceTwilioRedirectHandoffAdapterOptions,
 	VoiceWebhookHandoffAdapterOptions
 } from './handoff';
@@ -402,6 +412,11 @@ export type {
 	VoiceOpsTaskLease,
 	VoiceOpsTaskWorker,
 	VoiceOpsTaskWorkerOptions,
+	VoiceHandoffDeliveryQueueSummary,
+	VoiceHandoffDeliveryWorkerLoop,
+	VoiceHandoffDeliveryWorkerLoopOptions,
+	VoiceHandoffDeliveryWorkerOptions,
+	VoiceHandoffDeliveryWorkerResult,
 	VoiceIdempotencyStore,
 	VoiceIntegrationEventQueueSummary,
 	VoiceIntegrationSinkWorkerLoop,

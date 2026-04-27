@@ -1,4 +1,5 @@
 import type { RedisClient } from 'bun';
+import { deliverVoiceHandoffDelivery } from './handoff';
 import { deliverVoiceIntegrationEvent } from './ops';
 import { deliverVoiceIntegrationEventToSinks } from './opsSinks';
 import { deliverVoiceTraceEventsToSinks } from './trace';
@@ -21,6 +22,14 @@ import type {
 	VoiceTraceSinkDeliveryStore,
 	VoiceTraceSinkDeliveryQueueStatus
 } from './trace';
+import type {
+	StoredVoiceHandoffDelivery,
+	VoiceHandoffAdapter,
+	VoiceHandoffDeliveryQueueStatus,
+	VoiceHandoffDeliveryStore,
+	VoiceSessionHandle,
+	VoiceSessionRecord
+} from './types';
 import type {
 	VoiceOpsTaskPriority,
 	StoredVoiceOpsTask,
@@ -209,6 +218,72 @@ export type VoiceTraceSinkDeliveryWorkerLoop = {
 };
 
 export type VoiceTraceSinkDeliveryQueueSummary = {
+	deadLettered: number;
+	delivered: number;
+	failed: number;
+	pending: number;
+	retryEligible: number;
+	skipped: number;
+	total: number;
+};
+
+export type VoiceHandoffDeliveryWorkerOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown,
+	TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> = StoredVoiceHandoffDelivery<TContext, TSession, TResult>
+> = {
+	adapters: VoiceHandoffAdapter<TContext, TSession, TResult>[];
+	api: VoiceSessionHandle<TContext, TSession, TResult>;
+	deadLetters?: VoiceHandoffDeliveryStore<TDelivery>;
+	deliveries: VoiceHandoffDeliveryStore<TDelivery>;
+	failMode?: 'record' | 'throw';
+	idempotency?: VoiceIdempotencyStore;
+	idempotencyTtlSeconds?: number;
+	leaseMs?: number;
+	leases: VoiceRedisTaskLeaseCoordinator;
+	maxFailures?: number;
+	onDeadLetter?: (delivery: TDelivery) => Promise<void> | void;
+	statuses?: VoiceHandoffDeliveryQueueStatus[];
+	workerId: string;
+};
+
+export type VoiceHandoffDeliveryWorkerResult = {
+	alreadyProcessed: number;
+	attempted: number;
+	deadLettered: number;
+	delivered: number;
+	failed: number;
+	skipped: number;
+};
+
+export type VoiceHandoffDeliveryWorkerLoopOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown,
+	TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> = StoredVoiceHandoffDelivery<TContext, TSession, TResult>
+> = {
+	onError?: (error: unknown) => Promise<void> | void;
+	pollIntervalMs?: number;
+	worker: ReturnType<
+		typeof createVoiceHandoffDeliveryWorker<
+			TContext,
+			TSession,
+			TResult,
+			TDelivery
+		>
+	>;
+};
+
+export type VoiceHandoffDeliveryWorkerLoop = {
+	isRunning: () => boolean;
+	start: () => void;
+	stop: () => void;
+	tick: () => Promise<VoiceHandoffDeliveryWorkerResult>;
+};
+
+export type VoiceHandoffDeliveryQueueSummary = {
+	byAction: Array<[StoredVoiceHandoffDelivery['action'], number]>;
 	deadLettered: number;
 	delivered: number;
 	failed: number;
@@ -463,6 +538,19 @@ const shouldDeadLetterTraceDelivery = (
 	maxFailures > 0 &&
 	(delivery.deliveryAttempts ?? 0) >= maxFailures;
 
+const shouldProcessHandoffDeliveryStatus = (
+	status: VoiceHandoffDeliveryQueueStatus,
+	allowed: VoiceHandoffDeliveryQueueStatus[]
+) => allowed.includes(status);
+
+const shouldDeadLetterHandoffDelivery = (
+	delivery: StoredVoiceHandoffDelivery,
+	maxFailures: number | undefined
+) =>
+	typeof maxFailures === 'number' &&
+	maxFailures > 0 &&
+	(delivery.deliveryAttempts ?? 0) >= maxFailures;
+
 export const summarizeVoiceIntegrationEvents = <
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent
 >(
@@ -570,6 +658,71 @@ export const summarizeVoiceTraceSinkDeliveries = <
 			}
 		}
 
+		return summary;
+	};
+
+	return buildSummary();
+};
+
+export const summarizeVoiceHandoffDeliveries = <
+	TDelivery extends StoredVoiceHandoffDelivery = StoredVoiceHandoffDelivery
+>(
+	deliveries: TDelivery[],
+	input: {
+		deadLetters?: VoiceHandoffDeliveryStore<TDelivery>;
+	} = {}
+):
+	| Promise<VoiceHandoffDeliveryQueueSummary>
+	| VoiceHandoffDeliveryQueueSummary => {
+	const buildSummary = async () => {
+		const deadLetterIds = new Set(
+			input.deadLetters
+				? (await input.deadLetters.list()).map((delivery) => delivery.id)
+				: []
+		);
+		const byAction = new Map<TDelivery['action'], number>();
+		const summary: VoiceHandoffDeliveryQueueSummary = {
+			byAction: [],
+			deadLettered: 0,
+			delivered: 0,
+			failed: 0,
+			pending: 0,
+			retryEligible: 0,
+			skipped: 0,
+			total: deliveries.length
+		};
+
+		for (const delivery of deliveries) {
+			byAction.set(
+				delivery.action,
+				(byAction.get(delivery.action) ?? 0) + 1
+			);
+			if (deadLetterIds.has(delivery.id)) {
+				summary.deadLettered += 1;
+			}
+
+			switch (delivery.deliveryStatus) {
+				case 'delivered':
+					summary.delivered += 1;
+					break;
+				case 'failed':
+					summary.failed += 1;
+					if ((delivery.deliveryAttempts ?? 0) > 0) {
+						summary.retryEligible += 1;
+					}
+					break;
+				case 'skipped':
+					summary.skipped += 1;
+					break;
+				case 'pending':
+					summary.pending += 1;
+					break;
+			}
+		}
+
+		summary.byAction = [...byAction.entries()].sort(
+			(left, right) => right[1] - left[1]
+		);
 		return summary;
 	};
 
@@ -1141,6 +1294,167 @@ export const createVoiceTraceSinkDeliveryWorkerLoop = <
 >(
 	options: VoiceTraceSinkDeliveryWorkerLoopOptions<TDelivery>
 ): VoiceTraceSinkDeliveryWorkerLoop => {
+	const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
+	let timer: ReturnType<typeof setInterval> | undefined;
+	let running = false;
+
+	const tick = async () => options.worker.drain();
+
+	return {
+		isRunning: () => running,
+		start: () => {
+			if (timer) {
+				return;
+			}
+
+			running = true;
+			timer = setInterval(() => {
+				void tick().catch((error) => {
+					void options.onError?.(error);
+				});
+			}, pollIntervalMs);
+		},
+		stop: () => {
+			if (timer) {
+				clearInterval(timer);
+				timer = undefined;
+			}
+			running = false;
+		},
+		tick
+	};
+};
+
+export const createVoiceHandoffDeliveryWorker = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown,
+	TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> = StoredVoiceHandoffDelivery<TContext, TSession, TResult>
+>(
+	options: VoiceHandoffDeliveryWorkerOptions<
+		TContext,
+		TSession,
+		TResult,
+		TDelivery
+	>
+) => {
+	const allowedStatuses = options.statuses ?? ['pending', 'failed'];
+	const leaseMs = Math.max(1, options.leaseMs ?? 30_000);
+
+	return {
+		drain: async (): Promise<VoiceHandoffDeliveryWorkerResult> => {
+			const result: VoiceHandoffDeliveryWorkerResult = {
+				alreadyProcessed: 0,
+				attempted: 0,
+				deadLettered: 0,
+				delivered: 0,
+				failed: 0,
+				skipped: 0
+			};
+			const deliveries = [...(await options.deliveries.list())].sort(
+				(left, right) => left.createdAt - right.createdAt
+			);
+
+			for (const delivery of deliveries) {
+				if (
+					!shouldProcessHandoffDeliveryStatus(
+						delivery.deliveryStatus,
+						allowedStatuses
+					)
+				) {
+					continue;
+				}
+
+				if (shouldDeadLetterHandoffDelivery(delivery, options.maxFailures)) {
+					await options.deadLetters?.set(delivery.id, delivery as TDelivery);
+					await options.onDeadLetter?.(delivery as TDelivery);
+					result.deadLettered += 1;
+					continue;
+				}
+
+				const claimed = await options.leases.claim({
+					leaseMs,
+					taskId: delivery.id,
+					workerId: options.workerId
+				});
+				if (!claimed) {
+					continue;
+				}
+
+				try {
+					const idempotencyKey = `${delivery.id}:handoff`;
+					if (
+						options.idempotency &&
+						(await options.idempotency.has(idempotencyKey))
+					) {
+						result.alreadyProcessed += 1;
+						continue;
+					}
+
+					result.attempted += 1;
+					const updatedDelivery = (await deliverVoiceHandoffDelivery({
+						adapters: options.adapters,
+						api: options.api,
+						delivery,
+						failMode: options.failMode
+					})) as TDelivery;
+					await options.deliveries.set(updatedDelivery.id, updatedDelivery);
+
+					if (
+						updatedDelivery.deliveryStatus === 'delivered' ||
+						updatedDelivery.deliveryStatus === 'skipped'
+					) {
+						await options.idempotency?.set(idempotencyKey, {
+							ttlSeconds: options.idempotencyTtlSeconds
+						});
+					}
+
+					if (updatedDelivery.deliveryStatus === 'delivered') {
+						result.delivered += 1;
+					} else if (updatedDelivery.deliveryStatus === 'skipped') {
+						result.skipped += 1;
+					} else if (updatedDelivery.deliveryStatus === 'failed') {
+						result.failed += 1;
+						if (
+							shouldDeadLetterHandoffDelivery(
+								updatedDelivery,
+								options.maxFailures
+							)
+						) {
+							await options.deadLetters?.set(
+								updatedDelivery.id,
+								updatedDelivery
+							);
+							await options.onDeadLetter?.(updatedDelivery);
+							result.deadLettered += 1;
+						}
+					}
+				} finally {
+					await options.leases.release({
+						taskId: delivery.id,
+						workerId: options.workerId
+					});
+				}
+			}
+
+			return result;
+		}
+	};
+};
+
+export const createVoiceHandoffDeliveryWorkerLoop = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown,
+	TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> = StoredVoiceHandoffDelivery<TContext, TSession, TResult>
+>(
+	options: VoiceHandoffDeliveryWorkerLoopOptions<
+		TContext,
+		TSession,
+		TResult,
+		TDelivery
+	>
+): VoiceHandoffDeliveryWorkerLoop => {
 	const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let running = false;

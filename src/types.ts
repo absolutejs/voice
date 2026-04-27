@@ -384,6 +384,46 @@ export type VoiceHandoffResult = {
 	status: VoiceHandoffStatus;
 };
 
+export type VoiceHandoffDeliveryQueueStatus = VoiceHandoffStatus | 'pending';
+
+export type StoredVoiceHandoffDelivery<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = {
+	action: VoiceHandoffAction;
+	context: TContext;
+	createdAt: number;
+	deliveredAt?: number;
+	deliveries?: Record<
+		string,
+		VoiceHandoffResult & {
+			adapterId: string;
+			adapterKind?: string;
+		}
+	>;
+	deliveryAttempts?: number;
+	deliveryError?: string;
+	deliveryStatus: VoiceHandoffDeliveryQueueStatus;
+	id: string;
+	metadata?: Record<string, unknown>;
+	reason?: string;
+	result?: TResult;
+	session: TSession;
+	sessionId: string;
+	target?: string;
+	updatedAt: number;
+};
+
+export type VoiceHandoffDeliveryStore<
+	TDelivery extends StoredVoiceHandoffDelivery = StoredVoiceHandoffDelivery
+> = {
+	get: (id: string) => Promise<TDelivery | undefined> | TDelivery | undefined;
+	list: () => Promise<TDelivery[]> | TDelivery[];
+	remove: (id: string) => Promise<void> | void;
+	set: (id: string, delivery: TDelivery) => Promise<void> | void;
+};
+
 export type VoiceHandoffInput<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -418,6 +458,10 @@ export type VoiceHandoffConfig<
 	TResult = unknown
 > = {
 	adapters: VoiceHandoffAdapter<TContext, TSession, TResult>[];
+	deliveryQueue?: VoiceHandoffDeliveryStore<
+		StoredVoiceHandoffDelivery<TContext, TSession, TResult>
+	>;
+	enqueueOnly?: boolean;
 	failMode?: 'record' | 'throw';
 };
 

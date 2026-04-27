@@ -2,9 +2,11 @@ import type {
 	VoiceHandoffAction,
 	VoiceHandoffAdapter,
 	VoiceHandoffConfig,
+	VoiceHandoffDeliveryStore,
 	VoiceHandoffInput,
 	VoiceHandoffResult,
-	VoiceSessionRecord
+	VoiceSessionRecord,
+	StoredVoiceHandoffDelivery
 } from './types';
 
 type MaybePromise<T> = T | Promise<T>;
@@ -14,10 +16,38 @@ export type VoiceHandoffDelivery = VoiceHandoffResult & {
 	adapterKind?: string;
 };
 
+export type VoiceHandoffDeliveryRecord<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = StoredVoiceHandoffDelivery<TContext, TSession, TResult>;
+
 export type VoiceHandoffFanoutResult = {
 	action: VoiceHandoffAction;
 	deliveries: Record<string, VoiceHandoffDelivery>;
 	status: VoiceHandoffResult['status'];
+};
+
+export type VoiceHandoffDeliveryRecordInput<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = Omit<
+	VoiceHandoffInput<TContext, TSession, TResult>,
+	'api'
+> & {
+	id?: string;
+};
+
+export type VoiceQueuedHandoffDeliveryOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = {
+	adapters: VoiceHandoffAdapter<TContext, TSession, TResult>[];
+	api: VoiceHandoffInput<TContext, TSession, TResult>['api'];
+	delivery: VoiceHandoffDeliveryRecord<TContext, TSession, TResult>;
+	failMode?: VoiceHandoffConfig<TContext, TSession, TResult>['failMode'];
 };
 
 export type VoiceWebhookHandoffAdapterOptions<
@@ -114,6 +144,25 @@ const aggregateHandoffStatus = (
 	return 'skipped';
 };
 
+const createHandoffDeliveryId = (input: {
+	action: VoiceHandoffAction;
+	sessionId: string;
+}) =>
+	[
+		'voice-handoff',
+		input.sessionId,
+		input.action,
+		Date.now(),
+		crypto.randomUUID()
+	].join(':');
+
+const resolveHandoffDeliveryError = (
+	deliveries: Record<string, VoiceHandoffDelivery>
+) =>
+	Object.values(deliveries)
+		.map((delivery) => delivery.error)
+		.find(Boolean);
+
 const defaultWebhookBody = <
 	TContext,
 	TSession extends VoiceSessionRecord,
@@ -178,6 +227,114 @@ export const deliverVoiceHandoff = async <
 		action: input.handoff.action,
 		deliveries,
 		status: aggregateHandoffStatus(deliveries)
+	};
+};
+
+export const createVoiceHandoffDeliveryRecord = <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	input: VoiceHandoffDeliveryRecordInput<TContext, TSession, TResult>
+): VoiceHandoffDeliveryRecord<TContext, TSession, TResult> => {
+	const now = Date.now();
+	return {
+		action: input.action,
+		context: input.context,
+		createdAt: now,
+		deliveryAttempts: 0,
+		deliveryStatus: 'pending',
+		id:
+			input.id ??
+			createHandoffDeliveryId({
+				action: input.action,
+				sessionId: input.session.id
+			}),
+		metadata: input.metadata,
+		reason: input.reason,
+		result: input.result,
+		session: input.session,
+		sessionId: input.session.id,
+		target: input.target,
+		updatedAt: now
+	};
+};
+
+export const applyVoiceHandoffDeliveryResult = <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	delivery: VoiceHandoffDeliveryRecord<TContext, TSession, TResult>,
+	result: VoiceHandoffFanoutResult
+): VoiceHandoffDeliveryRecord<TContext, TSession, TResult> => ({
+	...delivery,
+	deliveredAt:
+		result.status === 'delivered' || result.status === 'skipped'
+			? Date.now()
+			: delivery.deliveredAt,
+	deliveries: result.deliveries,
+	deliveryAttempts: (delivery.deliveryAttempts ?? 0) + 1,
+	deliveryError:
+		result.status === 'failed'
+			? resolveHandoffDeliveryError(result.deliveries)
+			: undefined,
+	deliveryStatus: result.status,
+	updatedAt: Date.now()
+});
+
+export const deliverVoiceHandoffDelivery = async <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	options: VoiceQueuedHandoffDeliveryOptions<TContext, TSession, TResult>
+): Promise<VoiceHandoffDeliveryRecord<TContext, TSession, TResult>> => {
+	const result = await deliverVoiceHandoff({
+		config: {
+			adapters: options.adapters,
+			failMode: options.failMode
+		},
+		handoff: {
+			action: options.delivery.action,
+			api: options.api,
+			context: options.delivery.context,
+			metadata: options.delivery.metadata,
+			reason: options.delivery.reason,
+			result: options.delivery.result,
+			session: options.delivery.session,
+			target: options.delivery.target
+		}
+	});
+
+	return result
+		? applyVoiceHandoffDeliveryResult(options.delivery, result)
+		: {
+				...options.delivery,
+				deliveryAttempts: (options.delivery.deliveryAttempts ?? 0) + 1,
+				deliveryStatus: 'skipped',
+				updatedAt: Date.now()
+			};
+};
+
+export const createVoiceMemoryHandoffDeliveryStore = <
+	TDelivery extends VoiceHandoffDeliveryRecord = VoiceHandoffDeliveryRecord
+>(): VoiceHandoffDeliveryStore<TDelivery> => {
+	const deliveries = new Map<string, TDelivery>();
+
+	return {
+		get: async (id) => deliveries.get(id),
+		list: async () =>
+			[...deliveries.values()].sort(
+				(left, right) =>
+					left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+			),
+		remove: async (id) => {
+			deliveries.delete(id);
+		},
+		set: async (id, delivery) => {
+			deliveries.set(id, delivery);
+		}
 	};
 };
 

@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { conditionAudioChunk } from './audioConditioning';
-import { deliverVoiceHandoff } from './handoff';
+import {
+	applyVoiceHandoffDeliveryResult,
+	createVoiceHandoffDeliveryRecord,
+	deliverVoiceHandoff
+} from './handoff';
 import { resolveLogger } from './logger';
 import {
 	createId,
@@ -552,6 +556,27 @@ export const createVoiceSession = <
 		session: TSession;
 		target?: string;
 	}) => {
+		const queuedDelivery = options.handoff?.deliveryQueue
+			? createVoiceHandoffDeliveryRecord({
+					action: input.action,
+					context: options.context,
+					metadata: input.metadata,
+					reason: input.reason,
+					result: input.result,
+					session: input.session,
+					target: input.target
+				})
+			: undefined;
+		if (queuedDelivery) {
+			await options.handoff?.deliveryQueue?.set(
+				queuedDelivery.id,
+				queuedDelivery
+			);
+		}
+		if (options.handoff?.enqueueOnly) {
+			return;
+		}
+
 		const result = await deliverVoiceHandoff({
 			config: options.handoff,
 			handoff: {
@@ -567,6 +592,16 @@ export const createVoiceSession = <
 		});
 		if (!result) {
 			return;
+		}
+		if (queuedDelivery) {
+			const updatedDelivery = applyVoiceHandoffDeliveryResult(
+				queuedDelivery,
+				result
+			);
+			await options.handoff?.deliveryQueue?.set(
+				updatedDelivery.id,
+				updatedDelivery
+			);
 		}
 
 		await appendTrace({
