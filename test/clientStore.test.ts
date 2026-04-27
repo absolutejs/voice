@@ -6,6 +6,11 @@ import {
 	renderVoiceOpsStatusHTML
 } from '../src/client/opsStatusWidget';
 import { createVoiceProviderStatusStore } from '../src/client/providerStatus';
+import { createVoiceProviderCapabilitiesStore } from '../src/client/providerCapabilities';
+import {
+	createVoiceProviderCapabilitiesViewModel,
+	renderVoiceProviderCapabilitiesHTML
+} from '../src/client/providerCapabilitiesWidget';
 import {
 	createVoiceProviderStatusViewModel,
 	renderVoiceProviderStatusHTML
@@ -328,6 +333,65 @@ test('voice provider status widget renders fallback and suppression state', () =
 	expect(html).toContain('Voice Providers');
 	expect(html).toContain('Deepgram recommended');
 	expect(html).toContain('timeout');
+});
+
+test('voice provider capabilities store and widget render selected provider coverage', async () => {
+	const store = createVoiceProviderCapabilitiesStore('/api/provider-capabilities', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					capabilities: [
+						{
+							configured: true,
+							features: ['tool calling', 'fallback routing'],
+							health: {
+								errorCount: 0,
+								fallbackCount: 0,
+								provider: 'openai',
+								rateLimited: false,
+								recommended: true,
+								runCount: 3,
+								status: 'healthy',
+								timeoutCount: 0
+							},
+							kind: 'llm',
+							model: 'gpt-4.1-mini',
+							provider: 'openai',
+							selected: true,
+							status: 'selected'
+						},
+						{
+							configured: true,
+							features: ['realtime STT'],
+							kind: 'stt',
+							model: 'flux-general-en',
+							provider: 'deepgram',
+							selected: true,
+							status: 'selected'
+						}
+					],
+					checkedAt: 100,
+					configured: 2,
+					selected: 2,
+					total: 2,
+					unconfigured: 0
+				})
+			)
+	});
+
+	await store.refresh();
+	const snapshot = store.getSnapshot();
+	const model = createVoiceProviderCapabilitiesViewModel(snapshot);
+	const html = renderVoiceProviderCapabilitiesHTML(snapshot);
+
+	expect(model.label).toBe('2 selected');
+	expect(model.capabilities[0]?.label).toBe('Openai LLM');
+	expect(model.capabilities[0]?.detail).toBe(
+		'Selected LLM provider for new sessions.'
+	);
+	expect(html).toContain('Provider Capabilities');
+	expect(html).toContain('gpt-4.1-mini');
+	expect(html).toContain('tool calling, fallback routing');
 });
 
 test('voice provider simulation controls posts failure and recovery requests', async () => {

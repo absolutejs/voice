@@ -1,11 +1,13 @@
 export { VoiceOpsStatus } from './VoiceOpsStatus';
 export { VoiceProviderSimulationControls } from './VoiceProviderSimulationControls';
+export { VoiceProviderCapabilities } from './VoiceProviderCapabilities';
 export { VoiceProviderStatus } from './VoiceProviderStatus';
 export { VoiceRoutingStatus } from './VoiceRoutingStatus';
 export { useVoiceAppKitStatus } from './useVoiceAppKitStatus';
 export { useVoiceStream } from './useVoiceStream';
 export { useVoiceController } from './useVoiceController';
 export { useVoiceProviderStatus } from './useVoiceProviderStatus';
+export { useVoiceProviderCapabilities } from './useVoiceProviderCapabilities';
 export { useVoiceProviderSimulationControls } from './useVoiceProviderSimulationControls';
 export { useVoiceRoutingStatus } from './useVoiceRoutingStatus';
 export { useVoiceWorkflowStatus } from './useVoiceWorkflowStatus';

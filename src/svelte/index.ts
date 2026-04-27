@@ -1,6 +1,7 @@
 export { createVoiceAppKitStatus } from './createVoiceAppKitStatus';
 export { createVoiceOpsStatus } from './createVoiceOpsStatus';
 export { createVoiceProviderSimulationControls } from './createVoiceProviderSimulationControls';
+export { createVoiceProviderCapabilities } from './createVoiceProviderCapabilities';
 export { createVoiceStream } from './createVoiceStream';
 export { createVoiceProviderStatus } from './createVoiceProviderStatus';
 export { createVoiceRoutingStatus } from './createVoiceRoutingStatus';

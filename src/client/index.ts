@@ -32,6 +32,10 @@ export {
 	createVoiceProviderStatusStore,
 	fetchVoiceProviderStatus
 } from './providerStatus';
+export {
+	createVoiceProviderCapabilitiesStore,
+	fetchVoiceProviderCapabilities
+} from './providerCapabilities';
 export { createVoiceProviderSimulationControlsStore } from './providerSimulationControls';
 export {
 	bindVoiceProviderSimulationControls,
@@ -47,6 +51,13 @@ export {
 	mountVoiceProviderStatus,
 	renderVoiceProviderStatusHTML
 } from './providerStatusWidget';
+export {
+	createVoiceProviderCapabilitiesViewModel,
+	defineVoiceProviderCapabilitiesElement,
+	getVoiceProviderCapabilitiesCSS,
+	mountVoiceProviderCapabilities,
+	renderVoiceProviderCapabilitiesHTML
+} from './providerCapabilitiesWidget';
 export {
 	createVoiceWorkflowStatusStore,
 	fetchVoiceWorkflowStatus
@@ -73,6 +84,10 @@ export type {
 	VoiceProviderStatusSnapshot
 } from './providerStatus';
 export type {
+	VoiceProviderCapabilitiesClientOptions,
+	VoiceProviderCapabilitiesSnapshot
+} from './providerCapabilities';
+export type {
 	VoiceProviderSimulationControlsOptions,
 	VoiceProviderSimulationControlsSnapshot,
 	VoiceProviderSimulationProvider
@@ -83,6 +98,11 @@ export type {
 	VoiceProviderStatusViewModel,
 	VoiceProviderStatusWidgetOptions
 } from './providerStatusWidget';
+export type {
+	VoiceProviderCapabilitiesViewModel,
+	VoiceProviderCapabilitiesWidgetOptions,
+	VoiceProviderCapabilityCardView
+} from './providerCapabilitiesWidget';
 export type {
 	VoiceWorkflowStatusClientOptions,
 	VoiceWorkflowStatusSnapshot
