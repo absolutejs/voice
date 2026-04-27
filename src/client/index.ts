@@ -18,6 +18,17 @@ export {
 	renderVoiceOpsStatusHTML
 } from './opsStatusWidget';
 export {
+	createVoiceRoutingStatusStore,
+	fetchVoiceRoutingStatus
+} from './routingStatus';
+export {
+	createVoiceRoutingStatusViewModel,
+	defineVoiceRoutingStatusElement,
+	getVoiceRoutingStatusCSS,
+	mountVoiceRoutingStatus,
+	renderVoiceRoutingStatusHTML
+} from './routingStatusWidget';
+export {
 	createVoiceProviderStatusStore,
 	fetchVoiceProviderStatus
 } from './providerStatus';
@@ -34,6 +45,14 @@ export type {
 	VoiceOpsStatusViewModel,
 	VoiceOpsStatusWidgetOptions
 } from './opsStatusWidget';
+export type {
+	VoiceRoutingStatusClientOptions,
+	VoiceRoutingStatusSnapshot
+} from './routingStatus';
+export type {
+	VoiceRoutingStatusViewModel,
+	VoiceRoutingStatusWidgetOptions
+} from './routingStatusWidget';
 export type {
 	VoiceProviderStatusClientOptions,
 	VoiceProviderStatusSnapshot

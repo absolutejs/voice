@@ -5,6 +5,11 @@ import {
 	createVoiceOpsStatusViewModel,
 	renderVoiceOpsStatusHTML
 } from '../src/client/opsStatusWidget';
+import { createVoiceRoutingStatusStore } from '../src/client/routingStatus';
+import {
+	createVoiceRoutingStatusViewModel,
+	renderVoiceRoutingStatusHTML
+} from '../src/client/routingStatusWidget';
 import { createVoiceWorkflowStatusStore } from '../src/client/workflowStatus';
 import { createVoiceStreamStore } from '../src/client/store';
 
@@ -166,4 +171,69 @@ test('voice app kit status store fetches integrated status reports', async () =>
 		}
 	});
 	store.close();
+});
+
+test('voice routing status store fetches latest provider decision', async () => {
+	const store = createVoiceRoutingStatusStore('/api/routing/latest', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					at: 100,
+					fallbackProvider: 'assemblyai',
+					kind: 'stt',
+					latencyBudgetMs: 6000,
+					provider: 'assemblyai',
+					routing: 'balanced',
+					selectedProvider: 'deepgram',
+					sessionId: 'session-1',
+					status: 'fallback',
+					timedOut: false
+				})
+			)
+	});
+
+	const decision = await store.refresh();
+
+	expect(decision).toMatchObject({
+		fallbackProvider: 'assemblyai',
+		kind: 'stt',
+		provider: 'assemblyai',
+		status: 'fallback'
+	});
+	expect(store.getSnapshot()).toMatchObject({
+		decision: {
+			selectedProvider: 'deepgram'
+		},
+		error: null,
+		isLoading: false
+	});
+	store.close();
+});
+
+test('voice routing status widget renders latest provider decision', () => {
+	const snapshot = {
+		decision: {
+			at: 100,
+			fallbackProvider: 'assemblyai',
+			kind: 'stt' as const,
+			latencyBudgetMs: 6000,
+			provider: 'assemblyai',
+			routing: 'balanced',
+			selectedProvider: 'deepgram',
+			sessionId: 'session-1',
+			status: 'fallback',
+			timedOut: false
+		},
+		error: null,
+		isLoading: false,
+		updatedAt: 110
+	};
+	const model = createVoiceRoutingStatusViewModel(snapshot);
+	const html = renderVoiceRoutingStatusHTML(snapshot);
+
+	expect(model.label).toBe('STT fallback');
+	expect(model.rows.map((row) => row.label)).toContain('Selected');
+	expect(html).toContain('Voice Routing');
+	expect(html).toContain('assemblyai');
+	expect(html).toContain('6000ms');
 });
