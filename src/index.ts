@@ -5,6 +5,13 @@ export {
 	summarizeVoiceAppKitStatus
 } from './appKit';
 export {
+	createVoiceCampaign,
+	createVoiceCampaignRoutes,
+	createVoiceMemoryCampaignStore,
+	renderVoiceCampaignsHTML,
+	summarizeVoiceCampaigns
+} from './campaign';
+export {
 	createVoiceAssistant,
 	createVoiceExperiment,
 	summarizeVoiceAssistantRuns
@@ -378,6 +385,27 @@ export type {
 	VoiceAppKitStatusReport,
 	VoiceAppKitSurface
 } from './appKit';
+export type {
+	VoiceCampaign,
+	VoiceCampaignAttempt,
+	VoiceCampaignAttemptResultInput,
+	VoiceCampaignAttemptStatus,
+	VoiceCampaignCreateInput,
+	VoiceCampaignDialer,
+	VoiceCampaignDialerInput,
+	VoiceCampaignDialerResult,
+	VoiceCampaignRecipient,
+	VoiceCampaignRecipientInput,
+	VoiceCampaignRecipientStatus,
+	VoiceCampaignRecord,
+	VoiceCampaignRoutesOptions,
+	VoiceCampaignRuntime,
+	VoiceCampaignRuntimeOptions,
+	VoiceCampaignStatus,
+	VoiceCampaignStore,
+	VoiceCampaignSummary,
+	VoiceCampaignTickResult
+} from './campaign';
 export type {
 	VoiceBargeInReport,
 	VoiceBargeInRoutesOptions
