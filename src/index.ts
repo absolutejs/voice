@@ -63,6 +63,11 @@ export {
 	createVoiceToolRuntime
 } from './toolRuntime';
 export {
+	createVoiceToolContract,
+	createVoiceToolRuntimeContractDefaults,
+	runVoiceToolContract
+} from './toolContract';
+export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
@@ -446,6 +451,14 @@ export type {
 	VoiceToolRuntimeOptions,
 	VoiceToolRuntimeResult
 } from './toolRuntime';
+export type {
+	VoiceToolContractCase,
+	VoiceToolContractCaseReport,
+	VoiceToolContractDefinition,
+	VoiceToolContractExpectation,
+	VoiceToolContractIssue,
+	VoiceToolContractReport
+} from './toolContract';
 export type {
 	VoiceOpsRuntime,
 	VoiceOpsRuntimeConfig,
