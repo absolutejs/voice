@@ -7,6 +7,7 @@ import { createVoiceSession } from '../session';
 import {
 	createVoiceTelephonyOutcomePolicy,
 	createVoiceTelephonyWebhookRoutes,
+	signVoiceTwilioWebhook,
 	type VoiceTelephonyOutcomePolicy,
 	type VoiceTelephonyWebhookRoutesOptions
 } from '../telephonyOutcome';
@@ -216,6 +217,39 @@ export type TwilioVoiceSetupOptions = {
 	title?: string;
 };
 
+export type TwilioVoiceSmokeCheck = {
+	details?: Record<string, unknown>;
+	message?: string;
+	name: string;
+	status: 'fail' | 'pass' | 'warn';
+};
+
+export type TwilioVoiceSmokeReport = {
+	checks: TwilioVoiceSmokeCheck[];
+	generatedAt: number;
+	pass: boolean;
+	provider: 'twilio';
+	setup: TwilioVoiceSetupStatus;
+	twiml?: {
+		status: number;
+		streamUrl?: string;
+	};
+	webhook?: {
+		body?: unknown;
+		status: number;
+	};
+};
+
+export type TwilioVoiceSmokeOptions = {
+	callSid?: string;
+	path?: false | string;
+	scenarioId?: string;
+	sessionId?: string;
+	sipCode?: number;
+	status?: string;
+	title?: string;
+};
+
 export type TwilioVoiceRoutesOptions<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -223,6 +257,7 @@ export type TwilioVoiceRoutesOptions<
 > = TwilioMediaStreamBridgeOptions<TContext, TSession, TResult> & {
 	name?: string;
 	outcomePolicy?: VoiceTelephonyOutcomePolicy;
+	smoke?: TwilioVoiceSmokeOptions;
 	setup?: TwilioVoiceSetupOptions;
 	streamPath?: string;
 	twiml?: {
@@ -420,6 +455,175 @@ ${status.signing.verificationUrl ? `<p>Verification URL: <code>${escapeHtml(stat
 ${status.missing.length ? `<section><h2>Missing env</h2><ul>${status.missing.map((name) => `<li><code>${escapeHtml(name)}</code></li>`).join('')}</ul></section>` : ''}
 ${status.warnings.length ? `<section><h2>Warnings</h2><ul>${status.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul></section>` : ''}
 </main>`;
+
+const extractTwilioStreamUrl = (twiml: string) =>
+	twiml.match(/<Stream\b[^>]*\surl="([^"]+)"/i)?.[1]?.replaceAll('&amp;', '&');
+
+const createSmokeCheck = (
+	name: string,
+	status: TwilioVoiceSmokeCheck['status'],
+	message?: string,
+	details?: Record<string, unknown>
+): TwilioVoiceSmokeCheck => ({
+	details,
+	message,
+	name,
+	status
+});
+
+const renderTwilioVoiceSmokeHTML = (
+	report: TwilioVoiceSmokeReport,
+	title: string
+) => `<main style="font-family: ui-sans-serif, system-ui; max-width: 860px; margin: 40px auto; padding: 0 20px;">
+<p style="letter-spacing: .12em; text-transform: uppercase; color: #52606d;">Twilio smoke test</p>
+<h1>${escapeHtml(title)}</h1>
+<p><strong>Status:</strong> ${report.pass ? 'Pass' : 'Fail'}</p>
+<section>
+<h2>Checks</h2>
+<ul>
+${report.checks.map((check) => `<li><strong>${escapeHtml(check.name)}</strong>: ${escapeHtml(check.status)}${check.message ? ` - ${escapeHtml(check.message)}` : ''}</li>`).join('')}
+</ul>
+</section>
+<section>
+<h2>Observed URLs</h2>
+<ul>
+<li><strong>TwiML:</strong> <code>${escapeHtml(report.setup.urls.twiml)}</code></li>
+<li><strong>Stream:</strong> <code>${escapeHtml(report.twiml?.streamUrl ?? report.setup.urls.stream)}</code></li>
+<li><strong>Webhook:</strong> <code>${escapeHtml(report.setup.urls.webhook)}</code></li>
+</ul>
+</section>
+</main>`;
+
+const runTwilioVoiceSmokeTest = async <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(input: {
+	app: {
+		handle: (request: Request) => Response | Promise<Response>;
+	};
+	options: TwilioVoiceRoutesOptions<TContext, TSession, TResult>;
+	query: Record<string, unknown>;
+	request: Request;
+	streamPath: string;
+	twimlPath: string;
+	webhookPath: string;
+}): Promise<TwilioVoiceSmokeReport> => {
+	const setup = await buildTwilioVoiceSetupStatus(input.options, input);
+	const checks: TwilioVoiceSmokeCheck[] = [];
+	const twimlUrl = new URL(setup.urls.twiml);
+	twimlUrl.searchParams.set(
+		'scenarioId',
+		input.options.smoke?.scenarioId ?? 'smoke'
+	);
+	twimlUrl.searchParams.set(
+		'sessionId',
+		input.options.smoke?.sessionId ?? 'smoke-session'
+	);
+
+	const twimlResponse = await input.app.handle(
+		new Request(twimlUrl, {
+			headers: input.request.headers
+		})
+	);
+	const twiml = await twimlResponse.text();
+	const streamUrl = extractTwilioStreamUrl(twiml);
+	checks.push(
+		createSmokeCheck(
+			'twiml',
+			twimlResponse.ok && Boolean(streamUrl) ? 'pass' : 'fail',
+			streamUrl ? 'TwiML includes a media stream URL.' : 'TwiML is missing <Stream url="...">.',
+			{
+				status: twimlResponse.status,
+				streamUrl
+			}
+		)
+	);
+	checks.push(
+		createSmokeCheck(
+			'stream-url',
+			streamUrl?.startsWith('wss://') ? 'pass' : 'fail',
+			streamUrl?.startsWith('wss://')
+				? 'Media stream URL uses wss://.'
+				: 'Media stream URL should use wss:// for Twilio.',
+			{
+				streamUrl
+			}
+		)
+	);
+
+	const webhookBody = {
+		CallSid: input.options.smoke?.callSid ?? 'CA_SMOKE_TEST',
+		CallStatus: input.options.smoke?.status ?? 'busy',
+		SipResponseCode: String(input.options.smoke?.sipCode ?? 486)
+	};
+	const webhookHeaders = new Headers({
+		'content-type': 'application/x-www-form-urlencoded'
+	});
+	const verificationUrl =
+		setup.signing.verificationUrl ?? setup.urls.webhook;
+	if (input.options.webhook?.signingSecret) {
+		webhookHeaders.set(
+			'x-twilio-signature',
+			await signVoiceTwilioWebhook({
+				authToken: input.options.webhook.signingSecret,
+				body: webhookBody,
+				url: verificationUrl
+			})
+		);
+	}
+
+	const webhookResponse = await input.app.handle(
+		new Request(setup.urls.webhook, {
+			body: new URLSearchParams(webhookBody),
+			headers: webhookHeaders,
+			method: 'POST'
+		})
+	);
+	const webhookText = await webhookResponse.text();
+	const webhookPayload = (() => {
+		try {
+			return JSON.parse(webhookText) as unknown;
+		} catch {
+			return webhookText;
+		}
+	})();
+	checks.push(
+		createSmokeCheck(
+			'webhook',
+			webhookResponse.ok ? 'pass' : 'fail',
+			webhookResponse.ok
+				? 'Synthetic Twilio status callback was accepted.'
+				: 'Synthetic Twilio status callback failed.',
+			{
+				status: webhookResponse.status
+			}
+		)
+	);
+
+	for (const warning of setup.warnings) {
+		checks.push(createSmokeCheck('setup-warning', 'warn', warning));
+	}
+	for (const name of setup.missing) {
+		checks.push(createSmokeCheck('missing-env', 'fail', `${name} is missing.`));
+	}
+
+	return {
+		checks,
+		generatedAt: Date.now(),
+		pass: checks.every((check) => check.status !== 'fail'),
+		provider: 'twilio',
+		setup,
+		twiml: {
+			status: twimlResponse.status,
+			streamUrl
+		},
+		webhook: {
+			body: webhookPayload,
+			status: webhookResponse.status
+		}
+	};
+};
 
 const normalizeOnTurn = <
 	TContext,
@@ -1036,6 +1240,10 @@ export const createTwilioVoiceRoutes = <
 		options.setup?.path === false
 			? false
 			: options.setup?.path ?? '/api/voice/twilio/setup';
+	const smokePath =
+		options.smoke?.path === false
+			? false
+			: options.smoke?.path ?? '/api/voice/twilio/smoke';
 	const bridges = new WeakMap<object, TwilioMediaStreamBridge>();
 	const webhookPolicy =
 		options.webhook?.policy ??
@@ -1137,10 +1345,40 @@ export const createTwilioVoiceRoutes = <
 		);
 
 	if (!setupPath) {
-		return app;
+		if (!smokePath) {
+			return app;
+		}
+
+		return app.get(smokePath, async ({ query, request }) => {
+			const report = await runTwilioVoiceSmokeTest({
+				app,
+				options,
+				query,
+				request,
+				streamPath,
+				twimlPath,
+				webhookPath
+			});
+
+			if (query.format === 'html') {
+				return new Response(
+					renderTwilioVoiceSmokeHTML(
+						report,
+						options.smoke?.title ?? 'AbsoluteJS Twilio Voice Smoke Test'
+					),
+					{
+						headers: {
+							'content-type': 'text/html; charset=utf-8'
+						}
+					}
+				);
+			}
+
+			return report;
+		});
 	}
 
-	return app.get(setupPath, async ({ query, request }) => {
+	const withSetup = app.get(setupPath, async ({ query, request }) => {
 		const status = await buildTwilioVoiceSetupStatus(options, {
 			query,
 			request,
@@ -1164,5 +1402,37 @@ export const createTwilioVoiceRoutes = <
 		}
 
 		return status;
+	});
+
+	if (!smokePath) {
+		return withSetup;
+	}
+
+	return withSetup.get(smokePath, async ({ query, request }) => {
+		const report = await runTwilioVoiceSmokeTest({
+			app,
+			options,
+			query,
+			request,
+			streamPath,
+			twimlPath,
+			webhookPath
+		});
+
+		if (query.format === 'html') {
+			return new Response(
+				renderTwilioVoiceSmokeHTML(
+					report,
+					options.smoke?.title ?? 'AbsoluteJS Twilio Voice Smoke Test'
+				),
+				{
+					headers: {
+						'content-type': 'text/html; charset=utf-8'
+					}
+				}
+			);
+		}
+
+		return report;
 	});
 };

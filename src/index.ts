@@ -749,6 +749,9 @@ export type {
 	TwilioOutboundMessage,
 	TwilioVoiceRouteParameters,
 	TwilioVoiceResponseOptions,
+	TwilioVoiceSmokeCheck,
+	TwilioVoiceSmokeOptions,
+	TwilioVoiceSmokeReport,
 	TwilioVoiceSetupOptions,
 	TwilioVoiceSetupStatus,
 	TwilioVoiceRoutesOptions

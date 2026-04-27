@@ -308,6 +308,66 @@ test('createTwilioVoiceRoutes exposes carrier setup status', async () => {
 	expect(text).toContain('TWILIO_PHONE_NUMBER');
 });
 
+test('createTwilioVoiceRoutes exposes a local telephony smoke test', async () => {
+	const routes = createTwilioVoiceRoutes({
+		context: {},
+		onComplete: async () => {},
+		onTurn: async () => undefined,
+		session: createVoiceMemoryStore(),
+		setup: {
+			requiredEnv: {
+				TWILIO_AUTH_TOKEN: 'present'
+			}
+		},
+		smoke: {
+			path: '/voice/twilio/smoke',
+			title: 'Demo smoke test'
+		},
+		stt: createFakeSTTAdapter([]),
+		twiml: {
+			path: '/voice/twilio',
+			streamUrl: 'wss://stream.example.test/twilio'
+		},
+		webhook: {
+			path: '/voice/twilio/webhook',
+			signingSecret: 'secret',
+			verificationUrl: 'https://voice.example.test/voice/twilio/webhook'
+		}
+	});
+
+	const response = await routes.handle(
+		new Request('https://voice.example.test/voice/twilio/smoke')
+	);
+	const report = await response.json();
+
+	expect(report).toMatchObject({
+		pass: true,
+		provider: 'twilio',
+		twiml: {
+			status: 200,
+			streamUrl: 'wss://stream.example.test/twilio'
+		},
+		webhook: {
+			status: 200
+		}
+	});
+	expect(report.checks.map((check: { name: string }) => check.name)).toContain(
+		'twiml'
+	);
+	expect(report.checks.map((check: { name: string }) => check.name)).toContain(
+		'webhook'
+	);
+
+	const html = await routes.handle(
+		new Request('https://voice.example.test/voice/twilio/smoke?format=html')
+	);
+	const text = await html.text();
+
+	expect(html.headers.get('content-type')).toContain('text/html');
+	expect(text).toContain('Demo smoke test');
+	expect(text).toContain('Pass');
+});
+
 test('twilio payload transcoding converts narrowband mulaw into voice PCM and back', () => {
 	const inbound = encodeTwilioMulawBase64(
 		new Int16Array([0, 2_000, -2_000, 5_000, -5_000])
