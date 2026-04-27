@@ -73,6 +73,115 @@ const app = new Elysia()
 
 `createVoiceMemoryStore()` is dev-only. Real deployments should provide a shared store backed by Redis, Postgres, or equivalent.
 
+## App Kit And Status Widgets
+
+Use `createVoiceAppKitRoutes(...)` when you want a self-hosted operations surface without hand-wiring every dashboard route. It adds the ops console, quality gates, eval routes, provider health, session replay, handoff health, diagnostics, and `GET /app-kit/status`.
+
+```ts
+import { createVoiceAppKitRoutes, createVoiceFileRuntimeStorage } from '@absolutejs/voice';
+
+const runtime = createVoiceFileRuntimeStorage({ directory: '.voice-runtime/support' });
+
+app.use(
+	createVoiceAppKitRoutes({
+		store: runtime.traces,
+		llmProviders: ['openai', 'anthropic', 'gemini'],
+		sttProviders: ['deepgram', 'assemblyai']
+	}).routes
+);
+```
+
+The status endpoint is intentionally small enough for customer-facing demos. It can report fixture-backed workflow readiness while leaving deeper live quality/session failures visible on the ops pages.
+
+```ts
+app.use(
+	createVoiceAppKitRoutes({
+		appStatus: {
+			include: { quality: false, sessions: false },
+			preferFixtureWorkflows: true
+		},
+		evals: { fixtures: certificationFixtures, scenarios: workflowScenarios },
+		store: runtime.traces
+	}).routes
+);
+```
+
+### React Status Widget
+
+```tsx
+import { VoiceOpsStatus } from '@absolutejs/voice/react';
+
+export function OpsBadge() {
+	return <VoiceOpsStatus intervalMs={5000} />;
+}
+```
+
+### Vue Status Widget
+
+```vue
+<script setup lang="ts">
+import { VoiceOpsStatus } from '@absolutejs/voice/vue';
+</script>
+
+<template>
+	<VoiceOpsStatus :interval-ms="5000" />
+</template>
+```
+
+### Svelte Status Widget
+
+```svelte
+<script lang="ts">
+	import { onDestroy, onMount } from 'svelte';
+	import { createVoiceOpsStatus } from '@absolutejs/voice/svelte';
+
+	const status = createVoiceOpsStatus('/app-kit/status', { intervalMs: 5000 });
+	let html = '';
+	onMount(() => status.subscribe(() => (html = status.getHTML())));
+	onDestroy(() => status.close());
+</script>
+
+{@html html}
+```
+
+### Angular Status Widget
+
+```ts
+import { VoiceAppKitStatusService } from '@absolutejs/voice/angular';
+
+status = inject(VoiceAppKitStatusService).connect('/app-kit/status', {
+	intervalMs: 5000
+});
+```
+
+```html
+<h2>{{ status.report()?.status === 'pass' ? 'Passing' : 'Needs attention' }}</h2>
+<p>{{ status.report()?.passed ?? 0 }} passing checks</p>
+```
+
+### HTML Or HTMX Status Widget
+
+```html
+<div id="voice-ops-status"></div>
+<script type="module">
+	import { mountVoiceOpsStatus } from '@absolutejs/voice/client';
+
+	mountVoiceOpsStatus(document.querySelector('#voice-ops-status'), '/app-kit/status', {
+		intervalMs: 5000
+	});
+</script>
+```
+
+For custom elements:
+
+```html
+<absolute-voice-ops-status interval-ms="5000"></absolute-voice-ops-status>
+<script type="module">
+	import { defineVoiceOpsStatusElement } from '@absolutejs/voice/client';
+	defineVoiceOpsStatusElement();
+</script>
+```
+
 ## Voice Assistants
 
 Use `createVoiceAssistant(...)` when you want one product-level surface for a voice agent instead of wiring tools, guardrails, experiments, traces, and ops recipes separately. It returns a standard `onTurn` handler, plus an `ops` object you can pass to `voice(...)`.
