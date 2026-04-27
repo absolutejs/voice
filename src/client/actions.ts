@@ -58,6 +58,12 @@ export const serverMessageToAction = <TResult = unknown>(
 				sessionId: message.sessionId,
 				type: 'complete' as const
 			};
+		case 'call_lifecycle':
+			return {
+				event: message.event,
+				sessionId: message.sessionId,
+				type: 'call_lifecycle' as const
+			};
 		case 'error':
 			return {
 				message: normalizeErrorMessage(

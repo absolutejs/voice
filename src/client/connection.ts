@@ -25,6 +25,9 @@ type VoiceConnectionState = {
 };
 
 type VoiceConnectionHandle = {
+	callControl: (
+		message: Omit<VoiceClientMessage & { type: 'call_control' }, 'type'>
+	) => void;
 	start: (input?: { sessionId?: string; scenarioId?: string }) => void;
 	close: () => void;
 	endTurn: () => void;
@@ -40,7 +43,7 @@ const noop = () => {};
 const noopUnsubscribe = () => noop;
 
 const NOOP_CONNECTION: VoiceConnectionHandle = {
-	start: () => {},
+	callControl: noop,
 	close: noop,
 	endTurn: noop,
 	getReadyState: () => WS_CLOSED,
@@ -48,6 +51,7 @@ const NOOP_CONNECTION: VoiceConnectionHandle = {
 	getSessionId: () => '',
 	send: noop,
 	sendAudio: noop,
+	start: () => {},
 	subscribe: noopUnsubscribe
 };
 
@@ -79,6 +83,7 @@ const isVoiceServerMessage = (value: unknown): value is VoiceServerMessage => {
 	switch (value.type) {
 		case 'audio':
 		case 'assistant':
+		case 'call_lifecycle':
 		case 'complete':
 		case 'error':
 		case 'final':
@@ -264,6 +269,15 @@ export const createVoiceConnection = (
 		send({ type: 'end_turn' });
 	};
 
+	const callControl = (
+		message: Omit<VoiceClientMessage & { type: 'call_control' }, 'type'>
+	) => {
+		send({
+			...message,
+			type: 'call_control'
+		});
+	};
+
 	const close = () => {
 		clearTimers();
 
@@ -287,7 +301,7 @@ export const createVoiceConnection = (
 	connect();
 
 	return {
-		start,
+		callControl,
 		close,
 		endTurn,
 		getReadyState: () => state.ws?.readyState ?? WS_CLOSED,
@@ -295,6 +309,7 @@ export const createVoiceConnection = (
 		getSessionId: () => state.sessionId,
 		send,
 		sendAudio,
+		start,
 		subscribe
 	};
 };

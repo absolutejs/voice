@@ -14,6 +14,7 @@ const createInitialState = <TResult,>(
 ): VoiceControllerState<TResult> => ({
 	assistantAudio: [...stream.assistantAudio],
 	assistantTexts: [...stream.assistantTexts],
+	call: stream.call,
 	error: stream.error,
 	isConnected: stream.isConnected,
 	isRecording: false,
@@ -49,6 +50,7 @@ export const createVoiceController = <TResult = unknown>(
 			...state,
 			assistantAudio: [...stream.assistantAudio],
 			assistantTexts: [...stream.assistantTexts],
+			call: stream.call,
 			error: stream.error,
 			isConnected: stream.isConnected,
 			partial: stream.partial,
@@ -144,6 +146,7 @@ export const createVoiceController = <TResult = unknown>(
 		bindHTMX(bindingOptions: VoiceHTMXBindingOptions) {
 			return bindVoiceHTMX(stream, bindingOptions);
 		},
+		callControl: (message) => stream.callControl(message),
 		close,
 		endTurn: () => stream.endTurn(),
 		get error() {
@@ -198,6 +201,9 @@ export const createVoiceController = <TResult = unknown>(
 		},
 		get assistantAudio() {
 			return state.assistantAudio;
+		},
+		get call() {
+			return state.call;
 		}
 	} as VoiceController<TResult> & {
 		bindHTMX: (bindingOptions: VoiceHTMXBindingOptions) => () => void;

@@ -32,6 +32,9 @@ export const createVoiceStream = <TResult = unknown>(
 	});
 
 	return {
+		callControl(message) {
+			connection.callControl(message);
+		},
 		close() {
 			unsubscribeConnection();
 			connection.close();
@@ -74,6 +77,9 @@ export const createVoiceStream = <TResult = unknown>(
 		},
 		get assistantAudio() {
 			return store.getSnapshot().assistantAudio;
+		},
+		get call() {
+			return store.getSnapshot().call;
 		},
 		sendAudio(audio: Uint8Array | ArrayBuffer) {
 			connection.sendAudio(audio);

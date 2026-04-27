@@ -2134,7 +2134,26 @@ test('voice session supports voicemail and no-answer lifecycle outcomes', async 
 		}
 	});
 
+	const voicemailMessages = voicemailSocket.messages.map((message) =>
+		JSON.parse(message)
+	);
+	const voicemailLifecycleMessages = voicemailMessages.filter(
+		(message) => message.type === 'call_lifecycle'
+	);
+
 	expect((await voicemailSession.snapshot()).call?.disposition).toBe('voicemail');
+	expect(voicemailLifecycleMessages.map((message) => message.event.type)).toEqual([
+		'start',
+		'voicemail',
+		'end'
+	]);
+	expect(voicemailLifecycleMessages.at(-1)?.event).toMatchObject({
+		disposition: 'voicemail',
+		metadata: {
+			mailbox: 'support'
+		},
+		type: 'end'
+	});
 	expect(voicemailEvents).toEqual(['voicemail', 'end:voicemail']);
 
 	const noAnswerSession = createVoiceSession({

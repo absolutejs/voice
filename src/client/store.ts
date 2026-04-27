@@ -7,6 +7,7 @@ import type {
 const createInitialState = (): VoiceStreamState => ({
 	assistantAudio: [],
 	assistantTexts: [],
+	call: null,
 	error: null,
 	isConnected: false,
 	scenarioId: null,
@@ -51,6 +52,26 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
 					...state,
 					sessionId: action.sessionId,
 					status: 'completed'
+				};
+				break;
+			case 'call_lifecycle':
+				state = {
+					...state,
+					call: {
+						...state.call,
+						disposition:
+							action.event.type === 'end'
+								? action.event.disposition
+								: state.call?.disposition,
+						endedAt:
+							action.event.type === 'end'
+								? action.event.at
+								: state.call?.endedAt,
+						events: [...(state.call?.events ?? []), action.event],
+						lastEventAt: action.event.at,
+						startedAt: state.call?.startedAt ?? action.event.at
+					},
+					sessionId: action.sessionId
 				};
 				break;
 			case 'connected':

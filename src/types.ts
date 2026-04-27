@@ -839,6 +839,19 @@ export type VoiceClientCloseMessage = {
 	reason?: string;
 };
 
+export type VoiceClientCallControlMessage = {
+	type: 'call_control';
+	action:
+		| 'complete'
+		| 'escalate'
+		| 'no-answer'
+		| 'transfer'
+		| 'voicemail';
+	metadata?: Record<string, unknown>;
+	reason?: string;
+	target?: string;
+};
+
 export type VoiceClientPingMessage = {
 	type: 'ping';
 };
@@ -847,6 +860,7 @@ export type VoiceClientMessage =
 	| VoiceClientStartMessage
 	| VoiceClientEndTurnMessage
 	| VoiceClientCloseMessage
+	| VoiceClientCallControlMessage
 	| VoiceClientPingMessage;
 
 export type VoiceServerSessionMessage = {
@@ -890,6 +904,12 @@ export type VoiceServerCompleteMessage = {
 	sessionId: string;
 };
 
+export type VoiceServerCallLifecycleMessage = {
+	type: 'call_lifecycle';
+	event: VoiceCallLifecycleEvent;
+	sessionId: string;
+};
+
 export type VoiceServerErrorMessage = {
 	type: 'error';
 	message: string;
@@ -907,6 +927,7 @@ export type VoiceServerMessage<TResult = unknown> =
 	| VoiceServerTurnMessage<TResult>
 	| VoiceServerAssistantMessage
 	| VoiceServerAudioMessage
+	| VoiceServerCallLifecycleMessage
 	| VoiceServerCompleteMessage
 	| VoiceServerErrorMessage
 	| VoiceServerPongMessage;
@@ -1033,6 +1054,7 @@ export type VoiceHTMXConfig<
 	| VoiceHTMXOptions<TSession, TResult>;
 
 export type VoiceStreamState<TResult = unknown> = {
+	call: VoiceCallLifecycleState | null;
 	sessionId: string | null;
 	scenarioId: string | null;
 	status: VoiceSessionStatus | 'idle';
@@ -1050,6 +1072,8 @@ export type VoiceStreamState<TResult = unknown> = {
 };
 
 export type VoiceStream<TResult = unknown> = {
+	call: VoiceCallLifecycleState | null;
+	callControl: (message: Omit<VoiceClientCallControlMessage, 'type'>) => void;
 	close: () => void;
 	start: (input?: {
 		scenarioId?: string;
@@ -1122,6 +1146,8 @@ export type VoiceBargeInBinding = {
 
 export type VoiceController<TResult = unknown> = {
 	bindHTMX: (options: VoiceHTMXBindingOptions) => () => void;
+	call: VoiceCallLifecycleState | null;
+	callControl: (message: Omit<VoiceClientCallControlMessage, 'type'>) => void;
 	close: () => void;
 	endTurn: () => void;
 	start: (input?: {
@@ -1171,6 +1197,11 @@ export type VoiceStoreAction<TResult = unknown> =
 			sessionId: string;
 			scenarioId?: string;
 			status: VoiceSessionStatus;
+	  }
+	| {
+			type: 'call_lifecycle';
+			event: VoiceCallLifecycleEvent;
+			sessionId: string;
 	  }
 	| {
 			type: 'partial';

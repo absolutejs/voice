@@ -19,6 +19,7 @@ import type {
 	STTAdapterSession,
 	TTSAdapterSession,
 	Transcript,
+	VoiceCallLifecycleEvent,
 	VoiceCallDisposition,
 	VoicePhraseHint,
 	VoiceFallbackDiagnostics,
@@ -355,6 +356,10 @@ const pushCallLifecycleEvent = <TSession extends VoiceSessionRecord>(
 	return lifecycle;
 };
 
+const getLatestCallLifecycleEvent = (
+	session: VoiceSessionRecord
+): VoiceCallLifecycleEvent | undefined => session.call?.events.at(-1);
+
 export const createVoiceSession = <
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -522,6 +527,19 @@ export const createVoiceSession = <
 				type: message.type
 			});
 		}
+	};
+
+	const sendCallLifecycle = async (session: TSession) => {
+		const event = getLatestCallLifecycleEvent(session);
+		if (!event) {
+			return;
+		}
+
+		await send({
+			event,
+			sessionId: options.id,
+			type: 'call_lifecycle'
+		});
 	};
 
 	const readSession = async () => options.store.getOrCreate(options.id);
@@ -783,6 +801,7 @@ export const createVoiceSession = <
 		await appendTrace({
 			payload: {
 				disposition,
+				metadata: input.metadata,
 				reason: input.reason,
 				target: input.target,
 				type: 'end'
@@ -790,6 +809,7 @@ export const createVoiceSession = <
 			session,
 			type: 'call.lifecycle'
 		});
+		await sendCallLifecycle(session);
 		await send({
 			sessionId: options.id,
 			type: 'complete'
@@ -875,6 +895,7 @@ export const createVoiceSession = <
 			session,
 			type: 'call.lifecycle'
 		});
+		await sendCallLifecycle(session);
 		await completeInternal(input.result, {
 			disposition: 'transferred',
 			invokeOnComplete: false,
@@ -905,6 +926,7 @@ export const createVoiceSession = <
 			session,
 			type: 'call.lifecycle'
 		});
+		await sendCallLifecycle(session);
 		await completeInternal(input.result, {
 			disposition: 'escalated',
 			invokeOnComplete: false,
@@ -931,6 +953,7 @@ export const createVoiceSession = <
 			session,
 			type: 'call.lifecycle'
 		});
+		await sendCallLifecycle(session);
 		await completeInternal(input?.result, {
 			disposition: 'no-answer',
 			invokeOnComplete: false,
@@ -956,6 +979,7 @@ export const createVoiceSession = <
 			session,
 			type: 'call.lifecycle'
 		});
+		await sendCallLifecycle(session);
 		await completeInternal(input?.result, {
 			disposition: 'voicemail',
 			invokeOnComplete: false,
@@ -2039,6 +2063,7 @@ export const createVoiceSession = <
 				session,
 				type: 'call.lifecycle'
 			});
+			await sendCallLifecycle(session);
 		}
 		await send({
 			sessionId: options.id,

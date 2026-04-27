@@ -145,6 +145,32 @@ const isVoiceClientMessage = (value: unknown): value is VoiceClientMessage => {
 	}
 
 	switch (value.type) {
+		case 'call_control':
+			if (!('action' in value)) {
+				return false;
+			}
+
+			if (
+				value.action !== 'complete' &&
+				value.action !== 'escalate' &&
+				value.action !== 'no-answer' &&
+				value.action !== 'transfer' &&
+				value.action !== 'voicemail'
+			) {
+				return false;
+			}
+
+			return (
+				(!('metadata' in value) ||
+					value.metadata === undefined ||
+					(value.metadata !== null && typeof value.metadata === 'object')) &&
+				(!('reason' in value) ||
+					value.reason === undefined ||
+					typeof value.reason === 'string') &&
+				(!('target' in value) ||
+					value.target === undefined ||
+					typeof value.target === 'string')
+			);
 		case 'close':
 			return true;
 		case 'end_turn':
@@ -554,6 +580,49 @@ export const voice = <
 					if (message.type === 'close' && current) {
 						await current.close(message.reason);
 						runtime.activeSessions.delete(sessionState.sessionId);
+					}
+
+					if (message.type === 'call_control' && current) {
+						if (message.action === 'transfer') {
+							if (message.target) {
+								await current.transfer({
+									metadata: message.metadata,
+									reason: message.reason,
+									target: message.target
+								});
+							} else {
+								ws.send(
+									JSON.stringify({
+										message: 'call_control transfer requires target',
+										recoverable: true,
+										type: 'error'
+									})
+								);
+							}
+						}
+
+						if (message.action === 'escalate') {
+							await current.escalate({
+								metadata: message.metadata,
+								reason: message.reason ?? 'client-requested-escalation'
+							});
+						}
+
+						if (message.action === 'voicemail') {
+							await current.markVoicemail({
+								metadata: message.metadata
+							});
+						}
+
+						if (message.action === 'no-answer') {
+							await current.markNoAnswer({
+								metadata: message.metadata
+							});
+						}
+
+						if (message.action === 'complete') {
+							await current.complete();
+						}
 					}
 
 					if (
