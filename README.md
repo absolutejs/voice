@@ -195,8 +195,7 @@ Use the telephony primitives when the agent needs to answer or place calls throu
 
 ```ts
 import {
-	createTwilioVoiceRoutes,
-	createVoiceTelephonyCarrierMatrixRoutes,
+	createVoicePhoneAgent,
 	createVoiceTelephonyOutcomePolicy
 } from '@absolutejs/voice';
 import { deepgram } from '@absolutejs/voice-deepgram';
@@ -207,35 +206,40 @@ const outcomePolicy = createVoiceTelephonyOutcomePolicy({
 
 app
 	.use(
-		createVoiceTelephonyCarrierMatrixRoutes({
-			load: loadCarrierMatrixInputs,
-			path: '/api/carriers'
-		})
-	)
-	.use(
-		createTwilioVoiceRoutes({
-			context: {},
-			outcomePolicy,
-			session: runtime.session,
-			stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-			streamPath: '/api/voice/twilio/stream',
-			twiml: {
-				path: '/api/voice/twilio',
-				streamUrl: process.env.TWILIO_STREAM_URL
+		createVoicePhoneAgent({
+			matrix: {
+				path: '/api/carriers',
+				title: 'AbsoluteJS Voice Carrier Matrix'
 			},
-			webhook: {
-				path: '/api/voice/twilio/webhook',
-				signingSecret: process.env.TWILIO_AUTH_TOKEN
-			},
-			async onTurn({ turn }) {
-				return { assistantText: `I heard: ${turn.text}` };
-			},
-			onComplete: async () => {}
-		})
+			carriers: [
+				{
+					provider: 'twilio',
+					options: {
+						context: {},
+						outcomePolicy,
+						session: runtime.session,
+						stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+						streamPath: '/api/voice/twilio/stream',
+						twiml: {
+							path: '/api/voice/twilio',
+							streamUrl: process.env.TWILIO_STREAM_URL
+						},
+						webhook: {
+							path: '/api/voice/twilio/webhook',
+							signingSecret: process.env.TWILIO_AUTH_TOKEN
+						},
+						async onTurn({ turn }) {
+							return { assistantText: `I heard: ${turn.text}` };
+						},
+						onComplete: async () => {}
+					}
+				}
+			]
+		}).routes
 	);
 ```
 
-Telnyx and Plivo expose equivalent route helpers. The carrier matrix and telephony outcome primitives exist so phone behavior is testable before live traffic: setup, signatures, stream URLs, media bridge shape, voicemail/no-answer/transfer mapping, and lifecycle traces.
+The wrapper mounts selected carrier routes and a readiness matrix. Telnyx and Plivo use the same wrapper with `{ provider: 'telnyx', options: ... }` or `{ provider: 'plivo', options: ... }`. The lower-level `createTwilioVoiceRoutes(...)`, `createTelnyxVoiceRoutes(...)`, and `createPlivoVoiceRoutes(...)` helpers remain available when you need carrier-specific control.
 
 ## App Kit And Status Widgets
 

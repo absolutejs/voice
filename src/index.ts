@@ -115,6 +115,7 @@ export {
 	verifyVoiceTwilioWebhookSignature,
 	voiceTelephonyOutcomeToRouteResult
 } from './telephonyOutcome';
+export { createVoicePhoneAgent } from './phoneAgent';
 export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
@@ -534,6 +535,14 @@ export type {
 	VoiceTelephonyWebhookVerificationResult,
 	StoredVoiceTelephonyWebhookDecision
 } from './telephonyOutcome';
+export type {
+	VoicePhoneAgentCarrier,
+	VoicePhoneAgentPlivoCarrier,
+	VoicePhoneAgentRoutes,
+	VoicePhoneAgentRoutesOptions,
+	VoicePhoneAgentTelnyxCarrier,
+	VoicePhoneAgentTwilioCarrier
+} from './phoneAgent';
 export type {
 	VoiceOpsConsoleLink,
 	VoiceOpsConsoleReport,
