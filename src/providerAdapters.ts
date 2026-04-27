@@ -555,9 +555,15 @@ export const createVoiceTTSProviderRouter = <
 			let nextProviderIndex = 0;
 
 			const attach = (session: TTSAdapterSession) => {
-				session.on('audio', (event) => emitter.emit('audio', event));
-				session.on('error', (event) => emitter.emit('error', event));
-				session.on('close', (event) => emitter.emit('close', event));
+				session.on('audio', (event) => {
+					void emitter.emit('audio', event);
+				});
+				session.on('error', (event) => {
+					void emitter.emit('error', event);
+				});
+				session.on('close', (event) => {
+					void emitter.emit('close', event);
+				});
 			};
 
 			const openProvider = async (provider: TProvider, attempt: number) => {
