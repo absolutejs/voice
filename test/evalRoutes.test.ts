@@ -2,12 +2,15 @@ import { expect, test } from 'bun:test';
 import {
 	compareVoiceEvalBaseline,
 	createVoiceFileEvalBaselineStore,
+	createVoiceFileScenarioFixtureStore,
 	createVoiceEvalRoutes,
 	createVoiceMemoryTraceEventStore,
 	renderVoiceEvalBaselineHTML,
 	renderVoiceEvalHTML,
 	renderVoiceScenarioEvalHTML,
+	renderVoiceScenarioFixtureEvalHTML,
 	runVoiceScenarioEvals,
+	runVoiceScenarioFixtureEvals,
 	runVoiceSessionEvals
 } from '../src';
 
@@ -284,4 +287,92 @@ test('createVoiceEvalRoutes exposes scenario html json and status endpoints', as
 		new Request('http://localhost/evals/scenarios/status')
 	);
 	expect(status.status).toBe(200);
+});
+
+test('runVoiceScenarioFixtureEvals certifies seeded scenario fixtures', async () => {
+	const report = await runVoiceScenarioFixtureEvals({
+		fixtures: [
+			{
+				events: createEvalEvents().filter(
+					(event) => event.sessionId === 'session-good'
+				),
+				id: 'fixture-good',
+				label: 'Good fixture'
+			}
+		],
+		scenarios: [
+			{
+				id: 'happy-path-completes',
+				requiredDisposition: 'completed',
+				requiredTranscriptIncludes: ['hello'],
+				scenarioId: 'happy-path'
+			}
+		]
+	});
+
+	expect(report.status).toBe('pass');
+	expect(report.total).toBe(1);
+	expect(report.fixtures[0]?.report.scenarios[0]?.status).toBe('pass');
+	expect(renderVoiceScenarioFixtureEvalHTML(report)).toContain('Good fixture');
+});
+
+test('createVoiceEvalRoutes exposes fixture html json and status endpoints', async () => {
+	const routes = createVoiceEvalRoutes({
+		fixtures: [
+			{
+				events: createEvalEvents().filter(
+					(event) => event.sessionId === 'session-good'
+				),
+				id: 'fixture-good'
+			}
+		],
+		scenarios: [
+			{
+				id: 'happy-path-completes',
+				requiredDisposition: 'completed',
+				scenarioId: 'happy-path'
+			}
+		]
+	});
+
+	const html = await routes.handle(new Request('http://localhost/evals/fixtures'));
+	expect(html.status).toBe(200);
+	await expect(html.text()).resolves.toContain('fixture-good');
+
+	const json = await routes.handle(
+		new Request('http://localhost/evals/fixtures/json')
+	);
+	await expect(json.json()).resolves.toMatchObject({
+		status: 'pass',
+		total: 1
+	});
+
+	const status = await routes.handle(
+		new Request('http://localhost/evals/fixtures/status')
+	);
+	expect(status.status).toBe(200);
+});
+
+test('createVoiceFileScenarioFixtureStore loads fixture packs', async () => {
+	const filePath = `/tmp/voice-scenario-fixtures-${crypto.randomUUID()}.json`;
+	await Bun.write(
+		filePath,
+		JSON.stringify({
+			fixtures: [
+				{
+					events: createEvalEvents().filter(
+						(event) => event.sessionId === 'session-good'
+					),
+					id: 'fixture-good'
+				}
+			]
+		})
+	);
+	const store = createVoiceFileScenarioFixtureStore(filePath);
+
+	await expect(store.list()).resolves.toMatchObject([
+		{
+			id: 'fixture-good'
+		}
+	]);
 });

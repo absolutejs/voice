@@ -19,11 +19,14 @@ export {
 export {
 	compareVoiceEvalBaseline,
 	createVoiceFileEvalBaselineStore,
+	createVoiceFileScenarioFixtureStore,
 	createVoiceEvalRoutes,
 	renderVoiceEvalBaselineHTML,
 	renderVoiceEvalHTML,
 	renderVoiceScenarioEvalHTML,
+	renderVoiceScenarioFixtureEvalHTML,
 	runVoiceScenarioEvals,
+	runVoiceScenarioFixtureEvals,
 	runVoiceSessionEvals
 } from './evalRoutes';
 export {
@@ -309,7 +312,11 @@ export type {
 	VoiceScenarioEvalDefinition,
 	VoiceScenarioEvalReport,
 	VoiceScenarioEvalResult,
-	VoiceScenarioEvalSessionResult
+	VoiceScenarioEvalSessionResult,
+	VoiceScenarioFixture,
+	VoiceScenarioFixtureEvalReport,
+	VoiceScenarioFixtureEvalResult,
+	VoiceScenarioFixtureStore
 } from './evalRoutes';
 export type {
 	VoiceSessionListHTMLHandlerOptions,

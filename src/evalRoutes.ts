@@ -126,6 +126,34 @@ export type VoiceScenarioEvalReport = {
 	total: number;
 };
 
+export type VoiceScenarioFixture = {
+	description?: string;
+	events: StoredVoiceTraceEvent[];
+	id: string;
+	label?: string;
+};
+
+export type VoiceScenarioFixtureStore = {
+	list: () => Promise<VoiceScenarioFixture[]>;
+};
+
+export type VoiceScenarioFixtureEvalResult = {
+	description?: string;
+	fixtureId: string;
+	label: string;
+	report: VoiceScenarioEvalReport;
+	status: VoiceEvalStatus;
+};
+
+export type VoiceScenarioFixtureEvalReport = {
+	checkedAt: number;
+	failed: number;
+	fixtures: VoiceScenarioFixtureEvalResult[];
+	passed: number;
+	status: VoiceEvalStatus;
+	total: number;
+};
+
 export type VoiceEvalLink = {
 	href: string;
 	label: string;
@@ -136,6 +164,8 @@ export type VoiceEvalRoutesOptions = {
 	baselineComparison?: VoiceEvalBaselineComparisonOptions;
 	baselineStore?: VoiceEvalBaselineStore;
 	events?: StoredVoiceTraceEvent[];
+	fixtures?: VoiceScenarioFixture[];
+	fixtureStore?: VoiceScenarioFixtureStore;
 	headers?: HeadersInit;
 	links?: VoiceEvalLink[];
 	limit?: number;
@@ -464,6 +494,48 @@ export const runVoiceScenarioEvals = async (
 	};
 };
 
+const resolveScenarioFixtures = async (options: {
+	fixtures?: VoiceScenarioFixture[];
+	fixtureStore?: VoiceScenarioFixtureStore;
+}) => [...(options.fixtures ?? []), ...((await options.fixtureStore?.list()) ?? [])];
+
+export const runVoiceScenarioFixtureEvals = async (
+	options: {
+		fixtures?: VoiceScenarioFixture[];
+		fixtureStore?: VoiceScenarioFixtureStore;
+		scenarios?: VoiceScenarioEvalDefinition[];
+	} = {}
+): Promise<VoiceScenarioFixtureEvalReport> => {
+	const fixtures = await resolveScenarioFixtures(options);
+	const results = await Promise.all(
+		fixtures.map(async (fixture) => {
+			const report = await runVoiceScenarioEvals({
+				events: fixture.events,
+				scenarios: options.scenarios
+			});
+
+			return {
+				description: fixture.description,
+				fixtureId: fixture.id,
+				label: fixture.label ?? fixture.id,
+				report,
+				status: report.status
+			} satisfies VoiceScenarioFixtureEvalResult;
+		})
+	);
+	const failed = results.filter((fixture) => fixture.status === 'fail').length;
+	const passed = results.length - failed;
+
+	return {
+		checkedAt: Date.now(),
+		failed,
+		fixtures: results,
+		passed,
+		status: failed > 0 ? 'fail' : 'pass',
+		total: results.length
+	};
+};
+
 const summarizeEvalBaseline = (
 	report: VoiceEvalReport
 ): VoiceEvalBaselineSummary => {
@@ -549,6 +621,25 @@ export const createVoiceFileEvalBaselineStore = (
 	set: async (report) => {
 		await mkdir(dirname(filePath), { recursive: true });
 		await Bun.write(filePath, JSON.stringify(report, null, 2));
+	}
+});
+
+export const createVoiceFileScenarioFixtureStore = (
+	filePath: string
+): VoiceScenarioFixtureStore => ({
+	list: async () => {
+		const file = Bun.file(filePath);
+		if (!(await file.exists())) {
+			return [];
+		}
+		const text = await file.text();
+		if (!text.trim()) {
+			return [];
+		}
+		const parsed = JSON.parse(text) as
+			| VoiceScenarioFixture[]
+			| { fixtures?: VoiceScenarioFixture[] };
+		return Array.isArray(parsed) ? parsed : (parsed.fixtures ?? []);
 	}
 });
 
@@ -656,6 +747,36 @@ export const renderVoiceScenarioEvalHTML = (
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${scenarios}</main></body></html>`;
 };
 
+export const renderVoiceScenarioFixtureEvalHTML = (
+	report: VoiceScenarioFixtureEvalReport,
+	options: { links?: VoiceEvalLink[]; title?: string } = {}
+) => {
+	const title = options.title ?? 'AbsoluteJS Voice Fixture Evals';
+	const links = options.links?.length
+		? `<nav>${options.links
+				.map(
+					(link) =>
+						`<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`
+				)
+				.join('')}</nav>`
+		: '';
+	const fixtures = report.fixtures.length
+		? report.fixtures
+				.map((fixture) => {
+					const scenarios = fixture.report.scenarios
+						.map(
+							(scenario) =>
+								`<tr class="${scenario.status}"><td>${escapeHtml(scenario.label)}</td><td>${escapeHtml(scenario.status)}</td><td>${scenario.matchedSessions}</td><td>${escapeHtml([...scenario.issues, ...scenario.sessions.flatMap((session) => session.issues)].join(', ') || 'none')}</td></tr>`
+						)
+						.join('');
+					return `<section class="${fixture.status}"><h2>${escapeHtml(fixture.label)}</h2>${fixture.description ? `<p>${escapeHtml(fixture.description)}</p>` : ''}<p class="status ${fixture.status}">${fixture.status}</p><table><thead><tr><th>Scenario</th><th>Status</th><th>Sessions</th><th>Issues</th></tr></thead><tbody>${scenarios}</tbody></table></section>`;
+				})
+				.join('')
+		: '<section><p>No scenario fixtures configured.</p></section>';
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${fixtures}</main></body></html>`;
+};
+
 export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 	const path = options.path ?? '/evals';
 	const routes = new Elysia({
@@ -683,6 +804,12 @@ export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 			events: options.events,
 			scenarios: options.scenarios,
 			store: options.store
+		});
+	const getFixtureReport = () =>
+		runVoiceScenarioFixtureEvals({
+			fixtures: options.fixtures,
+			fixtureStore: options.fixtureStore,
+			scenarios: options.scenarios
 		});
 
 	routes.get(path, async () => {
@@ -776,6 +903,29 @@ export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 	routes.get(`${path}/scenarios/json`, async () => getScenarioReport());
 	routes.get(`${path}/scenarios/status`, async ({ set }) => {
 		const report = await getScenarioReport();
+		if (report.status === 'fail') {
+			set.status = 503;
+		}
+		return report;
+	});
+	routes.get(`${path}/fixtures`, async () => {
+		const report = await getFixtureReport();
+		return new Response(
+			renderVoiceScenarioFixtureEvalHTML(report, {
+				links: options.links,
+				title: `${options.title ?? 'AbsoluteJS Voice Evals'} Fixtures`
+			}),
+			{
+				headers: {
+					'Content-Type': 'text/html; charset=utf-8',
+					...options.headers
+				}
+			}
+		);
+	});
+	routes.get(`${path}/fixtures/json`, async () => getFixtureReport());
+	routes.get(`${path}/fixtures/status`, async ({ set }) => {
+		const report = await getFixtureReport();
 		if (report.status === 'fail') {
 			set.status = 503;
 		}
