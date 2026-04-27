@@ -189,11 +189,14 @@ export const createOpenAIVoiceTTS = (
 							return;
 						}
 
+						const normalizedError =
+							error instanceof Error ? error : new Error(String(error));
 						await emit(listeners, 'error', {
-							error: error instanceof Error ? error : new Error(String(error)),
+							error: normalizedError,
 							recoverable: true,
 							type: 'error'
 						});
+						throw normalizedError;
 					}
 				}
 			};

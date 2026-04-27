@@ -80,7 +80,9 @@ test('createOpenAIVoiceTTS reports recoverable errors for failed speech requests
 		errors.push(event.error);
 	});
 
-	await session.send('Hello.');
+	await expect(session.send('Hello.')).rejects.toThrow(
+		'OpenAI voice TTS failed: HTTP 429'
+	);
 
 	expect(errors).toHaveLength(1);
 	expect(errors[0]!.message).toBe('OpenAI voice TTS failed: HTTP 429');
