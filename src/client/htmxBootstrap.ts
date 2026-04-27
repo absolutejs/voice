@@ -1,5 +1,8 @@
 import { createVoiceController } from './controller';
+import { createVoiceAudioPlayer } from './audioPlayer';
 import { createVoiceBargeInMonitor } from './bargeInMonitor';
+import { bindVoiceBargeIn } from './duplex';
+import type { VoiceBargeInBinding } from '../types';
 
 type VoiceDemoMode = 'guided' | 'general';
 
@@ -403,62 +406,21 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	let isCapturing = false;
 	let micError: string | null = null;
 	let waveLevels = createInitialVoiceWaveLevels();
-	let lastInputLevel = 0;
-	let lastAssistantAt = 0;
-	let lastAssistantAudioCount = 0;
-	let lastAssistantTextCount = 0;
-
-	const syncBargeInOutput = () => {
-		if (!bargeInMonitor) {
-			return;
-		}
-
-		const voice = currentVoice();
-		const audioCount = voice.assistantAudio.length;
-		const textCount = voice.assistantTexts.length;
-
-		if (
-			audioCount > lastAssistantAudioCount ||
-			textCount > lastAssistantTextCount
-		) {
-			lastAssistantAt = Date.now();
-		}
-
-		lastAssistantAudioCount = audioCount;
-		lastAssistantTextCount = textCount;
-	};
-
-	const sendAudioWithBargeInEvidence = (
-		audio: Uint8Array | ArrayBuffer,
-		sendAudio: (audio: Uint8Array | ArrayBuffer) => void
-	) => {
-		syncBargeInOutput();
-
-		if (
-			bargeInMonitor &&
-			Date.now() - lastAssistantAt <= bargeInRecentWindowMs &&
-			lastInputLevel >= bargeInSpeechThreshold
-		) {
-			bargeInMonitor.recordRequested({
-				reason: 'manual-audio',
-				sessionId: currentVoice().sessionId
-			});
-			bargeInMonitor.recordStopped({
-				latencyMs: 0,
-				playbackStopLatencyMs: 0,
-				reason: 'manual-audio',
-				sessionId: currentVoice().sessionId
-			});
-		}
-
-		sendAudio(audio);
-	};
+	let guidedBargeInBinding: VoiceBargeInBinding | null = null;
+	let generalBargeInBinding: VoiceBargeInBinding | null = null;
 
 	const guidedVoice = createVoiceController(guidedPath, {
 		capture: {
-			onAudio: sendAudioWithBargeInEvidence,
+			onAudio: (audio, sendAudio) => {
+				if (guidedBargeInBinding) {
+					guidedBargeInBinding.sendAudio(audio);
+					return;
+				}
+
+				sendAudio(audio);
+			},
 			onLevel: (level) => {
-				lastInputLevel = level;
+				guidedBargeInBinding?.handleLevel(level);
 				waveLevels = pushVoiceWaveLevel(waveLevels, level);
 				renderWave();
 			}
@@ -467,9 +429,16 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	});
 	const generalVoice = createVoiceController(generalPath, {
 		capture: {
-			onAudio: sendAudioWithBargeInEvidence,
+			onAudio: (audio, sendAudio) => {
+				if (generalBargeInBinding) {
+					generalBargeInBinding.sendAudio(audio);
+					return;
+				}
+
+				sendAudio(audio);
+			},
 			onLevel: (level) => {
-				lastInputLevel = level;
+				generalBargeInBinding?.handleLevel(level);
 				waveLevels = pushVoiceWaveLevel(waveLevels, level);
 				renderWave();
 			}
@@ -478,9 +447,21 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	});
 	const stopGuidedBinding = guidedVoice.bindHTMX({ element: syncElement });
 	const stopGeneralBinding = generalVoice.bindHTMX({ element: syncElement });
+	const guidedAudioPlayer = createVoiceAudioPlayer(guidedVoice);
+	const generalAudioPlayer = createVoiceAudioPlayer(generalVoice);
+	guidedBargeInBinding = bindVoiceBargeIn(guidedVoice, guidedAudioPlayer, {
+		interruptThreshold: bargeInSpeechThreshold,
+		monitor: bargeInMonitor ?? undefined
+	});
+	generalBargeInBinding = bindVoiceBargeIn(generalVoice, generalAudioPlayer, {
+		interruptThreshold: bargeInSpeechThreshold,
+		monitor: bargeInMonitor ?? undefined
+	});
 
 	const currentVoice = () =>
 		activeMode === 'general' ? generalVoice : guidedVoice;
+	const currentAudioPlayer = () =>
+		activeMode === 'general' ? generalAudioPlayer : guidedAudioPlayer;
 
 	const renderWave = () => {
 		const path = createVoiceWavePath(waveLevels);
@@ -591,11 +572,15 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	};
 
 	guidedVoice.subscribe(() => {
-		syncBargeInOutput();
+		if (guidedVoice.assistantAudio.length > 0) {
+			void guidedAudioPlayer.start().catch(() => {});
+		}
 		render();
 	});
 	generalVoice.subscribe(() => {
-		syncBargeInOutput();
+		if (generalVoice.assistantAudio.length > 0) {
+			void generalAudioPlayer.start().catch(() => {});
+		}
 		render();
 	});
 
@@ -612,6 +597,10 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	window.addEventListener('beforeunload', () => {
 		guidedVoice.stopRecording();
 		generalVoice.stopRecording();
+		guidedBargeInBinding?.close();
+		generalBargeInBinding?.close();
+		void guidedAudioPlayer.close();
+		void generalAudioPlayer.close();
 		stopGuidedBinding();
 		stopGeneralBinding();
 		guidedVoice.close();
