@@ -68,6 +68,11 @@ export {
 	summarizeVoiceProviderHealth
 } from './providerHealth';
 export {
+	buildVoiceOpsConsoleReport,
+	createVoiceOpsConsoleRoutes,
+	renderVoiceOpsConsoleHTML
+} from './opsConsoleRoutes';
+export {
 	createVoiceQualityRoutes,
 	evaluateVoiceQuality,
 	renderVoiceQualityHTML
@@ -311,6 +316,11 @@ export type {
 	VoiceProviderHealthSummary,
 	VoiceProviderHealthSummaryOptions
 } from './providerHealth';
+export type {
+	VoiceOpsConsoleLink,
+	VoiceOpsConsoleReport,
+	VoiceOpsConsoleRoutesOptions
+} from './opsConsoleRoutes';
 export type {
 	VoiceQualityLink,
 	VoiceQualityMetric,
