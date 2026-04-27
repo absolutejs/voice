@@ -3,6 +3,7 @@ export * from './benchmark';
 export * from './corrected';
 export * from './duplex';
 export * from './fixtures';
+export * from './ioProviderSimulator';
 export * from './providerSimulator';
 export * from './resilience';
 export * from './review';

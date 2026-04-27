@@ -90,6 +90,7 @@ test('createVoiceAgent executes tools and feeds results into the next model pass
 	]);
 	expect(result.messages.map((message) => message.role)).toEqual([
 		'user',
+		'assistant',
 		'tool',
 		'assistant'
 	]);
