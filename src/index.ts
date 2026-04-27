@@ -63,6 +63,10 @@ export {
 	summarizeVoiceProviderHealth
 } from './providerHealth';
 export {
+	createVoiceSTTProviderRouter,
+	createVoiceTTSProviderRouter
+} from './providerAdapters';
+export {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceTraceHTTPSink,
@@ -291,6 +295,11 @@ export type {
 	VoiceProviderHealthSummary,
 	VoiceProviderHealthSummaryOptions
 } from './providerHealth';
+export type {
+	VoiceIOProviderRouterEvent,
+	VoiceSTTProviderRouterOptions,
+	VoiceTTSProviderRouterOptions
+} from './providerAdapters';
 export type {
 	VoiceAgent,
 	VoiceAgentMessage,
