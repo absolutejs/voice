@@ -5,7 +5,8 @@ import {
 	createVoiceResilienceRoutes,
 	listVoiceRoutingEvents,
 	renderVoiceResilienceHTML,
-	summarizeVoiceRoutingDecision
+	summarizeVoiceRoutingDecision,
+	summarizeVoiceRoutingSessions
 } from '../src';
 import { createVoiceIOProviderFailureSimulator } from '../src/testing';
 
@@ -144,6 +145,89 @@ test('createVoiceRoutingDecisionSummary reads the latest routing decision from a
 	});
 });
 
+test('summarizeVoiceRoutingSessions groups LLM, STT, and TTS provider routing by call', () => {
+	const sessions = summarizeVoiceRoutingSessions([
+		{
+			at: 100,
+			payload: {
+				provider: 'openai',
+				providerStatus: 'success'
+			},
+			sessionId: 'call-1',
+			type: 'session.error'
+		},
+		{
+			at: 120,
+			payload: {
+				fallbackProvider: 'assemblyai',
+				kind: 'stt',
+				provider: 'assemblyai',
+				providerStatus: 'fallback',
+				selectedProvider: 'deepgram'
+			},
+			sessionId: 'call-1',
+			type: 'session.error'
+		},
+		{
+			at: 140,
+			payload: {
+				error: 'OpenAI voice TTS failed: HTTP 503',
+				kind: 'tts',
+				provider: 'openai',
+				providerStatus: 'error',
+				timedOut: false
+			},
+			sessionId: 'call-1',
+			type: 'session.error'
+		},
+		{
+			at: 150,
+			payload: {
+				fallbackProvider: 'emergency',
+				kind: 'tts',
+				provider: 'emergency',
+				providerStatus: 'fallback',
+				selectedProvider: 'openai'
+			},
+			sessionId: 'call-1',
+			type: 'session.error'
+		}
+	]);
+
+	expect(sessions).toHaveLength(1);
+	expect(sessions[0]).toMatchObject({
+		errorCount: 1,
+		eventCount: 4,
+		fallbackCount: 2,
+		sessionId: 'call-1',
+		status: 'degraded',
+		kinds: {
+			llm: {
+				latest: {
+					provider: 'openai',
+					status: 'success'
+				},
+				runCount: 1
+			},
+			stt: {
+				latest: {
+					provider: 'assemblyai',
+					status: 'fallback'
+				},
+				fallbackCount: 1
+			},
+			tts: {
+				errorCount: 1,
+				fallbackCount: 1,
+				latest: {
+					provider: 'emergency',
+					status: 'fallback'
+				}
+			}
+		}
+	});
+});
+
 test('renderVoiceResilienceHTML renders provider health and simulation controls', () => {
 	const html = renderVoiceResilienceHTML({
 		llmProviderHealth: [],
@@ -158,6 +242,17 @@ test('renderVoiceResilienceHTML renders provider health and simulation controls'
 				timedOut: false
 			}
 		],
+		routingSessions: summarizeVoiceRoutingSessions([
+			{
+				at: 100,
+				fallbackProvider: 'assemblyai',
+				kind: 'stt',
+				provider: 'deepgram',
+				sessionId: 'session-1',
+				status: 'fallback',
+				timedOut: false
+			}
+		]),
 		sttProviderHealth: [
 			{
 				errorCount: 1,
@@ -188,6 +283,7 @@ test('renderVoiceResilienceHTML renders provider health and simulation controls'
 	});
 
 	expect(html).toContain('Provider routing and resilience');
+	expect(html).toContain('Call-level routing summaries');
 	expect(html).toContain('Simulate deepgram STT failure');
 	expect(html).toContain('fallback: assemblyai');
 	expect(html).toContain('deepgram');

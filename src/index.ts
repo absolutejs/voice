@@ -157,7 +157,8 @@ export {
 	createVoiceRoutingDecisionSummary,
 	listVoiceRoutingEvents,
 	renderVoiceResilienceHTML,
-	summarizeVoiceRoutingDecision
+	summarizeVoiceRoutingDecision,
+	summarizeVoiceRoutingSessions
 } from './resilienceRoutes';
 export {
 	createVoiceSTTProviderRouter,
@@ -504,10 +505,13 @@ export type {
 	VoiceResiliencePageData,
 	VoiceResilienceRoutesOptions,
 	VoiceResilienceSimulationProvider,
+	VoiceRoutingKindSummary,
 	VoiceRoutingDecisionSummary,
 	VoiceRoutingDecisionSummaryOptions,
 	VoiceRoutingEvent,
-	VoiceRoutingEventKind
+	VoiceRoutingEventKind,
+	VoiceRoutingSessionSummary,
+	VoiceRoutingSessionSummaryOptions
 } from './resilienceRoutes';
 export type {
 	VoiceIOProviderRouterEvent,

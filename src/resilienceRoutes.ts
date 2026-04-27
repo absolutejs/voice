@@ -39,6 +39,32 @@ export type VoiceRoutingDecisionSummaryOptions = {
 	store: VoiceTraceEventStore;
 };
 
+export type VoiceRoutingKindSummary = {
+	errorCount: number;
+	fallbackCount: number;
+	latest?: VoiceRoutingEvent;
+	providers: string[];
+	runCount: number;
+	timeoutCount: number;
+};
+
+export type VoiceRoutingSessionSummary = {
+	errorCount: number;
+	eventCount: number;
+	fallbackCount: number;
+	kinds: Record<VoiceRoutingEventKind, VoiceRoutingKindSummary>;
+	lastEventAt: number;
+	sessionId: string;
+	startedAt: number;
+	status: 'healthy' | 'fallback' | 'degraded';
+	timeoutCount: number;
+};
+
+export type VoiceRoutingSessionSummaryOptions = {
+	limit?: number;
+	sessionId?: string;
+};
+
 export type VoiceResilienceLink = {
 	href: string;
 	label: string;
@@ -72,6 +98,7 @@ export type VoiceResiliencePageData = {
 	links?: readonly VoiceResilienceLink[];
 	llmProviderHealth: VoiceProviderHealthSummary<string>[];
 	routingEvents: VoiceRoutingEvent[];
+	routingSessions: VoiceRoutingSessionSummary[];
 	sttProviderHealth: VoiceProviderHealthSummary<string>[];
 	sttSimulation?: VoiceResilienceIOSimulator<string>;
 	title?: string;
@@ -174,6 +201,94 @@ export const summarizeVoiceRoutingDecision = (
 			: routingEvents;
 
 	return limited[0] ?? null;
+};
+
+const createEmptyKindSummary = (): VoiceRoutingKindSummary => ({
+	errorCount: 0,
+	fallbackCount: 0,
+	providers: [],
+	runCount: 0,
+	timeoutCount: 0
+});
+
+export const summarizeVoiceRoutingSessions = (
+	events: StoredVoiceTraceEvent[] | VoiceRoutingEvent[],
+	options: VoiceRoutingSessionSummaryOptions = {}
+): VoiceRoutingSessionSummary[] => {
+	const routingEvents = (
+		events.some((event) => 'payload' in event)
+			? listVoiceRoutingEvents(events as StoredVoiceTraceEvent[])
+			: [...(events as VoiceRoutingEvent[])]
+	).filter((event) => !options.sessionId || event.sessionId === options.sessionId);
+	const sessions = new Map<string, VoiceRoutingSessionSummary>();
+
+	for (const event of routingEvents) {
+		const existing = sessions.get(event.sessionId);
+		const summary =
+			existing ??
+			({
+				errorCount: 0,
+				eventCount: 0,
+				fallbackCount: 0,
+				kinds: {
+					llm: createEmptyKindSummary(),
+					stt: createEmptyKindSummary(),
+					tts: createEmptyKindSummary()
+				},
+				lastEventAt: event.at,
+				sessionId: event.sessionId,
+				startedAt: event.at,
+				status: 'healthy',
+				timeoutCount: 0
+			} satisfies VoiceRoutingSessionSummary);
+
+		summary.eventCount += 1;
+		summary.startedAt = Math.min(summary.startedAt, event.at);
+		summary.lastEventAt = Math.max(summary.lastEventAt, event.at);
+		if (event.status === 'error') {
+			summary.errorCount += 1;
+		}
+		if (event.status === 'fallback') {
+			summary.fallbackCount += 1;
+		}
+		if (event.timedOut) {
+			summary.timeoutCount += 1;
+		}
+
+		const kind = summary.kinds[event.kind];
+		kind.runCount += 1;
+		if (event.status === 'error') {
+			kind.errorCount += 1;
+		}
+		if (event.status === 'fallback') {
+			kind.fallbackCount += 1;
+		}
+		if (event.timedOut) {
+			kind.timeoutCount += 1;
+		}
+		if (event.provider && !kind.providers.includes(event.provider)) {
+			kind.providers.push(event.provider);
+		}
+		if (!kind.latest || event.at > kind.latest.at) {
+			kind.latest = event;
+		}
+
+		summary.status =
+			summary.errorCount > 0 || summary.timeoutCount > 0
+				? 'degraded'
+				: summary.fallbackCount > 0
+					? 'fallback'
+					: 'healthy';
+		sessions.set(event.sessionId, summary);
+	}
+
+	const sorted = [...sessions.values()].sort(
+		(left, right) => right.lastEventAt - left.lastEventAt
+	);
+
+	return typeof options.limit === 'number' && options.limit >= 0
+		? sorted.slice(0, options.limit)
+		: sorted;
 };
 
 export const createVoiceRoutingDecisionSummary = async (
@@ -282,6 +397,56 @@ const renderTimeline = (events: VoiceRoutingEvent[]) => {
 		.join('')}</div>`;
 };
 
+const renderSessionKind = (
+	kind: VoiceRoutingEventKind,
+	summary: VoiceRoutingKindSummary
+) => {
+	const latest = summary.latest;
+	const provider = latest?.provider ?? summary.providers[0] ?? 'none';
+	const status = latest?.status ?? 'idle';
+	const fallback =
+		latest?.fallbackProvider && latest.fallbackProvider !== provider
+			? ` -> ${latest.fallbackProvider}`
+			: '';
+
+	return `<div>
+    <dt>${escapeHtml(kind.toUpperCase())}</dt>
+    <dd>${escapeHtml(provider)}${escapeHtml(fallback)}</dd>
+    <small>${escapeHtml(status)} · ${summary.runCount} event${summary.runCount === 1 ? '' : 's'} · ${summary.errorCount} error${summary.errorCount === 1 ? '' : 's'} · ${summary.fallbackCount} fallback${summary.fallbackCount === 1 ? '' : 's'}</small>
+  </div>`;
+};
+
+const renderSessionSummaries = (sessions: VoiceRoutingSessionSummary[]) => {
+	if (sessions.length === 0) {
+		return '<p class="muted">No call-level routing summaries yet. Run a voice session or provider simulation.</p>';
+	}
+
+	return `<div class="session-grid">${sessions
+		.slice(0, 12)
+		.map(
+			(session) => `
+        <article class="card session ${escapeHtml(session.status)}">
+          <div class="card-header">
+            <strong>${escapeHtml(session.sessionId)}</strong>
+            <span>${escapeHtml(session.status)}</span>
+          </div>
+          <p>
+            <span class="pill">${session.eventCount} routing events</span>
+            <span class="pill">${session.fallbackCount} fallbacks</span>
+            <span class="pill">${session.errorCount} errors</span>
+            <span class="pill">${session.timeoutCount} timeouts</span>
+          </p>
+          <dl>
+            ${renderSessionKind('llm', session.kinds.llm)}
+            ${renderSessionKind('stt', session.kinds.stt)}
+            ${renderSessionKind('tts', session.kinds.tts)}
+          </dl>
+        </article>
+      `
+		)
+		.join('')}</div>`;
+};
+
 const renderSimulationControls = (
 	kind: 'stt' | 'tts',
 	simulation: VoiceResilienceIOSimulator<string> | undefined
@@ -362,6 +527,7 @@ export const renderVoiceResilienceHTML = (input: VoiceResiliencePageData) => {
     section, .card { background: rgba(19, 22, 27, 0.92); border: 1px solid #27272a; border-radius: 20px; padding: 20px; }
     .hero { background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(245, 158, 11, 0.12)); }
     .grid, .provider-grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .session-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .timeline { display: grid; gap: 12px; }
     .card-header { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
     .card-header strong { font-size: 1.05rem; }
@@ -373,8 +539,9 @@ export const renderVoiceResilienceHTML = (input: VoiceResiliencePageData) => {
     .pill { background: #0f1217; border: 1px solid #3f3f46; border-radius: 999px; color: #d4d4d8; display: inline-flex; margin: 3px 4px 3px 0; padding: 5px 9px; }
     .danger { border-color: rgba(239, 68, 68, 0.75); color: #fecaca; }
     .event.error { border-color: rgba(239, 68, 68, 0.7); }
-    .event.fallback { border-color: rgba(245, 158, 11, 0.7); }
-    .event.success, .provider.healthy { border-color: rgba(34, 197, 94, 0.5); }
+    .event.fallback, .session.fallback { border-color: rgba(245, 158, 11, 0.7); }
+    .event.success, .provider.healthy, .session.healthy { border-color: rgba(34, 197, 94, 0.5); }
+    .session.degraded { border-color: rgba(239, 68, 68, 0.7); }
     .provider.suppressed, .provider.degraded, .provider.rate-limited { border-color: rgba(239, 68, 68, 0.7); }
     .provider.recoverable { border-color: rgba(59, 130, 246, 0.7); }
     button { background: #f59e0b; border: 0; border-radius: 999px; color: #111827; cursor: pointer; font-weight: 800; padding: 10px 14px; }
@@ -382,7 +549,7 @@ export const renderVoiceResilienceHTML = (input: VoiceResiliencePageData) => {
     .simulate-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
     .simulate-output { background: #050505; border: 1px solid #27272a; border-radius: 14px; color: #d4d4d8; overflow: auto; padding: 12px; white-space: pre-wrap; }
     a { color: #f59e0b; }
-    @media (max-width: 850px) { .grid, .provider-grid, dl { grid-template-columns: 1fr; } }
+    @media (max-width: 850px) { .grid, .provider-grid, .session-grid, dl { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -398,6 +565,11 @@ export const renderVoiceResilienceHTML = (input: VoiceResiliencePageData) => {
       <article class="card metric"><span>Fallbacks</span><strong>${summary.fallbacks}</strong></article>
       <article class="card metric"><span>Errors</span><strong>${summary.errors}</strong></article>
       <article class="card metric"><span>Timeouts</span><strong>${summary.timeouts}</strong></article>
+    </section>
+    <section>
+      <h2>Call-level routing summaries</h2>
+      <p class="muted">A compact per-call view of which LLM, STT, and TTS providers handled the session, including fallback and timeout counts.</p>
+      ${renderSessionSummaries(input.routingSessions)}
     </section>
     <section>
       <h2>LLM provider health</h2>
@@ -530,13 +702,15 @@ export const createVoiceResilienceRoutes = (
 		const events = await options.store.list();
 		const sttEvents = events.filter((event) => event.payload.kind === 'stt');
 		const ttsEvents = events.filter((event) => event.payload.kind === 'tts');
+		const routingEvents = listVoiceRoutingEvents(events);
 		const data: VoiceResiliencePageData = {
 			links: options.links,
 			llmProviderHealth: await summarizeVoiceProviderHealth({
 				events,
 				providers: options.llmProviders ?? []
 			}),
-			routingEvents: listVoiceRoutingEvents(events),
+			routingEvents,
+			routingSessions: summarizeVoiceRoutingSessions(routingEvents),
 			sttProviderHealth: await summarizeVoiceProviderHealth({
 				events: sttEvents,
 				providers: options.sttProviders ?? []
