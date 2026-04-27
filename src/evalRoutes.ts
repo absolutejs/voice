@@ -95,6 +95,7 @@ export type VoiceScenarioEvalDefinition = {
 	requiredLifecycleTypes?: string[];
 	requiredPayloadPaths?: string[];
 	requiredTranscriptIncludes?: string[];
+	requiredWorkflowContracts?: string[];
 	scenarioId?: string;
 };
 
@@ -357,6 +358,9 @@ const evaluateScenarioSession = (
 		(event) => event.type === 'session.error'
 	).length;
 	const providerErrorCount = countProviderErrors(events);
+	const workflowContractEvents = events.filter(
+		(event) => event.type === 'workflow.contract'
+	);
 
 	for (const missing of includesAll(
 		committedText,
@@ -418,6 +422,18 @@ const evaluateScenarioSession = (
 	for (const path of scenario.requiredPayloadPaths ?? []) {
 		if (events.every((event) => getPathValue(event.payload, path) === undefined)) {
 			issues.push(`Missing payload path: ${path}`);
+		}
+	}
+	for (const contractId of scenario.requiredWorkflowContracts ?? []) {
+		const matching = workflowContractEvents.filter(
+			(event) => getString(event.payload.contractId) === contractId
+		);
+		if (matching.length === 0) {
+			issues.push(`Missing workflow contract: ${contractId}`);
+			continue;
+		}
+		if (matching.some((event) => getString(event.payload.status) !== 'pass')) {
+			issues.push(`Workflow contract failed: ${contractId}`);
 		}
 	}
 

@@ -30,6 +30,13 @@ export {
 	runVoiceSessionEvals
 } from './evalRoutes';
 export {
+	createVoiceWorkflowContract,
+	createVoiceWorkflowContractHandler,
+	createVoiceWorkflowScenario,
+	recordVoiceWorkflowContractTrace,
+	validateVoiceWorkflowRouteResult
+} from './workflowContract';
+export {
 	createVoiceSessionListRoutes,
 	createVoiceSessionReplayHTMLHandler,
 	createVoiceSessionReplayJSONHandler,
@@ -318,6 +325,16 @@ export type {
 	VoiceScenarioFixtureEvalResult,
 	VoiceScenarioFixtureStore
 } from './evalRoutes';
+export type {
+	VoiceWorkflowContract,
+	VoiceWorkflowContractDefinition,
+	VoiceWorkflowContractField,
+	VoiceWorkflowContractFieldMatch,
+	VoiceWorkflowContractTracePayload,
+	VoiceWorkflowContractValidation,
+	VoiceWorkflowContractValidationIssue,
+	VoiceWorkflowOutcome
+} from './workflowContract';
 export type {
 	VoiceSessionListHTMLHandlerOptions,
 	VoiceSessionListItem,

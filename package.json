@@ -1,6 +1,6 @@
 {
 	"name": "@absolutejs/voice",
-	"version": "0.0.22-beta.45",
+	"version": "0.0.22-beta.46",
 	"description": "Voice primitives and Elysia plugin for AbsoluteJS",
 	"repository": {
 		"type": "git",

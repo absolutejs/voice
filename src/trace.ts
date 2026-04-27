@@ -12,7 +12,8 @@ export type VoiceTraceEventType =
 	| 'turn.assistant'
 	| 'turn.committed'
 	| 'turn.cost'
-	| 'turn.transcript';
+	| 'turn.transcript'
+	| 'workflow.contract';
 
 export type VoiceTraceEvent<
 	TPayload extends Record<string, unknown> = Record<string, unknown>
