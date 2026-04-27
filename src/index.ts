@@ -5,11 +5,13 @@ export {
 	summarizeVoiceAppKitStatus
 } from './appKit';
 export {
+	buildVoiceCampaignObservabilityReport,
 	createVoiceCampaign,
 	createVoiceCampaignRoutes,
 	createVoiceCampaignWorker,
 	createVoiceCampaignWorkerLoop,
 	createVoiceMemoryCampaignStore,
+	renderVoiceCampaignObservabilityHTML,
 	renderVoiceCampaignsHTML,
 	runVoiceCampaignProof,
 	summarizeVoiceCampaigns

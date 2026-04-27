@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
+	buildVoiceCampaignObservabilityReport,
 	createVoiceCampaign,
 	createVoiceCampaignWorker,
 	createVoiceCampaignWorkerLoop,
@@ -124,6 +125,105 @@ test('createVoiceCampaignWorker leases campaigns so parallel workers do not doub
 	expect(secondDrain.attempted).toBe(0);
 	expect(dialed).toBe(1);
 	expect((await runtime.get(campaign.campaign.id))?.attempts).toHaveLength(1);
+});
+
+test('buildVoiceCampaignObservabilityReport surfaces queue, leases, rates, failures, and stuck work', async () => {
+	const now = 10_000;
+	const store = createVoiceMemoryCampaignStore();
+	const leases = createMemoryLeaseCoordinator();
+	await store.set('campaign-observe', {
+		attempts: [
+			{
+				campaignId: 'campaign-observe',
+				createdAt: now - 4_000,
+				id: 'attempt-running',
+				recipientId: 'recipient-queued',
+				startedAt: now - 4_000,
+				status: 'running',
+				updatedAt: now - 4_000
+			},
+			{
+				campaignId: 'campaign-observe',
+				completedAt: now - 100,
+				createdAt: now - 200,
+				error: 'busy',
+				id: 'attempt-failed',
+				recipientId: 'recipient-failed',
+				startedAt: now - 200,
+				status: 'failed',
+				updatedAt: now - 100
+			}
+		],
+		campaign: {
+			createdAt: now - 5_000,
+			id: 'campaign-observe',
+			maxAttempts: 2,
+			maxConcurrentAttempts: 1,
+			name: 'Observe campaign',
+			status: 'running',
+			updatedAt: now - 100
+		},
+		recipients: [
+			{
+				attempts: 1,
+				createdAt: now - 5_000,
+				id: 'recipient-queued',
+				phone: '+15550001001',
+				status: 'queued',
+				updatedAt: now - 4_000
+			},
+			{
+				attempts: 1,
+				createdAt: now - 1_000,
+				error: 'busy',
+				id: 'recipient-failed',
+				phone: '+15550001002',
+				status: 'failed',
+				updatedAt: now - 100
+			}
+		]
+	});
+	await leases.claim({
+		leaseMs: 30_000,
+		taskId: 'voice-campaign:campaign-observe',
+		workerId: 'worker-a'
+	});
+
+	const report = await buildVoiceCampaignObservabilityReport(await store.list(), {
+		leases,
+		now,
+		rateWindowMs: 1_000,
+		stuckAfterMs: 1_000
+	});
+
+	expect(report.queue).toMatchObject({
+		activeAttempts: 1,
+		queuedRecipients: 1,
+		runningCampaigns: 1
+	});
+	expect(report.leases).toMatchObject({
+		active: 1,
+		known: true
+	});
+	expect(report.attemptRate).toMatchObject({
+		failed: 1,
+		started: 1
+	});
+	expect(report.failureReasons).toEqual([
+		{
+			count: 2,
+			reason: 'busy'
+		}
+	]);
+	expect(report.stuck.attempts).toHaveLength(1);
+	expect(report.stuck.recipients).toHaveLength(1);
+	expect(report.campaigns[0]).toMatchObject({
+		activeAttempts: 1,
+		queueDepth: 1,
+		stuckAttempts: 1,
+		stuckRecipients: 1
+	});
+	expect(report.campaigns[0]?.lease?.workerId).toBe('worker-a');
 });
 
 test('createVoiceCampaignWorkerLoop exposes manual ticks and lifecycle state', async () => {

@@ -196,6 +196,7 @@ export type VoiceCampaignRuntime = {
 export type VoiceCampaignRoutesOptions = VoiceCampaignRuntimeOptions & {
 	headers?: HeadersInit;
 	htmlPath?: false | string;
+	observability?: VoiceCampaignObservabilityOptions;
 	name?: string;
 	path?: string;
 	title?: string;
@@ -235,6 +236,66 @@ export type VoiceCampaignWorkerLoop = {
 	start: () => void;
 	stop: () => void;
 	tick: () => Promise<VoiceCampaignWorkerResult>;
+};
+
+export type VoiceCampaignObservabilityOptions = {
+	leases?: VoiceRedisTaskLeaseCoordinator;
+	now?: number;
+	rateWindowMs?: number;
+	stuckAfterMs?: number;
+};
+
+export type VoiceCampaignObservabilityReport = {
+	attemptRate: {
+		failed: number;
+		started: number;
+		succeeded: number;
+		windowMs: number;
+	};
+	campaigns: Array<{
+		activeAttempts: number;
+		campaignId: string;
+		lease?: {
+			expiresAt: number;
+			workerId: string;
+		};
+		name: string;
+		queueDepth: number;
+		status: VoiceCampaignStatus;
+		stuckAttempts: number;
+		stuckRecipients: number;
+		updatedAt: number;
+	}>;
+	failureReasons: Array<{
+		count: number;
+		reason: string;
+	}>;
+	generatedAt: number;
+	leases: {
+		active: number;
+		known: boolean;
+	};
+	queue: {
+		activeAttempts: number;
+		queuedRecipients: number;
+		runningCampaigns: number;
+	};
+	stuck: {
+		attempts: Array<{
+			attemptId: string;
+			campaignId: string;
+			recipientId: string;
+			status: VoiceCampaignAttemptStatus;
+			updatedAt: number;
+		}>;
+		recipients: Array<{
+			campaignId: string;
+			recipientId: string;
+			status: VoiceCampaignRecipientStatus;
+			updatedAt: number;
+		}>;
+	};
+	summary: VoiceCampaignSummary;
 };
 
 const createId = () => crypto.randomUUID();
@@ -335,6 +396,146 @@ export const summarizeVoiceCampaigns = (
 	}
 
 	return summary;
+};
+
+export const buildVoiceCampaignObservabilityReport = async (
+	records: VoiceCampaignRecord[],
+	options: VoiceCampaignObservabilityOptions = {}
+): Promise<VoiceCampaignObservabilityReport> => {
+	const now = options.now ?? Date.now();
+	const stuckAfterMs = Math.max(1, options.stuckAfterMs ?? 15 * 60_000);
+	const rateWindowMs = Math.max(1, options.rateWindowMs ?? 60 * 60_000);
+	const rateWindowStart = now - rateWindowMs;
+	const failureReasons = new Map<string, number>();
+	const report: VoiceCampaignObservabilityReport = {
+		attemptRate: {
+			failed: 0,
+			started: 0,
+			succeeded: 0,
+			windowMs: rateWindowMs
+		},
+		campaigns: [],
+		failureReasons: [],
+		generatedAt: now,
+		leases: {
+			active: 0,
+			known: Boolean(options.leases)
+		},
+		queue: {
+			activeAttempts: 0,
+			queuedRecipients: 0,
+			runningCampaigns: 0
+		},
+		stuck: {
+			attempts: [],
+			recipients: []
+		},
+		summary: summarizeVoiceCampaigns(records)
+	};
+
+	for (const record of records) {
+		const campaignId = record.campaign.id;
+		const queuedRecipients = record.recipients.filter(
+			(recipient) => recipient.status === 'queued'
+		);
+		const activeAttempts = record.attempts.filter(
+			(attempt) => attempt.status === 'queued' || attempt.status === 'running'
+		);
+		const campaignReport: VoiceCampaignObservabilityReport['campaigns'][number] = {
+			activeAttempts: activeAttempts.length,
+			campaignId,
+			name: record.campaign.name,
+			queueDepth: queuedRecipients.length,
+			status: record.campaign.status,
+			stuckAttempts: 0,
+			stuckRecipients: 0,
+			updatedAt: record.campaign.updatedAt
+		};
+
+		if (record.campaign.status === 'running') {
+			report.queue.runningCampaigns += 1;
+		}
+		report.queue.queuedRecipients += queuedRecipients.length;
+		report.queue.activeAttempts += activeAttempts.length;
+
+		for (const recipient of record.recipients) {
+			if (
+				(recipient.status === 'pending' || recipient.status === 'queued') &&
+				now - recipient.updatedAt >= stuckAfterMs
+			) {
+				campaignReport.stuckRecipients += 1;
+				report.stuck.recipients.push({
+					campaignId,
+					recipientId: recipient.id,
+					status: recipient.status,
+					updatedAt: recipient.updatedAt
+				});
+			}
+			if (recipient.error) {
+				failureReasons.set(
+					recipient.error,
+					(failureReasons.get(recipient.error) ?? 0) + 1
+				);
+			}
+		}
+
+		for (const attempt of record.attempts) {
+			if ((attempt.startedAt ?? attempt.createdAt) >= rateWindowStart) {
+				report.attemptRate.started += 1;
+			}
+			if (attempt.status === 'failed' && attempt.updatedAt >= rateWindowStart) {
+				report.attemptRate.failed += 1;
+			}
+			if (attempt.status === 'succeeded' && attempt.updatedAt >= rateWindowStart) {
+				report.attemptRate.succeeded += 1;
+			}
+			if (attempt.error) {
+				failureReasons.set(
+					attempt.error,
+					(failureReasons.get(attempt.error) ?? 0) + 1
+				);
+			}
+			if (
+				(attempt.status === 'queued' || attempt.status === 'running') &&
+				now - attempt.updatedAt >= stuckAfterMs
+			) {
+				campaignReport.stuckAttempts += 1;
+				report.stuck.attempts.push({
+					attemptId: attempt.id,
+					campaignId,
+					recipientId: attempt.recipientId,
+					status: attempt.status,
+					updatedAt: attempt.updatedAt
+				});
+			}
+		}
+
+		if (options.leases) {
+			const lease = await options.leases.get(getCampaignLeaseTaskId(campaignId));
+			if (lease) {
+				report.leases.active += 1;
+				campaignReport.lease = {
+					expiresAt: lease.expiresAt,
+					workerId: lease.workerId
+				};
+			}
+		}
+
+		report.campaigns.push(campaignReport);
+	}
+
+	report.failureReasons = [...failureReasons.entries()]
+		.map(([reason, count]) => ({ count, reason }))
+		.sort((left, right) =>
+			right.count === left.count
+				? left.reason.localeCompare(right.reason)
+				: right.count - left.count
+		);
+	report.campaigns.sort((left, right) => right.updatedAt - left.updatedAt);
+	report.stuck.attempts.sort((left, right) => left.updatedAt - right.updatedAt);
+	report.stuck.recipients.sort((left, right) => left.updatedAt - right.updatedAt);
+
+	return report;
 };
 
 export const createVoiceCampaign = (
@@ -738,6 +939,26 @@ export const renderVoiceCampaignsHTML = (
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#f9fafb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero{background:linear-gradient(135deg,rgba(251,146,60,.18),rgba(45,212,191,.12));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#fdba74;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:18px 0}.grid article,table{background:#172033;border:1px solid #334155;border-radius:18px}.grid article{padding:16px}.grid span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted outbound</p><h1>${escapeHtml(title)}</h1><p>Campaign orchestration, recipients, attempts, retries, and outcomes without a hosted dialer dashboard.</p><section class="grid"><article><span>Campaigns</span><strong>${String(summary.campaigns.total)}</strong></article><article><span>Recipients</span><strong>${String(summary.recipients.total)}</strong></article><article><span>Attempts</span><strong>${String(summary.attempts.total)}</strong></article><article><span>Running</span><strong>${String(summary.campaigns.running)}</strong></article></section></section><table><thead><tr><th>Name</th><th>Status</th><th>Recipients</th><th>Attempts</th><th>Updated</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No campaigns yet.</td></tr>'}</tbody></table></main></body></html>`;
 };
 
+export const renderVoiceCampaignObservabilityHTML = (
+	report: VoiceCampaignObservabilityReport,
+	options: { title?: string } = {}
+) => {
+	const title = options.title ?? 'Voice Campaign Observability';
+	const campaignRows = report.campaigns
+		.map(
+			(campaign) =>
+				`<tr><td>${escapeHtml(campaign.name)}</td><td>${escapeHtml(campaign.status)}</td><td>${String(campaign.queueDepth)}</td><td>${String(campaign.activeAttempts)}</td><td>${String(campaign.stuckRecipients + campaign.stuckAttempts)}</td><td>${campaign.lease ? escapeHtml(campaign.lease.workerId) : 'none'}</td></tr>`
+		)
+		.join('');
+	const failureRows = report.failureReasons
+		.map(
+			(failure) =>
+				`<tr><td>${escapeHtml(failure.reason)}</td><td>${String(failure.count)}</td></tr>`
+		)
+		.join('');
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0b1220;color:#e5edf7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.2),rgba(251,146,60,.14));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,5vw,4.6rem);line-height:.95;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:18px 0}.card,table{background:#111c2f;border:1px solid #334155;border-radius:18px}.card{padding:16px}.card span{color:#9fb0c5}.card strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;margin-top:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}.warn{color:#fde68a}.bad{color:#fecaca}</style></head><body><main><section class="hero"><p class="eyebrow">Campaign ops</p><h1>${escapeHtml(title)}</h1><p>Queue depth, active leases, attempt rates, failure reasons, and stuck work for self-hosted outbound voice.</p><section class="grid"><article class="card"><span>Queued recipients</span><strong>${String(report.queue.queuedRecipients)}</strong></article><article class="card"><span>Active attempts</span><strong>${String(report.queue.activeAttempts)}</strong></article><article class="card"><span>Running campaigns</span><strong>${String(report.queue.runningCampaigns)}</strong></article><article class="card"><span>Active leases</span><strong>${report.leases.known ? String(report.leases.active) : 'n/a'}</strong></article><article class="card"><span>Attempts/window</span><strong>${String(report.attemptRate.started)}</strong></article><article class="card"><span>Stuck work</span><strong class="${report.stuck.attempts.length + report.stuck.recipients.length > 0 ? 'bad' : ''}">${String(report.stuck.attempts.length + report.stuck.recipients.length)}</strong></article></section></section><h2>Campaigns</h2><table><thead><tr><th>Name</th><th>Status</th><th>Queued</th><th>Active</th><th>Stuck</th><th>Lease</th></tr></thead><tbody>${campaignRows || '<tr><td colspan="6">No campaigns yet.</td></tr>'}</tbody></table><h2>Failure Reasons</h2><table><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${failureRows || '<tr><td colspan="2">No failures recorded.</td></tr>'}</tbody></table></main></body></html>`;
+};
+
 const readJsonBody = async <T>(request: Request) => {
 	const text = await request.text();
 	return text.trim() ? (JSON.parse(text) as T) : ({} as T);
@@ -753,6 +974,12 @@ export const createVoiceCampaignRoutes = (options: VoiceCampaignRoutesOptions) =
 			campaigns: await runtime.list(),
 			summary: await runtime.summarize()
 		}))
+		.get(`${path}/observability`, async () =>
+			buildVoiceCampaignObservabilityReport(
+				await runtime.list(),
+				options.observability
+			)
+		)
 		.post(path, async ({ request }) =>
 			runtime.create(await readJsonBody<VoiceCampaignCreateInput>(request))
 		)
@@ -797,6 +1024,17 @@ export const createVoiceCampaignRoutes = (options: VoiceCampaignRoutesOptions) =
 		app.get(htmlPath, async () => {
 			const records = await runtime.list();
 			return new Response(renderVoiceCampaignsHTML(records, options), {
+				headers: {
+					'content-type': 'text/html; charset=utf-8',
+					...options.headers
+				}
+			});
+		}).get(`${htmlPath}/observability`, async () => {
+			const report = await buildVoiceCampaignObservabilityReport(
+				await runtime.list(),
+				options.observability
+			);
+			return new Response(renderVoiceCampaignObservabilityHTML(report, options), {
 				headers: {
 					'content-type': 'text/html; charset=utf-8',
 					...options.headers
