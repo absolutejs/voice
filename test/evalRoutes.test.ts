@@ -6,6 +6,8 @@ import {
 	createVoiceMemoryTraceEventStore,
 	renderVoiceEvalBaselineHTML,
 	renderVoiceEvalHTML,
+	renderVoiceScenarioEvalHTML,
+	runVoiceScenarioEvals,
 	runVoiceSessionEvals
 } from '../src';
 
@@ -35,6 +37,14 @@ const createEvalEvents = () => [
 		sessionId: 'session-good',
 		turnId: 'turn-1',
 		type: 'turn.assistant' as const
+	},
+	{
+		at: Date.parse('2026-04-25T10:00:03.000Z'),
+		id: 'session-good-end',
+		payload: { disposition: 'completed', type: 'end' },
+		scenarioId: 'happy-path',
+		sessionId: 'session-good',
+		type: 'call.lifecycle' as const
 	},
 	{
 		at: Date.parse('2026-04-26T10:00:00.000Z'),
@@ -74,6 +84,14 @@ const createEvalEvents = () => [
 		scenarioId: 'regression',
 		sessionId: 'session-bad',
 		type: 'session.error' as const
+	},
+	{
+		at: Date.parse('2026-04-26T10:00:04.000Z'),
+		id: 'session-bad-end',
+		payload: { disposition: 'failed', type: 'end' },
+		scenarioId: 'regression',
+		sessionId: 'session-bad',
+		type: 'call.lifecycle' as const
 	}
 ];
 
@@ -198,4 +216,72 @@ test('createVoiceFileEvalBaselineStore persists baseline reports', async () => {
 		failed: 1,
 		total: 2
 	});
+});
+
+test('runVoiceScenarioEvals evaluates workflow scenario packs', async () => {
+	const report = await runVoiceScenarioEvals({
+		events: createEvalEvents(),
+		scenarios: [
+			{
+				id: 'happy-path-completes',
+				label: 'Happy path completes',
+				maxProviderErrors: 0,
+				minSessions: 1,
+				minTurns: 1,
+				requiredAssistantIncludes: ['hi'],
+				requiredDisposition: 'completed',
+				requiredTranscriptIncludes: ['hello'],
+				scenarioId: 'happy-path'
+			},
+			{
+				id: 'regression-does-not-fail',
+				maxProviderErrors: 0,
+				requiredDisposition: 'completed',
+				scenarioId: 'regression'
+			}
+		]
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.passed).toBe(1);
+	expect(report.failed).toBe(1);
+	expect(report.scenarios[0]?.status).toBe('pass');
+	expect(report.scenarios[1]?.sessions[0]?.issues.join(' ')).toContain(
+		'provider error'
+	);
+	expect(renderVoiceScenarioEvalHTML(report)).toContain('Happy path completes');
+});
+
+test('createVoiceEvalRoutes exposes scenario html json and status endpoints', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	for (const event of createEvalEvents()) {
+		await store.append(event);
+	}
+	const routes = createVoiceEvalRoutes({
+		scenarios: [
+			{
+				id: 'happy-path-completes',
+				requiredDisposition: 'completed',
+				scenarioId: 'happy-path'
+			}
+		],
+		store
+	});
+
+	const html = await routes.handle(new Request('http://localhost/evals/scenarios'));
+	expect(html.status).toBe(200);
+	await expect(html.text()).resolves.toContain('happy-path-completes');
+
+	const json = await routes.handle(
+		new Request('http://localhost/evals/scenarios/json')
+	);
+	await expect(json.json()).resolves.toMatchObject({
+		status: 'pass',
+		total: 1
+	});
+
+	const status = await routes.handle(
+		new Request('http://localhost/evals/scenarios/status')
+	);
+	expect(status.status).toBe(200);
 });

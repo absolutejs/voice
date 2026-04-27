@@ -22,6 +22,8 @@ export {
 	createVoiceEvalRoutes,
 	renderVoiceEvalBaselineHTML,
 	renderVoiceEvalHTML,
+	renderVoiceScenarioEvalHTML,
+	runVoiceScenarioEvals,
 	runVoiceSessionEvals
 } from './evalRoutes';
 export {
@@ -303,7 +305,11 @@ export type {
 	VoiceEvalRoutesOptions,
 	VoiceEvalSessionReport,
 	VoiceEvalStatus,
-	VoiceEvalTrendBucket
+	VoiceEvalTrendBucket,
+	VoiceScenarioEvalDefinition,
+	VoiceScenarioEvalReport,
+	VoiceScenarioEvalResult,
+	VoiceScenarioEvalSessionResult
 } from './evalRoutes';
 export type {
 	VoiceSessionListHTMLHandlerOptions,
