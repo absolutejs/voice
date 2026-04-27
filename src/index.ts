@@ -40,6 +40,11 @@ export {
 	runVoiceSessionEvals
 } from './evalRoutes';
 export {
+	createVoiceSimulationSuiteRoutes,
+	renderVoiceSimulationSuiteHTML,
+	runVoiceSimulationSuite
+} from './simulationSuite';
+export {
 	createVoiceWorkflowContract,
 	createVoiceWorkflowContractHandler,
 	createVoiceWorkflowContractPreset,
@@ -428,6 +433,14 @@ export type {
 	VoiceScenarioFixtureEvalResult,
 	VoiceScenarioFixtureStore
 } from './evalRoutes';
+export type {
+	VoiceSimulationSuiteEvalRoutesOptions,
+	VoiceSimulationSuiteOptions,
+	VoiceSimulationSuiteReport,
+	VoiceSimulationSuiteRoutesOptions,
+	VoiceSimulationSuiteSectionSummary,
+	VoiceSimulationSuiteStatus
+} from './simulationSuite';
 export type {
 	VoiceWorkflowContract,
 	VoiceWorkflowContractDefinition,

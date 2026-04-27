@@ -23,7 +23,7 @@ Pick the path that matches what you are building:
 - Phone voice agent: mount Twilio, Telnyx, or Plivo routes, normalize carrier outcomes, inspect carrier readiness, and persist call lifecycle traces.
 - Production readiness: mount `createVoiceAppKitRoutes(...)` to get ops console/status, quality, evals, provider health, sessions, handoffs, diagnostics, and readiness gates.
 - Provider routing and fallback: use LLM/STT/TTS provider routers, provider health, provider simulation controls, and cost/latency-aware routing policies.
-- Evals and simulation: run scenario fixtures, workflow contracts, tool contracts, outcome contracts, baseline comparisons, and saved benchmark artifacts before live traffic.
+- Evals and simulation: mount `createVoiceSimulationSuiteRoutes(...)` to run scenario fixtures, workflow contracts, tool contracts, outcome contracts, baseline comparisons, and saved benchmark artifacts before live traffic.
 
 ## How This Differs From Hosted Voice Platforms
 
@@ -188,6 +188,41 @@ Recommended proof routes:
 - `/turn-latency`: server-side turn-stage latency.
 - `/live-latency`: browser-measured speech-to-assistant p50/p95 latency.
 - `/turn-quality`: STT confidence, correction, fallback, and transcript diagnostics.
+
+## Simulation Suite Path
+
+Use `createVoiceSimulationSuiteRoutes(...)` when you want one pre-production proof surface for the things that usually live in separate dashboards or scripts:
+
+```ts
+import {
+	createVoiceSimulationSuiteRoutes,
+	createVoiceFileRuntimeStorage
+} from '@absolutejs/voice';
+
+const runtime = createVoiceFileRuntimeStorage({
+	directory: '.voice-runtime/support'
+});
+
+app.use(
+	createVoiceSimulationSuiteRoutes({
+		htmlPath: '/voice/simulations',
+		path: '/api/voice/simulations',
+		store: runtime.traces,
+		scenarios: workflowScenarios,
+		fixtureStore: scenarioFixtureStore,
+		tools: toolContracts,
+		outcomes: {
+			contracts: outcomeContracts,
+			events: runtime.events,
+			reviews: runtime.reviews,
+			sessions: runtime.session,
+			tasks: runtime.tasks
+		}
+	})
+);
+```
+
+The suite rolls up session quality, scenario evals, fixture simulations, tool contracts, and outcome contracts into one pass/fail report. It is the code-owned equivalent of "test this voice flow before production" without requiring a hosted voice-agent dashboard.
 
 ## Phone Voice Agent Path
 
