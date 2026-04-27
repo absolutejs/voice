@@ -33,7 +33,12 @@ export type VoiceIOProviderFailureSimulatorOptions<
 	latencyBudgets?: Partial<Record<TProvider, number>>;
 	now?: () => number;
 	onProviderEvent?: (
-		event: VoiceIOProviderRouterEvent<TProvider>
+		event: VoiceIOProviderRouterEvent<TProvider>,
+		input: {
+			mode: VoiceIOProviderFailureSimulationMode;
+			provider: TProvider;
+			sessionId: string;
+		}
 	) => Promise<void> | void;
 	operation?: VoiceIOProviderFailureSimulationOperation;
 	providers: readonly TProvider[];
@@ -99,8 +104,15 @@ export const createVoiceIOProviderFailureSimulator = <
 	const operation = options.operation ?? 'open';
 	const cooldownMs = Math.max(0, options.cooldownMs ?? 30_000);
 
-	const emit = async (event: VoiceIOProviderRouterEvent<TProvider>) => {
-		await options.onProviderEvent?.(event);
+	const emit = async (
+		event: VoiceIOProviderRouterEvent<TProvider>,
+		input: {
+			mode: VoiceIOProviderFailureSimulationMode;
+			provider: TProvider;
+			sessionId: string;
+		}
+	) => {
+		await options.onProviderEvent?.(event, input);
 	};
 
 	const run = async (
@@ -117,25 +129,28 @@ export const createVoiceIOProviderFailureSimulator = <
 			`${options.kind}-provider-sim-${startedAt}`;
 
 		if (mode === 'recovery') {
-			await emit({
-				at: startedAt,
-				attempt: 0,
-				elapsedMs: resolveRecoveryElapsedMs(
-					options.recoveryElapsedMs,
-					provider
-				),
-				kind: options.kind,
-				latencyBudgetMs: options.latencyBudgets?.[provider],
-				operation,
-				provider,
-				providerHealth: createHealth({
-					now: startedAt,
+			await emit(
+				{
+					at: startedAt,
+					attempt: 0,
+					elapsedMs: resolveRecoveryElapsedMs(
+						options.recoveryElapsedMs,
+						provider
+					),
+					kind: options.kind,
+					latencyBudgetMs: options.latencyBudgets?.[provider],
+					operation,
 					provider,
-					status: 'healthy'
-				}),
-				selectedProvider: provider,
-				status: 'success'
-			});
+					providerHealth: createHealth({
+						now: startedAt,
+						provider,
+						status: 'healthy'
+					}),
+					selectedProvider: provider,
+					status: 'success'
+				},
+				{ mode, provider, sessionId }
+			);
 
 			return {
 				mode,
@@ -147,52 +162,58 @@ export const createVoiceIOProviderFailureSimulator = <
 
 		const fallbackProvider = await resolveFallback(options, provider);
 		const suppressedUntil = startedAt + cooldownMs;
-		await emit({
-			at: startedAt,
-			attempt: 0,
-			elapsedMs: options.failureElapsedMs ?? 10,
-			error: (options.failureMessage ?? defaultFailureMessage)({
-				kind: options.kind,
-				operation,
-				provider
-			}),
-			fallbackProvider,
-			kind: options.kind,
-			latencyBudgetMs: options.latencyBudgets?.[provider],
-			operation,
-			provider,
-			providerHealth: createHealth({
-				now: startedAt,
-				provider,
-				status: 'suppressed',
-				suppressedUntil
-			}),
-			selectedProvider: provider,
-			status: 'error',
-			suppressedUntil
-		});
-
-		if (fallbackProvider) {
-			await emit({
-				at: startedAt + 1,
-				attempt: 1,
-				elapsedMs: resolveRecoveryElapsedMs(
-					options.recoveryElapsedMs,
-					fallbackProvider
-				),
+		await emit(
+			{
+				at: startedAt,
+				attempt: 0,
+				elapsedMs: options.failureElapsedMs ?? 10,
+				error: (options.failureMessage ?? defaultFailureMessage)({
+					kind: options.kind,
+					operation,
+					provider
+				}),
 				fallbackProvider,
 				kind: options.kind,
-				latencyBudgetMs: options.latencyBudgets?.[fallbackProvider],
+				latencyBudgetMs: options.latencyBudgets?.[provider],
 				operation,
-				provider: fallbackProvider,
+				provider,
 				providerHealth: createHealth({
-					now: startedAt + 1,
-					provider: fallbackProvider,
-					status: 'healthy'
+					now: startedAt,
+					provider,
+					status: 'suppressed',
+					suppressedUntil
 				}),
 				selectedProvider: provider,
-				status: 'fallback'
-			});
+				status: 'error',
+				suppressedUntil
+			},
+			{ mode, provider, sessionId }
+		);
+
+		if (fallbackProvider) {
+			await emit(
+				{
+					at: startedAt + 1,
+					attempt: 1,
+					elapsedMs: resolveRecoveryElapsedMs(
+						options.recoveryElapsedMs,
+						fallbackProvider
+					),
+					fallbackProvider,
+					kind: options.kind,
+					latencyBudgetMs: options.latencyBudgets?.[fallbackProvider],
+					operation,
+					provider: fallbackProvider,
+					providerHealth: createHealth({
+						now: startedAt + 1,
+						provider: fallbackProvider,
+						status: 'healthy'
+					}),
+					selectedProvider: provider,
+					status: 'fallback'
+				},
+				{ mode, provider, sessionId }
+			);
 		}
 
 		return {

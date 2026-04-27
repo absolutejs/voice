@@ -3,6 +3,7 @@ import { createVoiceIOProviderFailureSimulator } from '../src/testing';
 
 test('createVoiceIOProviderFailureSimulator emits fallback events', async () => {
 	const events: Array<Record<string, unknown>> = [];
+	const inputs: Array<Record<string, unknown>> = [];
 	const simulator = createVoiceIOProviderFailureSimulator({
 		kind: 'stt',
 		latencyBudgets: {
@@ -10,8 +11,9 @@ test('createVoiceIOProviderFailureSimulator emits fallback events', async () => 
 			deepgram: 5000
 		},
 		now: () => 1000,
-		onProviderEvent: (event) => {
+		onProviderEvent: (event, input) => {
 			events.push(event);
+			inputs.push(input);
 		},
 		providers: ['deepgram', 'assemblyai'],
 		recoveryElapsedMs: {
@@ -59,6 +61,18 @@ test('createVoiceIOProviderFailureSimulator emits fallback events', async () => 
 			},
 			selectedProvider: 'deepgram',
 			status: 'fallback'
+		}
+	]);
+	expect(inputs).toEqual([
+		{
+			mode: 'failure',
+			provider: 'deepgram',
+			sessionId: 'stt-provider-sim-1000'
+		},
+		{
+			mode: 'failure',
+			provider: 'deepgram',
+			sessionId: 'stt-provider-sim-1000'
 		}
 	]);
 });
