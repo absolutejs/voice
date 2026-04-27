@@ -5,6 +5,7 @@ import {
 	createVoiceAgentTool,
 	createVoiceMemoryTraceEventStore,
 	createVoiceSessionRecord,
+	createVoiceToolRuntime,
 	type VoiceAgentModel,
 	type VoiceAgentTool,
 	type VoiceSessionHandle,
@@ -94,6 +95,155 @@ test('createVoiceAgent executes tools and feeds results into the next model pass
 		'tool',
 		'assistant'
 	]);
+});
+
+test('createVoiceAgent can run tools through reliability runtime retries', async () => {
+	let attempts = 0;
+	const agent = createVoiceAgent({
+		id: 'support',
+		model: {
+			generate: ({ messages }) =>
+				messages.some((message) => message.role === 'tool')
+					? {
+							assistantText: 'Lookup recovered.'
+						}
+					: {
+							toolCalls: [
+								{
+									args: {
+										accountId: 'acct-1'
+									},
+									id: 'tool-1',
+									name: 'lookup_account'
+								}
+							]
+						}
+		},
+		toolRuntime: createVoiceToolRuntime({
+			maxRetries: 1
+		}),
+		tools: [
+			createVoiceAgentTool({
+				execute: () => {
+					attempts += 1;
+					if (attempts === 1) {
+						throw new Error('temporary provider error');
+					}
+					return {
+						status: 'active'
+					};
+				},
+				name: 'lookup_account'
+			})
+		]
+	});
+
+	const result = await agent.run({
+		api: createApi(),
+		context: {},
+		session: createVoiceSessionRecord('session-agent'),
+		turn: createTurn('Check account')
+	});
+
+	expect(attempts).toBe(2);
+	expect(result.assistantText).toBe('Lookup recovered.');
+	expect(result.toolResults).toMatchObject([
+		{
+			metadata: {
+				attempts: 2,
+				timedOut: false
+			},
+			status: 'ok',
+			toolName: 'lookup_account'
+		}
+	]);
+});
+
+test('createVoiceToolRuntime dedupes in-flight idempotent tool executions', async () => {
+	let calls = 0;
+	const runtime = createVoiceToolRuntime({
+		idempotencyKey: ({ session, toolName, turn }) =>
+			`${session.id}:${turn.id}:${toolName}`
+	});
+	const tool = createVoiceAgentTool({
+		execute: async () => {
+			calls += 1;
+			await new Promise((resolve) => setTimeout(resolve, 1));
+			return {
+				ok: true
+			};
+		},
+		name: 'write_ticket'
+	});
+	const session = createVoiceSessionRecord('session-agent');
+	const turn = createTurn('Create a ticket');
+	const [first, second] = await Promise.all([
+		runtime.execute({
+			api: createApi(),
+			args: {},
+			context: {},
+			session,
+			tool,
+			toolCallId: 'tool-1',
+			turn
+		}),
+		runtime.execute({
+			api: createApi(),
+			args: {},
+			context: {},
+			session,
+			tool,
+			toolCallId: 'tool-1',
+			turn
+		})
+	]);
+
+	expect(calls).toBe(1);
+	expect(first.result).toEqual({ ok: true });
+	expect(second.result).toEqual({ ok: true });
+	expect(first.idempotencyKey).toBe('session-agent:turn-1:write_ticket');
+});
+
+test('createVoiceToolRuntime can cache completed idempotent tool executions', async () => {
+	let calls = 0;
+	const runtime = createVoiceToolRuntime({
+		idempotencyKey: ({ session, toolName, turn }) =>
+			`${session.id}:${turn.id}:${toolName}`,
+		idempotencyTtlMs: 60_000
+	});
+	const tool = createVoiceAgentTool({
+		execute: () => {
+			calls += 1;
+			return {
+				call: calls
+			};
+		},
+		name: 'create_ticket'
+	});
+	const session = createVoiceSessionRecord('session-agent');
+	const turn = createTurn('Create a ticket');
+	const first = await runtime.execute({
+		api: createApi(),
+		args: {},
+		context: {},
+		session,
+		tool,
+		toolCallId: 'tool-1',
+		turn
+	});
+	const second = await runtime.execute({
+		api: createApi(),
+		args: {},
+		context: {},
+		session,
+		tool,
+		toolCallId: 'tool-1',
+		turn
+	});
+
+	expect(calls).toBe(1);
+	expect(first.result).toEqual({ call: 1 });
+	expect(second.result).toEqual({ call: 1 });
 });
 
 test('createVoiceAgent records model, tool, and result trace events', async () => {

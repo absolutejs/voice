@@ -6,6 +6,7 @@ import type {
 	VoiceTurnRecord
 } from './types';
 import type { VoiceTraceEventStore } from './trace';
+import type { VoiceToolRuntime } from './toolRuntime';
 
 export type VoiceAgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
 
@@ -129,6 +130,7 @@ export type VoiceAgentOptions<
 		turn: VoiceTurnRecord;
 	}) => Promise<string | undefined> | string | undefined);
 	trace?: VoiceTraceEventStore;
+	toolRuntime?: VoiceToolRuntime<TContext, TSession, TResult>;
 	tools?: Array<VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>>;
 };
 
@@ -354,17 +356,43 @@ export const createVoiceAgent = <
 
 				try {
 					const toolStartedAt = Date.now();
-					const result = await tool.execute({
-						api: input.api,
-						args: toolCall.args,
-						context: input.context,
-						session: input.session,
-						turn: input.turn
-					});
+					const runtimeResult = options.toolRuntime
+						? await options.toolRuntime.execute({
+								api: input.api,
+								args: toolCall.args,
+								context: input.context,
+								session: input.session,
+								tool,
+								toolCallId: toolCall.id,
+								turn: input.turn
+							})
+						: undefined;
+					if (runtimeResult?.status === 'error') {
+						throw new Error(runtimeResult.error);
+					}
+					const result =
+						runtimeResult?.result ??
+						(await tool.execute({
+							api: input.api,
+							args: toolCall.args,
+							context: input.context,
+							session: input.session,
+							turn: input.turn
+						}));
 					const content =
-						tool.resultToMessage?.(result) ?? formatToolResult(result);
+						runtimeResult?.content ??
+						tool.resultToMessage?.(result) ??
+						formatToolResult(result);
 					toolResults.push({
 						content,
+						metadata: runtimeResult
+							? {
+									attempts: runtimeResult.attempts,
+									elapsedMs: runtimeResult.elapsedMs,
+									idempotencyKey: runtimeResult.idempotencyKey,
+									timedOut: runtimeResult.timedOut
+								}
+							: undefined,
 						result,
 						status: 'ok',
 						toolCallId: toolCall.id,
@@ -374,7 +402,11 @@ export const createVoiceAgent = <
 						agentId: options.id,
 						event: {
 							elapsedMs: Date.now() - toolStartedAt,
+							runtimeElapsedMs: runtimeResult?.elapsedMs,
+							attempts: runtimeResult?.attempts,
+							idempotencyKey: runtimeResult?.idempotencyKey,
 							status: 'ok',
+							timedOut: runtimeResult?.timedOut,
 							toolCallId: toolCall.id,
 							toolName: tool.name
 						},

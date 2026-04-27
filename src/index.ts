@@ -59,6 +59,10 @@ export {
 	createVoiceAgentTool
 } from './agent';
 export {
+	createVoiceToolIdempotencyKey,
+	createVoiceToolRuntime
+} from './toolRuntime';
+export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
@@ -435,6 +439,13 @@ export type {
 	VoiceAgentToolCall,
 	VoiceAgentToolResult
 } from './agent';
+export type {
+	VoiceToolRetryDelay,
+	VoiceToolRuntime,
+	VoiceToolRuntimeExecuteInput,
+	VoiceToolRuntimeOptions,
+	VoiceToolRuntimeResult
+} from './toolRuntime';
 export type {
 	VoiceOpsRuntime,
 	VoiceOpsRuntimeConfig,
