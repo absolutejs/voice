@@ -1,3 +1,4 @@
+import { Elysia } from 'elysia';
 import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from './trace';
 
 export type VoiceProviderHealthStatus =
@@ -31,6 +32,27 @@ export type VoiceProviderHealthSummaryOptions<
 	now?: number;
 	providers?: readonly TProvider[];
 	store?: VoiceTraceEventStore;
+};
+
+export type VoiceProviderHealthHandlerOptions<
+	TProvider extends string = string
+> = VoiceProviderHealthSummaryOptions<TProvider>;
+
+export type VoiceProviderHealthHTMLHandlerOptions<
+	TProvider extends string = string
+> = VoiceProviderHealthHandlerOptions<TProvider> & {
+	headers?: HeadersInit;
+	render?: (
+		providers: VoiceProviderHealthSummary<TProvider>[]
+	) => string | Promise<string>;
+};
+
+export type VoiceProviderHealthRoutesOptions<
+	TProvider extends string = string
+> = VoiceProviderHealthHTMLHandlerOptions<TProvider> & {
+	htmlPath?: false | string;
+	name?: string;
+	path?: string;
 };
 
 type ProviderEntry<TProvider extends string> =
@@ -290,3 +312,46 @@ export const renderVoiceProviderHealthHTML = (
 				}),
 				'</div>'
 			].join('');
+
+export const createVoiceProviderHealthJSONHandler =
+	<TProvider extends string = string>(
+		options: VoiceProviderHealthHandlerOptions<TProvider>
+	) =>
+	async () =>
+		summarizeVoiceProviderHealth(options);
+
+export const createVoiceProviderHealthHTMLHandler =
+	<TProvider extends string = string>(
+		options: VoiceProviderHealthHTMLHandlerOptions<TProvider>
+	) =>
+	async () => {
+		const providers = await summarizeVoiceProviderHealth(options);
+		const render = options.render ?? renderVoiceProviderHealthHTML;
+		const body = await render(providers);
+
+		return new Response(body, {
+			headers: {
+				'Content-Type': 'text/html; charset=utf-8',
+				...options.headers
+			}
+		});
+	};
+
+export const createVoiceProviderHealthRoutes = <
+	TProvider extends string = string
+>(
+	options: VoiceProviderHealthRoutesOptions<TProvider>
+) => {
+	const path = options.path ?? '/api/provider-status';
+	const htmlPath =
+		options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-provider-health'
+	}).get(path, createVoiceProviderHealthJSONHandler(options));
+
+	if (htmlPath) {
+		routes.get(htmlPath, createVoiceProviderHealthHTMLHandler(options));
+	}
+
+	return routes;
+};

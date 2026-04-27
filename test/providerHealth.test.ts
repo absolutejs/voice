@@ -1,6 +1,9 @@
 import { expect, test } from 'bun:test';
 import {
 	createVoiceMemoryTraceEventStore,
+	createVoiceProviderHealthHTMLHandler,
+	createVoiceProviderHealthJSONHandler,
+	createVoiceProviderHealthRoutes,
 	createVoiceTraceEvent,
 	renderVoiceProviderHealthHTML,
 	summarizeVoiceProviderHealth
@@ -158,4 +161,75 @@ test('renderVoiceProviderHealthHTML renders portable provider cards', () => {
 			}
 		])
 	).toContain('Temporarily suppressed for 60s.');
+});
+
+test('createVoiceProviderHealthJSONHandler returns fresh provider summaries', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	const handler = createVoiceProviderHealthJSONHandler({
+		providers: ['openai'],
+		store
+	});
+
+	expect(await handler()).toMatchObject([
+		{
+			provider: 'openai',
+			status: 'idle'
+		}
+	]);
+
+	await store.append(
+		createVoiceTraceEvent({
+			at: 1_000,
+			payload: {
+				elapsedMs: 12,
+				provider: 'openai',
+				providerStatus: 'success',
+				selectedProvider: 'openai'
+			},
+			sessionId: 'session-provider',
+			type: 'session.error'
+		})
+	);
+
+	expect(await handler()).toMatchObject([
+		{
+			averageElapsedMs: 12,
+			provider: 'openai',
+			status: 'healthy'
+		}
+	]);
+});
+
+test('createVoiceProviderHealthHTMLHandler renders an HTMX-ready partial response', async () => {
+	const response = await createVoiceProviderHealthHTMLHandler({
+		events: [],
+		providers: ['openai']
+	})();
+
+	expect(response.headers.get('Content-Type')).toBe(
+		'text/html; charset=utf-8'
+	);
+	expect(await response.text()).toContain('voice-provider-card');
+});
+
+test('createVoiceProviderHealthRoutes exposes json and html endpoints', async () => {
+	const routes = createVoiceProviderHealthRoutes({
+		events: [],
+		providers: ['openai']
+	});
+
+	const json = await routes.handle(
+		new Request('http://localhost/api/provider-status')
+	);
+	const html = await routes.handle(
+		new Request('http://localhost/api/provider-status/htmx')
+	);
+
+	expect(await json.json()).toMatchObject([
+		{
+			provider: 'openai',
+			status: 'idle'
+		}
+	]);
+	expect(await html.text()).toContain('voice-provider-card');
 });

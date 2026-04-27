@@ -38,6 +38,9 @@ export {
 	createVoiceProviderRouter
 } from './modelAdapters';
 export {
+	createVoiceProviderHealthHTMLHandler,
+	createVoiceProviderHealthJSONHandler,
+	createVoiceProviderHealthRoutes,
 	renderVoiceProviderHealthHTML,
 	summarizeVoiceProviderHealth
 } from './providerHealth';
