@@ -740,11 +740,13 @@ export {
 } from './telephony/twilio';
 export { evaluateVoiceTelephonyContract } from './telephony/contract';
 export {
+	createTelnyxMediaStreamBridge,
 	createTelnyxVoiceResponse,
 	createTelnyxVoiceRoutes,
 	verifyVoiceTelnyxWebhookSignature
 } from './telephony/telnyx';
 export {
+	createPlivoMediaStreamBridge,
 	createPlivoVoiceResponse,
 	createPlivoVoiceRoutes,
 	signVoicePlivoWebhook,
@@ -784,6 +786,15 @@ export type {
 	VoiceTelephonySmokeReport
 } from './telephony/contract';
 export type {
+	TelnyxInboundMessage,
+	TelnyxMediaPayload,
+	TelnyxMediaStreamBridge,
+	TelnyxMediaStreamBridgeOptions,
+	TelnyxMediaStreamSocket,
+	TelnyxOutboundClearMessage,
+	TelnyxOutboundMarkMessage,
+	TelnyxOutboundMediaMessage,
+	TelnyxOutboundMessage,
 	TelnyxVoiceResponseOptions,
 	TelnyxVoiceRoutesOptions,
 	TelnyxVoiceSetupOptions,
@@ -793,6 +804,14 @@ export type {
 	TelnyxVoiceSmokeReport
 } from './telephony/telnyx';
 export type {
+	PlivoInboundMessage,
+	PlivoMediaStreamBridge,
+	PlivoMediaStreamBridgeOptions,
+	PlivoMediaStreamSocket,
+	PlivoOutboundCheckpointMessage,
+	PlivoOutboundClearAudioMessage,
+	PlivoOutboundMessage,
+	PlivoOutboundPlayAudioMessage,
 	PlivoVoiceResponseOptions,
 	PlivoVoiceRoutesOptions,
 	PlivoVoiceSetupOptions,

@@ -14,7 +14,132 @@ import {
 	type VoiceTelephonyWebhookRoutesOptions,
 	type VoiceTelephonyWebhookVerificationResult
 } from '../telephonyOutcome';
-import type { VoiceSessionRecord } from '../types';
+import type { VoiceServerMessage, VoiceSessionRecord } from '../types';
+import {
+	createTwilioMediaStreamBridge,
+	type TwilioInboundMessage,
+	type TwilioMediaStreamBridgeOptions,
+	type TwilioMediaStreamSocket,
+	type TwilioOutboundMessage
+} from './twilio';
+
+export type TelnyxMediaPayload = {
+	chunk?: string;
+	payload: string;
+	timestamp?: string;
+	track?: 'inbound' | 'outbound' | 'inbound_track' | 'outbound_track';
+};
+
+export type TelnyxInboundMessage =
+	| {
+			event: 'connected';
+			version?: string;
+	  }
+	| {
+			event: 'start';
+			sequence_number?: string;
+			start?: {
+				call_control_id?: string;
+				call_leg_id?: string;
+				call_session_id?: string;
+				custom_parameters?: Record<string, string>;
+				media_format?: {
+					channels?: number;
+					encoding?: string;
+					sample_rate?: number;
+				};
+				user_id?: string;
+			};
+			stream_id?: string;
+	  }
+	| {
+			event: 'media';
+			media: TelnyxMediaPayload;
+			sequence_number?: string;
+			stream_id?: string;
+	  }
+	| {
+			event: 'mark';
+			mark?: {
+				name?: string;
+			};
+			sequence_number?: string;
+			stream_id?: string;
+	  }
+	| {
+			event: 'dtmf';
+			dtmf?: {
+				digit?: string;
+			};
+			sequence_number?: string;
+			stream_id?: string;
+	  }
+	| {
+			event: 'error';
+			payload?: {
+				code?: number;
+				detail?: string;
+				title?: string;
+			};
+			stream_id?: string;
+	  }
+	| {
+			event: 'stop';
+			sequence_number?: string;
+			stop?: {
+				call_control_id?: string;
+				user_id?: string;
+			};
+			stream_id?: string;
+	  };
+
+export type TelnyxOutboundMediaMessage = {
+	event: 'media';
+	media: {
+		payload: string;
+	};
+};
+
+export type TelnyxOutboundClearMessage = {
+	event: 'clear';
+};
+
+export type TelnyxOutboundMarkMessage = {
+	event: 'mark';
+	mark: {
+		name: string;
+	};
+};
+
+export type TelnyxOutboundMessage =
+	| TelnyxOutboundMediaMessage
+	| TelnyxOutboundClearMessage
+	| TelnyxOutboundMarkMessage;
+
+export type TelnyxMediaStreamSocket = {
+	close: (code?: number, reason?: string) => void | Promise<void>;
+	send: (data: string) => void | Promise<void>;
+};
+
+export type TelnyxMediaStreamBridgeOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = Omit<TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>, 'onVoiceMessage'> & {
+	onVoiceMessage?: (input: {
+		callControlId?: string;
+		message: VoiceServerMessage<TResult>;
+		sessionId: string;
+		streamId?: string;
+	}) => Promise<void> | void;
+};
+
+export type TelnyxMediaStreamBridge = {
+	close: (reason?: string) => Promise<void>;
+	getSessionId: () => string | null;
+	getStreamId: () => string | null;
+	handleMessage: (raw: string | TelnyxInboundMessage) => Promise<void>;
+};
 
 export type TelnyxVoiceResponseOptions = {
 	bidirectionalCodec?: 'AMR-WB' | 'G722' | 'OPUS' | 'PCMA' | 'PCMU';
@@ -62,6 +187,7 @@ export type TelnyxVoiceRoutesOptions<
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TResult = unknown
 > = {
+	bridge?: TelnyxMediaStreamBridgeOptions<TContext, TSession, TResult>;
 	context?: TContext;
 	name?: string;
 	outcomePolicy?: VoiceTelephonyOutcomePolicy;
@@ -178,6 +304,152 @@ export const createTelnyxVoiceResponse = (
 		.join(' ');
 
 	return `<?xml version="1.0" encoding="UTF-8"?><Response><Start><Stream ${attributes} /></Start></Response>`;
+};
+
+const parseTelnyxMessage = (raw: string | TelnyxInboundMessage) => {
+	if (typeof raw !== 'string') {
+		return raw;
+	}
+
+	return JSON.parse(raw) as TelnyxInboundMessage;
+};
+
+const normalizeTelnyxTrack = (track: TelnyxMediaPayload['track']) =>
+	track === 'outbound' || track === 'outbound_track' ? 'outbound' : 'inbound';
+
+const telnyxToTwilioMessage = (
+	message: TelnyxInboundMessage
+): TwilioInboundMessage | null => {
+	switch (message.event) {
+		case 'connected':
+			return {
+				event: 'connected',
+				version: message.version
+			};
+		case 'start': {
+			const streamSid = message.stream_id ?? 'telnyx-stream';
+			return {
+				event: 'start',
+				start: {
+					callSid:
+						message.start?.call_control_id ??
+						message.start?.call_session_id ??
+						message.start?.call_leg_id,
+					customParameters: {
+						...(message.start?.custom_parameters ?? {}),
+						...(message.start?.call_session_id
+							? { sessionId: message.start.call_session_id }
+							: {})
+					},
+					mediaFormat: {
+						channels: message.start?.media_format?.channels,
+						encoding: message.start?.media_format?.encoding,
+						sampleRate: message.start?.media_format?.sample_rate
+					},
+					streamSid
+				},
+				streamSid
+			};
+		}
+		case 'media': {
+			const streamSid = message.stream_id ?? 'telnyx-stream';
+			return {
+				event: 'media',
+				media: {
+					chunk: message.media.chunk,
+					payload: message.media.payload,
+					timestamp: message.media.timestamp,
+					track: normalizeTelnyxTrack(message.media.track)
+				},
+				streamSid
+			};
+		}
+		case 'mark':
+			return {
+				event: 'mark',
+				mark: message.mark,
+				streamSid: message.stream_id ?? 'telnyx-stream'
+			};
+		case 'stop':
+			return {
+				event: 'stop',
+				stop: {
+					callSid: message.stop?.call_control_id
+				},
+				streamSid: message.stream_id ?? 'telnyx-stream'
+			};
+		case 'dtmf':
+		case 'error':
+			return null;
+	}
+};
+
+const createTelnyxTwilioSocketAdapter = (
+	socket: TelnyxMediaStreamSocket
+): TwilioMediaStreamSocket => ({
+	close: (code, reason) => socket.close(code, reason),
+	send: async (data) => {
+		const message = JSON.parse(data) as TwilioOutboundMessage;
+		const telnyxMessage: TelnyxOutboundMessage | null =
+			message.event === 'media'
+				? {
+						event: 'media',
+						media: {
+							payload: message.media.payload
+						}
+				  }
+				: message.event === 'clear'
+					? {
+							event: 'clear'
+					  }
+					: message.event === 'mark'
+						? {
+								event: 'mark',
+								mark: message.mark
+						  }
+						: null;
+
+		if (telnyxMessage) {
+			await Promise.resolve(socket.send(JSON.stringify(telnyxMessage)));
+		}
+	}
+});
+
+export const createTelnyxMediaStreamBridge = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+>(
+	socket: TelnyxMediaStreamSocket,
+	options: TelnyxMediaStreamBridgeOptions<TContext, TSession, TResult>
+): TelnyxMediaStreamBridge => {
+	const bridge = createTwilioMediaStreamBridge(
+		createTelnyxTwilioSocketAdapter(socket),
+		{
+			...(options as TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>),
+			onVoiceMessage: options.onVoiceMessage
+				? (input) =>
+						options.onVoiceMessage?.({
+							callControlId: input.callSid,
+							message: input.message,
+							sessionId: input.sessionId,
+							streamId: input.streamSid
+						})
+				: undefined
+		}
+	);
+
+	return {
+		close: bridge.close,
+		getSessionId: bridge.getSessionId,
+		getStreamId: bridge.getStreamSid,
+		handleMessage: async (raw) => {
+			const message = telnyxToTwilioMessage(parseTelnyxMessage(raw));
+			if (message) {
+				await bridge.handleMessage(message);
+			}
+		}
+	};
 };
 
 const decodeBase64 = (value: string) =>
@@ -453,6 +725,7 @@ export const createTelnyxVoiceRoutes = <
 		options.smoke?.path === false
 			? false
 			: options.smoke?.path ?? '/api/voice/telnyx/smoke';
+	const bridges = new WeakMap<object, TelnyxMediaStreamBridge>();
 	const webhookPolicy =
 		options.webhook?.policy ??
 		options.outcomePolicy ??
@@ -509,6 +782,37 @@ export const createTelnyxVoiceRoutes = <
 					}
 				}
 			);
+		})
+		.ws(streamPath, {
+			close: async (ws, _code, reason) => {
+				const bridge = bridges.get(ws as object);
+				bridges.delete(ws as object);
+				await bridge?.close(reason);
+			},
+			message: async (ws, raw) => {
+				if (!options.bridge) {
+					ws.close(1011, 'Telnyx media bridge is not configured.');
+					return;
+				}
+
+				let bridge = bridges.get(ws as object);
+				if (!bridge) {
+					bridge = createTelnyxMediaStreamBridge(
+						{
+							close: (code, reason) => {
+								ws.close(code, reason);
+							},
+							send: (data) => {
+								ws.send(data);
+							}
+						},
+						options.bridge
+					);
+					bridges.set(ws as object, bridge);
+				}
+
+				await bridge.handleMessage(raw as string);
+			}
 		})
 		.use(
 			createVoiceTelephonyWebhookRoutes({

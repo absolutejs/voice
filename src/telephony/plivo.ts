@@ -14,7 +14,122 @@ import {
 	type VoiceTelephonyWebhookRoutesOptions,
 	type VoiceTelephonyWebhookVerificationResult
 } from '../telephonyOutcome';
-import type { VoiceSessionRecord } from '../types';
+import type { VoiceServerMessage, VoiceSessionRecord } from '../types';
+import {
+	createTwilioMediaStreamBridge,
+	type TwilioInboundMessage,
+	type TwilioMediaStreamBridgeOptions,
+	type TwilioMediaStreamSocket,
+	type TwilioOutboundMessage
+} from './twilio';
+
+export type PlivoInboundMessage =
+	| {
+			event: 'start';
+			sequenceNumber?: number;
+			start?: {
+				callId?: string;
+				callUuid?: string;
+				extra_headers?: string;
+				mediaFormat?: {
+					channels?: number;
+					encoding?: string;
+					sampleRate?: number;
+				};
+				streamId?: string;
+			};
+			streamId?: string;
+	  }
+	| {
+			event: 'media';
+			media: {
+				payload: string;
+				timestamp?: string;
+				track?: 'inbound' | 'outbound';
+			};
+			sequenceNumber?: number;
+			streamId?: string;
+	  }
+	| {
+			event: 'dtmf';
+			dtmf?: {
+				digit?: string;
+				timestamp?: string;
+				track?: string;
+			};
+			sequenceNumber?: number;
+			streamId?: string;
+	  }
+	| {
+			event: 'playedStream';
+			name?: string;
+			sequenceNumber?: number;
+			streamId?: string;
+	  }
+	| {
+			event: 'clearedAudio';
+			sequenceNumber?: number;
+			streamId?: string;
+	  }
+	| {
+			event: 'stop';
+			sequenceNumber?: number;
+			stop?: {
+				callId?: string;
+				callUuid?: string;
+			};
+			streamId?: string;
+	  };
+
+export type PlivoOutboundPlayAudioMessage = {
+	event: 'playAudio';
+	media: {
+		contentType: 'audio/x-mulaw';
+		payload: string;
+		sampleRate: 8000;
+	};
+};
+
+export type PlivoOutboundClearAudioMessage = {
+	event: 'clearAudio';
+	streamId?: string;
+};
+
+export type PlivoOutboundCheckpointMessage = {
+	event: 'checkpoint';
+	name: string;
+	streamId?: string;
+};
+
+export type PlivoOutboundMessage =
+	| PlivoOutboundPlayAudioMessage
+	| PlivoOutboundClearAudioMessage
+	| PlivoOutboundCheckpointMessage;
+
+export type PlivoMediaStreamSocket = {
+	close: (code?: number, reason?: string) => void | Promise<void>;
+	send: (data: string) => void | Promise<void>;
+};
+
+export type PlivoMediaStreamBridgeOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = Omit<TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>, 'onVoiceMessage'> & {
+	onVoiceMessage?: (input: {
+		callId?: string;
+		message: VoiceServerMessage<TResult>;
+		sessionId: string;
+		streamId?: string;
+	}) => Promise<void> | void;
+};
+
+export type PlivoMediaStreamBridge = {
+	close: (reason?: string) => Promise<void>;
+	getSessionId: () => string | null;
+	getStreamId: () => string | null;
+	handleMessage: (raw: string | PlivoInboundMessage) => Promise<void>;
+};
 
 export type PlivoVoiceResponseOptions = {
 	audioTrack?: 'both' | 'inbound' | 'outbound';
@@ -82,6 +197,7 @@ export type PlivoVoiceRoutesOptions<
 					streamPath: string;
 			  }) => Promise<string> | string);
 	};
+	bridge?: PlivoMediaStreamBridgeOptions<TContext, TSession, TResult>;
 	context?: TContext;
 	name?: string;
 	outcomePolicy?: VoiceTelephonyOutcomePolicy;
@@ -226,6 +342,165 @@ export const createPlivoVoiceResponse = (
 
 	const openTag = attributes ? `<Stream ${attributes}>` : '<Stream>';
 	return `<?xml version="1.0" encoding="UTF-8"?><Response>${openTag}${escapeXml(options.streamUrl)}</Stream></Response>`;
+};
+
+const parsePlivoMessage = (raw: string | PlivoInboundMessage) => {
+	if (typeof raw !== 'string') {
+		return raw;
+	}
+
+	return JSON.parse(raw) as PlivoInboundMessage;
+};
+
+const parsePlivoExtraHeaders = (headers: string | undefined) => {
+	if (!headers) {
+		return {};
+	}
+
+	return Object.fromEntries(
+		headers
+			.split(/[;,]/)
+			.map((header) => header.trim())
+			.filter(Boolean)
+			.map((header) => {
+				const separator = header.indexOf('=');
+				if (separator === -1) {
+					return [header, ''];
+				}
+				return [
+					header.slice(0, separator).trim(),
+					header.slice(separator + 1).trim()
+				];
+			})
+			.filter((entry): entry is [string, string] => (entry[0] ?? '').length > 0)
+	);
+};
+
+const plivoToTwilioMessage = (
+	message: PlivoInboundMessage
+): TwilioInboundMessage | null => {
+	switch (message.event) {
+		case 'start': {
+			const streamSid = message.streamId ?? message.start?.streamId ?? 'plivo-stream';
+			const callSid = message.start?.callId ?? message.start?.callUuid;
+			const customParameters = parsePlivoExtraHeaders(
+				message.start?.extra_headers
+			);
+			return {
+				event: 'start',
+				start: {
+					callSid,
+					customParameters,
+					mediaFormat: message.start?.mediaFormat,
+					streamSid
+				},
+				streamSid
+			};
+		}
+		case 'media': {
+			const streamSid = message.streamId ?? 'plivo-stream';
+			return {
+				event: 'media',
+				media: {
+					payload: message.media.payload,
+					timestamp: message.media.timestamp,
+					track: message.media.track ?? 'inbound'
+				},
+				streamSid
+			};
+		}
+		case 'playedStream':
+			return {
+				event: 'mark',
+				mark: {
+					name: message.name
+				},
+				streamSid: message.streamId ?? 'plivo-stream'
+			};
+		case 'stop':
+			return {
+				event: 'stop',
+				stop: {
+					callSid: message.stop?.callId ?? message.stop?.callUuid
+				},
+				streamSid: message.streamId ?? 'plivo-stream'
+			};
+		case 'clearedAudio':
+		case 'dtmf':
+			return null;
+	}
+};
+
+const createPlivoTwilioSocketAdapter = (
+	socket: PlivoMediaStreamSocket
+): TwilioMediaStreamSocket => ({
+	close: (code, reason) => socket.close(code, reason),
+	send: async (data) => {
+		const message = JSON.parse(data) as TwilioOutboundMessage;
+		const plivoMessage: PlivoOutboundMessage | null =
+			message.event === 'media'
+				? {
+						event: 'playAudio',
+						media: {
+							contentType: 'audio/x-mulaw',
+							payload: message.media.payload,
+							sampleRate: 8000
+						}
+				  }
+				: message.event === 'clear'
+					? {
+							event: 'clearAudio',
+							streamId: message.streamSid
+					  }
+					: message.event === 'mark'
+						? {
+								event: 'checkpoint',
+								name: message.mark.name,
+								streamId: message.streamSid
+						  }
+						: null;
+
+		if (plivoMessage) {
+			await Promise.resolve(socket.send(JSON.stringify(plivoMessage)));
+		}
+	}
+});
+
+export const createPlivoMediaStreamBridge = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+>(
+	socket: PlivoMediaStreamSocket,
+	options: PlivoMediaStreamBridgeOptions<TContext, TSession, TResult>
+): PlivoMediaStreamBridge => {
+	const bridge = createTwilioMediaStreamBridge(
+		createPlivoTwilioSocketAdapter(socket),
+		{
+			...(options as TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>),
+			onVoiceMessage: options.onVoiceMessage
+				? (input) =>
+						options.onVoiceMessage?.({
+							callId: input.callSid,
+							message: input.message,
+							sessionId: input.sessionId,
+							streamId: input.streamSid
+						})
+				: undefined
+		}
+	);
+
+	return {
+		close: bridge.close,
+		getSessionId: bridge.getSessionId,
+		getStreamId: bridge.getStreamSid,
+		handleMessage: async (raw) => {
+			const message = plivoToTwilioMessage(parsePlivoMessage(raw));
+			if (message) {
+				await bridge.handleMessage(message);
+			}
+		}
+	};
 };
 
 const toBase64 = (bytes: ArrayBuffer) =>
@@ -547,6 +822,7 @@ export const createPlivoVoiceRoutes = <
 		options.smoke?.path === false
 			? false
 			: options.smoke?.path ?? '/api/voice/plivo/smoke';
+	const bridges = new WeakMap<object, PlivoMediaStreamBridge>();
 	const webhookPolicy =
 		options.webhook?.policy ??
 		options.outcomePolicy ??
@@ -612,6 +888,37 @@ export const createPlivoVoiceRoutes = <
 					}
 				}
 			);
+		})
+		.ws(streamPath, {
+			close: async (ws, _code, reason) => {
+				const bridge = bridges.get(ws as object);
+				bridges.delete(ws as object);
+				await bridge?.close(reason);
+			},
+			message: async (ws, raw) => {
+				if (!options.bridge) {
+					ws.close(1011, 'Plivo media bridge is not configured.');
+					return;
+				}
+
+				let bridge = bridges.get(ws as object);
+				if (!bridge) {
+					bridge = createPlivoMediaStreamBridge(
+						{
+							close: (code, reason) => {
+								ws.close(code, reason);
+							},
+							send: (data) => {
+								ws.send(data);
+							}
+						},
+						options.bridge
+					);
+					bridges.set(ws as object, bridge);
+				}
+
+				await bridge.handleMessage(raw as string);
+			}
 		})
 		.use(
 			createVoiceTelephonyWebhookRoutes({
