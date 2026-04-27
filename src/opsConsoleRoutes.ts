@@ -60,6 +60,12 @@ const DEFAULT_LINKS: VoiceOpsConsoleLink[] = [
 		statusHref: '/quality/status'
 	},
 	{
+		description: 'Replay stored sessions against acceptance gates over time.',
+		href: '/evals',
+		label: 'Evals',
+		statusHref: '/evals/status'
+	},
+	{
 		description: 'Provider health, fallback paths, and failure simulation.',
 		href: '/resilience',
 		label: 'Resilience'

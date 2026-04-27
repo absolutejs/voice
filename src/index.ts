@@ -17,6 +17,11 @@ export {
 	resolveVoiceDiagnosticsTraceFilter
 } from './diagnosticsRoutes';
 export {
+	createVoiceEvalRoutes,
+	renderVoiceEvalHTML,
+	runVoiceSessionEvals
+} from './evalRoutes';
+export {
 	createVoiceSessionListRoutes,
 	createVoiceSessionReplayHTMLHandler,
 	createVoiceSessionReplayJSONHandler,
@@ -285,6 +290,14 @@ export type {
 	VoiceAssistantMemoryStore
 } from './assistantMemory';
 export type { VoiceDiagnosticsRoutesOptions } from './diagnosticsRoutes';
+export type {
+	VoiceEvalLink,
+	VoiceEvalReport,
+	VoiceEvalRoutesOptions,
+	VoiceEvalSessionReport,
+	VoiceEvalStatus,
+	VoiceEvalTrendBucket
+} from './evalRoutes';
 export type {
 	VoiceSessionListHTMLHandlerOptions,
 	VoiceSessionListItem,
