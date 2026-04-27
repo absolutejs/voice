@@ -85,6 +85,11 @@ export {
 	summarizeVoiceTurnLatency
 } from './turnLatency';
 export {
+	createVoiceLiveLatencyRoutes,
+	renderVoiceLiveLatencyHTML,
+	summarizeVoiceLiveLatency
+} from './liveLatency';
+export {
 	createVoiceTurnQualityHTMLHandler,
 	createVoiceTurnQualityJSONHandler,
 	createVoiceTurnQualityRoutes,
@@ -488,6 +493,13 @@ export type {
 	VoiceTurnLatencyStage,
 	VoiceTurnLatencyStatus
 } from './turnLatency';
+export type {
+	VoiceLiveLatencyOptions,
+	VoiceLiveLatencyReport,
+	VoiceLiveLatencyRoutesOptions,
+	VoiceLiveLatencySample,
+	VoiceLiveLatencyStatus
+} from './liveLatency';
 export type {
 	VoiceTurnQualityHTMLHandlerOptions,
 	VoiceTurnQualityItem,
