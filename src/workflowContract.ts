@@ -57,6 +57,20 @@ export type VoiceWorkflowContractDefinition<TResult = unknown> = {
 	}) => VoiceWorkflowContractValidationIssue[];
 };
 
+export type VoiceWorkflowContractPresetName =
+	| 'appointment-booking'
+	| 'lead-qualification'
+	| 'support-triage'
+	| 'transfer-handoff'
+	| 'voicemail-callback';
+
+export type VoiceWorkflowContractPresetOptions<TResult = unknown> = Partial<
+	Omit<VoiceWorkflowContractDefinition<TResult>, 'fields' | 'id'>
+> & {
+	fields?: VoiceWorkflowContractField[];
+	id?: string;
+};
+
 export type VoiceWorkflowContractValidationIssue = {
 	code: string;
 	field?: string;
@@ -231,6 +245,165 @@ export const createVoiceWorkflowContract = <TResult = unknown>(
 	validateRouteResult: (routeResult) =>
 		validateVoiceWorkflowRouteResult(definition, routeResult)
 });
+
+const presetDefinitions = {
+	'appointment-booking': {
+		description:
+			'Appointment booking should complete with enough identity, appointment, and follow-up details to act on.',
+		fields: [
+			{ aliases: ['name', 'customer.name'], label: 'Caller name', path: 'caller.name' },
+			{
+				aliases: ['phone', 'customer.phone'],
+				label: 'Caller phone',
+				path: 'caller.phone'
+			},
+			{
+				aliases: ['appointment.start', 'appointment.time', 'scheduledAt'],
+				label: 'Appointment time',
+				path: 'appointment.startsAt'
+			},
+			{
+				aliases: ['summary', 'assistantSummary'],
+				label: 'Summary',
+				path: 'appointment.summary'
+			}
+		],
+		id: 'appointment-booking',
+		label: 'Appointment booking',
+		outcome: 'complete',
+		requiredDisposition: 'completed'
+	},
+	'lead-qualification': {
+		description:
+			'Lead qualification should complete with contact, need, qualification, and next-step fields.',
+		fields: [
+			{ aliases: ['name', 'lead.name'], label: 'Lead name', path: 'contact.name' },
+			{
+				aliases: ['email', 'lead.email'],
+				label: 'Lead email',
+				path: 'contact.email'
+			},
+			{
+				aliases: ['need', 'pain', 'summary'],
+				label: 'Need',
+				path: 'qualification.need'
+			},
+			{
+				aliases: ['qualified', 'qualification.qualified'],
+				label: 'Qualified',
+				match: 'boolean',
+				path: 'qualification.isQualified'
+			},
+			{
+				aliases: ['nextStep', 'followUp'],
+				label: 'Next step',
+				path: 'qualification.nextStep'
+			}
+		],
+		id: 'lead-qualification',
+		label: 'Lead qualification',
+		outcome: 'complete',
+		requiredDisposition: 'completed'
+	},
+	'support-triage': {
+		description:
+			'Support triage should capture identity, issue summary, severity, and the operational follow-up.',
+		fields: [
+			{
+				aliases: ['name', 'customer.name'],
+				label: 'Customer name',
+				path: 'customer.name'
+			},
+			{
+				aliases: ['issue', 'summary', 'assistantSummary'],
+				label: 'Issue summary',
+				path: 'issue.summary'
+			},
+			{
+				aliases: ['priority', 'severity'],
+				label: 'Severity',
+				path: 'issue.severity'
+			},
+			{
+				aliases: ['nextStep', 'task.title'],
+				label: 'Next step',
+				path: 'resolution.nextStep'
+			}
+		],
+		id: 'support-triage',
+		label: 'Support triage',
+		outcome: 'complete',
+		requiredDisposition: 'completed'
+	},
+	'transfer-handoff': {
+		description:
+			'Transfer handoff should produce a routed transfer plus handoff evidence.',
+		fields: [
+			{
+				aliases: ['target', 'callTarget'],
+				label: 'Transfer target',
+				path: 'transfer.target'
+			},
+			{
+				aliases: ['reason', 'callReason'],
+				label: 'Transfer reason',
+				path: 'transfer.reason'
+			},
+			{
+				aliases: ['summary', 'assistantSummary'],
+				label: 'Transfer summary',
+				path: 'transfer.summary'
+			}
+		],
+		id: 'transfer-handoff',
+		label: 'Transfer handoff',
+		outcome: 'transfer',
+		requiredDisposition: 'transferred',
+		requiredHandoffActions: ['transfer']
+	},
+	'voicemail-callback': {
+		description:
+			'Voicemail callback should preserve enough caller and callback context for follow-up.',
+		fields: [
+			{
+				aliases: ['name', 'caller.name'],
+				label: 'Caller name',
+				path: 'voicemail.callerName'
+			},
+			{
+				aliases: ['phone', 'caller.phone'],
+				label: 'Callback phone',
+				path: 'voicemail.callbackPhone'
+			},
+			{
+				aliases: ['message', 'summary', 'assistantSummary'],
+				label: 'Voicemail summary',
+				path: 'voicemail.summary'
+			}
+		],
+		id: 'voicemail-callback',
+		label: 'Voicemail callback',
+		outcome: 'voicemail',
+		requiredDisposition: 'voicemail',
+		requiredHandoffActions: ['voicemail']
+	}
+} satisfies Record<
+	VoiceWorkflowContractPresetName,
+	VoiceWorkflowContractDefinition<unknown>
+>;
+
+export const createVoiceWorkflowContractPreset = <TResult = unknown>(
+	name: VoiceWorkflowContractPresetName,
+	options: VoiceWorkflowContractPresetOptions<TResult> = {}
+): VoiceWorkflowContract<TResult> => {
+	const preset = presetDefinitions[name];
+	return createVoiceWorkflowContract<TResult>({
+		...(preset as VoiceWorkflowContractDefinition<TResult>),
+		...options,
+		fields: options.fields ?? (preset.fields as VoiceWorkflowContractField[]),
+		id: options.id ?? preset.id
+	});
+};
 
 export const recordVoiceWorkflowContractTrace = async (input: {
 	at?: number;

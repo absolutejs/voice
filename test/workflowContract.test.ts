@@ -3,6 +3,7 @@ import {
 	createVoiceMemoryTraceEventStore,
 	createVoiceWorkflowContract,
 	createVoiceWorkflowContractHandler,
+	createVoiceWorkflowContractPreset,
 	runVoiceScenarioEvals
 } from '../src';
 import type {
@@ -147,4 +148,31 @@ test('workflow contract scenario eval fails missing or failed contract evidence'
 	expect(report.scenarios[0]?.sessions[0]?.issues.join(' ')).toContain(
 		'Workflow contract failed'
 	);
+});
+
+test('workflow contract presets validate common voice workflows', () => {
+	const support = createVoiceWorkflowContractPreset<{
+		customer: { name: string };
+		issue: { severity: string; summary: string };
+		resolution: { nextStep: string };
+	}>('support-triage');
+	const transfer = createVoiceWorkflowContractPreset<{
+		transfer: { reason: string; summary: string; target: string };
+	}>('transfer-handoff');
+
+	expect(
+		support.validateRouteResult({
+			complete: true,
+			result: {
+				customer: { name: 'Riley' },
+				issue: { severity: 'high', summary: 'Cannot connect voice stream.' },
+				resolution: { nextStep: 'Create support task.' }
+			}
+		})
+	).toMatchObject({ pass: true });
+	expect(transfer.toScenarioEval()).toMatchObject({
+		requiredDisposition: 'transferred',
+		requiredHandoffActions: ['transfer'],
+		requiredWorkflowContracts: ['transfer-handoff']
+	});
 });

@@ -32,6 +32,7 @@ export {
 export {
 	createVoiceWorkflowContract,
 	createVoiceWorkflowContractHandler,
+	createVoiceWorkflowContractPreset,
 	createVoiceWorkflowScenario,
 	recordVoiceWorkflowContractTrace,
 	validateVoiceWorkflowRouteResult
@@ -330,6 +331,8 @@ export type {
 	VoiceWorkflowContractDefinition,
 	VoiceWorkflowContractField,
 	VoiceWorkflowContractFieldMatch,
+	VoiceWorkflowContractPresetName,
+	VoiceWorkflowContractPresetOptions,
 	VoiceWorkflowContractTracePayload,
 	VoiceWorkflowContractValidation,
 	VoiceWorkflowContractValidationIssue,

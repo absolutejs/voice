@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { serverMessageToAction } from '../src/client/actions';
+import { createVoiceWorkflowStatusStore } from '../src/client/workflowStatus';
 import { createVoiceStreamStore } from '../src/client/store';
 
 test('voice client store tracks call lifecycle server messages', () => {
@@ -49,4 +50,43 @@ test('voice client store tracks call lifecycle server messages', () => {
 		'transfer',
 		'end'
 	]);
+});
+
+test('voice workflow status store fetches scenario eval reports', async () => {
+	const store = createVoiceWorkflowStatusStore('/evals/scenarios/json', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					checkedAt: 100,
+					failed: 0,
+					passed: 1,
+					scenarios: [
+						{
+							failed: 0,
+							id: 'support-triage',
+							issues: [],
+							label: 'Support triage',
+							matchedSessions: 1,
+							passed: 1,
+							sessions: [],
+							status: 'pass'
+						}
+					],
+					status: 'pass',
+					total: 1
+				})
+			)
+	});
+
+	const report = await store.refresh();
+
+	expect(report?.status).toBe('pass');
+	expect(store.getSnapshot()).toMatchObject({
+		error: null,
+		isLoading: false,
+		report: {
+			total: 1
+		}
+	});
+	store.close();
 });
