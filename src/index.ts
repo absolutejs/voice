@@ -143,6 +143,11 @@ export {
 	summarizeVoiceProviderCapabilities
 } from './providerCapabilities';
 export {
+	buildVoiceProductionReadinessReport,
+	createVoiceProductionReadinessRoutes,
+	renderVoiceProductionReadinessHTML
+} from './productionReadiness';
+export {
 	buildVoiceOpsConsoleReport,
 	createVoiceOpsConsoleRoutes,
 	renderVoiceOpsConsoleHTML
@@ -491,6 +496,12 @@ export type {
 	VoiceOpsConsoleReport,
 	VoiceOpsConsoleRoutesOptions
 } from './opsConsoleRoutes';
+export type {
+	VoiceProductionReadinessCheck,
+	VoiceProductionReadinessReport,
+	VoiceProductionReadinessRoutesOptions,
+	VoiceProductionReadinessStatus
+} from './productionReadiness';
 export type {
 	VoiceQualityLink,
 	VoiceQualityMetric,

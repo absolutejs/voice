@@ -34,6 +34,10 @@ import {
 	type VoiceProviderCapabilityRoutesOptions
 } from './providerCapabilities';
 import {
+	createVoiceProductionReadinessRoutes,
+	type VoiceProductionReadinessRoutesOptions
+} from './productionReadiness';
+import {
 	createVoiceQualityRoutes,
 	evaluateVoiceQuality,
 	type VoiceQualityLink,
@@ -65,6 +69,7 @@ export type VoiceAppKitSurface =
 	| 'opsConsole'
 	| 'providerCapabilities'
 	| 'providerHealth'
+	| 'productionReadiness'
 	| 'quality'
 	| 'resilience'
 	| 'sessionReplay'
@@ -90,6 +95,7 @@ export type VoiceAppKitRoutesOptions<TProvider extends string = string> = {
 		| false
 		| Partial<VoiceProviderCapabilityRoutesOptions<TProvider>>;
 	providerHealth?: false | Partial<VoiceProviderHealthRoutesOptions<TProvider>>;
+	productionReadiness?: false | Partial<VoiceProductionReadinessRoutesOptions>;
 	quality?: false | Partial<VoiceQualityRoutesOptions>;
 	resilience?: false | Partial<VoiceResilienceRoutesOptions>;
 	sessionReplay?: false | Partial<VoiceSessionReplayRoutesOptions>;
@@ -178,6 +184,12 @@ const DEFAULT_LINKS: VoiceAppKitLink[] = [
 		description: 'Provider routing, fallback, and resilience controls.',
 		href: '/resilience',
 		label: 'Resilience'
+	},
+	{
+		description: 'One JSON/HTML production readiness rollup.',
+		href: '/production-readiness',
+		label: 'Production Readiness',
+		statusHref: '/api/production-readiness'
 	},
 	{
 		description: 'Recent sessions and replay links.',
@@ -489,6 +501,27 @@ export const createVoiceAppKitRoutes = <TProvider extends string = string>(
 					: undefined,
 				ttsProviders: options.ttsProviders,
 				...options.resilience
+			})
+		);
+	}
+	if (options.productionReadiness !== false) {
+		surfaces.push('productionReadiness');
+		routes.use(
+			createVoiceProductionReadinessRoutes({
+				...common,
+				links: {
+					handoffs: '/handoffs',
+					quality: '/quality',
+					resilience: '/resilience',
+					sessions: '/sessions'
+				},
+				llmProviders: options.llmProviders,
+				sttProviders: options.sttProviders,
+				title: options.title
+					? `${options.title} Production Readiness`
+					: undefined,
+				ttsProviders: options.ttsProviders,
+				...options.productionReadiness
 			})
 		);
 	}
