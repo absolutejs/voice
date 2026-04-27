@@ -16,6 +16,7 @@ export type VoiceAssistantHealthFailure = {
 	error?: string;
 	provider?: string;
 	rateLimited?: boolean;
+	replayHref?: string;
 	sessionId: string;
 	status?: string;
 	turnId?: string;
@@ -34,6 +35,10 @@ export type VoiceAssistantHealthSummaryOptions<
 	events?: StoredVoiceTraceEvent[];
 	maxFailures?: number;
 	providers?: readonly TProvider[];
+	replayHref?:
+		| false
+		| string
+		| ((failure: Omit<VoiceAssistantHealthFailure, 'replayHref'>) => string);
 	store?: VoiceTraceEventStore;
 };
 
@@ -86,7 +91,8 @@ const getString = (value: unknown) =>
 
 const getRecentFailures = (
 	events: StoredVoiceTraceEvent[],
-	maxFailures: number
+	maxFailures: number,
+	replayHref: VoiceAssistantHealthSummaryOptions['replayHref']
 ): VoiceAssistantHealthFailure[] =>
 	events
 		.filter(
@@ -99,18 +105,31 @@ const getRecentFailures = (
 		)
 		.toReversed()
 		.slice(0, maxFailures)
-		.map((event) => ({
-			at: event.at,
-			assistantId: getString(event.payload.assistantId),
-			error: getString(event.payload.error),
-			provider: getString(event.payload.provider),
-			rateLimited:
-				event.payload.rateLimited === true ? true : undefined,
-			sessionId: event.sessionId,
-			status: getString(event.payload.providerStatus),
-			turnId: event.turnId,
-			type: event.type
-		}));
+		.map((event) => {
+			const failure: Omit<VoiceAssistantHealthFailure, 'replayHref'> = {
+				at: event.at,
+				assistantId: getString(event.payload.assistantId),
+				error: getString(event.payload.error),
+				provider: getString(event.payload.provider),
+				rateLimited:
+					event.payload.rateLimited === true ? true : undefined,
+				sessionId: event.sessionId,
+				status: getString(event.payload.providerStatus),
+				turnId: event.turnId,
+				type: event.type
+			};
+			const href =
+				replayHref === false
+					? undefined
+					: typeof replayHref === 'function'
+						? replayHref(failure)
+						: `${replayHref ?? '/api/voice-sessions'}/${encodeURIComponent(event.sessionId)}/replay/htmx`;
+
+			return {
+				...failure,
+				replayHref: href
+			};
+		});
 
 export const summarizeVoiceAssistantHealth = async <
 	TProvider extends string = string
@@ -125,7 +144,11 @@ export const summarizeVoiceAssistantHealth = async <
 			events,
 			providers: options.providers
 		}),
-		recentFailures: getRecentFailures(events, options.maxFailures ?? 8)
+		recentFailures: getRecentFailures(
+			events,
+			options.maxFailures ?? 8,
+			options.replayHref
+		)
 	};
 };
 
@@ -168,6 +191,9 @@ export const renderVoiceAssistantHealthHTML = <
 							`<span>${escapeHtml(failure.status ?? (failure.rateLimited ? 'rate-limited' : 'error'))}</span>`,
 							failure.error ? `<p>${escapeHtml(failure.error)}</p>` : '',
 							`<small>${escapeHtml(failure.sessionId)}${failure.turnId ? ` / ${escapeHtml(failure.turnId)}` : ''}</small>`,
+							failure.replayHref
+								? `<p><a href="${escapeHtml(failure.replayHref)}">Open replay</a></p>`
+								: '',
 							'</article>'
 						].join('')
 					),

@@ -84,6 +84,8 @@ test('summarizeVoiceAssistantHealth combines assistant, provider, and failure su
 				error: 'OpenAI voice assistant model failed: HTTP 429',
 				provider: 'openai',
 				rateLimited: true,
+				replayHref:
+					'/api/voice-sessions/session-health/replay/htmx',
 				status: 'error'
 			}
 		]
@@ -106,6 +108,26 @@ test('renderVoiceAssistantHealthHTML renders portable dashboard sections', async
 
 	expect(renderVoiceAssistantHealthHTML(summary)).toContain('Provider Health');
 	expect(renderVoiceAssistantHealthHTML(summary)).toContain('Recent Failures');
+});
+
+test('summarizeVoiceAssistantHealth supports custom replay hrefs', async () => {
+	const summary = await summarizeVoiceAssistantHealth({
+		events: [
+			createVoiceTraceEvent({
+				at: 1_000,
+				payload: {
+					error: 'failed',
+					provider: 'openai',
+					providerStatus: 'error'
+				},
+				sessionId: 'session-custom',
+				type: 'session.error'
+			})
+		],
+		replayHref: (failure) => `/debug/${failure.sessionId}`
+	});
+
+	expect(summary.recentFailures[0]?.replayHref).toBe('/debug/session-custom');
 });
 
 test('createVoiceAssistantHealthHTMLHandler returns an HTMX-ready panel', async () => {
