@@ -6,6 +6,7 @@ import {
 	withVoiceOpsTaskId
 } from './ops';
 import { createVoiceSessionRecord, toVoiceSessionSummary } from './store';
+import type { VoiceCampaignRecord, VoiceCampaignStore } from './campaign';
 import {
 	createVoiceAssistantMemoryRecord,
 	type VoiceAssistantMemoryRecord,
@@ -54,6 +55,7 @@ export type VoiceFileRuntimeStorage<
 	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
 	TMemory extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord
 > = {
+	campaigns: VoiceCampaignStore;
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
 	memories: VoiceAssistantMemoryStore<TMemory>;
@@ -248,6 +250,47 @@ export const createVoiceFileTaskStore = <
 			withVoiceOpsTaskId(id, task as TTask & Omit<VoiceOpsTask, 'id'>),
 			options
 		);
+	};
+
+	const remove = async (id: string) => {
+		await rm(resolveFilePath(options.directory, id), {
+			force: true
+		});
+	};
+
+	return { get, list, remove, set };
+};
+
+export const createVoiceFileCampaignStore = (
+	options: VoiceFileStoreOptions
+): VoiceCampaignStore => {
+	const get = async (id: string) => {
+		const path = resolveFilePath(options.directory, id);
+
+		try {
+			return await readJsonFile<VoiceCampaignRecord>(path);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return undefined;
+			}
+
+			throw error;
+		}
+	};
+
+	const list = async () => {
+		const files = await listJsonFiles(options.directory);
+		const campaigns = await Promise.all(
+			files.map((file) => readJsonFile<VoiceCampaignRecord>(file))
+		);
+
+		return campaigns.sort(
+			(left, right) => right.campaign.createdAt - left.campaign.createdAt
+		);
+	};
+
+	const set = async (id: string, record: VoiceCampaignRecord) => {
+		await writeJsonFile(resolveFilePath(options.directory, id), record, options);
 	};
 
 	const remove = async (id: string) => {
@@ -543,6 +586,10 @@ export const createVoiceFileRuntimeStorage = <
 	TTraceDelivery,
 	TMemory
 > => ({
+	campaigns: createVoiceFileCampaignStore({
+		...options,
+		directory: join(options.directory, 'campaigns')
+	}),
 	events: createVoiceFileIntegrationEventStore<TEvent>({
 		...options,
 		directory: join(options.directory, 'events')

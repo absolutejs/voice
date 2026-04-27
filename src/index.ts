@@ -136,6 +136,7 @@ export {
 	createStoredVoiceOpsTask,
 	createVoiceFileExternalObjectMapStore,
 	createVoiceFileAssistantMemoryStore,
+	createVoiceFileCampaignStore,
 	createVoiceFileIntegrationEventStore,
 	createVoiceFileReviewStore,
 	createVoiceFileRuntimeStorage,
