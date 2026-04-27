@@ -130,6 +130,11 @@ export {
 	verifyVoiceOpsWebhookSignature
 } from './opsWebhook';
 export {
+	createVoiceTwilioRedirectHandoffAdapter,
+	createVoiceWebhookHandoffAdapter,
+	deliverVoiceHandoff
+} from './handoff';
+export {
 	createVoiceIntegrationSinkWorker,
 	createVoiceIntegrationSinkWorkerLoop,
 	createVoiceOpsTaskWorker,
@@ -326,6 +331,12 @@ export type {
 	VoiceOpsWebhookSinkOptions,
 	VoiceOpsWebhookVerificationResult
 } from './opsWebhook';
+export type {
+	VoiceHandoffDelivery,
+	VoiceHandoffFanoutResult,
+	VoiceTwilioRedirectHandoffAdapterOptions,
+	VoiceWebhookHandoffAdapterOptions
+} from './handoff';
 export type {
 	StoredVoiceCallReviewArtifact,
 	VoiceCallReviewArtifact,

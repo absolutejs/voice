@@ -6,6 +6,7 @@ export type VoiceTraceEventType =
 	| 'agent.model'
 	| 'agent.result'
 	| 'agent.tool'
+	| 'call.handoff'
 	| 'call.lifecycle'
 	| 'session.error'
 	| 'turn.assistant'

@@ -368,6 +368,59 @@ export type VoiceCallLifecycleState = {
 	startedAt: number;
 };
 
+export type VoiceHandoffAction =
+	| 'escalate'
+	| 'no-answer'
+	| 'transfer'
+	| 'voicemail';
+
+export type VoiceHandoffStatus = 'delivered' | 'failed' | 'skipped';
+
+export type VoiceHandoffResult = {
+	deliveredAt?: number;
+	deliveredTo?: string;
+	error?: string;
+	metadata?: Record<string, unknown>;
+	status: VoiceHandoffStatus;
+};
+
+export type VoiceHandoffInput<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = {
+	action: VoiceHandoffAction;
+	api: VoiceSessionHandle<TContext, TSession, TResult>;
+	context: TContext;
+	metadata?: Record<string, unknown>;
+	reason?: string;
+	result?: TResult;
+	session: TSession;
+	target?: string;
+};
+
+export type VoiceHandoffAdapter<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = {
+	actions?: VoiceHandoffAction[];
+	handoff: (
+		input: VoiceHandoffInput<TContext, TSession, TResult>
+	) => Promise<VoiceHandoffResult> | VoiceHandoffResult;
+	id: string;
+	kind?: string;
+};
+
+export type VoiceHandoffConfig<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = {
+	adapters: VoiceHandoffAdapter<TContext, TSession, TResult>[];
+	failMode?: 'record' | 'throw';
+};
+
 export type VoiceSessionStore<
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 > = SessionStore<TSession, VoiceSessionSummary>;
@@ -786,6 +839,7 @@ export type VoicePluginConfig<
 	audioConditioning?: VoiceAudioConditioningConfig;
 	logger?: VoiceLogger;
 	htmx?: boolean | VoiceHTMXConfig<TSession, NoInfer<TResult>>;
+	handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
 	ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
 	trace?: VoiceTraceEventStore;
 } & VoiceRouteConfig<TContext, TSession, TResult>;
@@ -812,6 +866,7 @@ export type CreateVoiceSessionOptions<
 	sttLifecycle: VoiceSTTLifecycle;
 	turnDetection: VoiceResolvedTurnDetectionConfig;
 	audioConditioning?: VoiceResolvedAudioConditioningConfig;
+	handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
 	route: VoiceNormalizedRouteConfig<TContext, TSession, TResult>;
 	logger?: VoiceLogger;
 };

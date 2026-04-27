@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { conditionAudioChunk } from './audioConditioning';
+import { deliverVoiceHandoff } from './handoff';
 import { resolveLogger } from './logger';
 import {
 	createId,
@@ -413,6 +414,7 @@ export const createVoiceSession = <
 		session?: TSession;
 		turnId?: string;
 		type:
+			| 'call.handoff'
 			| 'call.lifecycle'
 			| 'session.error'
 			| 'turn.assistant'
@@ -539,6 +541,43 @@ export const createVoiceSession = <
 			event,
 			sessionId: options.id,
 			type: 'call_lifecycle'
+		});
+	};
+
+	const runHandoff = async (input: {
+		action: 'escalate' | 'no-answer' | 'transfer' | 'voicemail';
+		metadata?: Record<string, unknown>;
+		reason?: string;
+		result?: TResult;
+		session: TSession;
+		target?: string;
+	}) => {
+		const result = await deliverVoiceHandoff({
+			config: options.handoff,
+			handoff: {
+				action: input.action,
+				api,
+				context: options.context,
+				metadata: input.metadata,
+				reason: input.reason,
+				result: input.result,
+				session: input.session,
+				target: input.target
+			}
+		});
+		if (!result) {
+			return;
+		}
+
+		await appendTrace({
+			metadata: input.metadata,
+			payload: {
+				...result,
+				reason: input.reason,
+				target: input.target
+			},
+			session: input.session,
+			type: 'call.handoff'
 		});
 	};
 
@@ -896,6 +935,14 @@ export const createVoiceSession = <
 			type: 'call.lifecycle'
 		});
 		await sendCallLifecycle(session);
+		await runHandoff({
+			action: 'transfer',
+			metadata: input.metadata,
+			reason: input.reason,
+			result: input.result,
+			session,
+			target: input.target
+		});
 		await completeInternal(input.result, {
 			disposition: 'transferred',
 			invokeOnComplete: false,
@@ -927,6 +974,13 @@ export const createVoiceSession = <
 			type: 'call.lifecycle'
 		});
 		await sendCallLifecycle(session);
+		await runHandoff({
+			action: 'escalate',
+			metadata: input.metadata,
+			reason: input.reason,
+			result: input.result,
+			session
+		});
 		await completeInternal(input.result, {
 			disposition: 'escalated',
 			invokeOnComplete: false,
@@ -954,6 +1008,12 @@ export const createVoiceSession = <
 			type: 'call.lifecycle'
 		});
 		await sendCallLifecycle(session);
+		await runHandoff({
+			action: 'no-answer',
+			metadata: input?.metadata,
+			result: input?.result,
+			session
+		});
 		await completeInternal(input?.result, {
 			disposition: 'no-answer',
 			invokeOnComplete: false,
@@ -980,6 +1040,12 @@ export const createVoiceSession = <
 			type: 'call.lifecycle'
 		});
 		await sendCallLifecycle(session);
+		await runHandoff({
+			action: 'voicemail',
+			metadata: input?.metadata,
+			result: input?.result,
+			session
+		});
 		await completeInternal(input?.result, {
 			disposition: 'voicemail',
 			invokeOnComplete: false,

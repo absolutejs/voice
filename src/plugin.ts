@@ -433,6 +433,7 @@ export const voice = <
 			audioConditioning: sessionOptions.audioConditioning,
 			context,
 			id: sessionId,
+			handoff: config.handoff,
 			languageStrategy: config.languageStrategy,
 			lexicon,
 			logger: sessionOptions.logger,
