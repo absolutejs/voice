@@ -68,6 +68,11 @@ export {
 	summarizeVoiceProviderHealth
 } from './providerHealth';
 export {
+	createVoiceQualityRoutes,
+	evaluateVoiceQuality,
+	renderVoiceQualityHTML
+} from './qualityRoutes';
+export {
 	createVoiceResilienceRoutes,
 	listVoiceRoutingEvents,
 	renderVoiceResilienceHTML
@@ -306,6 +311,13 @@ export type {
 	VoiceProviderHealthSummary,
 	VoiceProviderHealthSummaryOptions
 } from './providerHealth';
+export type {
+	VoiceQualityMetric,
+	VoiceQualityReport,
+	VoiceQualityRoutesOptions,
+	VoiceQualityStatus,
+	VoiceQualityThresholds
+} from './qualityRoutes';
 export type {
 	VoiceResilienceIOSimulator,
 	VoiceResilienceLink,
