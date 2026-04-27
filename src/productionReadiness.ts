@@ -39,6 +39,7 @@ export type VoiceProductionReadinessReport = {
 		carriers?: string;
 		handoffs?: string;
 		handoffRetry?: string;
+		liveLatency?: string;
 		quality?: string;
 		resilience?: string;
 		sessions?: string;
@@ -55,6 +56,13 @@ export type VoiceProductionReadinessReport = {
 		handoffs: {
 			failed: number;
 			total: number;
+		};
+		liveLatency: {
+			averageLatencyMs?: number;
+			failed: number;
+			status: VoiceProductionReadinessStatus;
+			total: number;
+			warnings: number;
 		};
 		providers: {
 			degraded: number;
@@ -95,6 +103,8 @@ export type VoiceProductionReadinessRoutesOptions = {
 	sttProviders?: readonly string[];
 	title?: string;
 	ttsProviders?: readonly string[];
+	liveLatencyWarnAfterMs?: number;
+	liveLatencyFailAfterMs?: number;
 };
 
 const escapeHtml = (value: string) =>
@@ -145,6 +155,50 @@ const resolveCarriers = async (
 	});
 };
 
+const summarizeLiveLatency = (
+	events: Awaited<ReturnType<VoiceTraceEventStore['list']>>,
+	options: VoiceProductionReadinessRoutesOptions
+) => {
+	const warnAfterMs = options.liveLatencyWarnAfterMs ?? 1800;
+	const failAfterMs = options.liveLatencyFailAfterMs ?? 3200;
+	const latencies = events
+		.filter((event) => event.type === 'client.live_latency')
+		.map((event) =>
+			typeof event.payload.latencyMs === 'number'
+				? event.payload.latencyMs
+				: typeof event.payload.elapsedMs === 'number'
+					? event.payload.elapsedMs
+					: undefined
+		)
+		.filter((value): value is number => typeof value === 'number');
+	const failed = latencies.filter((value) => value > failAfterMs).length;
+	const warnings = latencies.filter(
+		(value) => value > warnAfterMs && value <= failAfterMs
+	).length;
+	const averageLatencyMs =
+		latencies.length > 0
+			? Math.round(
+					latencies.reduce((total, value) => total + value, 0) /
+						latencies.length
+				)
+			: undefined;
+
+	return {
+		averageLatencyMs,
+		failed,
+		status:
+			latencies.length === 0
+				? 'warn'
+				: failed > 0
+					? 'fail'
+					: warnings > 0
+						? 'warn'
+						: 'pass',
+		total: latencies.length,
+		warnings
+	} satisfies VoiceProductionReadinessReport['summary']['liveLatency'];
+};
+
 export const buildVoiceProductionReadinessReport = async (
 	options: VoiceProductionReadinessRoutesOptions,
 	input: {
@@ -157,6 +211,7 @@ export const buildVoiceProductionReadinessReport = async (
 	const events = await options.store.list();
 	const routingEvents = listVoiceRoutingEvents(events);
 	const routingSessions = summarizeVoiceRoutingSessions(routingEvents);
+	const liveLatency = summarizeLiveLatency(events, options);
 	const [quality, providers, sessions, handoffs, carriers] = await Promise.all([
 		evaluateVoiceQuality({ events }),
 		Promise.all([
@@ -307,6 +362,32 @@ export const buildVoiceProductionReadinessReport = async (
 						]
 		}
 	];
+	checks.push({
+		detail:
+			liveLatency.total === 0
+				? 'No browser live-latency measurements are recorded yet.'
+				: liveLatency.status === 'pass'
+					? `Live browser turn latency averages ${liveLatency.averageLatencyMs}ms.`
+					: `${liveLatency.failed} failed and ${liveLatency.warnings} warned live-latency measurement(s).`,
+		href: options.links?.liveLatency ?? '/traces',
+		label: 'Live latency proof',
+		status: liveLatency.status,
+		value:
+			liveLatency.averageLatencyMs === undefined
+				? `${liveLatency.total} samples`
+				: `${liveLatency.averageLatencyMs}ms avg`,
+		actions:
+			liveLatency.status === 'pass'
+				? []
+				: [
+						{
+							description:
+								'Run a live browser voice turn and inspect the persisted latency trace.',
+							href: options.links?.liveLatency ?? '/traces',
+							label: 'Open live latency traces'
+						}
+					]
+	});
 	const carrierSummary = carriers
 		? {
 				failing: carriers.summary.failing,
@@ -348,6 +429,7 @@ export const buildVoiceProductionReadinessReport = async (
 			carriers: '/carriers',
 			handoffs: '/handoffs',
 			handoffRetry: '/api/voice-handoffs/retry',
+			liveLatency: '/traces',
 			quality: '/quality',
 			resilience: '/resilience',
 			sessions: '/sessions',
@@ -360,6 +442,7 @@ export const buildVoiceProductionReadinessReport = async (
 				failed: handoffs.failed,
 				total: handoffs.total
 			},
+			liveLatency,
 			providers: {
 				degraded: degradedProviders,
 				total: providers.length
