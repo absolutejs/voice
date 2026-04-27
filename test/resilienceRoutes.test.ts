@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 import {
+	createVoiceRoutingDecisionSummary,
 	createVoiceMemoryTraceEventStore,
 	createVoiceResilienceRoutes,
 	listVoiceRoutingEvents,
-	renderVoiceResilienceHTML
+	renderVoiceResilienceHTML,
+	summarizeVoiceRoutingDecision
 } from '../src';
 import { createVoiceIOProviderFailureSimulator } from '../src/testing';
 
@@ -16,6 +18,8 @@ test('listVoiceRoutingEvents extracts provider router traces', () => {
 				kind: 'stt',
 				provider: 'deepgram',
 				providerStatus: 'error',
+				routing: 'fastest',
+				suppressionRemainingMs: 500,
 				timedOut: true
 			},
 			sessionId: 'session-1',
@@ -36,8 +40,10 @@ test('listVoiceRoutingEvents extracts provider router traces', () => {
 		{
 			kind: 'stt',
 			provider: 'deepgram',
+			routing: 'fastest',
 			sessionId: 'session-1',
 			status: 'error',
+			suppressionRemainingMs: 500,
 			timedOut: true
 		},
 		{
@@ -47,6 +53,95 @@ test('listVoiceRoutingEvents extracts provider router traces', () => {
 			status: 'success'
 		}
 	]);
+});
+
+test('summarizeVoiceRoutingDecision returns the latest matching routing event', () => {
+	const summary = summarizeVoiceRoutingDecision(
+		[
+			{
+				at: 100,
+				payload: {
+					kind: 'stt',
+					provider: 'deepgram',
+					providerStatus: 'success',
+					routing: 'fastest'
+				},
+				sessionId: 'session-1',
+				type: 'session.error'
+			},
+			{
+				at: 150,
+				payload: {
+					provider: 'openai',
+					providerStatus: 'success',
+					routing: 'quality'
+				},
+				sessionId: 'session-2',
+				type: 'session.error'
+			},
+			{
+				at: 200,
+				payload: {
+					fallbackProvider: 'assemblyai',
+					kind: 'stt',
+					latencyBudgetMs: 6000,
+					provider: 'assemblyai',
+					providerStatus: 'fallback',
+					routing: 'balanced',
+					selectedProvider: 'deepgram'
+				},
+				sessionId: 'session-3',
+				type: 'session.error'
+			}
+		],
+		{ kind: 'stt' }
+	);
+
+	expect(summary).toMatchObject({
+		fallbackProvider: 'assemblyai',
+		kind: 'stt',
+		latencyBudgetMs: 6000,
+		provider: 'assemblyai',
+		routing: 'balanced',
+		selectedProvider: 'deepgram',
+		sessionId: 'session-3',
+		status: 'fallback'
+	});
+});
+
+test('createVoiceRoutingDecisionSummary reads the latest routing decision from a trace store', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append({
+		at: 100,
+		payload: {
+			kind: 'tts',
+			provider: 'openai',
+			providerStatus: 'success'
+		},
+		sessionId: 'session-1',
+		type: 'session.error'
+	});
+	await store.append({
+		at: 200,
+		payload: {
+			kind: 'stt',
+			provider: 'deepgram',
+			providerStatus: 'success',
+			routing: 'quality'
+		},
+		sessionId: 'session-2',
+		type: 'session.error'
+	});
+
+	await expect(
+		createVoiceRoutingDecisionSummary({ kind: 'stt', store })
+	).resolves.toMatchObject({
+		kind: 'stt',
+		provider: 'deepgram',
+		routing: 'quality',
+		sessionId: 'session-2',
+		status: 'success'
+	});
 });
 
 test('renderVoiceResilienceHTML renders provider health and simulation controls', () => {

@@ -106,8 +106,10 @@ export {
 } from './qualityRoutes';
 export {
 	createVoiceResilienceRoutes,
+	createVoiceRoutingDecisionSummary,
 	listVoiceRoutingEvents,
-	renderVoiceResilienceHTML
+	renderVoiceResilienceHTML,
+	summarizeVoiceRoutingDecision
 } from './resilienceRoutes';
 export {
 	createVoiceSTTProviderRouter,
@@ -406,6 +408,8 @@ export type {
 	VoiceResiliencePageData,
 	VoiceResilienceRoutesOptions,
 	VoiceResilienceSimulationProvider,
+	VoiceRoutingDecisionSummary,
+	VoiceRoutingDecisionSummaryOptions,
 	VoiceRoutingEvent,
 	VoiceRoutingEventKind
 } from './resilienceRoutes';

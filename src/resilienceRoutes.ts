@@ -21,11 +21,22 @@ export type VoiceRoutingEvent = {
 	latencyBudgetMs?: number;
 	operation?: string;
 	provider?: string;
+	routing?: string;
 	selectedProvider?: string;
 	sessionId: string;
 	status?: string;
+	suppressionRemainingMs?: number;
 	timedOut: boolean;
 	turnId?: string;
+};
+
+export type VoiceRoutingDecisionSummary = VoiceRoutingEvent;
+
+export type VoiceRoutingDecisionSummaryOptions = {
+	kind?: VoiceRoutingEventKind;
+	limit?: number;
+	sessionId?: string;
+	store: VoiceTraceEventStore;
 };
 
 export type VoiceResilienceLink = {
@@ -131,15 +142,49 @@ export const listVoiceRoutingEvents = (
 			latencyBudgetMs: getNumber(event.payload.latencyBudgetMs),
 			operation: getString(event.payload.operation),
 			provider,
+			routing: getString(event.payload.routing),
 			selectedProvider: getString(event.payload.selectedProvider),
 			sessionId: event.sessionId,
 			status: providerStatus,
+			suppressionRemainingMs: getNumber(event.payload.suppressionRemainingMs),
 			timedOut: getBoolean(event.payload.timedOut),
 			turnId: event.turnId
 		});
 	}
 
 	return routingEvents.sort((left, right) => right.at - left.at);
+};
+
+export const summarizeVoiceRoutingDecision = (
+	events: StoredVoiceTraceEvent[],
+	options: Omit<VoiceRoutingDecisionSummaryOptions, 'store'> = {}
+): VoiceRoutingDecisionSummary | null => {
+	const routingEvents = listVoiceRoutingEvents(events).filter((event) => {
+		if (options.kind && event.kind !== options.kind) {
+			return false;
+		}
+		if (options.sessionId && event.sessionId !== options.sessionId) {
+			return false;
+		}
+		return true;
+	});
+	const limited =
+		typeof options.limit === 'number' && options.limit >= 0
+			? routingEvents.slice(0, options.limit)
+			: routingEvents;
+
+	return limited[0] ?? null;
+};
+
+export const createVoiceRoutingDecisionSummary = async (
+	options: VoiceRoutingDecisionSummaryOptions
+): Promise<VoiceRoutingDecisionSummary | null> => {
+	const events = await options.store.list({
+		sessionId: options.sessionId,
+		type: 'session.error'
+	});
+
+	return summarizeVoiceRoutingDecision(events, options);
 };
 
 const summarizeRoutingEvents = (events: VoiceRoutingEvent[]) => {
