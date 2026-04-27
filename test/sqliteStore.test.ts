@@ -7,6 +7,7 @@ import {
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
+	createVoiceSQLiteCampaignStore,
 	createVoiceSQLiteExternalObjectMapStore,
 	createVoiceSQLiteIntegrationEventStore,
 	createVoiceSQLiteReviewStore,
@@ -17,7 +18,8 @@ import {
 	createVoiceSQLiteTraceSinkDeliveryStore,
 	createVoiceSQLiteTraceEventStore,
 	createVoiceTraceEvent,
-	createVoiceTraceSinkDeliveryRecord
+	createVoiceTraceSinkDeliveryRecord,
+	runVoiceCampaignProof
 } from '../src';
 
 const tempPaths: string[] = [];
@@ -235,7 +237,29 @@ test('createVoiceSQLiteTraceEventStore persists and filters trace events', async
 	});
 });
 
-test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, tasks, events, and external object maps', async () => {
+test('createVoiceSQLiteCampaignStore persists campaign proof records across instances', async () => {
+	const path = createTempSQLitePath();
+	const store = createVoiceSQLiteCampaignStore({
+		path
+	});
+
+	const proof = await runVoiceCampaignProof({
+		store
+	});
+
+	const secondStore = createVoiceSQLiteCampaignStore({
+		path
+	});
+	const restored = await secondStore.get(proof.final.campaign.id);
+
+	expect(restored?.recipients).toHaveLength(2);
+	expect(restored?.attempts).toHaveLength(2);
+	expect((await secondStore.list()).map((record) => record.campaign.id)).toEqual([
+		proof.final.campaign.id
+	]);
+});
+
+test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, campaigns, tasks, events, and external object maps', async () => {
 	const path = createTempSQLitePath();
 	const runtimeStorage = createVoiceSQLiteRuntimeStorage({
 		path
@@ -298,6 +322,9 @@ test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, task
 			sourceType: 'task'
 		})
 	);
+	const campaignProof = await runVoiceCampaignProof({
+		store: runtimeStorage.campaigns
+	});
 	await runtimeStorage.traces.append({
 		at: 400,
 		payload: {
@@ -349,6 +376,10 @@ test('createVoiceSQLiteRuntimeStorage exposes persistent sessions, reviews, task
 			})
 		)?.externalId
 	).toBe('linear-task-runtime');
+	expect(
+		(await secondRuntimeStorage.campaigns.get(campaignProof.final.campaign.id))
+			?.attempts
+	).toHaveLength(2);
 	expect((await secondRuntimeStorage.traces.list({ sessionId: 'session-runtime' }))[0]?.type).toBe(
 		'agent.result'
 	);

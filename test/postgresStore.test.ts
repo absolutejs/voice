@@ -4,6 +4,7 @@ import {
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
+	createVoicePostgresCampaignStore,
 	createVoicePostgresExternalObjectMapStore,
 	createVoicePostgresIntegrationEventStore,
 	createVoicePostgresReviewStore,
@@ -14,7 +15,8 @@ import {
 	createVoicePostgresTraceSinkDeliveryStore,
 	createVoicePostgresTraceEventStore,
 	createVoiceTraceEvent,
-	createVoiceTraceSinkDeliveryRecord
+	createVoiceTraceSinkDeliveryRecord,
+	runVoiceCampaignProof
 } from '../src';
 import type { VoicePostgresClient } from '../src';
 
@@ -301,7 +303,29 @@ test('createVoicePostgresTraceEventStore persists and filters trace events', asy
 	});
 });
 
-test('createVoicePostgresRuntimeStorage exposes persistent sessions, reviews, tasks, events, and external object maps', async () => {
+test('createVoicePostgresCampaignStore persists campaign proof records across instances', async () => {
+	const sql = createFakePostgresClient();
+	const store = createVoicePostgresCampaignStore({
+		sql
+	});
+
+	const proof = await runVoiceCampaignProof({
+		store
+	});
+
+	const secondStore = createVoicePostgresCampaignStore({
+		sql
+	});
+	const restored = await secondStore.get(proof.final.campaign.id);
+
+	expect(restored?.recipients).toHaveLength(2);
+	expect(restored?.attempts).toHaveLength(2);
+	expect((await secondStore.list()).map((record) => record.campaign.id)).toEqual([
+		proof.final.campaign.id
+	]);
+});
+
+test('createVoicePostgresRuntimeStorage exposes persistent sessions, reviews, campaigns, tasks, events, and external object maps', async () => {
 	const sql = createFakePostgresClient();
 	const runtimeStorage = createVoicePostgresRuntimeStorage({
 		sql
@@ -364,6 +388,9 @@ test('createVoicePostgresRuntimeStorage exposes persistent sessions, reviews, ta
 			sourceType: 'task'
 		})
 	);
+	const campaignProof = await runVoiceCampaignProof({
+		store: runtimeStorage.campaigns
+	});
 	await runtimeStorage.traces.append({
 		at: 400,
 		payload: {
@@ -415,6 +442,10 @@ test('createVoicePostgresRuntimeStorage exposes persistent sessions, reviews, ta
 			})
 		)?.externalId
 	).toBe('zendesk-task-runtime');
+	expect(
+		(await secondRuntimeStorage.campaigns.get(campaignProof.final.campaign.id))
+			?.attempts
+	).toHaveLength(2);
 	expect((await secondRuntimeStorage.traces.list({ sessionId: 'session-runtime' }))[0]?.type).toBe(
 		'agent.result'
 	);

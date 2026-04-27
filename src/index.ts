@@ -232,6 +232,7 @@ export {
 	summarizeVoiceTraceTimeline
 } from './traceTimeline';
 export {
+	createVoiceSQLiteCampaignStore,
 	createVoiceSQLiteExternalObjectMapStore,
 	createVoiceSQLiteIntegrationEventStore,
 	createVoiceSQLiteReviewStore,
@@ -243,6 +244,7 @@ export {
 	createVoiceSQLiteTraceEventStore
 } from './sqliteStore';
 export {
+	createVoicePostgresCampaignStore,
 	createVoicePostgresExternalObjectMapStore,
 	createVoicePostgresIntegrationEventStore,
 	createVoicePostgresReviewStore,

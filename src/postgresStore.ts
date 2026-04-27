@@ -32,6 +32,7 @@ import type {
 	StoredVoiceTelephonyWebhookDecision,
 	VoiceTelephonyWebhookIdempotencyStore
 } from './telephonyOutcome';
+import type { VoiceCampaignRecord, VoiceCampaignStore } from './campaign';
 import type { VoiceSessionRecord, VoiceSessionStore } from './types';
 
 export type VoicePostgresClient = {
@@ -58,6 +59,7 @@ export type VoicePostgresRuntimeStorage<
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
 	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 > = {
+	campaigns: VoiceCampaignStore;
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
 	reviews: VoiceCallReviewStore<TReview>;
@@ -393,6 +395,20 @@ const createPostgresTelephonyWebhookIdempotencyStoreWithClient = <
 		sql: client
 	});
 
+const createPostgresCampaignStoreWithClient = (
+	client: Promise<VoicePostgresClient>,
+	options: VoicePostgresStoreOptions
+): VoiceCampaignStore =>
+	createPostgresRecordStore<VoiceCampaignRecord>({
+		decorate: (_id, value) => value,
+		getSortAt: (value) => value.campaign.createdAt,
+		qualifiedTableName: resolveQualifiedTableName({
+			fallback: 'campaigns',
+			options
+		}),
+		sql: client
+	});
+
 export const createVoicePostgresSessionStore = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 >(
@@ -461,6 +477,11 @@ export const createVoicePostgresTelephonyWebhookIdempotencyStore = <
 		options
 	);
 
+export const createVoicePostgresCampaignStore = (
+	options: VoicePostgresStoreOptions
+): VoiceCampaignStore =>
+	createPostgresCampaignStoreWithClient(createVoicePostgresClient(options), options);
+
 export const createVoicePostgresRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
@@ -483,6 +504,7 @@ export const createVoicePostgresRuntimeStorage = <
 	const client = createVoicePostgresClient(options);
 
 	return {
+		campaigns: createPostgresCampaignStoreWithClient(client, options),
 		events: createPostgresEventStoreWithClient<TEvent>(client, options),
 		externalObjects: createPostgresExternalObjectMapStoreWithClient<TMapping>(
 			client,

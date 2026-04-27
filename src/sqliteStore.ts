@@ -34,6 +34,7 @@ import type {
 	StoredVoiceTelephonyWebhookDecision,
 	VoiceTelephonyWebhookIdempotencyStore
 } from './telephonyOutcome';
+import type { VoiceCampaignRecord, VoiceCampaignStore } from './campaign';
 import type { VoiceSessionRecord, VoiceSessionStore } from './types';
 
 export type VoiceSQLiteStoreOptions = {
@@ -51,6 +52,7 @@ export type VoiceSQLiteRuntimeStorage<
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
 	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
 > = {
+	campaigns: VoiceCampaignStore;
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
 	reviews: VoiceCallReviewStore<TReview>;
@@ -328,6 +330,17 @@ const createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase = <
 		tableName
 	});
 
+const createSQLiteCampaignStoreWithDatabase = (
+	database: Database,
+	tableName: string
+): VoiceCampaignStore =>
+	createSQLiteRecordStore<VoiceCampaignRecord>({
+		database,
+		decorate: (_id, value) => value,
+		getSortAt: (value) => value.campaign.createdAt,
+		tableName
+	});
+
 export const createVoiceSQLiteSessionStore = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 >(
@@ -432,6 +445,17 @@ export const createVoiceSQLiteTelephonyWebhookIdempotencyStore = <
 		})
 	);
 
+export const createVoiceSQLiteCampaignStore = (
+	options: VoiceSQLiteStoreOptions
+): VoiceCampaignStore =>
+	createSQLiteCampaignStoreWithDatabase(
+		openVoiceSQLiteDatabase(options.path),
+		resolveTableName({
+			fallback: 'campaigns',
+			options
+		})
+	);
+
 export const createVoiceSQLiteRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
@@ -454,6 +478,13 @@ export const createVoiceSQLiteRuntimeStorage = <
 	const database = openVoiceSQLiteDatabase(options.path);
 
 	return {
+		campaigns: createSQLiteCampaignStoreWithDatabase(
+			database,
+			resolveTableName({
+				fallback: 'campaigns',
+				options
+			})
+		),
 		events: createSQLiteEventStoreWithDatabase<TEvent>(
 			database,
 			resolveTableName({
