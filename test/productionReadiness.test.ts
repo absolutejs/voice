@@ -33,6 +33,11 @@ test('buildVoiceProductionReadinessReport warns when deployment has no runtime p
 		expect.arrayContaining([
 			expect.objectContaining({
 				label: 'Routing evidence',
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						label: 'Open routing evidence'
+					})
+				]),
 				status: 'warn'
 			})
 		])
@@ -98,6 +103,26 @@ test('buildVoiceProductionReadinessReport fails provider and carrier blockers', 
 	});
 	expect(report.summary.sessions.failed).toBe(1);
 	expect(report.summary.routing.events).toBe(2);
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						label: 'Replay failed sessions'
+					})
+				]),
+				label: 'Session health'
+			}),
+			expect.objectContaining({
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						label: 'Open carrier matrix'
+					})
+				]),
+				label: 'Carrier readiness'
+			})
+		])
+	);
 });
 
 test('production readiness routes expose json and html reports', async () => {
@@ -143,6 +168,13 @@ test('renderVoiceProductionReadinessHTML renders check statuses', () => {
 		checkedAt: 100,
 		checks: [
 			{
+				actions: [
+					{
+						href: '/api/voice-handoffs/retry',
+						label: 'Retry handoff deliveries',
+						method: 'POST'
+					}
+				],
 				label: 'Carrier readiness',
 				status: matrix.pass ? 'pass' : 'fail',
 				value: matrix.summary.ready
@@ -182,4 +214,6 @@ test('renderVoiceProductionReadinessHTML renders check statuses', () => {
 
 	expect(html).toContain('Carrier readiness');
 	expect(html).toContain('Overall: PASS');
+	expect(html).toContain('Retry handoff deliveries');
+	expect(html).toContain('data-readiness-action');
 });

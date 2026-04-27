@@ -497,6 +497,7 @@ export type {
 	VoiceOpsConsoleRoutesOptions
 } from './opsConsoleRoutes';
 export type {
+	VoiceProductionReadinessAction,
 	VoiceProductionReadinessCheck,
 	VoiceProductionReadinessReport,
 	VoiceProductionReadinessRoutesOptions,

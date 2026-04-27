@@ -16,7 +16,15 @@ import type { VoiceTraceEventStore } from './trace';
 
 export type VoiceProductionReadinessStatus = 'fail' | 'pass' | 'warn';
 
+export type VoiceProductionReadinessAction = {
+	description?: string;
+	href: string;
+	label: string;
+	method?: 'GET' | 'POST';
+};
+
 export type VoiceProductionReadinessCheck = {
+	actions?: VoiceProductionReadinessAction[];
 	detail?: string;
 	href?: string;
 	label: string;
@@ -30,6 +38,7 @@ export type VoiceProductionReadinessReport = {
 	links: {
 		carriers?: string;
 		handoffs?: string;
+		handoffRetry?: string;
 		quality?: string;
 		resilience?: string;
 		sessions?: string;
@@ -186,7 +195,17 @@ export const buildVoiceProductionReadinessReport = async (
 			href: options.links?.quality ?? '/quality',
 			label: 'Quality gates',
 			status: quality.status,
-			value: quality.status
+			value: quality.status,
+			actions:
+				quality.status === 'pass'
+					? []
+					: [
+							{
+								description: 'Open the quality report to inspect failing gates.',
+								href: options.links?.quality ?? '/quality',
+								label: 'Inspect quality gates'
+							}
+						]
 		},
 		{
 			detail:
@@ -196,7 +215,18 @@ export const buildVoiceProductionReadinessReport = async (
 			href: options.links?.resilience ?? '/resilience',
 			label: 'Provider health',
 			status: degradedProviders > 0 ? 'fail' : 'pass',
-			value: degradedProviders
+			value: degradedProviders,
+			actions:
+				degradedProviders > 0
+					? [
+							{
+								description:
+									'Open provider health, fallback state, and recovery controls.',
+								href: options.links?.resilience ?? '/resilience',
+								label: 'Open provider recovery'
+							}
+						]
+					: []
 		},
 		{
 			detail:
@@ -208,7 +238,25 @@ export const buildVoiceProductionReadinessReport = async (
 			href: options.links?.sessions ?? '/sessions',
 			label: 'Session health',
 			status: failedSessions > 0 ? 'fail' : sessions.length === 0 ? 'warn' : 'pass',
-			value: `${sessions.length - failedSessions}/${sessions.length}`
+			value: `${sessions.length - failedSessions}/${sessions.length}`,
+			actions:
+				failedSessions > 0
+					? [
+							{
+								description: 'Open failed sessions and replay traces.',
+								href: `${options.links?.sessions ?? '/sessions'}?status=failed`,
+								label: 'Replay failed sessions'
+							}
+						]
+					: sessions.length === 0
+						? [
+								{
+									description: 'Open sessions after running a smoke or live call.',
+									href: options.links?.sessions ?? '/sessions',
+									label: 'Open sessions'
+								}
+							]
+						: []
 		},
 		{
 			detail:
@@ -218,7 +266,24 @@ export const buildVoiceProductionReadinessReport = async (
 			href: options.links?.handoffs ?? '/handoffs',
 			label: 'Handoff delivery',
 			status: handoffs.failed > 0 ? 'fail' : 'pass',
-			value: `${handoffs.total - handoffs.failed}/${handoffs.total}`
+			value: `${handoffs.total - handoffs.failed}/${handoffs.total}`,
+			actions:
+				handoffs.failed > 0
+					? [
+							{
+								description: 'Retry queued or failed handoff deliveries.',
+								href:
+									options.links?.handoffRetry ?? '/api/voice-handoffs/retry',
+								label: 'Retry handoff deliveries',
+								method: 'POST'
+							},
+							{
+								description: 'Inspect handoff queue and delivery errors.',
+								href: options.links?.handoffs ?? '/handoffs',
+								label: 'Open handoff queue'
+							}
+						]
+					: []
 		},
 		{
 			detail:
@@ -228,7 +293,18 @@ export const buildVoiceProductionReadinessReport = async (
 			href: options.links?.resilience ?? '/resilience',
 			label: 'Routing evidence',
 			status: routingEvents.length > 0 ? 'pass' : 'warn',
-			value: routingEvents.length
+			value: routingEvents.length,
+			actions:
+				routingEvents.length > 0
+					? []
+					: [
+							{
+								description:
+									'Open provider routing and run a smoke or simulation to create evidence.',
+								href: options.links?.resilience ?? '/resilience',
+								label: 'Open routing evidence'
+							}
+						]
 		}
 	];
 	const carrierSummary = carriers
@@ -250,7 +326,18 @@ export const buildVoiceProductionReadinessReport = async (
 			href: options.links?.carriers ?? '/carriers',
 			label: 'Carrier readiness',
 			status: carrierSummary.status,
-			value: `${carrierSummary.ready}/${carrierSummary.providers}`
+			value: `${carrierSummary.ready}/${carrierSummary.providers}`,
+			actions:
+				carrierSummary.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open the carrier matrix for exact missing env, signing, and URL issues.',
+								href: options.links?.carriers ?? '/carriers',
+								label: 'Open carrier matrix'
+							}
+						]
 		});
 	}
 
@@ -260,6 +347,7 @@ export const buildVoiceProductionReadinessReport = async (
 		links: {
 			carriers: '/carriers',
 			handoffs: '/handoffs',
+			handoffRetry: '/api/voice-handoffs/retry',
 			quality: '/quality',
 			resilience: '/resilience',
 			sessions: '/sessions',
@@ -298,19 +386,30 @@ export const renderVoiceProductionReadinessHTML = (
 	const title = options.title ?? 'AbsoluteJS Voice Production Readiness';
 	const checks = report.checks
 		.map(
-			(check) => `<article class="check ${escapeHtml(check.status)}">
+			(check, index) => {
+				const actions = (check.actions ?? [])
+					.map((action) =>
+						action.method === 'POST'
+							? `<button type="button" data-readiness-action="${index}" data-action-url="${escapeHtml(action.href)}">${escapeHtml(action.label)}</button>`
+							: `<a href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>`
+					)
+					.join('');
+
+				return `<article class="check ${escapeHtml(check.status)}">
         <div>
           <span>${escapeHtml(check.status.toUpperCase())}</span>
           <h2>${escapeHtml(check.label)}</h2>
           ${check.detail ? `<p>${escapeHtml(check.detail)}</p>` : ''}
+          ${actions ? `<p class="actions">${actions}</p>` : ''}
         </div>
         <strong>${escapeHtml(String(check.value ?? check.status))}</strong>
         ${check.href ? `<a href="${escapeHtml(check.href)}">Open surface</a>` : ''}
-      </article>`
+      </article>`;
+			}
 		)
 		.join('');
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0c0f14;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1060px;padding:32px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12));border:1px solid #26313d;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#fbbf24;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.status{display:inline-flex;border:1px solid #3f3f46;border-radius:999px;padding:8px 12px}.status.pass,.check.pass{border-color:rgba(34,197,94,.55)}.status.warn,.check.warn{border-color:rgba(245,158,11,.65)}.status.fail,.check.fail{border-color:rgba(239,68,68,.75)}.checks{display:grid;gap:14px}.check{align-items:center;background:#141922;border:1px solid #26313d;border-radius:22px;display:grid;gap:16px;grid-template-columns:1fr auto auto;padding:18px}.check span{color:#a8b0b8;font-size:.78rem;font-weight:900;letter-spacing:.08em}.check h2{margin:.2rem 0}.check p{color:#b9c0c8;margin:.2rem 0 0}.check strong{font-size:1.5rem}.check a,a{color:#fbbf24}@media(max-width:760px){main{padding:20px}.check{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted readiness</p><h1>${escapeHtml(title)}</h1><p>One deployable pass/fail report for quality gates, provider failover, session health, handoffs, routing evidence, and optional carrier readiness.</p><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p>Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}</p></section><section class="checks">${checks}</section></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0c0f14;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1060px;padding:32px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12));border:1px solid #26313d;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#fbbf24;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.status{display:inline-flex;border:1px solid #3f3f46;border-radius:999px;padding:8px 12px}.status.pass,.check.pass{border-color:rgba(34,197,94,.55)}.status.warn,.check.warn{border-color:rgba(245,158,11,.65)}.status.fail,.check.fail{border-color:rgba(239,68,68,.75)}.checks{display:grid;gap:14px}.check{align-items:center;background:#141922;border:1px solid #26313d;border-radius:22px;display:grid;gap:16px;grid-template-columns:1fr auto auto;padding:18px}.check span{color:#a8b0b8;font-size:.78rem;font-weight:900;letter-spacing:.08em}.check h2{margin:.2rem 0}.check p{color:#b9c0c8;margin:.2rem 0 0}.check strong{font-size:1.5rem}.actions{display:flex;flex-wrap:wrap;gap:10px}.check a,a{color:#fbbf24}button{background:#fbbf24;border:0;border-radius:999px;color:#111827;cursor:pointer;font-weight:800;padding:9px 12px}button:disabled{cursor:wait;opacity:.65}@media(max-width:760px){main{padding:20px}.check{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted readiness</p><h1>${escapeHtml(title)}</h1><p>One deployable pass/fail report for quality gates, provider failover, session health, handoffs, routing evidence, and optional carrier readiness.</p><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p>Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}</p></section><section class="checks">${checks}</section></main><script>document.querySelectorAll("[data-readiness-action]").forEach((button)=>{button.addEventListener("click",async()=>{const url=button.getAttribute("data-action-url");if(!url)return;button.disabled=true;const original=button.textContent;button.textContent="Running...";try{const response=await fetch(url,{method:"POST"});button.textContent=response.ok?"Done. Reloading...":"Failed";if(response.ok)setTimeout(()=>location.reload(),500)}catch{button.textContent="Failed"}finally{setTimeout(()=>{button.disabled=false;button.textContent=original},1500)}})});</script></body></html>`;
 };
 
 export const createVoiceProductionReadinessRoutes = (
