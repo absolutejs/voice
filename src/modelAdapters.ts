@@ -82,15 +82,35 @@ export type VoiceProviderRouterFallbackMode =
 	| 'provider-error'
 	| 'rate-limit';
 
+export type VoiceProviderRouterStrategy =
+	| 'balanced'
+	| 'ordered'
+	| 'prefer-cheapest'
+	| 'prefer-fastest'
+	| 'prefer-selected'
+	| 'quality-first';
+
+export type VoiceProviderRouterPolicyPreset =
+	| 'balanced'
+	| 'cost-cap'
+	| 'cost-first'
+	| 'latency-first'
+	| 'quality-first';
+
+export type VoiceProviderRouterPolicyWeights = {
+	cost?: number;
+	latencyMs?: number;
+	priority?: number;
+	quality?: number;
+};
+
 export type VoiceProviderRouterPolicy<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TProvider extends string = string
 > =
-	| 'ordered'
-	| 'prefer-cheapest'
-	| 'prefer-fastest'
-	| 'prefer-selected'
+	| VoiceProviderRouterStrategy
+	| VoiceProviderRouterPolicyPreset
 	| {
 			allowProviders?:
 				| readonly TProvider[]
@@ -98,18 +118,81 @@ export type VoiceProviderRouterPolicy<
 						input: VoiceAgentModelInput<TContext, TSession>
 					) => readonly TProvider[] | Promise<readonly TProvider[]>);
 			fallbackMode?: VoiceProviderRouterFallbackMode;
-			strategy?:
-				| 'ordered'
-				| 'prefer-cheapest'
-				| 'prefer-fastest'
-				| 'prefer-selected';
+			maxCost?: number;
+			maxLatencyMs?: number;
+			minQuality?: number;
+			scoreProvider?: (
+				provider: TProvider,
+				profile: VoiceProviderRouterProviderProfile | undefined
+			) => number;
+			strategy?: VoiceProviderRouterStrategy;
+			weights?: VoiceProviderRouterPolicyWeights;
 	  };
 
 export type VoiceProviderRouterProviderProfile = {
 	cost?: number;
 	latencyMs?: number;
 	priority?: number;
+	quality?: number;
 	timeoutMs?: number;
+};
+
+export const resolveVoiceProviderRoutingPolicyPreset = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string
+>(
+	preset: VoiceProviderRouterPolicyPreset,
+	options: Omit<
+		Extract<
+			VoiceProviderRouterPolicy<TContext, TSession, TProvider>,
+			Record<string, unknown>
+		>,
+		'strategy'
+	> = {}
+): Extract<
+	VoiceProviderRouterPolicy<TContext, TSession, TProvider>,
+	Record<string, unknown>
+> => {
+	switch (preset) {
+		case 'balanced':
+			return {
+				fallbackMode: 'provider-error',
+				strategy: 'balanced',
+				weights: {
+					cost: 1,
+					latencyMs: 0.005,
+					priority: 1,
+					quality: 10,
+					...options.weights
+				},
+				...options
+			};
+		case 'cost-cap':
+			return {
+				fallbackMode: 'provider-error',
+				strategy: 'prefer-cheapest',
+				...options
+			};
+		case 'cost-first':
+			return {
+				fallbackMode: 'provider-error',
+				strategy: 'prefer-cheapest',
+				...options
+			};
+		case 'latency-first':
+			return {
+				fallbackMode: 'provider-error',
+				strategy: 'prefer-fastest',
+				...options
+			};
+		case 'quality-first':
+			return {
+				fallbackMode: 'provider-error',
+				strategy: 'quality-first',
+				...options
+			};
+	}
 };
 
 export type VoiceProviderRouterHealthOptions = {
@@ -404,9 +487,19 @@ export const createVoiceProviderRouter = <
 	const firstProvider = providerIds[0];
 	const policy =
 		typeof options.policy === 'string'
-			? {
-					strategy: options.policy
-				}
+			? options.policy === 'balanced' ||
+				options.policy === 'cost-cap' ||
+				options.policy === 'cost-first' ||
+				options.policy === 'latency-first' ||
+				options.policy === 'quality-first'
+				? resolveVoiceProviderRoutingPolicyPreset<
+						TContext,
+						TSession,
+						TProvider
+					>(options.policy)
+				: {
+						strategy: options.policy
+					}
 			: options.policy;
 	const strategy = policy?.strategy ?? 'prefer-selected';
 	const fallbackMode =
@@ -524,14 +617,75 @@ export const createVoiceProviderRouter = <
 		return new Set(allowed ?? providerIds);
 	};
 
+	const passesBudgetFilters = (provider: TProvider) => {
+		const profile = options.providerProfiles?.[provider];
+		if (
+			typeof policy?.maxCost === 'number' &&
+			typeof profile?.cost === 'number' &&
+			profile.cost > policy.maxCost
+		) {
+			return false;
+		}
+		if (
+			typeof policy?.maxLatencyMs === 'number' &&
+			typeof profile?.latencyMs === 'number' &&
+			profile.latencyMs > policy.maxLatencyMs
+		) {
+			return false;
+		}
+		if (
+			typeof policy?.minQuality === 'number' &&
+			typeof profile?.quality === 'number' &&
+			profile.quality < policy.minQuality
+		) {
+			return false;
+		}
+		return true;
+	};
+
+	const getBalancedScore = (provider: TProvider) => {
+		const profile = options.providerProfiles?.[provider];
+		if (policy?.scoreProvider) {
+			return policy.scoreProvider(provider, profile);
+		}
+		const weights = policy?.weights ?? {};
+		return (
+			(profile?.cost ?? Number.MAX_SAFE_INTEGER) * (weights.cost ?? 1) +
+			(profile?.latencyMs ?? Number.MAX_SAFE_INTEGER) *
+				(weights.latencyMs ?? 0.005) +
+			(profile?.priority ?? 0) * (weights.priority ?? 1) -
+			(profile?.quality ?? 0) * (weights.quality ?? 10)
+		);
+	};
+
 	const sortProviders = (providers: TProvider[]) => {
-		if (strategy !== 'prefer-cheapest' && strategy !== 'prefer-fastest') {
+		if (
+			strategy !== 'prefer-cheapest' &&
+			strategy !== 'prefer-fastest' &&
+			strategy !== 'quality-first' &&
+			strategy !== 'balanced'
+		) {
 			return providers;
 		}
 
 		return [...providers].sort((left, right) => {
 			const leftProfile = options.providerProfiles?.[left];
 			const rightProfile = options.providerProfiles?.[right];
+			if (strategy === 'quality-first') {
+				return (
+					(rightProfile?.quality ?? Number.MIN_SAFE_INTEGER) -
+						(leftProfile?.quality ?? Number.MIN_SAFE_INTEGER) ||
+					(leftProfile?.priority ?? Number.MAX_SAFE_INTEGER) -
+						(rightProfile?.priority ?? Number.MAX_SAFE_INTEGER) ||
+					(leftProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER) -
+						(rightProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER) ||
+					(leftProfile?.cost ?? Number.MAX_SAFE_INTEGER) -
+						(rightProfile?.cost ?? Number.MAX_SAFE_INTEGER)
+				);
+			}
+			if (strategy === 'balanced') {
+				return getBalancedScore(left) - getBalancedScore(right);
+			}
 			const leftValue =
 				strategy === 'prefer-cheapest'
 					? (leftProfile?.cost ?? Number.MAX_SAFE_INTEGER)
@@ -558,9 +712,10 @@ export const createVoiceProviderRouter = <
 			typeof options.fallback === 'function'
 				? await options.fallback(input)
 				: options.fallback;
-		const rankedProviders = sortProviders([
+		const allowedRankedProviders = sortProviders([
 			...(fallbackOrder ?? providerIds)
 		]).filter((provider) => allowedProviders.has(provider));
+		const rankedProviders = allowedRankedProviders.filter(passesBudgetFilters);
 		const healthyRankedProviders = healthOptions
 			? rankedProviders.filter((provider) => !isSuppressed(provider))
 			: rankedProviders;
@@ -570,6 +725,7 @@ export const createVoiceProviderRouter = <
 		const preferred =
 			selectedProvider &&
 			allowedProviders.has(selectedProvider) &&
+			passesBudgetFilters(selectedProvider) &&
 			(!healthOptions || !isSuppressed(selectedProvider))
 				? selectedProvider
 				: candidateRankedProviders[0] ?? firstProvider;

@@ -1178,6 +1178,70 @@ app.use(
   - `benchmark-results/sessions-cheap-stt-runs-3.json`
   - `benchmark-results/stt-routing-run-manifest.json`
 
+## LLM Provider Routing
+
+Use `createVoiceProviderRouter(...)` when your assistant can run on more than one LLM provider. The router keeps provider choice inside your app: you define the available model adapters, profile each provider, and choose a policy.
+
+```ts
+import {
+	createAnthropicVoiceAssistantModel,
+	createGeminiVoiceAssistantModel,
+	createOpenAIVoiceAssistantModel,
+	createVoiceProviderRouter,
+	resolveVoiceProviderRoutingPolicyPreset
+} from '@absolutejs/voice';
+
+const model = createVoiceProviderRouter({
+	providers: {
+		openai: createOpenAIVoiceAssistantModel({ apiKey: process.env.OPENAI_API_KEY! }),
+		anthropic: createAnthropicVoiceAssistantModel({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+		gemini: createGeminiVoiceAssistantModel({ apiKey: process.env.GEMINI_API_KEY! })
+	},
+	providerHealth: {
+		failureThreshold: 1,
+		cooldownMs: 30_000,
+		rateLimitCooldownMs: 120_000
+	},
+	providerProfiles: {
+		openai: { cost: 6, latencyMs: 650, quality: 0.92, timeoutMs: 3500 },
+		anthropic: { cost: 7, latencyMs: 850, quality: 0.95, timeoutMs: 4500 },
+		gemini: { cost: 2, latencyMs: 700, quality: 0.86, timeoutMs: 3500 }
+	},
+	policy: resolveVoiceProviderRoutingPolicyPreset('balanced')
+});
+```
+
+Built-in policy presets:
+
+- `quality-first`: rank by `providerProfiles[provider].quality`, then priority, latency, and cost.
+- `latency-first`: rank by expected latency.
+- `cost-first`: rank by expected cost.
+- `cost-cap`: rank by cost and reject providers above `maxCost`.
+- `balanced`: weighted score using cost, latency, quality, and priority.
+
+Budget filters are strict. If you pass `maxCost`, `maxLatencyMs`, or `minQuality`, providers outside those limits are removed before ranking, even if they were selected by the request.
+
+```ts
+const policy = resolveVoiceProviderRoutingPolicyPreset('cost-cap', {
+	maxCost: 3,
+	minQuality: 0.82
+});
+```
+
+For full control, pass an object policy:
+
+```ts
+const model = createVoiceProviderRouter({
+	providers,
+	providerProfiles,
+	policy: {
+		strategy: 'balanced',
+		maxLatencyMs: 1000,
+		weights: { cost: 1, latencyMs: 0.004, quality: 12 }
+	}
+});
+```
+
 ## Presets
 
 Voice now ships named runtime presets so apps can start from a useful baseline instead of hand-tuning silence and capture settings every time.

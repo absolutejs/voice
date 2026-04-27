@@ -5,6 +5,7 @@ import {
 	createJSONVoiceAssistantModel,
 	createOpenAIVoiceAssistantModel,
 	createVoiceProviderRouter,
+	resolveVoiceProviderRoutingPolicyPreset,
 	createVoiceSessionRecord,
 	type VoiceAgentModel,
 	type VoiceAgentModelInput
@@ -208,6 +209,145 @@ test('createVoiceProviderRouter can prefer the cheapest allowed provider', async
 					calls.push('premium');
 					return {
 						assistantText: 'premium'
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'cheap'
+	});
+	expect(calls).toEqual(['cheap']);
+});
+
+test('createVoiceProviderRouter can prefer the highest quality provider', async () => {
+	const calls: string[] = [];
+	const model = createVoiceProviderRouter({
+		policy: 'quality-first',
+		providerProfiles: {
+			cheap: {
+				cost: 1,
+				latencyMs: 90,
+				quality: 0.72
+			},
+			strong: {
+				cost: 8,
+				latencyMs: 450,
+				quality: 0.96
+			}
+		},
+		providers: {
+			cheap: {
+				generate: async () => {
+					calls.push('cheap');
+					return {
+						assistantText: 'cheap'
+					};
+				}
+			},
+			strong: {
+				generate: async () => {
+					calls.push('strong');
+					return {
+						assistantText: 'strong'
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'strong'
+	});
+	expect(calls).toEqual(['strong']);
+});
+
+test('createVoiceProviderRouter applies budget filters before ranking', async () => {
+	const calls: string[] = [];
+	const model = createVoiceProviderRouter({
+		policy: {
+			maxCost: 5,
+			minQuality: 0.8,
+			strategy: 'quality-first'
+		},
+		providerProfiles: {
+			cheap: {
+				cost: 1,
+				quality: 0.65
+			},
+			premium: {
+				cost: 10,
+				quality: 0.98
+			},
+			standard: {
+				cost: 4,
+				quality: 0.86
+			}
+		},
+		providers: {
+			cheap: {
+				generate: async () => {
+					calls.push('cheap');
+					return {
+						assistantText: 'cheap'
+					};
+				}
+			},
+			premium: {
+				generate: async () => {
+					calls.push('premium');
+					return {
+						assistantText: 'premium'
+					};
+				}
+			},
+			standard: {
+				generate: async () => {
+					calls.push('standard');
+					return {
+						assistantText: 'standard'
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>,
+		selectProvider: () => 'premium'
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'standard'
+	});
+	expect(calls).toEqual(['standard']);
+});
+
+test('resolveVoiceProviderRoutingPolicyPreset exposes cost cap routing', async () => {
+	const calls: string[] = [];
+	const model = createVoiceProviderRouter({
+		policy: resolveVoiceProviderRoutingPolicyPreset('cost-cap', {
+			maxCost: 3
+		}),
+		providerProfiles: {
+			cheap: {
+				cost: 1
+			},
+			expensive: {
+				cost: 7
+			}
+		},
+		providers: {
+			cheap: {
+				generate: async () => {
+					calls.push('cheap');
+					return {
+						assistantText: 'cheap'
+					};
+				}
+			},
+			expensive: {
+				generate: async () => {
+					calls.push('expensive');
+					return {
+						assistantText: 'expensive'
 					};
 				}
 			}

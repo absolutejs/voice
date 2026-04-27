@@ -84,6 +84,7 @@ export {
 	createGeminiVoiceAssistantModel,
 	createJSONVoiceAssistantModel,
 	createOpenAIVoiceAssistantModel,
+	resolveVoiceProviderRoutingPolicyPreset,
 	createVoiceProviderRouter
 } from './modelAdapters';
 export {
@@ -373,8 +374,11 @@ export type {
 	VoiceProviderRouterHealthOptions,
 	VoiceProviderRouterOptions,
 	VoiceProviderRouterPolicy,
+	VoiceProviderRouterPolicyPreset,
+	VoiceProviderRouterPolicyWeights,
 	VoiceProviderRouterProviderHealth,
 	VoiceProviderRouterProviderProfile,
+	VoiceProviderRouterStrategy,
 	VoiceJSONAssistantModelHandler,
 	VoiceJSONAssistantModelOptions
 } from './modelAdapters';
