@@ -80,6 +80,13 @@ export {
 	summarizeVoiceTurnQuality
 } from './turnQuality';
 export {
+	createVoiceOutcomeContractHTMLHandler,
+	createVoiceOutcomeContractJSONHandler,
+	createVoiceOutcomeContractRoutes,
+	renderVoiceOutcomeContractHTML,
+	runVoiceOutcomeContractSuite
+} from './outcomeContract';
+export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
@@ -435,6 +442,16 @@ export type {
 	VoiceTurnQualityRoutesOptions,
 	VoiceTurnQualityStatus
 } from './turnQuality';
+export type {
+	VoiceOutcomeContractDefinition,
+	VoiceOutcomeContractHTMLHandlerOptions,
+	VoiceOutcomeContractIssue,
+	VoiceOutcomeContractOptions,
+	VoiceOutcomeContractReport,
+	VoiceOutcomeContractRoutesOptions,
+	VoiceOutcomeContractStatus,
+	VoiceOutcomeContractSuiteReport
+} from './outcomeContract';
 export type {
 	VoiceOpsConsoleLink,
 	VoiceOpsConsoleReport,
