@@ -87,6 +87,12 @@ export {
 	runVoiceOutcomeContractSuite
 } from './outcomeContract';
 export {
+	applyVoiceTelephonyOutcome,
+	createVoiceTelephonyOutcomePolicy,
+	resolveVoiceTelephonyOutcome,
+	voiceTelephonyOutcomeToRouteResult
+} from './telephonyOutcome';
+export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
@@ -452,6 +458,14 @@ export type {
 	VoiceOutcomeContractStatus,
 	VoiceOutcomeContractSuiteReport
 } from './outcomeContract';
+export type {
+	VoiceTelephonyOutcomeAction,
+	VoiceTelephonyOutcomeDecision,
+	VoiceTelephonyOutcomePolicy,
+	VoiceTelephonyOutcomeProviderEvent,
+	VoiceTelephonyOutcomeRouteResult,
+	VoiceTelephonyOutcomeStatusDecision
+} from './telephonyOutcome';
 export type {
 	VoiceOpsConsoleLink,
 	VoiceOpsConsoleReport,
