@@ -561,9 +561,6 @@ export const createVoiceTTSProviderRouter = <
 				session.on('error', (event) => {
 					void emitter.emit('error', event);
 				});
-				session.on('close', (event) => {
-					void emitter.emit('close', event);
-				});
 			};
 
 			const openProvider = async (provider: TProvider, attempt: number) => {
