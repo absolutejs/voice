@@ -33,6 +33,16 @@ test('summarizeVoiceAssistantHealth combines assistant, provider, and failure su
 			},
 			sessionId: 'session-health',
 			type: 'session.error'
+		}),
+		createVoiceTraceEvent({
+			at: 1_020,
+			payload: {
+				provider: 'anthropic',
+				providerStatus: 'fallback',
+				selectedProvider: 'openai'
+			},
+			sessionId: 'session-health',
+			type: 'session.error'
 		})
 	];
 
@@ -64,11 +74,11 @@ test('summarizeVoiceAssistantHealth combines assistant, provider, and failure su
 				rateLimited: true,
 				status: 'rate-limited'
 			},
-			{
-				provider: 'anthropic',
-				status: 'idle'
-			}
-		],
+		{
+			provider: 'anthropic',
+			status: 'healthy'
+		}
+	],
 		recentFailures: [
 			{
 				error: 'OpenAI voice assistant model failed: HTTP 429',
@@ -78,6 +88,14 @@ test('summarizeVoiceAssistantHealth combines assistant, provider, and failure su
 			}
 		]
 	});
+	expect(
+		(
+			await summarizeVoiceAssistantHealth({
+				events,
+				providers: ['openai', 'anthropic']
+			})
+		).recentFailures
+	).toHaveLength(1);
 });
 
 test('renderVoiceAssistantHealthHTML renders portable dashboard sections', async () => {

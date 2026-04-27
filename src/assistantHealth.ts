@@ -91,7 +91,9 @@ const getRecentFailures = (
 	events
 		.filter(
 			(event) =>
-				event.type === 'session.error' ||
+				(event.type === 'session.error' &&
+					(event.payload.providerStatus === 'error' ||
+						typeof event.payload.error === 'string')) ||
 				(event.type === 'assistant.guardrail' &&
 					event.payload.action === 'blocked')
 		)
