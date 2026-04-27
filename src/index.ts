@@ -411,6 +411,9 @@ export type {
 } from './resilienceRoutes';
 export type {
 	VoiceIOProviderRouterEvent,
+	VoiceIOProviderRouterOptions,
+	VoiceIOProviderRouterPolicy,
+	VoiceIOProviderRouterPolicyConfig,
 	VoiceSTTProviderRouterOptions,
 	VoiceTTSProviderRouterOptions
 } from './providerAdapters';

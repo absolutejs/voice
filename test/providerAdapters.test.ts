@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import {
 	createVoiceSTTProviderRouter,
-	createVoiceTTSProviderRouter
+	createVoiceTTSProviderRouter,
+	resolveVoiceProviderRoutingPolicyPreset
 } from '../src';
 import type {
 	STTAdapter,
@@ -206,6 +207,113 @@ test('createVoiceSTTProviderRouter suppresses unhealthy providers until cooldown
 	});
 });
 
+test('createVoiceSTTProviderRouter ranks providers with quality policy', async () => {
+	const calls: string[] = [];
+	const router = createVoiceSTTProviderRouter({
+		adapters: {
+			accurate: {
+				kind: 'stt',
+				open: () => {
+					calls.push('accurate');
+					return createSTTSession();
+				}
+			},
+			cheap: {
+				kind: 'stt',
+				open: () => {
+					calls.push('cheap');
+					return createSTTSession();
+				}
+			}
+		},
+		policy: 'quality-first',
+		providerProfiles: {
+			accurate: {
+				cost: 6,
+				latencyMs: 450,
+				quality: 0.94
+			},
+			cheap: {
+				cost: 1,
+				latencyMs: 200,
+				quality: 0.82
+			}
+		}
+	});
+
+	await router.open({
+		format: {
+			channels: 1,
+			container: 'raw',
+			encoding: 'pcm_s16le',
+			sampleRateHz: 16000
+		},
+		sessionId: 'stt-router-quality'
+	});
+
+	expect(calls).toEqual(['accurate']);
+});
+
+test('createVoiceSTTProviderRouter applies policy budget filters before ranking', async () => {
+	const calls: string[] = [];
+	const router = createVoiceSTTProviderRouter({
+		adapters: {
+			cheap: {
+				kind: 'stt',
+				open: () => {
+					calls.push('cheap');
+					return createSTTSession();
+				}
+			},
+			premium: {
+				kind: 'stt',
+				open: () => {
+					calls.push('premium');
+					return createSTTSession();
+				}
+			},
+			standard: {
+				kind: 'stt',
+				open: () => {
+					calls.push('standard');
+					return createSTTSession();
+				}
+			}
+		},
+		policy: {
+			maxCost: 5,
+			minQuality: 0.8,
+			strategy: 'quality-first'
+		},
+		providerProfiles: {
+			cheap: {
+				cost: 1,
+				quality: 0.65
+			},
+			premium: {
+				cost: 10,
+				quality: 0.98
+			},
+			standard: {
+				cost: 4,
+				quality: 0.86
+			}
+		}
+	});
+
+	await router.open({
+		format: {
+			channels: 1,
+			container: 'raw',
+			encoding: 'pcm_s16le',
+			sampleRateHz: 16000
+		},
+		sessionId: 'stt-router-budget'
+	});
+
+	expect(calls).toEqual(['standard']);
+});
+
 test('createVoiceTTSProviderRouter retries send on fallback provider', async () => {
 	const sent: string[] = [];
 	const events: Array<Record<string, unknown>> = [];
@@ -292,6 +400,74 @@ test('createVoiceTTSProviderRouter skips suppressed provider on later sessions',
 	});
 
 	expect(calls).toEqual(['primary', 'backup', 'backup']);
+});
+
+test('createVoiceTTSProviderRouter ranks providers with latency policy', async () => {
+	const calls: string[] = [];
+	const router = createVoiceTTSProviderRouter({
+		adapters: {
+			fast: createTTSAdapter({
+				onOpen: () => {
+					calls.push('fast');
+				}
+			}),
+			slow: createTTSAdapter({
+				onOpen: () => {
+					calls.push('slow');
+				}
+			})
+		},
+		policy: resolveVoiceProviderRoutingPolicyPreset('latency-first'),
+		providerProfiles: {
+			fast: {
+				latencyMs: 80
+			},
+			slow: {
+				latencyMs: 1_000
+			}
+		}
+	});
+
+	await router.open({
+		sessionId: 'tts-router-latency'
+	});
+
+	expect(calls).toEqual(['fast']);
+});
+
+test('createVoiceTTSProviderRouter applies cost-cap policy', async () => {
+	const calls: string[] = [];
+	const router = createVoiceTTSProviderRouter({
+		adapters: {
+			cheap: createTTSAdapter({
+				onOpen: () => {
+					calls.push('cheap');
+				}
+			}),
+			premium: createTTSAdapter({
+				onOpen: () => {
+					calls.push('premium');
+				}
+			})
+		},
+		policy: resolveVoiceProviderRoutingPolicyPreset('cost-cap', {
+			maxCost: 3
+		}),
+		providerProfiles: {
+			cheap: {
+				cost: 2
+			},
+			premium: {
+				cost: 8
+			}
+		}
+	});
+
+	await router.open({
+		sessionId: 'tts-router-cost-cap'
+	});
+
+	expect(calls).toEqual(['cheap']);
 });
 
 test('createVoiceTTSProviderRouter falls back on open timeout', async () => {

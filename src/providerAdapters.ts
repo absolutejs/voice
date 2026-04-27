@@ -10,8 +10,12 @@ import type {
 import type {
 	VoiceProviderRouterHealthOptions,
 	VoiceProviderRouterProviderHealth,
-	VoiceProviderRouterProviderProfile
+	VoiceProviderRouterProviderProfile,
+	VoiceProviderRouterPolicyPreset,
+	VoiceProviderRouterPolicyWeights,
+	VoiceProviderRouterStrategy
 } from './modelAdapters';
+import { resolveVoiceProviderRoutingPolicyPreset } from './modelAdapters';
 
 type MaybePromise<T> = T | Promise<T>;
 type VoiceIOProviderKind = 'stt' | 'tts';
@@ -35,6 +39,32 @@ export type VoiceIOProviderRouterEvent<TProvider extends string = string> = {
 	timedOut?: boolean;
 };
 
+export type VoiceIOProviderRouterPolicyConfig<
+	TOpenOptions = unknown,
+	TProvider extends string = string
+> = {
+	allowProviders?:
+		| readonly TProvider[]
+		| ((input: TOpenOptions) => MaybePromise<readonly TProvider[]>);
+	maxCost?: number;
+	maxLatencyMs?: number;
+	minQuality?: number;
+	scoreProvider?: (
+		provider: TProvider,
+		profile: VoiceProviderRouterProviderProfile | undefined
+	) => number;
+	strategy?: VoiceProviderRouterStrategy;
+	weights?: VoiceProviderRouterPolicyWeights;
+};
+
+export type VoiceIOProviderRouterPolicy<
+	TOpenOptions = unknown,
+	TProvider extends string = string
+> =
+	| VoiceProviderRouterStrategy
+	| VoiceProviderRouterPolicyPreset
+	| VoiceIOProviderRouterPolicyConfig<TOpenOptions, TProvider>;
+
 export type VoiceIOProviderRouterOptions<
 	TProvider extends string,
 	TAdapter,
@@ -47,6 +77,7 @@ export type VoiceIOProviderRouterOptions<
 		event: VoiceIOProviderRouterEvent<TProvider>,
 		input: TOpenOptions
 	) => Promise<void> | void;
+	policy?: VoiceIOProviderRouterPolicy<TOpenOptions, TProvider>;
 	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
 	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
 	selectProvider?: (input: TOpenOptions) => MaybePromise<TProvider | undefined>;
@@ -149,11 +180,39 @@ const withTimeout = async <T>(input: {
 	}
 };
 
+const isVoiceProviderRoutingPolicyPreset = (
+	policy: string
+): policy is VoiceProviderRouterPolicyPreset =>
+	policy === 'balanced' ||
+	policy === 'cost-cap' ||
+	policy === 'cost-first' ||
+	policy === 'latency-first' ||
+	policy === 'quality-first';
+
 const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
 	options: VoiceIOProviderRouterOptions<TProvider, TAdapter, TOpenOptions>
 ) => {
 	const providerIds = Object.keys(options.adapters) as TProvider[];
 	const firstProvider = providerIds[0];
+	const policy: VoiceIOProviderRouterPolicyConfig<
+		TOpenOptions,
+		TProvider
+	> | undefined =
+		typeof options.policy === 'string'
+			? isVoiceProviderRoutingPolicyPreset(options.policy)
+				? resolveVoiceProviderRoutingPolicyPreset<
+						unknown,
+						never,
+						TProvider
+					>(options.policy) as VoiceIOProviderRouterPolicyConfig<
+						TOpenOptions,
+						TProvider
+					>
+				: {
+						strategy: options.policy
+					}
+			: options.policy;
+	const strategy = policy?.strategy ?? 'prefer-selected';
 	const healthOptions =
 		typeof options.providerHealth === 'object'
 			? options.providerHealth
@@ -234,32 +293,136 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
 		return cloneHealth(provider);
 	};
 
+	const resolveAllowedProviders = async (input: TOpenOptions) => {
+		const allowed =
+			typeof policy?.allowProviders === 'function'
+				? await policy.allowProviders(input)
+				: policy?.allowProviders;
+		return new Set(allowed ?? providerIds);
+	};
+
+	const passesBudgetFilters = (provider: TProvider) => {
+		const profile = options.providerProfiles?.[provider];
+		if (
+			typeof policy?.maxCost === 'number' &&
+			typeof profile?.cost === 'number' &&
+			profile.cost > policy.maxCost
+		) {
+			return false;
+		}
+		if (
+			typeof policy?.maxLatencyMs === 'number' &&
+			typeof profile?.latencyMs === 'number' &&
+			profile.latencyMs > policy.maxLatencyMs
+		) {
+			return false;
+		}
+		if (
+			typeof policy?.minQuality === 'number' &&
+			typeof profile?.quality === 'number' &&
+			profile.quality < policy.minQuality
+		) {
+			return false;
+		}
+		return true;
+	};
+
+	const getBalancedScore = (provider: TProvider) => {
+		const profile = options.providerProfiles?.[provider];
+		if (policy?.scoreProvider) {
+			return policy.scoreProvider(provider, profile);
+		}
+		const weights = policy?.weights ?? {};
+		return (
+			(profile?.cost ?? Number.MAX_SAFE_INTEGER) * (weights.cost ?? 1) +
+			(profile?.latencyMs ?? Number.MAX_SAFE_INTEGER) *
+				(weights.latencyMs ?? 0.005) +
+			(profile?.priority ?? 0) * (weights.priority ?? 1) -
+			(profile?.quality ?? 0) * (weights.quality ?? 10)
+		);
+	};
+
+	const sortProviders = (providers: TProvider[]) => {
+		if (
+			strategy !== 'prefer-cheapest' &&
+			strategy !== 'prefer-fastest' &&
+			strategy !== 'quality-first' &&
+			strategy !== 'balanced'
+		) {
+			return providers;
+		}
+
+		return [...providers].sort((left, right) => {
+			const leftProfile = options.providerProfiles?.[left];
+			const rightProfile = options.providerProfiles?.[right];
+			if (strategy === 'quality-first') {
+				return (
+					(rightProfile?.quality ?? Number.MIN_SAFE_INTEGER) -
+						(leftProfile?.quality ?? Number.MIN_SAFE_INTEGER) ||
+					(leftProfile?.priority ?? Number.MAX_SAFE_INTEGER) -
+						(rightProfile?.priority ?? Number.MAX_SAFE_INTEGER) ||
+					(leftProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER) -
+						(rightProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER) ||
+					(leftProfile?.cost ?? Number.MAX_SAFE_INTEGER) -
+						(rightProfile?.cost ?? Number.MAX_SAFE_INTEGER)
+				);
+			}
+			if (strategy === 'balanced') {
+				return getBalancedScore(left) - getBalancedScore(right);
+			}
+			const leftValue =
+				strategy === 'prefer-cheapest'
+					? (leftProfile?.cost ?? Number.MAX_SAFE_INTEGER)
+					: (leftProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER);
+			const rightValue =
+				strategy === 'prefer-cheapest'
+					? (rightProfile?.cost ?? Number.MAX_SAFE_INTEGER)
+					: (rightProfile?.latencyMs ?? Number.MAX_SAFE_INTEGER);
+
+			return (
+				leftValue - rightValue ||
+				(leftProfile?.priority ?? Number.MAX_SAFE_INTEGER) -
+					(rightProfile?.priority ?? Number.MAX_SAFE_INTEGER)
+			);
+		});
+	};
+
 	const resolveOrder = async (input: TOpenOptions) => {
-		const selectedProvider = (await options.selectProvider?.(input)) ?? firstProvider;
+		const requestedProvider = await options.selectProvider?.(input);
+		const selectedProvider = requestedProvider ?? firstProvider;
+		const allowedProviders = await resolveAllowedProviders(input);
 		const fallbackOrder =
 			typeof options.fallback === 'function'
 				? await options.fallback(input)
 				: options.fallback;
 		const candidates = [selectedProvider, ...(fallbackOrder ?? providerIds)];
 		const seen = new Set<TProvider>();
-		const rankedOrder = candidates.filter((provider): provider is TProvider => {
+		const orderedCandidates = candidates.filter((provider): provider is TProvider => {
 			if (!provider || seen.has(provider) || !options.adapters[provider]) {
 				return false;
 			}
 			seen.add(provider);
 			return true;
 		});
+		const rankedOrder = sortProviders(orderedCandidates)
+			.filter((provider) => allowedProviders.has(provider))
+			.filter(passesBudgetFilters);
 		const healthyOrder = healthOptions
 			? rankedOrder.filter((provider) => !isSuppressed(provider))
 			: rankedOrder;
 		const order = healthyOrder.length ? healthyOrder : rankedOrder;
+		const preferred =
+			strategy === 'prefer-selected' &&
+			selectedProvider &&
+			allowedProviders.has(selectedProvider) &&
+			passesBudgetFilters(selectedProvider) &&
+			(!healthOptions || !isSuppressed(selectedProvider))
+				? selectedProvider
+				: order[0];
 
 		return {
 			order,
-			selectedProvider:
-				selectedProvider && !isSuppressed(selectedProvider)
-					? selectedProvider
-					: order[0]
+			selectedProvider: preferred
 		};
 	};
 

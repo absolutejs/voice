@@ -1242,6 +1242,38 @@ const model = createVoiceProviderRouter({
 });
 ```
 
+The same profile and policy shape also works for STT and TTS provider routers, so a self-hosted app can choose the fastest provider for live calls, cap cost for background work, or require a minimum quality score without hard-coding provider branches.
+
+```ts
+const stt = createVoiceSTTProviderRouter({
+	adapters: {
+		deepgram,
+		assemblyai
+	},
+	providerHealth: { cooldownMs: 30_000 },
+	providerProfiles: {
+		deepgram: { cost: 4, latencyMs: 180, quality: 0.93, timeoutMs: 1500 },
+		assemblyai: { cost: 2, latencyMs: 650, quality: 0.88, timeoutMs: 3000 }
+	},
+	policy: resolveVoiceProviderRoutingPolicyPreset('latency-first')
+});
+
+const tts = createVoiceTTSProviderRouter({
+	adapters: {
+		elevenlabs,
+		openai
+	},
+	providerProfiles: {
+		elevenlabs: { cost: 5, latencyMs: 220, quality: 0.94 },
+		openai: { cost: 2, latencyMs: 320, quality: 0.87 }
+	},
+	policy: resolveVoiceProviderRoutingPolicyPreset('cost-cap', {
+		maxCost: 3,
+		minQuality: 0.85
+	})
+});
+```
+
 ## Presets
 
 Voice now ships named runtime presets so apps can start from a useful baseline instead of hand-tuning silence and capture settings every time.
