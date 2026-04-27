@@ -1,5 +1,9 @@
 export { voice } from './plugin';
 export {
+	createVoiceAppKit,
+	createVoiceAppKitRoutes
+} from './appKit';
+export {
 	createVoiceAssistant,
 	createVoiceExperiment,
 	summarizeVoiceAssistantRuns
@@ -275,6 +279,12 @@ export {
 	renderVoiceCallReviewHTML,
 	renderVoiceCallReviewMarkdown
 } from './testing/review';
+export type {
+	VoiceAppKitLink,
+	VoiceAppKitRoutes,
+	VoiceAppKitRoutesOptions,
+	VoiceAppKitSurface
+} from './appKit';
 export type {
 	VoiceAssistant,
 	VoiceAssistantArtifactPlan,
