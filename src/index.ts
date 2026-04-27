@@ -135,6 +135,13 @@ export {
 	deliverVoiceHandoff
 } from './handoff';
 export {
+	createVoiceHandoffHealthHTMLHandler,
+	createVoiceHandoffHealthJSONHandler,
+	createVoiceHandoffHealthRoutes,
+	renderVoiceHandoffHealthHTML,
+	summarizeVoiceHandoffHealth
+} from './handoffHealth';
+export {
 	createVoiceIntegrationSinkWorker,
 	createVoiceIntegrationSinkWorkerLoop,
 	createVoiceOpsTaskWorker,
@@ -337,6 +344,15 @@ export type {
 	VoiceTwilioRedirectHandoffAdapterOptions,
 	VoiceWebhookHandoffAdapterOptions
 } from './handoff';
+export type {
+	VoiceHandoffHealthDelivery,
+	VoiceHandoffHealthEvent,
+	VoiceHandoffHealthHTMLHandlerOptions,
+	VoiceHandoffHealthRoutesOptions,
+	VoiceHandoffHealthStatus,
+	VoiceHandoffHealthSummary,
+	VoiceHandoffHealthSummaryOptions
+} from './handoffHealth';
 export type {
 	StoredVoiceCallReviewArtifact,
 	VoiceCallReviewArtifact,
