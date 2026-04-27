@@ -70,6 +70,16 @@ const createReplayEvents = () => [
 		sessionId: 'session-other',
 		turnId: 'turn-1',
 		type: 'turn.committed'
+	}),
+	createVoiceTraceEvent({
+		at: 2_010,
+		payload: {
+			provider: 'openai',
+			providerStatus: 'success'
+		},
+		sessionId: 'session-other',
+		turnId: 'turn-1',
+		type: 'session.error'
 	})
 ];
 
@@ -175,6 +185,18 @@ test('summarizeVoiceSessions lists searchable sessions with replay links', async
 			status: 'failed'
 		})
 	).toHaveLength(1);
+	expect(
+		await summarizeVoiceSessions({
+			events: createReplayEvents(),
+			q: 'session-other'
+		})
+	).toMatchObject([
+		{
+			errorCount: 0,
+			sessionId: 'session-other',
+			status: 'healthy'
+		}
+	]);
 });
 
 test('renderVoiceSessionsHTML renders replay links', async () => {

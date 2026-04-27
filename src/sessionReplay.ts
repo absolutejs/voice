@@ -233,6 +233,7 @@ export const summarizeVoiceSessions = async (
 		const providerErrors: Record<string, number> = {};
 		const providers = new Set<string>();
 		let latestOutcome: string | undefined;
+		let errorCount = 0;
 
 		for (const event of sorted) {
 			const provider = getString(event.payload.provider);
@@ -244,6 +245,7 @@ export const summarizeVoiceSessions = async (
 				(event.payload.providerStatus === 'error' ||
 					typeof event.payload.error === 'string')
 			) {
+				errorCount += 1;
 				increment(providerErrors, provider ?? 'unknown');
 			}
 			const outcome = getString(event.payload.outcome);
@@ -254,14 +256,14 @@ export const summarizeVoiceSessions = async (
 
 		const item: Omit<VoiceSessionListItem, 'replayHref'> = {
 			endedAt: summary.endedAt,
-			errorCount: summary.errorCount,
+			errorCount,
 			eventCount: summary.eventCount,
 			latestOutcome,
 			providerErrors,
 			providers: [...providers].sort(),
 			sessionId,
 			startedAt: summary.startedAt,
-			status: summary.failed ? 'failed' : 'healthy',
+			status: errorCount > 0 ? 'failed' : 'healthy',
 			transcriptCount: summary.transcriptCount,
 			turnCount: summary.turnCount
 		};
