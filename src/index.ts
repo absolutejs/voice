@@ -193,6 +193,7 @@ export {
 	createVoiceSQLiteRuntimeStorage,
 	createVoiceSQLiteSessionStore,
 	createVoiceSQLiteTaskStore,
+	createVoiceSQLiteTelephonyWebhookIdempotencyStore,
 	createVoiceSQLiteTraceSinkDeliveryStore,
 	createVoiceSQLiteTraceEventStore
 } from './sqliteStore';
@@ -203,6 +204,7 @@ export {
 	createVoicePostgresRuntimeStorage,
 	createVoicePostgresSessionStore,
 	createVoicePostgresTaskStore,
+	createVoicePostgresTelephonyWebhookIdempotencyStore,
 	createVoicePostgresTraceSinkDeliveryStore,
 	createVoicePostgresTraceEventStore
 } from './postgresStore';
@@ -254,6 +256,7 @@ export {
 	createVoiceOpsTaskProcessorWorker,
 	createVoiceOpsTaskProcessorWorkerLoop,
 	createVoiceRedisIdempotencyStore,
+	createVoiceRedisTelephonyWebhookIdempotencyStore,
 	createVoiceRedisTaskLeaseCoordinator,
 	createVoiceTraceSinkDeliveryWorker,
 	createVoiceTraceSinkDeliveryWorkerLoop,
@@ -665,6 +668,8 @@ export type {
 	VoiceIntegrationSinkWorkerResult,
 	VoiceRedisIdempotencyClient,
 	VoiceRedisIdempotencyStoreOptions,
+	VoiceRedisTelephonyWebhookIdempotencyClient,
+	VoiceRedisTelephonyWebhookIdempotencyStoreOptions,
 	VoiceRedisTaskLeaseClient,
 	VoiceRedisTaskLeaseCoordinator,
 	VoiceRedisTaskLeaseCoordinatorOptions,

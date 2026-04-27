@@ -28,6 +28,10 @@ import type {
 	VoiceCallReviewArtifact,
 	VoiceCallReviewStore
 } from './testing/review';
+import type {
+	StoredVoiceTelephonyWebhookDecision,
+	VoiceTelephonyWebhookIdempotencyStore
+} from './telephonyOutcome';
 import type { VoiceSessionRecord, VoiceSessionStore } from './types';
 
 export type VoicePostgresClient = {
@@ -373,6 +377,22 @@ const createPostgresTraceSinkDeliveryStoreWithClient = <
 		sql: client
 	});
 
+const createPostgresTelephonyWebhookIdempotencyStoreWithClient = <
+	TResult = unknown
+>(
+	client: Promise<VoicePostgresClient>,
+	options: VoicePostgresStoreOptions
+): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
+	createPostgresRecordStore<StoredVoiceTelephonyWebhookDecision<TResult>>({
+		decorate: (_id, value) => value,
+		getSortAt: (value) => value.updatedAt,
+		qualifiedTableName: resolveQualifiedTableName({
+			fallback: 'telephony_webhook_idempotency',
+			options
+		}),
+		sql: client
+	});
+
 export const createVoicePostgresSessionStore = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 >(
@@ -427,6 +447,16 @@ export const createVoicePostgresTraceSinkDeliveryStore = <
 	options: VoicePostgresStoreOptions
 ): VoiceTraceSinkDeliveryStore<TDelivery> =>
 	createPostgresTraceSinkDeliveryStoreWithClient(
+		createVoicePostgresClient(options),
+		options
+	);
+
+export const createVoicePostgresTelephonyWebhookIdempotencyStore = <
+	TResult = unknown
+>(
+	options: VoicePostgresStoreOptions
+): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
+	createPostgresTelephonyWebhookIdempotencyStoreWithClient<TResult>(
 		createVoicePostgresClient(options),
 		options
 	);

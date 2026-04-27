@@ -23,6 +23,10 @@ import type {
 	VoiceTraceSinkDeliveryQueueStatus
 } from './trace';
 import type {
+	StoredVoiceTelephonyWebhookDecision,
+	VoiceTelephonyWebhookIdempotencyStore
+} from './telephonyOutcome';
+import type {
 	StoredVoiceHandoffDelivery,
 	VoiceHandoffAdapter,
 	VoiceHandoffDeliveryQueueStatus,
@@ -81,6 +85,18 @@ export type VoiceRedisIdempotencyClient = Pick<RedisClient, 'del' | 'exists' | '
 
 export type VoiceRedisIdempotencyStoreOptions = {
 	client?: VoiceRedisIdempotencyClient;
+	keyPrefix?: string;
+	ttlSeconds?: number;
+	url?: string;
+};
+
+export type VoiceRedisTelephonyWebhookIdempotencyClient = Pick<
+	RedisClient,
+	'get' | 'set'
+>;
+
+export type VoiceRedisTelephonyWebhookIdempotencyStoreOptions = {
+	client?: VoiceRedisTelephonyWebhookIdempotencyClient;
 	keyPrefix?: string;
 	ttlSeconds?: number;
 	url?: string;
@@ -410,6 +426,8 @@ return 0
 
 const getLeaseKey = (prefix: string, taskId: string) => `${prefix}:${taskId}`;
 const getIdempotencyKey = (prefix: string, key: string) => `${prefix}:${key}`;
+const getTelephonyWebhookIdempotencyKey = (prefix: string, key: string) =>
+	`${prefix}:${key}`;
 
 const parseLeaseValue = (taskId: string, value: string | null, ttlMs: number) => {
 	if (!value || ttlMs <= 0) {
@@ -898,6 +916,37 @@ export const createVoiceRedisIdempotencyStore = (
 			}
 
 			await client.set(redisKey, '1');
+		}
+	};
+};
+
+export const createVoiceRedisTelephonyWebhookIdempotencyStore = <
+	TResult = unknown
+>(
+	options: VoiceRedisTelephonyWebhookIdempotencyStoreOptions = {}
+): VoiceTelephonyWebhookIdempotencyStore<TResult> => {
+	const client = options.client ?? new Bun.RedisClient(options.url);
+	const keyPrefix = options.keyPrefix?.trim() || 'voice:telephony-webhook';
+	const defaultTtlSeconds = options.ttlSeconds;
+
+	return {
+		get: async (key) => {
+			const value = await client.get(
+				getTelephonyWebhookIdempotencyKey(keyPrefix, key)
+			);
+			return value
+				? (JSON.parse(value) as StoredVoiceTelephonyWebhookDecision<TResult>)
+				: undefined;
+		},
+		set: async (key, decision) => {
+			const redisKey = getTelephonyWebhookIdempotencyKey(keyPrefix, key);
+			const value = JSON.stringify(decision);
+			if (typeof defaultTtlSeconds === 'number' && defaultTtlSeconds > 0) {
+				await client.set(redisKey, value, 'EX', String(Math.ceil(defaultTtlSeconds)));
+				return;
+			}
+
+			await client.set(redisKey, value);
 		}
 	};
 };

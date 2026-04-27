@@ -30,6 +30,10 @@ import type {
 	VoiceCallReviewArtifact,
 	VoiceCallReviewStore
 } from './testing/review';
+import type {
+	StoredVoiceTelephonyWebhookDecision,
+	VoiceTelephonyWebhookIdempotencyStore
+} from './telephonyOutcome';
 import type { VoiceSessionRecord, VoiceSessionStore } from './types';
 
 export type VoiceSQLiteStoreOptions = {
@@ -311,6 +315,19 @@ const createSQLiteTraceSinkDeliveryStoreWithDatabase = <
 		tableName
 	});
 
+const createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase = <
+	TResult = unknown
+>(
+	database: Database,
+	tableName: string
+): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
+	createSQLiteRecordStore<StoredVoiceTelephonyWebhookDecision<TResult>>({
+		database,
+		decorate: (_id, value) => value,
+		getSortAt: (value) => value.updatedAt,
+		tableName
+	});
+
 export const createVoiceSQLiteSessionStore = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 >(
@@ -398,6 +415,19 @@ export const createVoiceSQLiteTraceSinkDeliveryStore = <
 		openVoiceSQLiteDatabase(options.path),
 		resolveTableName({
 			fallback: 'trace_deliveries',
+			options
+		})
+	);
+
+export const createVoiceSQLiteTelephonyWebhookIdempotencyStore = <
+	TResult = unknown
+>(
+	options: VoiceSQLiteStoreOptions
+): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
+	createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase<TResult>(
+		openVoiceSQLiteDatabase(options.path),
+		resolveTableName({
+			fallback: 'telephony_webhook_idempotency',
 			options
 		})
 	);

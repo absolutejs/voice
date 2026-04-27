@@ -10,6 +10,7 @@ import {
 	createVoicePostgresRuntimeStorage,
 	createVoicePostgresSessionStore,
 	createVoicePostgresTaskStore,
+	createVoicePostgresTelephonyWebhookIdempotencyStore,
 	createVoicePostgresTraceSinkDeliveryStore,
 	createVoicePostgresTraceEventStore,
 	createVoiceTraceEvent,
@@ -455,4 +456,45 @@ test('createVoicePostgresTraceSinkDeliveryStore persists queued trace deliveries
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([
 		'trace-delivery-1'
 	]);
+});
+
+test('createVoicePostgresTelephonyWebhookIdempotencyStore persists decisions across instances', async () => {
+	const sql = createFakePostgresClient();
+	const firstStore = createVoicePostgresTelephonyWebhookIdempotencyStore({
+		sql
+	});
+
+	await firstStore.set('twilio:CA123:busy', {
+		applied: true,
+		createdAt: 100,
+		decision: {
+			action: 'no-answer',
+			confidence: 'high',
+			disposition: 'no-answer',
+			source: 'sip'
+		},
+		event: {
+			provider: 'twilio',
+			sipCode: 486,
+			status: 'busy'
+		},
+		idempotencyKey: 'twilio:CA123:busy',
+		routeResult: {
+			noAnswer: {}
+		},
+		sessionId: 'CA123',
+		updatedAt: 100
+	});
+
+	const secondStore = createVoicePostgresTelephonyWebhookIdempotencyStore({
+		sql
+	});
+
+	expect(await secondStore.get('twilio:CA123:busy')).toMatchObject({
+		applied: true,
+		decision: {
+			action: 'no-answer'
+		},
+		sessionId: 'CA123'
+	});
 });

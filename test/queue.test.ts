@@ -11,6 +11,7 @@ import {
 	createVoiceIntegrationSinkWorkerLoop,
 	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceRedisIdempotencyStore,
+	createVoiceRedisTelephonyWebhookIdempotencyStore,
 	createVoiceRedisTaskLeaseCoordinator,
 	createVoiceTraceSinkDeliveryRecord,
 	createVoiceTraceSinkDeliveryWorker,
@@ -177,6 +178,43 @@ test('createVoiceRedisIdempotencyStore records processed keys', async () => {
 	expect(await store.has('event-1')).toBe(true);
 	await store.remove('event-1');
 	expect(await store.has('event-1')).toBe(false);
+});
+
+test('createVoiceRedisTelephonyWebhookIdempotencyStore stores duplicate decisions', async () => {
+	const store = createVoiceRedisTelephonyWebhookIdempotencyStore({
+		client: createFakeRedisClient(),
+		ttlSeconds: 60
+	});
+
+	await store.set('twilio:CA123:busy', {
+		applied: true,
+		createdAt: 100,
+		decision: {
+			action: 'no-answer',
+			confidence: 'high',
+			disposition: 'no-answer',
+			source: 'sip'
+		},
+		event: {
+			provider: 'twilio',
+			sipCode: 486,
+			status: 'busy'
+		},
+		idempotencyKey: 'twilio:CA123:busy',
+		routeResult: {
+			noAnswer: {}
+		},
+		sessionId: 'CA123',
+		updatedAt: 100
+	});
+
+	expect(await store.get('twilio:CA123:busy')).toMatchObject({
+		applied: true,
+		decision: {
+			action: 'no-answer'
+		},
+		sessionId: 'CA123'
+	});
 });
 
 test('createVoiceWebhookDeliveryWorker drains pending events with leases and idempotency', async () => {

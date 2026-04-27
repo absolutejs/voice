@@ -13,6 +13,7 @@ import {
 	createVoiceSQLiteRuntimeStorage,
 	createVoiceSQLiteSessionStore,
 	createVoiceSQLiteTaskStore,
+	createVoiceSQLiteTelephonyWebhookIdempotencyStore,
 	createVoiceSQLiteTraceSinkDeliveryStore,
 	createVoiceSQLiteTraceEventStore,
 	createVoiceTraceEvent,
@@ -389,4 +390,45 @@ test('createVoiceSQLiteTraceSinkDeliveryStore persists queued trace deliveries',
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([
 		'trace-delivery-1'
 	]);
+});
+
+test('createVoiceSQLiteTelephonyWebhookIdempotencyStore persists decisions across instances', async () => {
+	const path = createTempSQLitePath();
+	const firstStore = createVoiceSQLiteTelephonyWebhookIdempotencyStore({
+		path
+	});
+
+	await firstStore.set('twilio:CA123:busy', {
+		applied: true,
+		createdAt: 100,
+		decision: {
+			action: 'no-answer',
+			confidence: 'high',
+			disposition: 'no-answer',
+			source: 'sip'
+		},
+		event: {
+			provider: 'twilio',
+			sipCode: 486,
+			status: 'busy'
+		},
+		idempotencyKey: 'twilio:CA123:busy',
+		routeResult: {
+			noAnswer: {}
+		},
+		sessionId: 'CA123',
+		updatedAt: 100
+	});
+
+	const secondStore = createVoiceSQLiteTelephonyWebhookIdempotencyStore({
+		path
+	});
+
+	expect(await secondStore.get('twilio:CA123:busy')).toMatchObject({
+		applied: true,
+		decision: {
+			action: 'no-answer'
+		},
+		sessionId: 'CA123'
+	});
 });
