@@ -87,6 +87,19 @@ export type VoiceTelephonyWebhookDecision<TResult = unknown> = {
 	sessionId?: string;
 };
 
+export type VoiceTelephonyWebhookVerificationResult =
+	| {
+			ok: true;
+	  }
+	| {
+			ok: false;
+			reason:
+				| 'invalid-signature'
+				| 'missing-secret'
+				| 'missing-signature'
+				| 'unsupported-provider';
+	  };
+
 export type VoiceTelephonyWebhookHandlerOptions<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -115,6 +128,7 @@ export type VoiceTelephonyWebhookHandlerOptions<
 		| VoiceTelephonyOutcomeProviderEvent;
 	policy?: VoiceTelephonyOutcomePolicy;
 	provider?: VoiceTelephonyWebhookProvider;
+	requireVerification?: boolean;
 	resolveSessionId?: (input: {
 		body: unknown;
 		event: VoiceTelephonyOutcomeProviderEvent;
@@ -126,6 +140,20 @@ export type VoiceTelephonyWebhookHandlerOptions<
 		event: VoiceTelephonyOutcomeProviderEvent;
 		sessionId?: string;
 	}) => Promise<TResult | undefined> | TResult | undefined);
+	signingSecret?: string;
+	verificationUrl?:
+		| string
+		| ((input: { query: Record<string, unknown>; request: Request }) => string);
+	verify?: (input: {
+		body: unknown;
+		headers: Headers;
+		provider: VoiceTelephonyWebhookProvider;
+		query: Record<string, unknown>;
+		rawBody: string;
+		request: Request;
+	}) =>
+		| Promise<VoiceTelephonyWebhookVerificationResult>
+		| VoiceTelephonyWebhookVerificationResult;
 };
 
 export type VoiceTelephonyWebhookRoutesOptions<
@@ -186,6 +214,16 @@ const DEFAULT_NO_ANSWER_SIP_CODES = [408, 480, 486, 487, 603];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+export class VoiceTelephonyWebhookVerificationError extends Error {
+	result: VoiceTelephonyWebhookVerificationResult;
+
+	constructor(result: VoiceTelephonyWebhookVerificationResult) {
+		super(result.ok ? 'telephony webhook verified' : result.reason);
+		this.name = 'VoiceTelephonyWebhookVerificationError';
+		this.result = result;
+	}
+}
 
 const normalizeToken = (value: unknown) =>
 	typeof value === 'string'
@@ -250,6 +288,49 @@ const flattenPayload = (value: unknown): Record<string, unknown> => {
 		...(isRecord(data?.payload) ? data.payload : undefined)
 	};
 };
+
+const toBase64 = (bytes: ArrayBuffer) =>
+	Buffer.from(new Uint8Array(bytes)).toString('base64');
+
+const timingSafeEqual = (left: string, right: string) => {
+	const encoder = new TextEncoder();
+	const leftBytes = encoder.encode(left);
+	const rightBytes = encoder.encode(right);
+	if (leftBytes.length !== rightBytes.length) {
+		return false;
+	}
+
+	let diff = 0;
+	for (let index = 0; index < leftBytes.length; index += 1) {
+		diff |= leftBytes[index]! ^ rightBytes[index]!;
+	}
+
+	return diff === 0;
+};
+
+const signHmacSHA1Base64 = async (secret: string, payload: string) => {
+	const encoder = new TextEncoder();
+	const key = await crypto.subtle.importKey(
+		'raw',
+		encoder.encode(secret),
+		{
+			hash: 'SHA-1',
+			name: 'HMAC'
+		},
+		false,
+		['sign']
+	);
+	const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+
+	return toBase64(signature);
+};
+
+const sortedParamsForSignature = (body: unknown) =>
+	Object.entries(flattenPayload(body))
+		.filter(([, value]) => value !== undefined && value !== null)
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([key, value]) => `${key}${String(value)}`)
+		.join('');
 
 const normalizeList = (values: string[] | undefined, fallback: string[]) =>
 	new Set((values ?? fallback).map(normalizeToken).filter(Boolean) as string[]);
@@ -601,9 +682,8 @@ export const applyVoiceTelephonyOutcome = async <
 	}
 };
 
-const parseRequestBody = async (request: Request) => {
-	const contentType = request.headers.get('content-type') ?? '';
-	const text = await request.text();
+const parseRequestBodyText = (input: { contentType: string; text: string }) => {
+	const { contentType, text } = input;
 	if (!text) {
 		return {};
 	}
@@ -620,6 +700,104 @@ const parseRequestBody = async (request: Request) => {
 	}
 
 	return parseMaybeJSON(text) ?? Object.fromEntries(new URLSearchParams(text));
+};
+
+const readRequestBody = async (request: Request) => {
+	const contentType = request.headers.get('content-type') ?? '';
+	const text = await request.text();
+
+	return {
+		body: parseRequestBodyText({ contentType, text }),
+		rawBody: text
+	};
+};
+
+export const signVoiceTwilioWebhook = async (input: {
+	authToken: string;
+	body?: unknown;
+	url: string;
+}) =>
+	signHmacSHA1Base64(
+		input.authToken,
+		`${input.url}${sortedParamsForSignature(input.body ?? {})}`
+	);
+
+export const verifyVoiceTwilioWebhookSignature = async (input: {
+	authToken?: string;
+	body?: unknown;
+	headers: Headers;
+	url: string;
+}): Promise<VoiceTelephonyWebhookVerificationResult> => {
+	if (!input.authToken) {
+		return { ok: false, reason: 'missing-secret' };
+	}
+
+	const signature = input.headers.get('x-twilio-signature');
+	if (!signature) {
+		return { ok: false, reason: 'missing-signature' };
+	}
+
+	const expected = await signVoiceTwilioWebhook({
+		authToken: input.authToken,
+		body: input.body,
+		url: input.url
+	});
+
+	return timingSafeEqual(signature, expected)
+		? { ok: true }
+		: { ok: false, reason: 'invalid-signature' };
+};
+
+const resolveVerificationUrl = (
+	option: VoiceTelephonyWebhookHandlerOptions['verificationUrl'],
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => (typeof option === 'function' ? option(input) : option ?? input.request.url);
+
+const verifyVoiceTelephonyWebhook = async <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+>(input: {
+	body: unknown;
+	options: VoiceTelephonyWebhookHandlerOptions<TContext, TSession, TResult>;
+	provider: VoiceTelephonyWebhookProvider;
+	query: Record<string, unknown>;
+	rawBody: string;
+	request: Request;
+}): Promise<VoiceTelephonyWebhookVerificationResult> => {
+	if (input.options.verify) {
+		return input.options.verify({
+			body: input.body,
+			headers: input.request.headers,
+			provider: input.provider,
+			query: input.query,
+			rawBody: input.rawBody,
+			request: input.request
+		});
+	}
+
+	if (!input.options.signingSecret) {
+		return input.options.requireVerification
+			? { ok: false, reason: 'missing-secret' }
+			: { ok: true };
+	}
+
+	if (input.provider !== 'twilio') {
+		return { ok: false, reason: 'unsupported-provider' };
+	}
+
+	return verifyVoiceTwilioWebhookSignature({
+		authToken: input.options.signingSecret,
+		body: input.body,
+		headers: input.request.headers,
+		url: resolveVerificationUrl(input.options.verificationUrl, {
+			query: input.query,
+			request: input.request
+		})
+	});
 };
 
 const durationMsFromSeconds = (value: number | undefined) =>
@@ -733,7 +911,18 @@ export const createVoiceTelephonyWebhookHandler =
 	}): Promise<VoiceTelephonyWebhookDecision<TResult>> => {
 		const provider = options.provider ?? 'generic';
 		const query = input.query ?? {};
-		const body = await parseRequestBody(input.request);
+		const { body, rawBody } = await readRequestBody(input.request);
+		const verification = await verifyVoiceTelephonyWebhook({
+			body,
+			options,
+			provider,
+			query,
+			rawBody,
+			request: input.request
+		});
+		if (!verification.ok) {
+			throw new VoiceTelephonyWebhookVerificationError(verification);
+		}
 		const event = options.parse
 			? await options.parse({
 					body,
@@ -834,5 +1023,20 @@ export const createVoiceTelephonyWebhookRoutes = <
 
 	return new Elysia({
 		name: options.name ?? 'absolutejs-voice-telephony-webhooks'
-	}).post(path, async ({ query, request }) => handler({ query, request }));
+	}).post(path, async ({ query, request }) => {
+		try {
+			return await handler({ query, request });
+		} catch (error) {
+			if (error instanceof VoiceTelephonyWebhookVerificationError) {
+				return new Response(JSON.stringify({ verification: error.result }), {
+					headers: {
+						'content-type': 'application/json'
+					},
+					status: 401
+				});
+			}
+
+			throw error;
+		}
+	});
 };

@@ -5,6 +5,8 @@ import {
 	createVoiceTelephonyWebhookRoutes,
 	parseVoiceTelephonyWebhookEvent,
 	resolveVoiceTelephonyOutcome,
+	signVoiceTwilioWebhook,
+	verifyVoiceTwilioWebhookSignature,
 	voiceTelephonyOutcomeToRouteResult,
 	type VoiceSessionHandle
 } from '../src';
@@ -215,5 +217,109 @@ test('createVoiceTelephonyWebhookRoutes exposes webhook decisions', async () => 
 			action: 'no-answer'
 		},
 		sessionId: 'session-1'
+	});
+});
+
+test('verifyVoiceTwilioWebhookSignature validates signed form callbacks', async () => {
+	const body = {
+		CallSid: 'CA123',
+		CallStatus: 'busy',
+		SipResponseCode: '486'
+	};
+	const url = 'https://voice.example.test/api/telephony-webhook';
+	const signature = await signVoiceTwilioWebhook({
+		authToken: 'twilio-secret',
+		body,
+		url
+	});
+	const verified = await verifyVoiceTwilioWebhookSignature({
+		authToken: 'twilio-secret',
+		body,
+		headers: new Headers({
+			'x-twilio-signature': signature
+		}),
+		url
+	});
+	const rejected = await verifyVoiceTwilioWebhookSignature({
+		authToken: 'twilio-secret',
+		body,
+		headers: new Headers({
+			'x-twilio-signature': 'bad-signature'
+		}),
+		url
+	});
+
+	expect(verified).toEqual({ ok: true });
+	expect(rejected).toEqual({ ok: false, reason: 'invalid-signature' });
+});
+
+test('createVoiceTelephonyWebhookRoutes rejects invalid signed requests before applying', async () => {
+	const routes = createVoiceTelephonyWebhookRoutes({
+		apply: true,
+		getSessionHandle: () => {
+			throw new Error('should not resolve session on invalid signature');
+		},
+		path: '/carrier',
+		provider: 'twilio',
+		signingSecret: 'twilio-secret',
+		verificationUrl: 'https://voice.example.test/carrier'
+	});
+	const response = await routes.handle(
+		new Request('https://voice.example.test/carrier', {
+			body: new URLSearchParams({
+				CallSid: 'CA123',
+				CallStatus: 'busy'
+			}),
+			headers: {
+				'content-type': 'application/x-www-form-urlencoded',
+				'x-twilio-signature': 'bad-signature'
+			},
+			method: 'POST'
+		})
+	);
+	const body = await response.json();
+
+	expect(response.status).toBe(401);
+	expect(body).toEqual({
+		verification: {
+			ok: false,
+			reason: 'invalid-signature'
+		}
+	});
+});
+
+test('createVoiceTelephonyWebhookHandler accepts valid signed Twilio callbacks', async () => {
+	const body = {
+		CallSid: 'CA123',
+		CallStatus: 'busy',
+		SipResponseCode: '486'
+	};
+	const url = 'https://voice.example.test/carrier';
+	const signature = await signVoiceTwilioWebhook({
+		authToken: 'twilio-secret',
+		body,
+		url
+	});
+	const handler = createVoiceTelephonyWebhookHandler({
+		provider: 'twilio',
+		signingSecret: 'twilio-secret',
+		verificationUrl: url
+	});
+	const report = await handler({
+		request: new Request(url, {
+			body: new URLSearchParams(body),
+			headers: {
+				'content-type': 'application/x-www-form-urlencoded',
+				'x-twilio-signature': signature
+			},
+			method: 'POST'
+		})
+	});
+
+	expect(report).toMatchObject({
+		decision: {
+			action: 'no-answer'
+		},
+		sessionId: 'CA123'
 	});
 });

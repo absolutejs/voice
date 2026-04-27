@@ -93,6 +93,8 @@ export {
 	createVoiceTelephonyWebhookRoutes,
 	parseVoiceTelephonyWebhookEvent,
 	resolveVoiceTelephonyOutcome,
+	signVoiceTwilioWebhook,
+	verifyVoiceTwilioWebhookSignature,
 	voiceTelephonyOutcomeToRouteResult
 } from './telephonyOutcome';
 export {
@@ -472,7 +474,8 @@ export type {
 	VoiceTelephonyWebhookHandlerOptions,
 	VoiceTelephonyWebhookParseInput,
 	VoiceTelephonyWebhookProvider,
-	VoiceTelephonyWebhookRoutesOptions
+	VoiceTelephonyWebhookRoutesOptions,
+	VoiceTelephonyWebhookVerificationResult
 } from './telephonyOutcome';
 export type {
 	VoiceOpsConsoleLink,
