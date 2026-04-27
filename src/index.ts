@@ -12,6 +12,11 @@ export {
 	summarizeVoiceAssistantHealth
 } from './assistantHealth';
 export {
+	buildVoiceDiagnosticsMarkdown,
+	createVoiceDiagnosticsRoutes,
+	resolveVoiceDiagnosticsTraceFilter
+} from './diagnosticsRoutes';
+export {
 	createVoiceSessionListRoutes,
 	createVoiceSessionReplayHTMLHandler,
 	createVoiceSessionReplayJSONHandler,
@@ -269,6 +274,7 @@ export type {
 	VoiceAssistantMemoryRecord,
 	VoiceAssistantMemoryStore
 } from './assistantMemory';
+export type { VoiceDiagnosticsRoutesOptions } from './diagnosticsRoutes';
 export type {
 	VoiceSessionListHTMLHandlerOptions,
 	VoiceSessionListItem,
