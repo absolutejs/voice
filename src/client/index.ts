@@ -6,6 +6,7 @@ export { bindVoiceBargeIn, createVoiceDuplexController } from './duplex';
 export { bindVoiceHTMX } from './htmx';
 export { createMicrophoneCapture } from './microphone';
 export { createVoiceBargeInMonitor } from './bargeInMonitor';
+export { createVoiceLiveTurnLatencyMonitor } from './liveTurnLatency';
 export {
 	createVoiceAppKitStatusStore,
 	fetchVoiceAppKitStatus
@@ -101,6 +102,12 @@ export type {
 	VoiceAppKitStatusSnapshot
 } from './appKitStatus';
 export type { VoiceBargeInMonitorOptions } from './bargeInMonitor';
+export type {
+	VoiceLiveTurnLatencyEvent,
+	VoiceLiveTurnLatencyMonitorOptions,
+	VoiceLiveTurnLatencySnapshot,
+	VoiceLiveTurnLatencyStatus
+} from './liveTurnLatency';
 export type {
 	VoiceOpsStatusSurfaceView,
 	VoiceOpsStatusViewModel,
