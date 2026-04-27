@@ -1141,20 +1141,26 @@ export const createVoiceTelephonyWebhookRoutes = <
 
 	return new Elysia({
 		name: options.name ?? 'absolutejs-voice-telephony-webhooks'
-	}).post(path, async ({ query, request }) => {
-		try {
-			return await handler({ query, request });
-		} catch (error) {
-			if (error instanceof VoiceTelephonyWebhookVerificationError) {
-				return new Response(JSON.stringify({ verification: error.result }), {
-					headers: {
-						'content-type': 'application/json'
-					},
-					status: 401
-				});
-			}
+	}).post(
+		path,
+		async ({ query, request }) => {
+			try {
+				return await handler({ query, request });
+			} catch (error) {
+				if (error instanceof VoiceTelephonyWebhookVerificationError) {
+					return new Response(JSON.stringify({ verification: error.result }), {
+						headers: {
+							'content-type': 'application/json'
+						},
+						status: 401
+					});
+				}
 
-			throw error;
+				throw error;
+			}
+		},
+		{
+			parse: 'none'
 		}
-	});
+	);
 };
