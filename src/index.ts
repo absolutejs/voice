@@ -750,6 +750,11 @@ export {
 	signVoicePlivoWebhook,
 	verifyVoicePlivoWebhookSignature
 } from './telephony/plivo';
+export {
+	createVoiceTelephonyCarrierMatrix,
+	createVoiceTelephonyCarrierMatrixRoutes,
+	renderVoiceTelephonyCarrierMatrixHTML
+} from './telephony/matrix';
 export type {
 	TwilioInboundMessage,
 	TwilioMediaStreamBridge,
@@ -796,6 +801,14 @@ export type {
 	PlivoVoiceSmokeOptions,
 	PlivoVoiceSmokeReport
 } from './telephony/plivo';
+export type {
+	VoiceTelephonyCarrierMatrix,
+	VoiceTelephonyCarrierMatrixEntry,
+	VoiceTelephonyCarrierMatrixInput,
+	VoiceTelephonyCarrierMatrixOptions,
+	VoiceTelephonyCarrierMatrixRoutesOptions,
+	VoiceTelephonyCarrierMatrixStatus
+} from './telephony/matrix';
 export { shapeTelephonyAssistantText } from './telephony/response';
 export type {
 	TelephonyResponseShapeMode,
