@@ -312,6 +312,7 @@ export type {
 	VoiceProviderHealthSummaryOptions
 } from './providerHealth';
 export type {
+	VoiceQualityLink,
 	VoiceQualityMetric,
 	VoiceQualityReport,
 	VoiceQualityRoutesOptions,

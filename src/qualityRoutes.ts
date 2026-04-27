@@ -35,9 +35,15 @@ export type VoiceQualityReport = {
 	thresholds: Required<VoiceQualityThresholds>;
 };
 
+export type VoiceQualityLink = {
+	href: string;
+	label: string;
+};
+
 export type VoiceQualityRoutesOptions = {
 	events?: StoredVoiceTraceEvent[];
 	headers?: HeadersInit;
+	links?: VoiceQualityLink[];
 	name?: string;
 	path?: string;
 	store?: VoiceTraceEventStore;
@@ -227,14 +233,25 @@ const formatThreshold = (metric: VoiceQualityMetric) =>
 			? `${Math.round(metric.threshold)}ms`
 			: String(metric.threshold);
 
-export const renderVoiceQualityHTML = (report: VoiceQualityReport) => {
+export const renderVoiceQualityHTML = (
+	report: VoiceQualityReport,
+	options: { links?: VoiceQualityLink[] } = {}
+) => {
 	const rows = Object.entries(report.metrics)
 		.map(
 			([key, metric]) =>
 				`<tr class="${metric.pass ? 'pass' : 'fail'}"><td>${escapeHtml(metric.label)}</td><td>${escapeHtml(formatMetricValue(metric))}</td><td>${escapeHtml(formatThreshold(metric))}</td><td>${metric.pass ? 'pass' : 'fail'}</td><td><code>${escapeHtml(key)}</code></td></tr>`
 		)
 		.join('');
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>AbsoluteJS Voice Quality</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1100px;margin:auto}.status{border-radius:999px;display:inline-flex;padding:.35rem .75rem;font-weight:800}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}table{border-collapse:collapse;width:100%;background:white;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}.pass td{border-left:4px solid #16a34a}.fail td{border-left:4px solid #dc2626}code{background:#f3f4f6;padding:.15rem .3rem;border-radius:.3rem}</style></head><body><main><h1>Voice quality gates</h1><p class="status ${report.status}">${report.status}</p><p>${report.eventCount} event(s) checked.</p><table><thead><tr><th>Metric</th><th>Actual</th><th>Threshold</th><th>Status</th><th>Key</th></tr></thead><tbody>${rows}</tbody></table></main></body></html>`;
+	const links = options.links?.length
+		? `<nav>${options.links
+				.map(
+					(link) =>
+						`<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`
+				)
+				.join('')}</nav>`
+		: '';
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>AbsoluteJS Voice Quality</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1100px;margin:auto}nav{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1.25rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;padding:.35rem .75rem;font-weight:800}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}table{border-collapse:collapse;width:100%;background:white;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}.pass td{border-left:4px solid #16a34a}.fail td{border-left:4px solid #dc2626}code{background:#f3f4f6;padding:.15rem .3rem;border-radius:.3rem}</style></head><body><main>${links}<h1>Voice quality gates</h1><p class="status ${report.status}">${report.status}</p><p>${report.eventCount} event(s) checked.</p><table><thead><tr><th>Metric</th><th>Actual</th><th>Threshold</th><th>Status</th><th>Key</th></tr></thead><tbody>${rows}</tbody></table></main></body></html>`;
 };
 
 export const createVoiceQualityRoutes = (options: VoiceQualityRoutesOptions) => {
@@ -251,7 +268,7 @@ export const createVoiceQualityRoutes = (options: VoiceQualityRoutesOptions) => 
 
 	routes.get(path, async () => {
 		const report = await getReport();
-		return new Response(renderVoiceQualityHTML(report), {
+		return new Response(renderVoiceQualityHTML(report, { links: options.links }), {
 			headers: {
 				'Content-Type': 'text/html; charset=utf-8',
 				...options.headers

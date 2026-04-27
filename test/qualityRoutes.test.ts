@@ -91,9 +91,12 @@ test('renderVoiceQualityHTML renders quality gate status', async () => {
 	const report = await evaluateVoiceQuality({
 		events: []
 	});
-	const html = renderVoiceQualityHTML(report);
+	const html = renderVoiceQualityHTML(report, {
+		links: [{ href: '/diagnostics', label: 'Diagnostics' }]
+	});
 
 	expect(html).toContain('Voice quality gates');
+	expect(html).toContain('/diagnostics');
 	expect(html).toContain('Provider error rate');
 });
 
