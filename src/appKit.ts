@@ -30,6 +30,10 @@ import {
 	type VoiceProviderHealthRoutesOptions
 } from './providerHealth';
 import {
+	createVoiceProviderCapabilityRoutes,
+	type VoiceProviderCapabilityRoutesOptions
+} from './providerCapabilities';
+import {
 	createVoiceQualityRoutes,
 	evaluateVoiceQuality,
 	type VoiceQualityLink,
@@ -59,6 +63,7 @@ export type VoiceAppKitSurface =
 	| 'evals'
 	| 'handoffs'
 	| 'opsConsole'
+	| 'providerCapabilities'
 	| 'providerHealth'
 	| 'quality'
 	| 'resilience'
@@ -81,6 +86,9 @@ export type VoiceAppKitRoutesOptions<TProvider extends string = string> = {
 	llmProviders?: readonly TProvider[];
 	name?: string;
 	opsConsole?: false | Partial<VoiceOpsConsoleRoutesOptions>;
+	providerCapabilities?:
+		| false
+		| Partial<VoiceProviderCapabilityRoutesOptions<TProvider>>;
 	providerHealth?: false | Partial<VoiceProviderHealthRoutesOptions<TProvider>>;
 	quality?: false | Partial<VoiceQualityRoutesOptions>;
 	resilience?: false | Partial<VoiceResilienceRoutesOptions>;
@@ -370,6 +378,23 @@ export const createVoiceAppKitRoutes = <TProvider extends string = string>(
 				...common,
 				providers: options.llmProviders,
 				...options.providerHealth
+			})
+		);
+	}
+	if (options.providerCapabilities !== false) {
+		surfaces.push('providerCapabilities');
+		routes.use(
+			createVoiceProviderCapabilityRoutes<TProvider>({
+				...common,
+				htmlPath: '/provider-capabilities',
+				llmProviders: options.llmProviders,
+				path: '/api/provider-capabilities',
+				sttProviders: options.sttProviders as readonly TProvider[] | undefined,
+				title: options.title
+					? `${options.title} Provider Capabilities`
+					: undefined,
+				ttsProviders: options.ttsProviders as readonly TProvider[] | undefined,
+				...options.providerCapabilities
 			})
 		);
 	}

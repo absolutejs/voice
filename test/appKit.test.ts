@@ -14,6 +14,7 @@ test('createVoiceAppKitRoutes mounts the standard operations surfaces', async ()
 
 	expect(kit.surfaces).toContain('opsConsole');
 	expect(kit.surfaces).toContain('evals');
+	expect(kit.surfaces).toContain('providerCapabilities');
 	expect(kit.links.map((link) => link.href)).toContain('/quality');
 
 	const quality = await kit.routes.handle(
@@ -34,6 +35,14 @@ test('createVoiceAppKitRoutes mounts the standard operations surfaces', async ()
 			expect.objectContaining({ provider: 'gemini' })
 		])
 	);
+
+	const capabilities = await kit.routes.handle(
+		new Request('http://localhost/api/provider-capabilities')
+	);
+	expect(capabilities.status).toBe(200);
+	await expect(capabilities.json()).resolves.toMatchObject({
+		total: 3
+	});
 
 	const status = await kit.routes.handle(
 		new Request('http://localhost/app-kit/status')

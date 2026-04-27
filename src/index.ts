@@ -109,6 +109,13 @@ export {
 	summarizeVoiceProviderHealth
 } from './providerHealth';
 export {
+	createVoiceProviderCapabilityHTMLHandler,
+	createVoiceProviderCapabilityJSONHandler,
+	createVoiceProviderCapabilityRoutes,
+	renderVoiceProviderCapabilityHTML,
+	summarizeVoiceProviderCapabilities
+} from './providerCapabilities';
+export {
 	buildVoiceOpsConsoleReport,
 	createVoiceOpsConsoleRoutes,
 	renderVoiceOpsConsoleHTML
@@ -403,6 +410,16 @@ export type {
 	VoiceProviderHealthSummary,
 	VoiceProviderHealthSummaryOptions
 } from './providerHealth';
+export type {
+	VoiceProviderCapabilityDefinition,
+	VoiceProviderCapabilityHandlerOptions,
+	VoiceProviderCapabilityHTMLHandlerOptions,
+	VoiceProviderCapabilityKind,
+	VoiceProviderCapabilityOptions,
+	VoiceProviderCapabilityReport,
+	VoiceProviderCapabilityRoutesOptions,
+	VoiceProviderCapabilitySummary
+} from './providerCapabilities';
 export type {
 	VoiceOpsConsoleLink,
 	VoiceOpsConsoleReport,
