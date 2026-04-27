@@ -5,5 +5,6 @@ export { VoiceProviderCapabilitiesService } from './voice-provider-capabilities.
 export { VoiceProviderStatusService } from './voice-provider-status.service';
 export { VoiceRoutingStatusService } from './voice-routing-status.service';
 export { VoiceTraceTimelineService } from './voice-trace-timeline.service';
+export { VoiceTurnLatencyService } from './voice-turn-latency.service';
 export { VoiceTurnQualityService } from './voice-turn-quality.service';
 export { VoiceWorkflowStatusService } from './voice-workflow-status.service';

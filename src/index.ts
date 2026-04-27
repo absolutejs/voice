@@ -78,6 +78,13 @@ export {
 	runVoiceToolContract
 } from './toolContract';
 export {
+	createVoiceTurnLatencyHTMLHandler,
+	createVoiceTurnLatencyJSONHandler,
+	createVoiceTurnLatencyRoutes,
+	renderVoiceTurnLatencyHTML,
+	summarizeVoiceTurnLatency
+} from './turnLatency';
+export {
 	createVoiceTurnQualityHTMLHandler,
 	createVoiceTurnQualityJSONHandler,
 	createVoiceTurnQualityRoutes,
@@ -472,6 +479,15 @@ export type {
 	VoiceProviderCapabilityRoutesOptions,
 	VoiceProviderCapabilitySummary
 } from './providerCapabilities';
+export type {
+	VoiceTurnLatencyHTMLHandlerOptions,
+	VoiceTurnLatencyItem,
+	VoiceTurnLatencyOptions,
+	VoiceTurnLatencyReport,
+	VoiceTurnLatencyRoutesOptions,
+	VoiceTurnLatencyStage,
+	VoiceTurnLatencyStatus
+} from './turnLatency';
 export type {
 	VoiceTurnQualityHTMLHandlerOptions,
 	VoiceTurnQualityItem,

@@ -42,6 +42,10 @@ export {
 	fetchVoiceTurnQuality
 } from './turnQuality';
 export {
+	createVoiceTurnLatencyStore,
+	fetchVoiceTurnLatency
+} from './turnLatency';
+export {
 	createVoiceTraceTimelineStore,
 	fetchVoiceTraceTimeline
 } from './traceTimeline';
@@ -74,6 +78,12 @@ export {
 	mountVoiceTurnQuality,
 	renderVoiceTurnQualityHTML
 } from './turnQualityWidget';
+export {
+	createVoiceTurnLatencyViewModel,
+	defineVoiceTurnLatencyElement,
+	mountVoiceTurnLatency,
+	renderVoiceTurnLatencyHTML
+} from './turnLatencyWidget';
 export {
 	createVoiceTraceTimelineViewModel,
 	defineVoiceTraceTimelineElement,
@@ -116,6 +126,10 @@ export type {
 	VoiceTurnQualitySnapshot
 } from './turnQuality';
 export type {
+	VoiceTurnLatencyClientOptions,
+	VoiceTurnLatencySnapshot
+} from './turnLatency';
+export type {
 	VoiceTraceTimelineClientOptions,
 	VoiceTraceTimelineSnapshot
 } from './traceTimeline';
@@ -140,6 +154,11 @@ export type {
 	VoiceTurnQualityViewModel,
 	VoiceTurnQualityWidgetOptions
 } from './turnQualityWidget';
+export type {
+	VoiceTurnLatencyCardView,
+	VoiceTurnLatencyViewModel,
+	VoiceTurnLatencyWidgetOptions
+} from './turnLatencyWidget';
 export type {
 	VoiceTraceTimelineSessionView,
 	VoiceTraceTimelineViewModel,
