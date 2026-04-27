@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { bindVoiceBargeIn } from '../src/client/duplex';
+import { createVoiceBargeInMonitor } from '../src/client/bargeInMonitor';
 
 const createFakeController = () => {
 	let partial = '';
@@ -7,6 +8,7 @@ const createFakeController = () => {
 	const sentAudio: Array<Uint8Array | ArrayBuffer> = [];
 
 	return {
+		sessionId: 'session-duplex',
 		get partial() {
 			return partial;
 		},
@@ -42,6 +44,12 @@ const createFakePlayer = () => {
 		},
 		get isPlaying() {
 			return isPlaying;
+		},
+		get lastInterruptLatencyMs() {
+			return interruptCount > 0 ? 0 : undefined;
+		},
+		get lastPlaybackStopLatencyMs() {
+			return interruptCount > 0 ? 0 : undefined;
 		},
 		async interrupt() {
 			interruptCount += 1;
@@ -111,5 +119,27 @@ test('bindVoiceBargeIn can disable partial-triggered interruption', async () => 
 	await Bun.sleep(0);
 	expect(player.interruptCount).toBe(0);
 
+	binding.close();
+});
+
+test('bindVoiceBargeIn records monitor latency evidence', async () => {
+	const controller = createFakeController();
+	const player = createFakePlayer();
+	const monitor = createVoiceBargeInMonitor({ thresholdMs: 250 });
+	const binding = bindVoiceBargeIn(controller as never, player, { monitor });
+
+	binding.sendAudio(new Uint8Array([1]));
+	await Bun.sleep(0);
+
+	expect(monitor.getSnapshot()).toMatchObject({
+		failed: 0,
+		passed: 1,
+		status: 'pass',
+		total: 1
+	});
+	expect(monitor.getSnapshot().events.map((event) => event.status)).toEqual([
+		'requested',
+		'stopped'
+	]);
 	binding.close();
 });

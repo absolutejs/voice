@@ -17,6 +17,11 @@ export {
 	summarizeVoiceAssistantHealth
 } from './assistantHealth';
 export {
+	createVoiceBargeInRoutes,
+	renderVoiceBargeInHTML,
+	summarizeVoiceBargeIn
+} from './bargeInRoutes';
+export {
 	buildVoiceDiagnosticsMarkdown,
 	createVoiceDiagnosticsRoutes,
 	resolveVoiceDiagnosticsTraceFilter
@@ -355,6 +360,10 @@ export type {
 	VoiceAppKitStatusReport,
 	VoiceAppKitSurface
 } from './appKit';
+export type {
+	VoiceBargeInReport,
+	VoiceBargeInRoutesOptions
+} from './bargeInRoutes';
 export type {
 	VoiceAssistant,
 	VoiceAssistantArtifactPlan,

@@ -5,6 +5,7 @@ export { createVoiceController } from './controller';
 export { bindVoiceBargeIn, createVoiceDuplexController } from './duplex';
 export { bindVoiceHTMX } from './htmx';
 export { createMicrophoneCapture } from './microphone';
+export { createVoiceBargeInMonitor } from './bargeInMonitor';
 export {
 	createVoiceAppKitStatusStore,
 	fetchVoiceAppKitStatus
@@ -88,6 +89,7 @@ export type {
 	VoiceAppKitStatusClientOptions,
 	VoiceAppKitStatusSnapshot
 } from './appKitStatus';
+export type { VoiceBargeInMonitorOptions } from './bargeInMonitor';
 export type {
 	VoiceOpsStatusSurfaceView,
 	VoiceOpsStatusViewModel,

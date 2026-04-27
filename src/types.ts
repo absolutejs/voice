@@ -1057,6 +1057,54 @@ export type VoiceBargeInOptions = {
 	enabled?: boolean;
 	interruptOnPartial?: boolean;
 	interruptThreshold?: number;
+	monitor?: VoiceBargeInMonitor;
+};
+
+export type VoiceBargeInTriggerReason =
+	| 'input-level'
+	| 'manual-audio'
+	| 'manual-interrupt'
+	| 'partial-transcript';
+
+export type VoiceBargeInMonitorEvent = {
+	at: number;
+	id: string;
+	latencyMs?: number;
+	playbackStopLatencyMs?: number;
+	reason: VoiceBargeInTriggerReason;
+	sessionId?: string | null;
+	status: 'requested' | 'stopped' | 'skipped';
+	thresholdMs?: number;
+};
+
+export type VoiceBargeInMonitorSnapshot = {
+	averageLatencyMs?: number;
+	events: VoiceBargeInMonitorEvent[];
+	failed: number;
+	lastEvent?: VoiceBargeInMonitorEvent;
+	passed: number;
+	status: 'empty' | 'fail' | 'pass' | 'warn';
+	thresholdMs: number;
+	total: number;
+};
+
+export type VoiceBargeInMonitor = {
+	getSnapshot: () => VoiceBargeInMonitorSnapshot;
+	recordRequested: (input: {
+		reason: VoiceBargeInTriggerReason;
+		sessionId?: string | null;
+	}) => VoiceBargeInMonitorEvent;
+	recordSkipped: (input: {
+		reason: VoiceBargeInTriggerReason;
+		sessionId?: string | null;
+	}) => VoiceBargeInMonitorEvent;
+	recordStopped: (input: {
+		latencyMs?: number;
+		playbackStopLatencyMs?: number;
+		reason: VoiceBargeInTriggerReason;
+		sessionId?: string | null;
+	}) => VoiceBargeInMonitorEvent;
+	subscribe: (subscriber: () => void) => () => void;
 };
 
 export type VoiceAudioPlayerOptions = {

@@ -4,6 +4,10 @@ import {
 	type VoiceAssistantHealthRoutesOptions
 } from './assistantHealth';
 import {
+	createVoiceBargeInRoutes,
+	type VoiceBargeInRoutesOptions
+} from './bargeInRoutes';
+import {
 	createVoiceDiagnosticsRoutes,
 	type VoiceDiagnosticsRoutesOptions
 } from './diagnosticsRoutes';
@@ -67,6 +71,7 @@ import {
 
 export type VoiceAppKitSurface =
 	| 'assistantHealth'
+	| 'bargeIn'
 	| 'diagnostics'
 	| 'evals'
 	| 'handoffs'
@@ -88,6 +93,7 @@ export type VoiceAppKitLink = VoiceEvalLink & {
 export type VoiceAppKitRoutesOptions<TProvider extends string = string> = {
 	appStatus?: false | VoiceAppKitStatusOptions;
 	assistantHealth?: false | Partial<VoiceAssistantHealthRoutesOptions<TProvider>>;
+	bargeIn?: false | Partial<VoiceBargeInRoutesOptions>;
 	diagnostics?: false | Partial<Omit<VoiceDiagnosticsRoutesOptions, 'store'>>;
 	evals?: false | Partial<VoiceEvalRoutesOptions>;
 	handoffs?: false | Partial<VoiceHandoffHealthRoutesOptions>;
@@ -491,6 +497,18 @@ export const createVoiceAppKitRoutes = <TProvider extends string = string>(
 					? `${options.title} Diagnostics`
 					: undefined,
 				...options.diagnostics
+			})
+		);
+	}
+	if (options.bargeIn !== false) {
+		surfaces.push('bargeIn');
+		routes.use(
+			createVoiceBargeInRoutes({
+				...common,
+				htmlPath: '/barge-in',
+				path: '/api/voice-barge-in',
+				title: options.title ? `${options.title} Barge-In` : undefined,
+				...options.bargeIn
 			})
 		);
 	}

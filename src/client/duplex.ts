@@ -21,19 +21,40 @@ const shouldInterruptForLevel = (
 export const bindVoiceBargeIn = <TResult = unknown>(
 	controller: Pick<
 		VoiceController<TResult>,
-		'partial' | 'sendAudio' | 'subscribe'
+		'partial' | 'sendAudio' | 'sessionId' | 'subscribe'
 	>,
-	player: Pick<VoiceAudioPlayer, 'interrupt' | 'isPlaying'>,
+	player: Pick<
+		VoiceAudioPlayer,
+		| 'interrupt'
+		| 'isPlaying'
+		| 'lastInterruptLatencyMs'
+		| 'lastPlaybackStopLatencyMs'
+	>,
 	options: VoiceBargeInOptions = {}
 ): VoiceBargeInBinding => {
 	let lastPartial = controller.partial;
 
-	const interruptIfPlaying = () => {
+	const interruptIfPlaying = (reason: Parameters<NonNullable<VoiceBargeInOptions['monitor']>['recordRequested']>[0]['reason']) => {
 		if (!player.isPlaying || options.enabled === false) {
+			options.monitor?.recordSkipped({
+				reason,
+				sessionId: controller.sessionId
+			});
 			return;
 		}
 
-		void player.interrupt();
+		options.monitor?.recordRequested({
+			reason,
+			sessionId: controller.sessionId
+		});
+		void player.interrupt().then(() => {
+			options.monitor?.recordStopped({
+				latencyMs: player.lastInterruptLatencyMs,
+				playbackStopLatencyMs: player.lastPlaybackStopLatencyMs,
+				reason,
+				sessionId: controller.sessionId
+			});
+		});
 	};
 
 	const unsubscribe = controller.subscribe(() => {
@@ -43,7 +64,7 @@ export const bindVoiceBargeIn = <TResult = unknown>(
 		}
 
 		if (!lastPartial && controller.partial) {
-			interruptIfPlaying();
+			interruptIfPlaying('partial-transcript');
 		}
 
 		lastPartial = controller.partial;
@@ -55,11 +76,11 @@ export const bindVoiceBargeIn = <TResult = unknown>(
 		},
 		handleLevel: (level) => {
 			if (shouldInterruptForLevel(level, options)) {
-				interruptIfPlaying();
+				interruptIfPlaying('input-level');
 			}
 		},
 		sendAudio: (audio) => {
-			interruptIfPlaying();
+			interruptIfPlaying('manual-audio');
 			controller.sendAudio(audio);
 		}
 	};
@@ -100,7 +121,17 @@ export const createVoiceDuplexController = <TResult = unknown>(
 		audioPlayer,
 		close,
 		interruptAssistant: async () => {
+			options.bargeIn?.monitor?.recordRequested({
+				reason: 'manual-interrupt',
+				sessionId: controller.sessionId
+			});
 			await audioPlayer.interrupt();
+			options.bargeIn?.monitor?.recordStopped({
+				latencyMs: audioPlayer.lastInterruptLatencyMs,
+				playbackStopLatencyMs: audioPlayer.lastPlaybackStopLatencyMs,
+				reason: 'manual-interrupt',
+				sessionId: controller.sessionId
+			});
 		},
 		sendAudio: (audio) => {
 			bargeInBinding?.sendAudio(audio);

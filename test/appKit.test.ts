@@ -13,6 +13,7 @@ test('createVoiceAppKitRoutes mounts the standard operations surfaces', async ()
 	});
 
 	expect(kit.surfaces).toContain('opsConsole');
+	expect(kit.surfaces).toContain('bargeIn');
 	expect(kit.surfaces).toContain('evals');
 	expect(kit.surfaces).toContain('providerCapabilities');
 	expect(kit.surfaces).toContain('traceTimeline');
