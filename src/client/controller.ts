@@ -88,7 +88,14 @@ export const createVoiceController = <TResult = unknown>(
 			channelCount:
 				options.capture?.channelCount ?? preset.capture.channelCount,
 			onLevel: options.capture?.onLevel,
-			onAudio: (audio) => stream.sendAudio(audio),
+			onAudio: (audio) => {
+				if (options.capture?.onAudio) {
+					options.capture.onAudio(audio, stream.sendAudio);
+					return;
+				}
+
+				stream.sendAudio(audio);
+			},
 			sampleRateHz:
 				options.capture?.sampleRateHz ?? preset.capture.sampleRateHz
 		});

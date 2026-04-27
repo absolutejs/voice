@@ -1042,6 +1042,10 @@ export type VoiceConnectionOptions = {
 
 export type VoiceCaptureOptions = {
 	channelCount?: 1 | 2;
+	onAudio?: (
+		audio: Uint8Array | ArrayBuffer,
+		sendAudio: (audio: Uint8Array | ArrayBuffer) => void
+	) => void;
 	onLevel?: (level: number) => void;
 	sampleRateHz?: number;
 };

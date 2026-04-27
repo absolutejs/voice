@@ -1,4 +1,5 @@
 import { createVoiceController } from './controller';
+import { createVoiceBargeInMonitor } from './bargeInMonitor';
 
 type VoiceDemoMode = 'guided' | 'general';
 
@@ -182,6 +183,15 @@ const parsePromptList = (value: string | undefined) => {
 	return DEFAULT_GUIDED_PROMPTS;
 };
 
+const parseOptionalNumber = (value: string | undefined) => {
+	if (!value) {
+		return undefined;
+	}
+
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : undefined;
+};
+
 const resolveElement = <T extends Element>(
 	root: ParentNode,
 	selector: string | undefined,
@@ -295,6 +305,17 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	const guidedPrompts = parsePromptList(root.dataset.voiceGuidedPrompts);
 	const guidedLabel = root.dataset.voiceGuidedLabel ?? DEFAULT_GUIDED_LABEL;
 	const generalLabel = root.dataset.voiceGeneralLabel ?? DEFAULT_GENERAL_LABEL;
+	const bargeInPath = root.dataset.voiceBargeInPath;
+	const bargeInMonitor = bargeInPath
+		? createVoiceBargeInMonitor({
+				path: bargeInPath,
+				thresholdMs: parseOptionalNumber(root.dataset.voiceBargeInThresholdMs)
+			})
+		: null;
+	const bargeInRecentWindowMs =
+		parseOptionalNumber(root.dataset.voiceBargeInRecentWindowMs) ?? 4_000;
+	const bargeInSpeechThreshold =
+		parseOptionalNumber(root.dataset.voiceBargeInSpeechThreshold) ?? 0.04;
 	const syncElement = requireElement(
 		document,
 		root.dataset.voiceSync,
@@ -374,26 +395,6 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 		'voice-wave-path'
 	);
 
-	const guidedVoice = createVoiceController(guidedPath, {
-		capture: {
-			onLevel: (level) => {
-				waveLevels = pushVoiceWaveLevel(waveLevels, level);
-				renderWave();
-			}
-		},
-		preset: 'guided-intake'
-	});
-	const generalVoice = createVoiceController(generalPath, {
-		capture: {
-			onLevel: (level) => {
-				waveLevels = pushVoiceWaveLevel(waveLevels, level);
-				renderWave();
-			}
-		},
-		preset: 'dictation'
-	});
-	const stopGuidedBinding = guidedVoice.bindHTMX({ element: syncElement });
-	const stopGeneralBinding = generalVoice.bindHTMX({ element: syncElement });
 	let activeMode: VoiceDemoMode | null = null;
 	let hasStartedModes: Record<VoiceDemoMode, boolean> = {
 		general: false,
@@ -402,6 +403,81 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	let isCapturing = false;
 	let micError: string | null = null;
 	let waveLevels = createInitialVoiceWaveLevels();
+	let lastInputLevel = 0;
+	let lastAssistantAt = 0;
+	let lastAssistantAudioCount = 0;
+	let lastAssistantTextCount = 0;
+
+	const syncBargeInOutput = () => {
+		if (!bargeInMonitor) {
+			return;
+		}
+
+		const voice = currentVoice();
+		const audioCount = voice.assistantAudio.length;
+		const textCount = voice.assistantTexts.length;
+
+		if (
+			audioCount > lastAssistantAudioCount ||
+			textCount > lastAssistantTextCount
+		) {
+			lastAssistantAt = Date.now();
+		}
+
+		lastAssistantAudioCount = audioCount;
+		lastAssistantTextCount = textCount;
+	};
+
+	const sendAudioWithBargeInEvidence = (
+		audio: Uint8Array | ArrayBuffer,
+		sendAudio: (audio: Uint8Array | ArrayBuffer) => void
+	) => {
+		syncBargeInOutput();
+
+		if (
+			bargeInMonitor &&
+			Date.now() - lastAssistantAt <= bargeInRecentWindowMs &&
+			lastInputLevel >= bargeInSpeechThreshold
+		) {
+			bargeInMonitor.recordRequested({
+				reason: 'manual-audio',
+				sessionId: currentVoice().sessionId
+			});
+			bargeInMonitor.recordStopped({
+				latencyMs: 0,
+				playbackStopLatencyMs: 0,
+				reason: 'manual-audio',
+				sessionId: currentVoice().sessionId
+			});
+		}
+
+		sendAudio(audio);
+	};
+
+	const guidedVoice = createVoiceController(guidedPath, {
+		capture: {
+			onAudio: sendAudioWithBargeInEvidence,
+			onLevel: (level) => {
+				lastInputLevel = level;
+				waveLevels = pushVoiceWaveLevel(waveLevels, level);
+				renderWave();
+			}
+		},
+		preset: 'guided-intake'
+	});
+	const generalVoice = createVoiceController(generalPath, {
+		capture: {
+			onAudio: sendAudioWithBargeInEvidence,
+			onLevel: (level) => {
+				lastInputLevel = level;
+				waveLevels = pushVoiceWaveLevel(waveLevels, level);
+				renderWave();
+			}
+		},
+		preset: 'dictation'
+	});
+	const stopGuidedBinding = guidedVoice.bindHTMX({ element: syncElement });
+	const stopGeneralBinding = generalVoice.bindHTMX({ element: syncElement });
 
 	const currentVoice = () =>
 		activeMode === 'general' ? generalVoice : guidedVoice;
@@ -514,8 +590,14 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 		}
 	};
 
-	guidedVoice.subscribe(render);
-	generalVoice.subscribe(render);
+	guidedVoice.subscribe(() => {
+		syncBargeInOutput();
+		render();
+	});
+	generalVoice.subscribe(() => {
+		syncBargeInOutput();
+		render();
+	});
 
 	startGuidedButton.addEventListener('click', () => {
 		void startMode('guided');
