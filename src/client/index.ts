@@ -11,6 +11,7 @@ export {
 } from './appKitStatus';
 export {
 	createVoiceOpsStatusViewModel,
+	defineVoiceOpsStatusElement,
 	getVoiceOpsStatusCSS,
 	getVoiceOpsStatusLabel,
 	mountVoiceOpsStatus,

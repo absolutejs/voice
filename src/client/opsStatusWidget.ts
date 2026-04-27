@@ -202,3 +202,41 @@ export const mountVoiceOpsStatus = (
 		refresh: store.refresh
 	};
 };
+
+export const defineVoiceOpsStatusElement = (
+	tagName = 'absolute-voice-ops-status'
+) => {
+	if (
+		typeof window === 'undefined' ||
+		typeof customElements === 'undefined' ||
+		customElements.get(tagName)
+	) {
+		return;
+	}
+
+	customElements.define(
+		tagName,
+		class AbsoluteVoiceOpsStatusElement extends HTMLElement {
+			private mounted?: ReturnType<typeof mountVoiceOpsStatus>;
+
+			connectedCallback() {
+				const intervalMs = Number(this.getAttribute('interval-ms') ?? 5000);
+				this.mounted = mountVoiceOpsStatus(
+					this,
+					this.getAttribute('path') ?? '/app-kit/status',
+					{
+						description: this.getAttribute('description') ?? undefined,
+						includeLinks: this.getAttribute('include-links') !== 'false',
+						intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+						title: this.getAttribute('title') ?? undefined
+					}
+				);
+			}
+
+			disconnectedCallback() {
+				this.mounted?.close();
+				this.mounted = undefined;
+			}
+		}
+	);
+};
