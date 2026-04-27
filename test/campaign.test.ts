@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
+	applyVoiceCampaignTelephonyOutcome,
 	buildVoiceCampaignObservabilityReport,
 	createVoiceCampaign,
 	createVoiceCampaignWorker,
@@ -224,6 +225,163 @@ test('buildVoiceCampaignObservabilityReport surfaces queue, leases, rates, failu
 		stuckRecipients: 1
 	});
 	expect(report.campaigns[0]?.lease?.workerId).toBe('worker-a');
+});
+
+test('applyVoiceCampaignTelephonyOutcome completes running attempts from external call ids', async () => {
+	const store = createVoiceMemoryCampaignStore();
+	const runtime = createVoiceCampaign({
+		dialer: ({ attempt }) => ({
+			externalCallId: `call-${attempt.id}`,
+			status: 'running'
+		}),
+		store
+	});
+	const campaign = await runtime.create({
+		id: 'campaign-outcome-proof',
+		name: 'Outcome proof'
+	});
+	await runtime.addRecipients(campaign.campaign.id, [
+		{
+			id: 'recipient-1',
+			phone: '+15550001001'
+		}
+	]);
+	await runtime.enqueue(campaign.campaign.id);
+	const tick = await runtime.tick(campaign.campaign.id);
+	const attempt = tick.started[0]!;
+
+	const result = await applyVoiceCampaignTelephonyOutcome(
+		{
+			decision: {
+				action: 'no-answer',
+				confidence: 'high',
+				disposition: 'no-answer',
+				source: 'status'
+			},
+			event: {
+				metadata: {
+					externalCallId: attempt.externalCallId
+				},
+				provider: 'twilio',
+				status: 'busy'
+			}
+		},
+		{
+			runtime
+		}
+	);
+	const updated = await runtime.get(campaign.campaign.id);
+
+	expect(result).toMatchObject({
+		applied: true,
+		attemptId: attempt.id,
+		campaignId: campaign.campaign.id,
+		status: 'failed'
+	});
+	expect(updated?.attempts[0]).toMatchObject({
+		error: 'no-answer',
+		status: 'failed'
+	});
+	expect(updated?.recipients[0]).toMatchObject({
+		status: 'failed'
+	});
+
+	const duplicate = await applyVoiceCampaignTelephonyOutcome(
+		{
+			decision: {
+				action: 'complete',
+				confidence: 'high',
+				disposition: 'completed',
+				source: 'status'
+			},
+			event: {
+				metadata: {
+					externalCallId: attempt.externalCallId
+				}
+			}
+		},
+		{
+			runtime
+		}
+	);
+
+	expect(duplicate).toMatchObject({
+		applied: false,
+		reason: 'terminal-attempt',
+		status: 'failed'
+	});
+});
+
+test('applyVoiceCampaignTelephonyOutcome can resolve campaign attempts from webhook metadata', async () => {
+	const store = createVoiceMemoryCampaignStore();
+	const runtime = createVoiceCampaign({
+		store
+	});
+	const campaign = await runtime.create({
+		id: 'campaign-metadata-proof',
+		name: 'Metadata proof'
+	});
+	await runtime.addRecipients(campaign.campaign.id, [
+		{
+			id: 'recipient-1',
+			phone: '+15550001001'
+		}
+	]);
+	await runtime.enqueue(campaign.campaign.id);
+	const tick = await runtime.tick(campaign.campaign.id);
+	const attempt = tick.started[0]!;
+
+	const ignored = await applyVoiceCampaignTelephonyOutcome(
+		{
+			decision: {
+				action: 'ignore',
+				confidence: 'low',
+				source: 'status'
+			},
+			event: {
+				metadata: {
+					campaignId: campaign.campaign.id,
+					attemptId: attempt.id
+				}
+			}
+		},
+		{
+			runtime
+		}
+	);
+	expect(ignored).toMatchObject({
+		applied: false,
+		reason: 'ignored'
+	});
+
+	const applied = await applyVoiceCampaignTelephonyOutcome(
+		{
+			decision: {
+				action: 'complete',
+				confidence: 'high',
+				disposition: 'completed',
+				source: 'status'
+			},
+			event: {
+				metadata: {
+					campaignId: campaign.campaign.id,
+					attemptId: attempt.id
+				},
+				status: 'completed'
+			}
+		},
+		{
+			runtime
+		}
+	);
+
+	expect(applied).toMatchObject({
+		applied: true,
+		status: 'succeeded'
+	});
+	expect((await runtime.get(campaign.campaign.id))?.attempts[0]).toMatchObject({
+		status: 'succeeded'
+	});
 });
 
 test('createVoiceCampaignWorkerLoop exposes manual ticks and lifecycle state', async () => {

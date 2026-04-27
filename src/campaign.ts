@@ -1,5 +1,10 @@
 import { Elysia } from 'elysia';
 import type { VoiceRedisTaskLeaseCoordinator } from './queue';
+import type {
+	VoiceTelephonyOutcomeDecision,
+	VoiceTelephonyOutcomeProviderEvent,
+	VoiceTelephonyWebhookDecision
+} from './telephonyOutcome';
 
 export type VoiceCampaignStatus =
 	| 'canceled'
@@ -296,6 +301,55 @@ export type VoiceCampaignObservabilityReport = {
 		}>;
 	};
 	summary: VoiceCampaignSummary;
+};
+
+export type VoiceCampaignTelephonyOutcomeInput<TResult = unknown> = {
+	campaignId?: string;
+	decision: VoiceTelephonyOutcomeDecision;
+	event?: VoiceTelephonyOutcomeProviderEvent;
+	externalCallId?: string;
+	routeResult?: TResult;
+	sessionId?: string;
+	attemptId?: string;
+};
+
+export type VoiceCampaignTelephonyOutcomeStatus =
+	| 'failed'
+	| 'ignore'
+	| 'succeeded';
+
+export type VoiceCampaignTelephonyOutcomeOptions<TResult = unknown> = {
+	resolveCampaignId?: (
+		input: VoiceCampaignTelephonyOutcomeInput<TResult>
+	) => Promise<string | undefined> | string | undefined;
+	resolveExternalCallId?: (
+		input: VoiceCampaignTelephonyOutcomeInput<TResult>
+	) => Promise<string | undefined> | string | undefined;
+	resolveAttemptId?: (
+		input: VoiceCampaignTelephonyOutcomeInput<TResult>
+	) => Promise<string | undefined> | string | undefined;
+	runtime?: VoiceCampaignRuntime;
+	statusForDecision?: (
+		input: VoiceCampaignTelephonyOutcomeInput<TResult>
+	) =>
+		| Promise<VoiceCampaignTelephonyOutcomeStatus>
+		| VoiceCampaignTelephonyOutcomeStatus;
+	store?: VoiceCampaignStore;
+};
+
+export type VoiceCampaignTelephonyOutcomeResult = {
+	applied: boolean;
+	campaignId?: string;
+	error?: string;
+	externalCallId?: string;
+	reason?:
+		| 'ignored'
+		| 'missing-attempt'
+		| 'missing-campaign'
+		| 'missing-runtime'
+		| 'terminal-attempt';
+	status?: 'failed' | 'succeeded';
+	attemptId?: string;
 };
 
 const createId = () => crypto.randomUUID();
@@ -836,6 +890,214 @@ export const createVoiceCampaignWorkerLoop = (
 		tick
 	};
 };
+
+const firstOutcomeString = (
+	values: Array<unknown>
+): string | undefined => {
+	for (const value of values) {
+		if (typeof value === 'string' && value.trim()) {
+			return value.trim();
+		}
+		if (typeof value === 'number' && Number.isFinite(value)) {
+			return String(value);
+		}
+	}
+};
+
+const resolveDefaultCampaignOutcomeIds = <TResult = unknown>(
+	input: VoiceCampaignTelephonyOutcomeInput<TResult>
+) => {
+	const metadata = input.event?.metadata ?? {};
+	const decisionMetadata = input.decision.metadata ?? {};
+	const routeResult =
+		typeof input.routeResult === 'object' && input.routeResult !== null
+			? (input.routeResult as Record<string, unknown>)
+			: {};
+	return {
+		campaignId:
+			input.campaignId ??
+			firstOutcomeString([
+				metadata.campaignId,
+				metadata.voiceCampaignId,
+				decisionMetadata.campaignId,
+				decisionMetadata.voiceCampaignId,
+				routeResult.campaignId,
+				routeResult.voiceCampaignId
+			]),
+		externalCallId:
+			input.externalCallId ??
+			firstOutcomeString([
+				metadata.externalCallId,
+				metadata.callId,
+				metadata.callSid,
+				metadata.callUuid,
+				decisionMetadata.externalCallId,
+				decisionMetadata.callId,
+				decisionMetadata.callSid,
+				decisionMetadata.callUuid,
+				routeResult.externalCallId,
+				routeResult.callId,
+				routeResult.callSid,
+				routeResult.callUuid,
+				input.sessionId
+			]),
+		attemptId:
+			input.attemptId ??
+			firstOutcomeString([
+				metadata.attemptId,
+				metadata.voiceCampaignAttemptId,
+				decisionMetadata.attemptId,
+				decisionMetadata.voiceCampaignAttemptId,
+				routeResult.attemptId,
+				routeResult.voiceCampaignAttemptId
+			])
+	};
+};
+
+const defaultCampaignOutcomeStatus = <TResult = unknown>(
+	input: VoiceCampaignTelephonyOutcomeInput<TResult>
+): VoiceCampaignTelephonyOutcomeStatus => {
+	switch (input.decision.action) {
+		case 'complete':
+		case 'transfer':
+			return 'succeeded';
+		case 'escalate':
+		case 'no-answer':
+		case 'voicemail':
+			return 'failed';
+		default:
+			return 'ignore';
+	}
+};
+
+const findCampaignAttempt = async (input: {
+	attemptId?: string;
+	campaignId?: string;
+	externalCallId?: string;
+	runtime: VoiceCampaignRuntime;
+}) => {
+	const records = input.campaignId
+		? [await input.runtime.get(input.campaignId)].filter(Boolean)
+		: await input.runtime.list();
+	for (const record of records as VoiceCampaignRecord[]) {
+		const attempt = record.attempts.find(
+			(item) =>
+				(input.attemptId && item.id === input.attemptId) ||
+				(input.externalCallId && item.externalCallId === input.externalCallId)
+		);
+		if (attempt) {
+			return {
+				attempt,
+				record
+			};
+		}
+	}
+};
+
+export const applyVoiceCampaignTelephonyOutcome = async <TResult = unknown>(
+	input: VoiceCampaignTelephonyOutcomeInput<TResult>,
+	options: VoiceCampaignTelephonyOutcomeOptions<TResult> = {}
+): Promise<VoiceCampaignTelephonyOutcomeResult> => {
+	const runtime =
+		options.runtime ??
+		(options.store
+			? createVoiceCampaign({
+					store: options.store
+				})
+			: undefined);
+	if (!runtime) {
+		return {
+			applied: false,
+			reason: 'missing-runtime'
+		};
+	}
+
+	const defaults = resolveDefaultCampaignOutcomeIds(input);
+	const campaignId = (await options.resolveCampaignId?.(input)) ?? defaults.campaignId;
+	const attemptId = (await options.resolveAttemptId?.(input)) ?? defaults.attemptId;
+	const externalCallId =
+		(await options.resolveExternalCallId?.(input)) ?? defaults.externalCallId;
+	const status =
+		(await options.statusForDecision?.(input)) ??
+		defaultCampaignOutcomeStatus(input);
+	if (status === 'ignore') {
+		return {
+			applied: false,
+			campaignId,
+			externalCallId,
+			reason: 'ignored',
+			attemptId
+		};
+	}
+
+	const match = await findCampaignAttempt({
+		attemptId,
+		campaignId,
+		externalCallId,
+		runtime
+	});
+	if (!match) {
+		return {
+			applied: false,
+			campaignId,
+			externalCallId,
+			reason: campaignId ? 'missing-attempt' : 'missing-campaign',
+			attemptId
+		};
+	}
+	if (match.attempt.status === 'failed' || match.attempt.status === 'succeeded') {
+		return {
+			applied: false,
+			campaignId: match.record.campaign.id,
+			externalCallId: match.attempt.externalCallId ?? externalCallId,
+			reason: 'terminal-attempt',
+			status: match.attempt.status,
+			attemptId: match.attempt.id
+		};
+	}
+
+	await runtime.completeAttempt(match.record.campaign.id, match.attempt.id, {
+		error:
+			status === 'failed'
+				? input.decision.reason ??
+					input.decision.disposition ??
+					input.event?.reason ??
+					input.event?.status ??
+					input.decision.action
+				: undefined,
+		externalCallId: externalCallId ?? match.attempt.externalCallId,
+		metadata: {
+			telephonyAction: input.decision.action,
+			telephonyConfidence: input.decision.confidence,
+			telephonyDisposition: input.decision.disposition,
+			telephonyProvider: input.event?.provider,
+			telephonySource: input.decision.source,
+			telephonyStatus: input.event?.status
+		},
+		status
+	});
+
+	return {
+		applied: true,
+		campaignId: match.record.campaign.id,
+		externalCallId: externalCallId ?? match.attempt.externalCallId,
+		status,
+		attemptId: match.attempt.id
+	};
+};
+
+export const createVoiceCampaignTelephonyOutcomeHandler = <TResult = unknown>(
+	options: VoiceCampaignTelephonyOutcomeOptions<TResult>
+) => (input: VoiceTelephonyWebhookDecision<TResult>) =>
+	applyVoiceCampaignTelephonyOutcome(
+		{
+			decision: input.decision,
+			event: input.event,
+			routeResult: input.routeResult as TResult,
+			sessionId: input.sessionId
+		},
+		options
+	);
 
 const defaultProofRecipients = (): VoiceCampaignRecipientInput[] => [
 	{

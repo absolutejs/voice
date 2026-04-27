@@ -5,7 +5,9 @@ export {
 	summarizeVoiceAppKitStatus
 } from './appKit';
 export {
+	applyVoiceCampaignTelephonyOutcome,
 	buildVoiceCampaignObservabilityReport,
+	createVoiceCampaignTelephonyOutcomeHandler,
 	createVoiceCampaign,
 	createVoiceCampaignRoutes,
 	createVoiceCampaignWorker,
