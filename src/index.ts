@@ -739,6 +739,11 @@ export {
 	transcodeTwilioInboundPayloadToPCM16
 } from './telephony/twilio';
 export { evaluateVoiceTelephonyContract } from './telephony/contract';
+export {
+	createTelnyxVoiceResponse,
+	createTelnyxVoiceRoutes,
+	verifyVoiceTelnyxWebhookSignature
+} from './telephony/telnyx';
 export type {
 	TwilioInboundMessage,
 	TwilioMediaStreamBridge,
@@ -767,6 +772,15 @@ export type {
 	VoiceTelephonySmokeCheck,
 	VoiceTelephonySmokeReport
 } from './telephony/contract';
+export type {
+	TelnyxVoiceResponseOptions,
+	TelnyxVoiceRoutesOptions,
+	TelnyxVoiceSetupOptions,
+	TelnyxVoiceSetupStatus,
+	TelnyxVoiceSmokeCheck,
+	TelnyxVoiceSmokeOptions,
+	TelnyxVoiceSmokeReport
+} from './telephony/telnyx';
 export { shapeTelephonyAssistantText } from './telephony/response';
 export type {
 	TelephonyResponseShapeMode,
