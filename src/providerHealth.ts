@@ -23,6 +23,7 @@ export type VoiceProviderHealthSummary<TProvider extends string = string> = {
 	status: VoiceProviderHealthStatus;
 	suppressionRemainingMs?: number;
 	suppressedUntil?: number;
+	timeoutCount: number;
 };
 
 export type VoiceProviderHealthSummaryOptions<
@@ -104,7 +105,8 @@ export const summarizeVoiceProviderHealth = async <
 			rateLimited: false,
 			recommended: false,
 			runCount: 0,
-			status: 'idle'
+			status: 'idle',
+			timeoutCount: 0
 		};
 		entries.set(provider, entry);
 		return entry;
@@ -203,6 +205,9 @@ export const summarizeVoiceProviderHealth = async <
 
 		const entry = applyProviderHealth();
 		entry.errorCount += 1;
+		if (event.payload.timedOut === true) {
+			entry.timeoutCount += 1;
+		}
 		entry.lastError = getString(event.payload.error);
 		entry.lastErrorAt = event.at;
 		entry.rateLimited ||= event.payload.rateLimited === true;
@@ -253,7 +258,8 @@ export const summarizeVoiceProviderHealth = async <
 			suppressionRemainingMs: activeSuppression
 				? suppressionRemainingMs
 				: undefined,
-			suppressedUntil: entry.suppressedUntil
+			suppressedUntil: entry.suppressedUntil,
+			timeoutCount: entry.timeoutCount
 		};
 	});
 	const recommended = summaries
@@ -301,6 +307,7 @@ export const renderVoiceProviderHealthHTML = (
 						`<div><dt>Runs</dt><dd>${String(provider.runCount)}</dd></div>`,
 						`<div><dt>Avg latency</dt><dd>${String(provider.averageElapsedMs ?? 0)}ms</dd></div>`,
 						`<div><dt>Errors</dt><dd>${String(provider.errorCount)}</dd></div>`,
+						`<div><dt>Timeouts</dt><dd>${String(provider.timeoutCount)}</dd></div>`,
 						`<div><dt>Fallbacks</dt><dd>${String(provider.fallbackCount)}</dd></div>`,
 						'</dl>',
 						suppressionSeconds

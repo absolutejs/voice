@@ -318,6 +318,73 @@ test('createVoiceProviderRouter suppresses unhealthy providers until cooldown ex
 	});
 });
 
+test('createVoiceProviderRouter falls back when provider exceeds latency budget', async () => {
+	const calls: string[] = [];
+	const events: Array<Record<string, unknown>> = [];
+	const model = createVoiceProviderRouter({
+		fallback: ['primary', 'backup'],
+		onProviderEvent: (event) => {
+			events.push(event);
+		},
+		providerHealth: {
+			cooldownMs: 1_000,
+			now: () => 10_000
+		},
+		providerProfiles: {
+			primary: {
+				timeoutMs: 5
+			}
+		},
+		providers: {
+			backup: {
+				generate: async () => {
+					calls.push('backup');
+					return {
+						assistantText: 'backup'
+					};
+				}
+			},
+			primary: {
+				generate: async () => {
+					calls.push('primary');
+					await new Promise((resolve) => setTimeout(resolve, 30));
+					return {
+						assistantText: 'too late'
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>,
+		selectProvider: () => 'primary'
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'backup'
+	});
+	expect(calls).toEqual(['primary', 'backup']);
+	expect(events).toMatchObject([
+		{
+			attempt: 1,
+			fallbackProvider: 'backup',
+			latencyBudgetMs: 5,
+			provider: 'primary',
+			providerHealth: {
+				status: 'suppressed',
+				suppressedUntil: 11_000
+			},
+			selectedProvider: 'primary',
+			status: 'error',
+			timedOut: true
+		},
+		{
+			attempt: 2,
+			fallbackProvider: 'backup',
+			provider: 'backup',
+			selectedProvider: 'primary',
+			status: 'fallback'
+		}
+	]);
+});
+
 test('createOpenAIVoiceAssistantModel maps tool calls from responses output', async () => {
 	const requests: Array<Record<string, unknown>> = [];
 	const model = createOpenAIVoiceAssistantModel({

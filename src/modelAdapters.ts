@@ -61,9 +61,11 @@ export type GeminiVoiceAssistantModelOptions = {
 
 export type VoiceProviderRouterEvent<TProvider extends string = string> = {
 	at: number;
+	attempt: number;
 	elapsedMs: number;
 	error?: string;
 	fallbackProvider?: TProvider;
+	latencyBudgetMs?: number;
 	provider: TProvider;
 	providerHealth?: VoiceProviderRouterProviderHealth<TProvider>;
 	rateLimited?: boolean;
@@ -72,6 +74,7 @@ export type VoiceProviderRouterEvent<TProvider extends string = string> = {
 	suppressionRemainingMs?: number;
 	suppressedUntil?: number;
 	status: 'error' | 'fallback' | 'success';
+	timedOut?: boolean;
 };
 
 export type VoiceProviderRouterFallbackMode =
@@ -106,6 +109,7 @@ export type VoiceProviderRouterProviderProfile = {
 	cost?: number;
 	latencyMs?: number;
 	priority?: number;
+	timeoutMs?: number;
 };
 
 export type VoiceProviderRouterHealthOptions = {
@@ -145,6 +149,7 @@ export type VoiceProviderRouterOptions<
 	fallbackMode?: VoiceProviderRouterFallbackMode;
 	isProviderError?: (error: unknown, provider: TProvider) => boolean;
 	isRateLimitError?: (error: unknown, provider: TProvider) => boolean;
+	isTimeoutError?: (error: unknown, provider: TProvider) => boolean;
 	onProviderEvent?: (
 		event: VoiceProviderRouterEvent<TProvider>,
 		input: VoiceAgentModelInput<TContext, TSession>
@@ -152,6 +157,7 @@ export type VoiceProviderRouterOptions<
 	policy?: VoiceProviderRouterPolicy<TContext, TSession, TProvider>;
 	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
 	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
+	timeoutMs?: number;
 	providers: Partial<
 		Record<TProvider, VoiceAgentModel<TContext, TSession, TResult>>
 	>;
@@ -257,6 +263,18 @@ const parseJSONValue = (value: string): unknown => {
 		return value;
 	}
 };
+
+class VoiceProviderTimeoutError extends Error {
+	provider: string;
+	timeoutMs: number;
+
+	constructor(provider: string, timeoutMs: number) {
+		super(`Voice provider ${provider} exceeded ${timeoutMs}ms latency budget.`);
+		this.name = 'VoiceProviderTimeoutError';
+		this.provider = provider;
+		this.timeoutMs = timeoutMs;
+	}
+}
 
 const getMessageToolCalls = (message: VoiceAgentMessage): VoiceAgentToolCall[] => {
 	const toolCalls = message.metadata?.toolCalls;
@@ -410,6 +428,12 @@ export const createVoiceProviderRouter = <
 		0,
 		healthOptions?.rateLimitCooldownMs ?? 60_000
 	);
+	const getProviderTimeoutMs = (provider: TProvider) => {
+		const timeoutMs = options.providerProfiles?.[provider]?.timeoutMs ?? options.timeoutMs;
+		return typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0
+			? timeoutMs
+			: undefined;
+	};
 
 	const getHealth = (provider: TProvider) => {
 		const existing = healthState.get(provider);
@@ -588,6 +612,34 @@ export const createVoiceProviderRouter = <
 		await options.onProviderEvent?.(event, input);
 	};
 
+	const runProvider = async (
+		provider: TProvider,
+		model: VoiceAgentModel<TContext, TSession, TResult>,
+		input: VoiceAgentModelInput<TContext, TSession>
+	) => {
+		const timeoutMs = getProviderTimeoutMs(provider);
+		if (!timeoutMs) {
+			return model.generate(input);
+		}
+
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		try {
+			return await Promise.race([
+				model.generate(input),
+				new Promise<never>((_, reject) => {
+					timeout = setTimeout(
+						() => reject(new VoiceProviderTimeoutError(provider, timeoutMs)),
+						timeoutMs
+					);
+				})
+			]);
+		} finally {
+			if (timeout) {
+				clearTimeout(timeout);
+			}
+		}
+	};
+
 	return {
 		generate: async (input) => {
 			const { order, selectedProvider } = await resolveOrder(input);
@@ -603,14 +655,16 @@ export const createVoiceProviderRouter = <
 				}
 				const startedAt = Date.now();
 				try {
-					const output = await model.generate(input);
+					const output = await runProvider(provider, model, input);
 					const providerHealth = recordProviderSuccess(provider);
 					await emit(
 						{
 							at: Date.now(),
+							attempt: index + 1,
 							elapsedMs: Date.now() - startedAt,
 							fallbackProvider:
 								provider === selectedProvider ? undefined : provider,
+							latencyBudgetMs: getProviderTimeoutMs(provider),
 							provider,
 							providerHealth,
 							recovered: provider !== selectedProvider,
@@ -625,6 +679,9 @@ export const createVoiceProviderRouter = <
 					const hasNextProvider = index < order.length - 1;
 					const isProviderError =
 						options.isProviderError?.(error, provider) ?? true;
+					const timedOut =
+						options.isTimeoutError?.(error, provider) ??
+						error instanceof VoiceProviderTimeoutError;
 					const rateLimited =
 						options.isRateLimitError?.(error, provider) ??
 						defaultIsRateLimitError(error);
@@ -644,16 +701,19 @@ export const createVoiceProviderRouter = <
 					await emit(
 						{
 							at: Date.now(),
+							attempt: index + 1,
 							elapsedMs: Date.now() - startedAt,
 							error: errorMessage(error),
 							fallbackProvider: shouldFallback ? nextProvider : undefined,
+							latencyBudgetMs: getProviderTimeoutMs(provider),
 							provider,
 							providerHealth,
 							rateLimited,
 							selectedProvider,
 							suppressionRemainingMs: getSuppressionRemainingMs(provider),
 							suppressedUntil: providerHealth?.suppressedUntil,
-							status: 'error'
+							status: 'error',
+							timedOut
 						},
 						input
 					);

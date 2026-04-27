@@ -145,6 +145,38 @@ test('summarizeVoiceProviderHealth clears degraded status after newer success', 
 	]);
 });
 
+test('summarizeVoiceProviderHealth tracks provider latency timeouts', async () => {
+	const events = [
+		createVoiceTraceEvent({
+			at: 1_000,
+			payload: {
+				error: 'Voice provider openai exceeded 50ms latency budget.',
+				latencyBudgetMs: 50,
+				provider: 'openai',
+				providerStatus: 'error',
+				selectedProvider: 'openai',
+				timedOut: true
+			},
+			sessionId: 'session-provider-timeout',
+			type: 'session.error'
+		})
+	];
+
+	expect(
+		await summarizeVoiceProviderHealth({
+			events,
+			providers: ['openai']
+		})
+	).toMatchObject([
+		{
+			errorCount: 1,
+			provider: 'openai',
+			status: 'degraded',
+			timeoutCount: 1
+		}
+	]);
+});
+
 test('renderVoiceProviderHealthHTML renders portable provider cards', () => {
 	expect(
 		renderVoiceProviderHealthHTML([
@@ -157,10 +189,25 @@ test('renderVoiceProviderHealthHTML renders portable provider cards', () => {
 				recommended: false,
 				runCount: 0,
 				status: 'suppressed',
-				suppressionRemainingMs: 60_000
+				suppressionRemainingMs: 60_000,
+				timeoutCount: 1
 			}
 		])
 	).toContain('Temporarily suppressed for 60s.');
+	expect(
+		renderVoiceProviderHealthHTML([
+			{
+				errorCount: 1,
+				fallbackCount: 0,
+				provider: 'openai',
+				rateLimited: false,
+				recommended: false,
+				runCount: 0,
+				status: 'degraded',
+				timeoutCount: 1
+			}
+		])
+	).toContain('<dt>Timeouts</dt><dd>1</dd>');
 });
 
 test('createVoiceProviderHealthJSONHandler returns fresh provider summaries', async () => {
