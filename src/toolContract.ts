@@ -1,3 +1,4 @@
+import { Elysia } from 'elysia';
 import type {
 	VoiceAgentTool,
 	VoiceAgentToolCall
@@ -86,10 +87,38 @@ export type VoiceToolContractCaseReport = {
 export type VoiceToolContractReport = {
 	cases: VoiceToolContractCaseReport[];
 	contractId: string;
+	label?: string;
 	issues: VoiceToolContractIssue[];
 	pass: boolean;
 	toolName: string;
 };
+
+export type VoiceToolContractSuiteReport = {
+	checkedAt: number;
+	contracts: VoiceToolContractReport[];
+	failed: number;
+	passed: number;
+	status: 'fail' | 'pass';
+	total: number;
+};
+
+export type VoiceToolContractHandlerOptions = {
+	contracts: VoiceToolContractDefinition[];
+};
+
+export type VoiceToolContractHTMLHandlerOptions =
+	VoiceToolContractHandlerOptions & {
+		headers?: HeadersInit;
+		render?: (report: VoiceToolContractSuiteReport) => string | Promise<string>;
+		title?: string;
+	};
+
+export type VoiceToolContractRoutesOptions =
+	VoiceToolContractHTMLHandlerOptions & {
+		htmlPath?: false | string;
+		name?: string;
+		path?: string;
+	};
 
 const createDefaultSession = (contractId: string, caseId: string) =>
 	createVoiceSessionRecord(`tool-contract-${contractId}-${caseId}`);
@@ -106,6 +135,14 @@ const defaultApi = {} as VoiceSessionHandle<unknown, VoiceSessionRecord, unknown
 
 const sameJSON = (left: unknown, right: unknown) =>
 	JSON.stringify(left) === JSON.stringify(right);
+
+const escapeHtml = (value: string) =>
+	value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;');
 
 const evaluateExpectation = (input: {
 	caseId: string;
@@ -275,6 +312,7 @@ export const runVoiceToolContract = async <
 	return {
 		cases,
 		contractId: definition.id,
+		label: definition.label,
 		issues,
 		pass: issues.length === 0,
 		toolName: definition.tool.name
@@ -328,3 +366,96 @@ export const createVoiceToolRuntimeContractDefaults = <
 	maxRetries: 1,
 	timeoutMs: 5_000
 });
+
+export const runVoiceToolContractSuite = async (
+	options: VoiceToolContractHandlerOptions
+): Promise<VoiceToolContractSuiteReport> => {
+	const contracts = await Promise.all(
+		options.contracts.map((contract) => runVoiceToolContract(contract))
+	);
+	const passed = contracts.filter((contract) => contract.pass).length;
+	const failed = contracts.length - passed;
+
+	return {
+		checkedAt: Date.now(),
+		contracts,
+		failed,
+		passed,
+		status: failed > 0 ? 'fail' : 'pass',
+		total: contracts.length
+	};
+};
+
+export const renderVoiceToolContractHTML = (
+	report: VoiceToolContractSuiteReport,
+	options: { title?: string } = {}
+) => {
+	const title = options.title ?? 'Voice Tool Contracts';
+	const contracts = report.contracts
+		.map((contract) => {
+			const cases = contract.cases
+				.map(
+					(testCase) => `<tr>
+  <td>${escapeHtml(testCase.label ?? testCase.caseId)}</td>
+  <td class="${testCase.pass ? 'pass' : 'fail'}">${testCase.pass ? 'pass' : 'fail'}</td>
+  <td>${escapeHtml(testCase.status)}</td>
+  <td>${String(testCase.attempts)}</td>
+  <td>${String(testCase.elapsedMs)}ms</td>
+  <td>${testCase.timedOut ? 'yes' : 'no'}</td>
+  <td>${escapeHtml(testCase.issues.map((issue) => issue.message).join(' ') || testCase.error || '')}</td>
+</tr>`
+				)
+				.join('');
+			return `<section class="contract ${contract.pass ? 'pass' : 'fail'}">
+  <div class="contract-header">
+    <div>
+      <p class="eyebrow">${escapeHtml(contract.toolName)}</p>
+      <h2>${escapeHtml(contract.label ?? contract.contractId)}</h2>
+    </div>
+    <strong class="${contract.pass ? 'pass' : 'fail'}">${contract.pass ? 'Passing' : 'Failing'}</strong>
+  </div>
+  <table>
+    <thead><tr><th>Case</th><th>Status</th><th>Result</th><th>Attempts</th><th>Elapsed</th><th>Timed out</th><th>Issues</th></tr></thead>
+    <tbody>${cases}</tbody>
+  </table>
+</section>`;
+		})
+		.join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.contract{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(245,158,11,.12))}.eyebrow{color:#fbbf24;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.contract-header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}h2{margin:.2rem 0 1rem}.pass{color:#86efac}.fail{color:#fca5a5}.contract.fail{border-color:rgba(248,113,113,.45)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2a323a;padding:12px;text-align:left;vertical-align:top}th{color:#a8b0b8;font-size:.82rem}@media(max-width:800px){main{padding:18px}table{display:block;overflow:auto}.contract-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Tool Reliability</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill ${report.status === 'pass' ? 'pass' : 'fail'}">${escapeHtml(report.status)}</span><span class="pill">${String(report.passed)} passing</span><span class="pill">${String(report.failed)} failing</span><span class="pill">${String(report.total)} contracts</span></div></section>${contracts || '<section class="contract"><p>No tool contracts configured.</p></section>'}</main></body></html>`;
+};
+
+export const createVoiceToolContractJSONHandler =
+	(options: VoiceToolContractHandlerOptions) => () =>
+		runVoiceToolContractSuite(options);
+
+export const createVoiceToolContractHTMLHandler =
+	(options: VoiceToolContractHTMLHandlerOptions) => async () => {
+		const report = await runVoiceToolContractSuite(options);
+		const render = options.render ?? ((input) => renderVoiceToolContractHTML(input, options));
+		const body = await render(report);
+
+		return new Response(body, {
+			headers: {
+				'Content-Type': 'text/html; charset=utf-8',
+				...options.headers
+			}
+		});
+	};
+
+export const createVoiceToolContractRoutes = (
+	options: VoiceToolContractRoutesOptions
+) => {
+	const path = options.path ?? '/api/tool-contracts';
+	const htmlPath =
+		options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-tool-contracts'
+	}).get(path, createVoiceToolContractJSONHandler(options));
+
+	if (htmlPath) {
+		routes.get(htmlPath, createVoiceToolContractHTMLHandler(options));
+	}
+
+	return routes;
+};

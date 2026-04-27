@@ -64,7 +64,12 @@ export {
 } from './toolRuntime';
 export {
 	createVoiceToolContract,
+	createVoiceToolContractHTMLHandler,
+	createVoiceToolContractJSONHandler,
+	createVoiceToolContractRoutes,
 	createVoiceToolRuntimeContractDefaults,
+	renderVoiceToolContractHTML,
+	runVoiceToolContractSuite,
 	runVoiceToolContract
 } from './toolContract';
 export {
@@ -456,8 +461,12 @@ export type {
 	VoiceToolContractCaseReport,
 	VoiceToolContractDefinition,
 	VoiceToolContractExpectation,
+	VoiceToolContractHandlerOptions,
+	VoiceToolContractHTMLHandlerOptions,
 	VoiceToolContractIssue,
-	VoiceToolContractReport
+	VoiceToolContractReport,
+	VoiceToolContractRoutesOptions,
+	VoiceToolContractSuiteReport
 } from './toolContract';
 export type {
 	VoiceOpsRuntime,

@@ -2,7 +2,10 @@ import { expect, test } from 'bun:test';
 import {
 	createVoiceAgentTool,
 	createVoiceToolContract,
+	createVoiceToolContractRoutes,
 	createVoiceToolRuntimeContractDefaults,
+	renderVoiceToolContractHTML,
+	runVoiceToolContractSuite,
 	runVoiceToolContract
 } from '../src';
 
@@ -103,4 +106,90 @@ test('createVoiceToolContract assert throws with actionable issues', async () =>
 	await expect(contract.assert()).rejects.toThrow(
 		'Tool result did not match expected result.'
 	);
+});
+
+test('runVoiceToolContractSuite aggregates contract reports', async () => {
+	const report = await runVoiceToolContractSuite({
+		contracts: [
+			{
+				cases: [
+					{
+						args: {},
+						expect: {
+							expectedResult: { ok: true },
+							expectStatus: 'ok'
+						},
+						id: 'ok'
+					}
+				],
+				id: 'healthy-tool',
+				tool: createVoiceAgentTool({
+					execute: () => ({ ok: true }),
+					name: 'healthy_tool'
+				})
+			},
+			{
+				cases: [
+					{
+						args: {},
+						expect: {
+							expectedResult: { ok: true },
+							expectStatus: 'ok'
+						},
+						id: 'bad'
+					}
+				],
+				id: 'broken-tool',
+				tool: createVoiceAgentTool({
+					execute: () => ({ ok: false }),
+					name: 'broken_tool'
+				})
+			}
+		]
+	});
+
+	expect(report).toMatchObject({
+		failed: 1,
+		passed: 1,
+		status: 'fail',
+		total: 2
+	});
+	expect(renderVoiceToolContractHTML(report)).toContain('broken_tool');
+});
+
+test('createVoiceToolContractRoutes exposes json and html reports', async () => {
+	const routes = createVoiceToolContractRoutes({
+		contracts: [
+			{
+				cases: [
+					{
+						args: {},
+						expect: {
+							expectedResult: { ok: true },
+							expectStatus: 'ok'
+						},
+						id: 'ok'
+					}
+				],
+				id: 'healthy-tool',
+				tool: createVoiceAgentTool({
+					execute: () => ({ ok: true }),
+					name: 'healthy_tool'
+				})
+			}
+		]
+	});
+
+	const json = await routes.handle(
+		new Request('http://localhost/api/tool-contracts')
+	);
+	const html = await routes.handle(
+		new Request('http://localhost/api/tool-contracts/htmx')
+	);
+
+	expect(await json.json()).toMatchObject({
+		status: 'pass',
+		total: 1
+	});
+	expect(await html.text()).toContain('Voice Tool Contracts');
 });
