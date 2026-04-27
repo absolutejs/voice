@@ -1,8 +1,15 @@
 import { Buffer } from 'node:buffer';
+import { Elysia } from 'elysia';
 import { resolveAudioConditioningConfig } from '../audioConditioning';
 import { resolveLogger } from '../logger';
 import { resolveVoiceRuntimePreset } from '../presets';
 import { createVoiceSession } from '../session';
+import {
+	createVoiceTelephonyOutcomePolicy,
+	createVoiceTelephonyWebhookRoutes,
+	type VoiceTelephonyOutcomePolicy,
+	type VoiceTelephonyWebhookRoutesOptions
+} from '../telephonyOutcome';
 import {
 	createVoiceCallReviewRecorder,
 	type VoiceCallReviewArtifact,
@@ -179,6 +186,42 @@ export type TwilioVoiceResponseOptions = {
 	track?: 'both_tracks' | 'inbound_track' | 'outbound_track';
 };
 
+export type TwilioVoiceRouteParameters =
+	| Record<string, string | number | boolean | undefined>
+	| ((input: { query: Record<string, unknown>; request: Request }) =>
+			| Promise<Record<string, string | number | boolean | undefined>>
+			| Record<string, string | number | boolean | undefined>);
+
+export type TwilioVoiceRoutesOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = TwilioMediaStreamBridgeOptions<TContext, TSession, TResult> & {
+	name?: string;
+	outcomePolicy?: VoiceTelephonyOutcomePolicy;
+	streamPath?: string;
+	twiml?: {
+		parameters?: TwilioVoiceRouteParameters;
+		path?: string;
+		streamName?: string;
+		streamUrl?:
+			| string
+			| ((input: {
+					query: Record<string, unknown>;
+					request: Request;
+					streamPath: string;
+			  }) => Promise<string> | string);
+		track?: TwilioVoiceResponseOptions['track'];
+	};
+	webhook?: Omit<
+		VoiceTelephonyWebhookRoutesOptions<TContext, TSession, TResult>,
+		'context' | 'path' | 'policy' | 'provider'
+	> & {
+		path?: string;
+		policy?: VoiceTelephonyOutcomePolicy;
+	};
+};
+
 const escapeXml = (value: string) =>
 	value
 		.replaceAll('&', '&amp;')
@@ -186,6 +229,55 @@ const escapeXml = (value: string) =>
 		.replaceAll("'", '&apos;')
 		.replaceAll('<', '&lt;')
 		.replaceAll('>', '&gt;');
+
+const resolveRequestOrigin = (request: Request) => {
+	const url = new URL(request.url);
+	const forwardedHost = request.headers.get('x-forwarded-host');
+	const forwardedProto = request.headers.get('x-forwarded-proto');
+	const host = forwardedHost ?? request.headers.get('host') ?? url.host;
+	const protocol = forwardedProto ?? url.protocol.replace(':', '');
+
+	return `${protocol}://${host}`;
+};
+
+const resolveTwilioStreamUrl = async <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	options: TwilioVoiceRoutesOptions<TContext, TSession, TResult>,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+		streamPath: string;
+	}
+) => {
+	if (typeof options.twiml?.streamUrl === 'function') {
+		return options.twiml.streamUrl(input);
+	}
+
+	if (typeof options.twiml?.streamUrl === 'string') {
+		return options.twiml.streamUrl;
+	}
+
+	const origin = resolveRequestOrigin(input.request);
+	const wsOrigin = origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+	return `${wsOrigin}${input.streamPath}`;
+};
+
+const resolveTwilioStreamParameters = async (
+	parameters: TwilioVoiceRouteParameters | undefined,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (typeof parameters === 'function') {
+		return parameters(input);
+	}
+
+	return parameters;
+};
 
 const normalizeOnTurn = <
 	TContext,
@@ -786,4 +878,116 @@ export const createTwilioMediaStreamBridge = <
 			}
 		}
 	};
+};
+
+export const createTwilioVoiceRoutes = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+>(
+	options: TwilioVoiceRoutesOptions<TContext, TSession, TResult>
+) => {
+	const streamPath = options.streamPath ?? '/api/voice/twilio/stream';
+	const twimlPath = options.twiml?.path ?? '/api/voice/twilio';
+	const webhookPath = options.webhook?.path ?? '/api/voice/twilio/webhook';
+	const bridges = new WeakMap<object, TwilioMediaStreamBridge>();
+	const webhookPolicy =
+		options.webhook?.policy ??
+		options.outcomePolicy ??
+		createVoiceTelephonyOutcomePolicy();
+
+	return new Elysia({
+		name: options.name ?? 'absolutejs-voice-twilio'
+	})
+		.get(twimlPath, async ({ query, request }) => {
+			const streamUrl = await resolveTwilioStreamUrl(options, {
+				query,
+				request,
+				streamPath
+			});
+			const parameters = await resolveTwilioStreamParameters(
+				options.twiml?.parameters,
+				{
+					query,
+					request
+				}
+			);
+
+			return new Response(
+				createTwilioVoiceResponse({
+					parameters,
+					streamName: options.twiml?.streamName,
+					streamUrl,
+					track: options.twiml?.track
+				}),
+				{
+					headers: {
+						'content-type': 'text/xml; charset=utf-8'
+					}
+				}
+			);
+		})
+		.post(twimlPath, async ({ query, request }) => {
+			const streamUrl = await resolveTwilioStreamUrl(options, {
+				query,
+				request,
+				streamPath
+			});
+			const parameters = await resolveTwilioStreamParameters(
+				options.twiml?.parameters,
+				{
+					query,
+					request
+				}
+			);
+
+			return new Response(
+				createTwilioVoiceResponse({
+					parameters,
+					streamName: options.twiml?.streamName,
+					streamUrl,
+					track: options.twiml?.track
+				}),
+				{
+					headers: {
+						'content-type': 'text/xml; charset=utf-8'
+					}
+				}
+			);
+		})
+		.ws(streamPath, {
+			close: async (ws, _code, reason) => {
+				const bridge = bridges.get(ws as object);
+				bridges.delete(ws as object);
+				await bridge?.close(reason);
+			},
+			message: async (ws, raw) => {
+				let bridge = bridges.get(ws as object);
+				if (!bridge) {
+					bridge = createTwilioMediaStreamBridge(
+						{
+							close: (code, reason) => {
+								ws.close(code, reason);
+							},
+							send: (data) => {
+								ws.send(data);
+							}
+						},
+						options
+					);
+					bridges.set(ws as object, bridge);
+				}
+
+				await bridge.handleMessage(raw as string);
+			}
+		})
+		.use(
+			createVoiceTelephonyWebhookRoutes({
+				...(options.webhook ?? {}),
+				context: options.context,
+				path: webhookPath,
+				policy: webhookPolicy,
+				provider: 'twilio'
+			})
+		);
 };

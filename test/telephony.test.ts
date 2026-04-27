@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
 	createTwilioMediaStreamBridge,
+	createTwilioVoiceRoutes,
 	createTwilioVoiceResponse,
 	encodeTwilioMulawBase64,
 	transcodePCMToTwilioOutboundPayload,
@@ -174,6 +175,80 @@ test('createTwilioVoiceResponse emits TwiML with stream parameters', () => {
 	expect(xml).toContain('wss://example.com/voice/phone');
 	expect(xml).toContain('sessionId');
 	expect(xml).toContain('voice-123');
+});
+
+test('createTwilioVoiceRoutes exposes TwiML and signed webhook routes together', async () => {
+	const decisions: Array<{ action: string; disposition?: string }> = [];
+	const routes = createTwilioVoiceRoutes({
+		context: {},
+		onComplete: async () => {},
+		onTurn: async () => undefined,
+		session: createVoiceMemoryStore(),
+		stt: createFakeSTTAdapter([]),
+		twiml: {
+			parameters: ({ query }) => ({
+				scenarioId: String(query.scenarioId ?? 'default'),
+				sessionId: String(query.sessionId ?? 'phone-session')
+			}),
+			path: '/voice/twilio',
+			streamName: 'absolute-voice'
+		},
+		webhook: {
+			onDecision: ({ decision }) => {
+				decisions.push({
+					action: decision.action,
+					disposition: decision.disposition
+				});
+			},
+			path: '/voice/twilio/webhook'
+		}
+	});
+
+	const twiml = await routes.handle(
+		new Request(
+			'https://voice.example.test/voice/twilio?scenarioId=demo&sessionId=CA123',
+			{
+				headers: {
+					'x-forwarded-proto': 'https'
+				}
+			}
+		)
+	);
+	const xml = await twiml.text();
+
+	expect(twiml.headers.get('content-type')).toContain('text/xml');
+	expect(xml).toContain('wss://voice.example.test/api/voice/twilio/stream');
+	expect(xml).toContain('scenarioId');
+	expect(xml).toContain('demo');
+
+	const webhook = await routes.handle(
+		new Request('https://voice.example.test/voice/twilio/webhook', {
+			body: new URLSearchParams({
+				CallSid: 'CA123',
+				CallStatus: 'busy',
+				SipResponseCode: '486'
+			}),
+			headers: {
+				'content-type': 'application/x-www-form-urlencoded'
+			},
+			method: 'POST'
+		})
+	);
+	const body = await webhook.json();
+
+	expect(body).toMatchObject({
+		decision: {
+			action: 'no-answer',
+			disposition: 'no-answer'
+		},
+		sessionId: 'CA123'
+	});
+	expect(decisions).toEqual([
+		{
+			action: 'no-answer',
+			disposition: 'no-answer'
+		}
+	]);
 });
 
 test('twilio payload transcoding converts narrowband mulaw into voice PCM and back', () => {

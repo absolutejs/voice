@@ -731,11 +731,25 @@ export type {
 } from './ops';
 export {
 	createTwilioMediaStreamBridge,
+	createTwilioVoiceRoutes,
 	createTwilioVoiceResponse,
 	decodeTwilioMulawBase64,
 	encodeTwilioMulawBase64,
 	transcodePCMToTwilioOutboundPayload,
 	transcodeTwilioInboundPayloadToPCM16
+} from './telephony/twilio';
+export type {
+	TwilioInboundMessage,
+	TwilioMediaStreamBridge,
+	TwilioMediaStreamBridgeOptions,
+	TwilioMediaStreamSocket,
+	TwilioOutboundClearMessage,
+	TwilioOutboundMarkMessage,
+	TwilioOutboundMediaMessage,
+	TwilioOutboundMessage,
+	TwilioVoiceRouteParameters,
+	TwilioVoiceResponseOptions,
+	TwilioVoiceRoutesOptions
 } from './telephony/twilio';
 export { shapeTelephonyAssistantText } from './telephony/response';
 export type {
