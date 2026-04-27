@@ -192,6 +192,30 @@ export type TwilioVoiceRouteParameters =
 			| Promise<Record<string, string | number | boolean | undefined>>
 			| Record<string, string | number | boolean | undefined>);
 
+export type TwilioVoiceSetupStatus = {
+	generatedAt: number;
+	missing: string[];
+	provider: 'twilio';
+	ready: boolean;
+	signing: {
+		configured: boolean;
+		mode: 'custom' | 'none' | 'twilio-signature';
+		verificationUrl?: string;
+	};
+	urls: {
+		stream: string;
+		twiml: string;
+		webhook: string;
+	};
+	warnings: string[];
+};
+
+export type TwilioVoiceSetupOptions = {
+	path?: false | string;
+	requiredEnv?: Record<string, string | undefined>;
+	title?: string;
+};
+
 export type TwilioVoiceRoutesOptions<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -199,6 +223,7 @@ export type TwilioVoiceRoutesOptions<
 > = TwilioMediaStreamBridgeOptions<TContext, TSession, TResult> & {
 	name?: string;
 	outcomePolicy?: VoiceTelephonyOutcomePolicy;
+	setup?: TwilioVoiceSetupOptions;
 	streamPath?: string;
 	twiml?: {
 		parameters?: TwilioVoiceRouteParameters;
@@ -278,6 +303,123 @@ const resolveTwilioStreamParameters = async (
 
 	return parameters;
 };
+
+const joinUrlPath = (origin: string, path: string) =>
+	`${origin.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+
+const escapeHtml = (value: string) =>
+	value
+		.replaceAll('&', '&amp;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;');
+
+const getWebhookVerificationUrl = <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	webhook: TwilioVoiceRoutesOptions<TContext, TSession, TResult>['webhook'],
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (!webhook?.verificationUrl) {
+		return undefined;
+	}
+
+	if (typeof webhook.verificationUrl === 'function') {
+		return webhook.verificationUrl(input);
+	}
+
+	return webhook.verificationUrl;
+};
+
+const buildTwilioVoiceSetupStatus = async <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	options: TwilioVoiceRoutesOptions<TContext, TSession, TResult>,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+		streamPath: string;
+		twimlPath: string;
+		webhookPath: string;
+	}
+): Promise<TwilioVoiceSetupStatus> => {
+	const origin = resolveRequestOrigin(input.request);
+	const stream = await resolveTwilioStreamUrl(options, input);
+	const twiml = joinUrlPath(origin, input.twimlPath);
+	const webhook = joinUrlPath(origin, input.webhookPath);
+	const verificationUrl = getWebhookVerificationUrl(options.webhook, input);
+	const missing = Object.entries(options.setup?.requiredEnv ?? {})
+		.filter((entry) => !entry[1])
+		.map(([name]) => name);
+	const signingConfigured = Boolean(
+		options.webhook?.signingSecret || options.webhook?.verify
+	);
+	const warnings = [
+		...(stream.startsWith('wss://')
+			? []
+			: ['Twilio media streams should use wss:// in production.']),
+		...(signingConfigured
+			? []
+			: ['Webhook signature verification is not configured.']),
+		...(verificationUrl || !signingConfigured
+			? []
+			: ['Webhook signing is configured without an explicit verification URL.'])
+	];
+
+	return {
+		generatedAt: Date.now(),
+		missing,
+		provider: 'twilio',
+		ready: missing.length === 0 && signingConfigured && warnings.length === 0,
+		signing: {
+			configured: signingConfigured,
+			mode: options.webhook?.verify
+				? 'custom'
+				: options.webhook?.signingSecret
+					? 'twilio-signature'
+					: 'none',
+			verificationUrl
+		},
+		urls: {
+			stream,
+			twiml,
+			webhook
+		},
+		warnings
+	};
+};
+
+const renderTwilioVoiceSetupHTML = (
+	status: TwilioVoiceSetupStatus,
+	title: string
+) => `<main style="font-family: ui-sans-serif, system-ui; max-width: 860px; margin: 40px auto; padding: 0 20px;">
+<p style="letter-spacing: .12em; text-transform: uppercase; color: #52606d;">Twilio setup</p>
+<h1>${escapeHtml(title)}</h1>
+<p><strong>Status:</strong> ${status.ready ? 'Ready' : 'Needs attention'}</p>
+<section>
+<h2>URLs</h2>
+<ul>
+<li><strong>TwiML:</strong> <code>${escapeHtml(status.urls.twiml)}</code></li>
+<li><strong>Media stream:</strong> <code>${escapeHtml(status.urls.stream)}</code></li>
+<li><strong>Status webhook:</strong> <code>${escapeHtml(status.urls.webhook)}</code></li>
+</ul>
+</section>
+<section>
+<h2>Signing</h2>
+<p>Mode: <code>${status.signing.mode}</code></p>
+${status.signing.verificationUrl ? `<p>Verification URL: <code>${escapeHtml(status.signing.verificationUrl)}</code></p>` : ''}
+</section>
+${status.missing.length ? `<section><h2>Missing env</h2><ul>${status.missing.map((name) => `<li><code>${escapeHtml(name)}</code></li>`).join('')}</ul></section>` : ''}
+${status.warnings.length ? `<section><h2>Warnings</h2><ul>${status.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul></section>` : ''}
+</main>`;
 
 const normalizeOnTurn = <
 	TContext,
@@ -890,13 +1032,16 @@ export const createTwilioVoiceRoutes = <
 	const streamPath = options.streamPath ?? '/api/voice/twilio/stream';
 	const twimlPath = options.twiml?.path ?? '/api/voice/twilio';
 	const webhookPath = options.webhook?.path ?? '/api/voice/twilio/webhook';
+	const setupPath =
+		options.setup?.path === false
+			? false
+			: options.setup?.path ?? '/api/voice/twilio/setup';
 	const bridges = new WeakMap<object, TwilioMediaStreamBridge>();
 	const webhookPolicy =
 		options.webhook?.policy ??
 		options.outcomePolicy ??
 		createVoiceTelephonyOutcomePolicy();
-
-	return new Elysia({
+	const app = new Elysia({
 		name: options.name ?? 'absolutejs-voice-twilio'
 	})
 		.get(twimlPath, async ({ query, request }) => {
@@ -990,4 +1135,34 @@ export const createTwilioVoiceRoutes = <
 				provider: 'twilio'
 			})
 		);
+
+	if (!setupPath) {
+		return app;
+	}
+
+	return app.get(setupPath, async ({ query, request }) => {
+		const status = await buildTwilioVoiceSetupStatus(options, {
+			query,
+			request,
+			streamPath,
+			twimlPath,
+			webhookPath
+		});
+
+		if (query.format === 'html') {
+			return new Response(
+				renderTwilioVoiceSetupHTML(
+					status,
+					options.setup?.title ?? 'AbsoluteJS Twilio Voice Setup'
+				),
+				{
+					headers: {
+						'content-type': 'text/html; charset=utf-8'
+					}
+				}
+			);
+		}
+
+		return status;
+	});
 };

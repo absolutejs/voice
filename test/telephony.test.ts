@@ -251,6 +251,63 @@ test('createTwilioVoiceRoutes exposes TwiML and signed webhook routes together',
 	]);
 });
 
+test('createTwilioVoiceRoutes exposes carrier setup status', async () => {
+	const routes = createTwilioVoiceRoutes({
+		context: {},
+		onComplete: async () => {},
+		onTurn: async () => undefined,
+		session: createVoiceMemoryStore(),
+		setup: {
+			path: '/voice/twilio/setup',
+			requiredEnv: {
+				TWILIO_AUTH_TOKEN: 'present',
+				TWILIO_PHONE_NUMBER: undefined
+			},
+			title: 'Demo Twilio setup'
+		},
+		stt: createFakeSTTAdapter([]),
+		twiml: {
+			path: '/voice/twilio',
+			streamUrl: 'wss://stream.example.test/twilio'
+		},
+		webhook: {
+			path: '/voice/twilio/webhook',
+			signingSecret: 'secret',
+			verificationUrl: 'https://voice.example.test/voice/twilio/webhook'
+		}
+	});
+
+	const response = await routes.handle(
+		new Request('https://voice.example.test/voice/twilio/setup')
+	);
+	const status = await response.json();
+
+	expect(status).toMatchObject({
+		missing: ['TWILIO_PHONE_NUMBER'],
+		provider: 'twilio',
+		ready: false,
+		signing: {
+			configured: true,
+			mode: 'twilio-signature',
+			verificationUrl: 'https://voice.example.test/voice/twilio/webhook'
+		},
+		urls: {
+			stream: 'wss://stream.example.test/twilio',
+			twiml: 'https://voice.example.test/voice/twilio',
+			webhook: 'https://voice.example.test/voice/twilio/webhook'
+		}
+	});
+
+	const html = await routes.handle(
+		new Request('https://voice.example.test/voice/twilio/setup?format=html')
+	);
+	const text = await html.text();
+
+	expect(html.headers.get('content-type')).toContain('text/html');
+	expect(text).toContain('Demo Twilio setup');
+	expect(text).toContain('TWILIO_PHONE_NUMBER');
+});
+
 test('twilio payload transcoding converts narrowband mulaw into voice PCM and back', () => {
 	const inbound = encodeTwilioMulawBase64(
 		new Int16Array([0, 2_000, -2_000, 5_000, -5_000])

@@ -749,6 +749,8 @@ export type {
 	TwilioOutboundMessage,
 	TwilioVoiceRouteParameters,
 	TwilioVoiceResponseOptions,
+	TwilioVoiceSetupOptions,
+	TwilioVoiceSetupStatus,
 	TwilioVoiceRoutesOptions
 } from './telephony/twilio';
 export { shapeTelephonyAssistantText } from './telephony/response';
