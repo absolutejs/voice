@@ -1,4 +1,5 @@
 export { VoiceAppKitStatusService } from './voice-app-kit-status.service';
+export { VoiceCampaignDialerProofService } from './voice-campaign-dialer-proof.service';
 export { VoiceStreamService } from './voice-stream.service';
 export { VoiceControllerService } from './voice-controller.service';
 export { VoiceProviderCapabilitiesService } from './voice-provider-capabilities.service';

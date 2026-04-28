@@ -7,6 +7,7 @@ export { VoiceTraceTimeline } from './VoiceTraceTimeline';
 export { VoiceTurnLatency } from './VoiceTurnLatency';
 export { VoiceTurnQuality } from './VoiceTurnQuality';
 export { useVoiceAppKitStatus } from './useVoiceAppKitStatus';
+export { useVoiceCampaignDialerProof } from './useVoiceCampaignDialerProof';
 export { useVoiceStream } from './useVoiceStream';
 export { useVoiceController } from './useVoiceController';
 export { useVoiceProviderStatus } from './useVoiceProviderStatus';

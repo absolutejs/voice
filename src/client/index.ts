@@ -48,6 +48,11 @@ export {
 	runVoiceTurnLatencyProof
 } from './turnLatency';
 export {
+	createVoiceCampaignDialerProofStore,
+	fetchVoiceCampaignDialerProofStatus,
+	runVoiceCampaignDialerProofAction
+} from './campaignDialerProof';
+export {
 	createVoiceTraceTimelineStore,
 	fetchVoiceTraceTimeline
 } from './traceTimeline';
@@ -137,6 +142,10 @@ export type {
 	VoiceTurnLatencyClientOptions,
 	VoiceTurnLatencySnapshot
 } from './turnLatency';
+export type {
+	VoiceCampaignDialerProofClientOptions,
+	VoiceCampaignDialerProofSnapshot
+} from './campaignDialerProof';
 export type {
 	VoiceTraceTimelineClientOptions,
 	VoiceTraceTimelineSnapshot
