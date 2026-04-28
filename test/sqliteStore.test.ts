@@ -7,6 +7,10 @@ import {
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
+	createVoiceAuditEvent,
+	createVoiceAuditSinkDeliveryRecord,
+	createVoiceSQLiteAuditEventStore,
+	createVoiceSQLiteAuditSinkDeliveryStore,
 	createVoiceSQLiteCampaignStore,
 	createVoiceSQLiteExternalObjectMapStore,
 	createVoiceSQLiteIntegrationEventStore,
@@ -421,6 +425,119 @@ test('createVoiceSQLiteTraceSinkDeliveryStore persists queued trace deliveries',
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([
 		'trace-delivery-1'
 	]);
+});
+
+test('createVoiceSQLiteAuditSinkDeliveryStore persists queued audit deliveries', async () => {
+	const path = createTempSQLitePath();
+	const store = createVoiceSQLiteAuditSinkDeliveryStore({
+		path
+	});
+	const delivery = createVoiceAuditSinkDeliveryRecord({
+		createdAt: 100,
+		events: [
+			createVoiceAuditEvent({
+				action: 'retention.policy',
+				at: 100,
+				type: 'retention.policy'
+			})
+		],
+		id: 'audit-delivery-1'
+	});
+
+	await store.set(delivery.id, delivery);
+
+	const secondStore = createVoiceSQLiteAuditSinkDeliveryStore({
+		path
+	});
+
+	expect(await secondStore.get(delivery.id)).toMatchObject({
+		deliveryStatus: 'pending',
+		id: 'audit-delivery-1'
+	});
+	expect((await secondStore.list()).map((item) => item.id)).toEqual([
+		'audit-delivery-1'
+	]);
+});
+
+test('createVoiceSQLiteAuditEventStore persists and filters audit events', async () => {
+	const path = createTempSQLitePath();
+	const store = createVoiceSQLiteAuditEventStore({
+		path
+	});
+
+	await store.append({
+		action: 'llm.provider.call',
+		at: 100,
+		outcome: 'success',
+		resource: {
+			id: 'openai',
+			type: 'provider'
+		},
+		sessionId: 'session-audit',
+		type: 'provider.call'
+	});
+	await store.append({
+		action: 'tool.call',
+		at: 200,
+		outcome: 'error',
+		resource: {
+			id: 'lookup_account',
+			type: 'tool'
+		},
+		sessionId: 'session-audit',
+		type: 'tool.call'
+	});
+
+	const secondStore = createVoiceSQLiteAuditEventStore({
+		path
+	});
+
+	expect((await secondStore.list()).map((event) => event.type)).toEqual([
+		'provider.call',
+		'tool.call'
+	]);
+	expect(await secondStore.list({ outcome: 'error' })).toMatchObject([
+		{
+			action: 'tool.call',
+			type: 'tool.call'
+		}
+	]);
+	expect(await secondStore.list({ resourceType: 'provider' })).toHaveLength(1);
+});
+
+test('createVoiceSQLiteRuntimeStorage exposes persistent audit events', async () => {
+	const path = createTempSQLitePath();
+	const firstStorage = createVoiceSQLiteRuntimeStorage({
+		path
+	});
+	const event = await firstStorage.audit.append({
+		action: 'review.approve',
+		actor: {
+			id: 'operator-1',
+			kind: 'operator'
+		},
+		at: 100,
+		outcome: 'success',
+		type: 'operator.action'
+	});
+	const secondStorage = createVoiceSQLiteRuntimeStorage({
+		path
+	});
+
+	expect(await secondStorage.audit.get(event.id)).toMatchObject({
+		action: 'review.approve',
+		type: 'operator.action'
+	});
+	await firstStorage.auditDeliveries.set(
+		'audit-delivery-runtime',
+		createVoiceAuditSinkDeliveryRecord({
+			events: [event],
+			id: 'audit-delivery-runtime'
+		})
+	);
+	expect((await secondStorage.auditDeliveries.list())[0]?.id).toBe(
+		'audit-delivery-runtime'
+	);
 });
 
 test('createVoiceSQLiteTelephonyWebhookIdempotencyStore persists decisions across instances', async () => {

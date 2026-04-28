@@ -1,19 +1,19 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import {
-	createVoiceAppKitStatusStore,
-	type VoiceAppKitStatusClientOptions
-} from '../client/appKitStatus';
+	createVoiceOpsStatusStore,
+	type VoiceOpsStatusClientOptions
+} from '../client/opsStatus';
 
-export const useVoiceAppKitStatus = (
-	path = '/app-kit/status',
-	options: VoiceAppKitStatusClientOptions = {}
+export const useVoiceOpsStatus = (
+	path = '/api/voice/ops-status',
+	options: VoiceOpsStatusClientOptions = {}
 ) => {
-	const storeRef = useRef<ReturnType<
-		typeof createVoiceAppKitStatusStore
-	> | null>(null);
+	const storeRef = useRef<ReturnType<typeof createVoiceOpsStatusStore> | null>(
+		null
+	);
 
 	if (!storeRef.current) {
-		storeRef.current = createVoiceAppKitStatusStore(path, options);
+		storeRef.current = createVoiceOpsStatusStore(path, options);
 	}
 
 	const store = storeRef.current;

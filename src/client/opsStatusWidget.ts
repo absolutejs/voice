@@ -1,9 +1,9 @@
-import type { VoiceAppKitStatusReport } from '../appKit';
+import type { VoiceOpsStatusReport } from '../opsStatus';
 import {
-	createVoiceAppKitStatusStore,
-	type VoiceAppKitStatusClientOptions,
-	type VoiceAppKitStatusSnapshot
-} from './appKitStatus';
+	createVoiceOpsStatusStore,
+	type VoiceOpsStatusClientOptions,
+	type VoiceOpsStatusSnapshot
+} from './opsStatus';
 
 export type VoiceOpsStatusSurfaceView = {
 	detail: string;
@@ -28,7 +28,7 @@ export type VoiceOpsStatusViewModel = {
 	updatedAt?: number;
 };
 
-export type VoiceOpsStatusWidgetOptions = VoiceAppKitStatusClientOptions & {
+export type VoiceOpsStatusWidgetOptions = VoiceOpsStatusClientOptions & {
 	description?: string;
 	includeLinks?: boolean;
 	title?: string;
@@ -36,7 +36,7 @@ export type VoiceOpsStatusWidgetOptions = VoiceAppKitStatusClientOptions & {
 
 const DEFAULT_TITLE = 'Voice Ops Status';
 const DEFAULT_DESCRIPTION =
-	'Certified workflow, provider, and handoff readiness from the AbsoluteJS voice app kit.';
+	'Certified workflow, provider, and handoff readiness from your AbsoluteJS voice app.';
 
 const SURFACE_LABELS: Record<string, string> = {
 	handoffs: 'Handoffs',
@@ -81,7 +81,7 @@ const surfaceDetail = (surface: unknown) => {
 };
 
 export const getVoiceOpsStatusLabel = (
-	report?: VoiceAppKitStatusReport | null,
+	report?: VoiceOpsStatusReport | null,
 	error?: string | null
 ) => {
 	if (error) {
@@ -94,7 +94,7 @@ export const getVoiceOpsStatusLabel = (
 };
 
 export const createVoiceOpsStatusViewModel = (
-	snapshot: VoiceAppKitStatusSnapshot,
+	snapshot: VoiceOpsStatusSnapshot,
 	options: VoiceOpsStatusWidgetOptions = {}
 ): VoiceOpsStatusViewModel => {
 	const report = snapshot.report;
@@ -138,7 +138,7 @@ export const createVoiceOpsStatusViewModel = (
 };
 
 export const renderVoiceOpsStatusHTML = (
-	snapshot: VoiceAppKitStatusSnapshot,
+	snapshot: VoiceOpsStatusSnapshot,
 	options: VoiceOpsStatusWidgetOptions = {}
 ) => {
 	const model = createVoiceOpsStatusViewModel(snapshot, options);
@@ -183,10 +183,10 @@ export const getVoiceOpsStatusCSS = () => `.absolute-voice-ops-status{border:1px
 
 export const mountVoiceOpsStatus = (
 	element: Element,
-	path = '/app-kit/status',
+	path = '/api/voice/ops-status',
 	options: VoiceOpsStatusWidgetOptions = {}
 ) => {
-	const store = createVoiceAppKitStatusStore(path, options);
+	const store = createVoiceOpsStatusStore(path, options);
 	const render = () => {
 		element.innerHTML = renderVoiceOpsStatusHTML(store.getSnapshot(), options);
 	};
@@ -223,7 +223,7 @@ export const defineVoiceOpsStatusElement = (
 				const intervalMs = Number(this.getAttribute('interval-ms') ?? 5000);
 				this.mounted = mountVoiceOpsStatus(
 					this,
-					this.getAttribute('path') ?? '/app-kit/status',
+					this.getAttribute('path') ?? '/api/voice/ops-status',
 					{
 						description: this.getAttribute('description') ?? undefined,
 						includeLinks: this.getAttribute('include-links') !== 'false',

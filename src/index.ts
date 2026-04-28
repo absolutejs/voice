@@ -1,10 +1,5 @@
 export { voice } from './plugin';
 export {
-	createVoiceAppKit,
-	createVoiceAppKitRoutes,
-	summarizeVoiceAppKitStatus
-} from './appKit';
-export {
 	applyVoiceCampaignTelephonyOutcome,
 	buildVoiceCampaignObservabilityReport,
 	createVoiceCampaignTelephonyOutcomeHandler,
@@ -38,6 +33,52 @@ export {
 	summarizeVoiceAssistantHealth
 } from './assistantHealth';
 export {
+	createVoiceAuditEvent,
+	createVoiceAuditLogger,
+	createVoiceMemoryAuditEventStore,
+	filterVoiceAuditEvents,
+	recordVoiceAuditEvent,
+	recordVoiceHandoffAuditEvent,
+	recordVoiceOperatorAuditEvent,
+	recordVoiceProviderAuditEvent,
+	recordVoiceRetentionAuditEvent,
+	recordVoiceToolAuditEvent
+} from './audit';
+export {
+	buildVoiceAuditTrailReport,
+	createVoiceAuditTrailRoutes,
+	renderVoiceAuditTrailHTML,
+	resolveVoiceAuditTrailFilter,
+	summarizeVoiceAuditTrail
+} from './auditRoutes';
+export {
+	buildVoiceAuditExport,
+	exportVoiceAuditTrail,
+	redactVoiceAuditEvent,
+	redactVoiceAuditEvents,
+	renderVoiceAuditHTML,
+	renderVoiceAuditMarkdown
+} from './auditExport';
+export {
+	createVoiceAuditHTTPSink,
+	createVoiceAuditSinkDeliveryId,
+	createVoiceAuditSinkDeliveryRecord,
+	createVoiceAuditSinkDeliveryWorker,
+	createVoiceAuditSinkDeliveryWorkerLoop,
+	createVoiceAuditSinkStore,
+	createVoiceMemoryAuditSinkDeliveryStore,
+	deliverVoiceAuditEventsToSinks,
+	summarizeVoiceAuditSinkDeliveries
+} from './auditSinks';
+export {
+	buildVoiceAuditDeliveryReport,
+	createVoiceAuditDeliveryHTMLHandler,
+	createVoiceAuditDeliveryJSONHandler,
+	createVoiceAuditDeliveryRoutes,
+	renderVoiceAuditDeliveryHTML,
+	resolveVoiceAuditDeliveryFilter
+} from './auditDeliveryRoutes';
+export {
 	createVoiceBargeInRoutes,
 	renderVoiceBargeInHTML,
 	summarizeVoiceBargeIn
@@ -47,6 +88,28 @@ export {
 	createVoiceDiagnosticsRoutes,
 	resolveVoiceDiagnosticsTraceFilter
 } from './diagnosticsRoutes';
+export {
+	buildVoiceDemoReadyReport,
+	createVoiceDemoReadyRoutes,
+	renderVoiceDemoReadyHTML
+} from './demoReadyRoutes';
+export {
+	applyVoiceDataRetentionPolicy,
+	buildVoiceDataRetentionPlan
+} from './dataControl';
+export type {
+	VoiceDataRetentionPolicy,
+	VoiceDataRetentionReport,
+	VoiceDataRetentionScope,
+	VoiceDataRetentionScopeReport,
+	VoiceDataRetentionStores
+} from './dataControl';
+export type {
+	VoiceDemoReadyReport,
+	VoiceDemoReadyRoutesOptions,
+	VoiceDemoReadySection,
+	VoiceDemoReadyStatus
+} from './demoReadyRoutes';
 export {
 	compareVoiceEvalBaseline,
 	createVoiceFileEvalBaselineStore,
@@ -89,6 +152,10 @@ export {
 	createVoiceAgentSquad,
 	createVoiceAgentTool
 } from './agent';
+export {
+	assertVoiceAgentSquadContract,
+	runVoiceAgentSquadContract
+} from './agentSquadContract';
 export {
 	createVoiceToolIdempotencyKey,
 	createVoiceToolRuntime
@@ -149,6 +216,8 @@ export {
 	createStoredVoiceOpsTask,
 	createVoiceFileExternalObjectMapStore,
 	createVoiceFileAssistantMemoryStore,
+	createVoiceFileAuditEventStore,
+	createVoiceFileAuditSinkDeliveryStore,
 	createVoiceFileCampaignStore,
 	createVoiceFileIntegrationEventStore,
 	createVoiceFileReviewStore,
@@ -188,6 +257,17 @@ export {
 	summarizeVoiceProviderCapabilities
 } from './providerCapabilities';
 export {
+	assertVoiceProviderRoutingContract,
+	runVoiceProviderRoutingContract
+} from './providerRoutingContract';
+export {
+	createVoicePhoneAgentProductionSmokeHTMLHandler,
+	createVoicePhoneAgentProductionSmokeJSONHandler,
+	createVoicePhoneAgentProductionSmokeRoutes,
+	renderVoicePhoneAgentProductionSmokeHTML,
+	runVoicePhoneAgentProductionSmokeContract
+} from './phoneAgentProductionSmoke';
+export {
 	buildVoiceProductionReadinessReport,
 	createVoiceProductionReadinessRoutes,
 	renderVoiceProductionReadinessHTML
@@ -197,6 +277,11 @@ export {
 	createVoiceOpsConsoleRoutes,
 	renderVoiceOpsConsoleHTML
 } from './opsConsoleRoutes';
+export { summarizeVoiceOpsStatus } from './opsStatus';
+export {
+	createVoiceOpsStatusRoutes,
+	renderVoiceOpsStatusHTML
+} from './opsStatusRoutes';
 export {
 	createVoiceQualityRoutes,
 	evaluateVoiceQuality,
@@ -239,12 +324,22 @@ export {
 	summarizeVoiceTrace
 } from './trace';
 export {
+	buildVoiceTraceDeliveryReport,
+	createVoiceTraceDeliveryHTMLHandler,
+	createVoiceTraceDeliveryJSONHandler,
+	createVoiceTraceDeliveryRoutes,
+	renderVoiceTraceDeliveryHTML,
+	resolveVoiceTraceDeliveryFilter
+} from './traceDeliveryRoutes';
+export {
 	createVoiceTraceTimelineRoutes,
 	renderVoiceTraceTimelineHTML,
 	renderVoiceTraceTimelineSessionHTML,
 	summarizeVoiceTraceTimeline
 } from './traceTimeline';
 export {
+	createVoiceSQLiteAuditEventStore,
+	createVoiceSQLiteAuditSinkDeliveryStore,
 	createVoiceSQLiteCampaignStore,
 	createVoiceSQLiteExternalObjectMapStore,
 	createVoiceSQLiteIntegrationEventStore,
@@ -257,6 +352,8 @@ export {
 	createVoiceSQLiteTraceEventStore
 } from './sqliteStore';
 export {
+	createVoicePostgresAuditEventStore,
+	createVoicePostgresAuditSinkDeliveryStore,
 	createVoicePostgresCampaignStore,
 	createVoicePostgresExternalObjectMapStore,
 	createVoicePostgresIntegrationEventStore,
@@ -393,15 +490,6 @@ export {
 	renderVoiceCallReviewHTML,
 	renderVoiceCallReviewMarkdown
 } from './testing/review';
-export type {
-	VoiceAppKitLink,
-	VoiceAppKitRoutes,
-	VoiceAppKitRoutesOptions,
-	VoiceAppKitStatus,
-	VoiceAppKitStatusOptions,
-	VoiceAppKitStatusReport,
-	VoiceAppKitSurface
-} from './appKit';
 export type {
 	VoiceCampaign,
 	VoiceCampaignAttempt,
@@ -557,6 +645,14 @@ export type {
 	VoiceProviderCapabilitySummary
 } from './providerCapabilities';
 export type {
+	VoiceProviderRoutingContractDefinition,
+	VoiceProviderRoutingContractIssue,
+	VoiceProviderRoutingContractReport,
+	VoiceProviderRoutingContractRunOptions,
+	VoiceProviderRoutingExpectation,
+	VoiceProviderRoutingStatus
+} from './providerRoutingContract';
+export type {
 	VoiceTurnLatencyHTMLHandlerOptions,
 	VoiceTurnLatencyItem,
 	VoiceTurnLatencyOptions,
@@ -608,22 +704,48 @@ export type {
 } from './telephonyOutcome';
 export type {
 	VoicePhoneAgentCarrier,
+	VoicePhoneAgentCarrierSummary,
+	VoicePhoneAgentLifecycleStage,
 	VoicePhoneAgentPlivoCarrier,
 	VoicePhoneAgentRoutes,
 	VoicePhoneAgentRoutesOptions,
+	VoicePhoneAgentSetupReport,
 	VoicePhoneAgentTelnyxCarrier,
 	VoicePhoneAgentTwilioCarrier
 } from './phoneAgent';
+export type {
+	VoicePhoneAgentProductionSmokeIssue,
+	VoicePhoneAgentProductionSmokeHandlerOptions,
+	VoicePhoneAgentProductionSmokeHTMLHandlerOptions,
+	VoicePhoneAgentProductionSmokeOptions,
+	VoicePhoneAgentProductionSmokeReport,
+	VoicePhoneAgentProductionSmokeRoutesOptions,
+	VoicePhoneAgentProductionSmokeRequirement
+} from './phoneAgentProductionSmoke';
 export type {
 	VoiceOpsConsoleLink,
 	VoiceOpsConsoleReport,
 	VoiceOpsConsoleRoutesOptions
 } from './opsConsoleRoutes';
 export type {
+	VoiceOpsStatus,
+	VoiceOpsStatusLink,
+	VoiceOpsStatusOptions,
+	VoiceOpsStatusReport,
+	VoiceOpsStatusRoutesOptions
+} from './opsStatus';
+export type {
 	VoiceProductionReadinessAction,
+	VoiceProductionReadinessAuditOptions,
+	VoiceProductionReadinessAuditRequirement,
+	VoiceProductionReadinessAuditSummary,
 	VoiceProductionReadinessCheck,
 	VoiceProductionReadinessReport,
 	VoiceProductionReadinessRoutesOptions,
+	VoiceProductionReadinessTraceDeliverySummary,
+	VoiceProductionReadinessAuditDeliveryOptions,
+	VoiceProductionReadinessAuditDeliverySummary,
+	VoiceProductionReadinessTraceDeliveryOptions,
 	VoiceProductionReadinessStatus
 } from './productionReadiness';
 export type {
@@ -665,11 +787,23 @@ export type {
 	VoiceAgentModelOutput,
 	VoiceAgentOptions,
 	VoiceAgentRunResult,
+	VoiceAgentSquadHandoffPolicyResult,
 	VoiceAgentSquadOptions,
 	VoiceAgentTool,
 	VoiceAgentToolCall,
 	VoiceAgentToolResult
 } from './agent';
+export type {
+	VoiceAgentSquadContractDefinition,
+	VoiceAgentSquadContractIssue,
+	VoiceAgentSquadContractOutcome,
+	VoiceAgentSquadContractReport,
+	VoiceAgentSquadContractRunOptions,
+	VoiceAgentSquadContractTurn,
+	VoiceAgentSquadContractTurnReport,
+	VoiceAgentSquadHandoffExpectation,
+	VoiceAgentSquadTurnExpectation
+} from './agentSquadContract';
 export type {
 	VoiceToolRetryDelay,
 	VoiceToolRuntime,
@@ -758,6 +892,52 @@ export type {
 	VoiceCallReviewSummary,
 	VoiceCallReviewTimelineEvent
 } from './testing/review';
+export type {
+	StoredVoiceAuditEvent,
+	VoiceAuditActor,
+	VoiceAuditEvent,
+	VoiceAuditEventFilter,
+	VoiceAuditEventStore,
+	VoiceAuditEventType,
+	VoiceAuditLogger,
+	VoiceAuditOutcome,
+	VoiceAuditResource,
+	VoiceHandoffAuditEventInput,
+	VoiceOperatorAuditEventInput,
+	VoiceProviderAuditEventInput,
+	VoiceRetentionAuditEventInput,
+	VoiceToolAuditEventInput
+} from './audit';
+export type {
+	VoiceAuditTrailOptions,
+	VoiceAuditTrailReport,
+	VoiceAuditTrailRoutesOptions,
+	VoiceAuditTrailSummary
+} from './auditRoutes';
+export type { VoiceAuditExport } from './auditExport';
+export type {
+	VoiceAuditHTTPSinkOptions,
+	VoiceAuditSink,
+	VoiceAuditSinkDeliveryQueueStatus,
+	VoiceAuditSinkDeliveryQueueSummary,
+	VoiceAuditSinkDeliveryRecord,
+	VoiceAuditSinkDeliveryResult,
+	VoiceAuditSinkDeliveryStatus,
+	VoiceAuditSinkDeliveryStore,
+	VoiceAuditSinkDeliveryWorkerLoop,
+	VoiceAuditSinkDeliveryWorkerLoopOptions,
+	VoiceAuditSinkDeliveryWorkerOptions,
+	VoiceAuditSinkDeliveryWorkerResult,
+	VoiceAuditSinkFanoutResult,
+	VoiceAuditSinkStoreOptions
+} from './auditSinks';
+export type {
+	VoiceAuditDeliveryDrainReport,
+	VoiceAuditDeliveryDrainWorker,
+	VoiceAuditDeliveryFilter,
+	VoiceAuditDeliveryReport,
+	VoiceAuditDeliveryRoutesOptions
+} from './auditDeliveryRoutes';
 export type { VoiceFileRuntimeStorage, VoiceFileStoreOptions } from './fileStore';
 export type {
 	StoredVoiceTraceEvent,
@@ -787,6 +967,13 @@ export type {
 	VoiceTraceSinkStoreOptions,
 	VoiceTraceSummary
 } from './trace';
+export type {
+	VoiceTraceDeliveryDrainReport,
+	VoiceTraceDeliveryDrainWorker,
+	VoiceTraceDeliveryFilter,
+	VoiceTraceDeliveryReport,
+	VoiceTraceDeliveryRoutesOptions
+} from './traceDeliveryRoutes';
 export type {
 	VoiceTraceTimelineEvent,
 	VoiceTraceTimelineProviderSummary,

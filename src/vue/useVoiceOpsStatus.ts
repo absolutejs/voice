@@ -1,18 +1,18 @@
 import { onUnmounted, ref, shallowRef } from 'vue';
 import {
-	createVoiceAppKitStatusStore,
-	type VoiceAppKitStatusClientOptions
-} from '../client/appKitStatus';
-import type { VoiceAppKitStatusReport } from '../appKit';
+	createVoiceOpsStatusStore,
+	type VoiceOpsStatusClientOptions
+} from '../client/opsStatus';
+import type { VoiceOpsStatusReport } from '../opsStatus';
 
-export function useVoiceAppKitStatus(
-	path = '/app-kit/status',
-	options: VoiceAppKitStatusClientOptions = {}
+export function useVoiceOpsStatus(
+	path = '/api/voice/ops-status',
+	options: VoiceOpsStatusClientOptions = {}
 ) {
-	const store = createVoiceAppKitStatusStore(path, options);
+	const store = createVoiceOpsStatusStore(path, options);
 	const error = ref<string | null>(null);
 	const isLoading = ref(false);
-	const report = shallowRef<VoiceAppKitStatusReport | undefined>(undefined);
+	const report = shallowRef<VoiceOpsStatusReport | undefined>(undefined);
 	const updatedAt = ref<number | undefined>(undefined);
 	const sync = () => {
 		const snapshot = store.getSnapshot();
@@ -39,4 +39,4 @@ export function useVoiceAppKitStatus(
 		report,
 		updatedAt
 	};
-};
+}

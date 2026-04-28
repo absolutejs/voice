@@ -13,6 +13,17 @@ import {
 	type VoiceTraceEvent,
 	type VoiceTraceEventStore
 } from './trace';
+import {
+	createVoiceAuditEvent,
+	filterVoiceAuditEvents,
+	type StoredVoiceAuditEvent,
+	type VoiceAuditEvent,
+	type VoiceAuditEventStore
+} from './audit';
+import type {
+	VoiceAuditSinkDeliveryRecord,
+	VoiceAuditSinkDeliveryStore
+} from './auditSinks';
 import type {
 	StoredVoiceIntegrationEvent,
 	StoredVoiceExternalObjectMap,
@@ -57,8 +68,12 @@ export type VoicePostgresRuntimeStorage<
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
-	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+	TAudit extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+	TAuditDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
 > = {
+	audit: VoiceAuditEventStore<TAudit>;
+	auditDeliveries: VoiceAuditSinkDeliveryStore<TAuditDelivery>;
 	campaigns: VoiceCampaignStore;
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
@@ -379,6 +394,55 @@ const createPostgresTraceSinkDeliveryStoreWithClient = <
 		sql: client
 	});
 
+const createPostgresAuditEventStoreWithClient = <
+	TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent
+>(
+	client: Promise<VoicePostgresClient>,
+	options: VoicePostgresStoreOptions
+): VoiceAuditEventStore<TEvent> => {
+	const store = createPostgresRecordStore<TEvent>({
+		decorate: (_id, value) => value,
+		getSortAt: (value) => value.at,
+		qualifiedTableName: resolveQualifiedTableName({
+			fallback: 'audit',
+			options
+		}),
+		sql: client
+	});
+
+	const append: VoiceAuditEventStore<TEvent>['append'] = async (event) => {
+		const stored = createVoiceAuditEvent(event as VoiceAuditEvent) as TEvent;
+		await store.set(stored.id, stored);
+		return stored;
+	};
+
+	return {
+		append,
+		get: store.get,
+		list: async (filter) => filterVoiceAuditEvents(await store.list(), filter)
+	};
+};
+
+const createPostgresAuditSinkDeliveryStoreWithClient = <
+	TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
+>(
+	client: Promise<VoicePostgresClient>,
+	options: VoicePostgresStoreOptions
+): VoiceAuditSinkDeliveryStore<TDelivery> =>
+	createPostgresRecordStore<TDelivery>({
+		decorate: (id, value) =>
+			({
+				...value,
+				id
+			}) as TDelivery,
+		getSortAt: (value) => value.createdAt,
+		qualifiedTableName: resolveQualifiedTableName({
+			fallback: 'audit_deliveries',
+			options
+		}),
+		sql: client
+	});
+
 const createPostgresTelephonyWebhookIdempotencyStoreWithClient = <
 	TResult = unknown
 >(
@@ -467,6 +531,23 @@ export const createVoicePostgresTraceSinkDeliveryStore = <
 		options
 	);
 
+export const createVoicePostgresAuditEventStore = <
+	TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent
+>(
+	options: VoicePostgresStoreOptions
+): VoiceAuditEventStore<TEvent> =>
+	createPostgresAuditEventStoreWithClient(createVoicePostgresClient(options), options);
+
+export const createVoicePostgresAuditSinkDeliveryStore = <
+	TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
+>(
+	options: VoicePostgresStoreOptions
+): VoiceAuditSinkDeliveryStore<TDelivery> =>
+	createPostgresAuditSinkDeliveryStoreWithClient(
+		createVoicePostgresClient(options),
+		options
+	);
+
 export const createVoicePostgresTelephonyWebhookIdempotencyStore = <
 	TResult = unknown
 >(
@@ -489,7 +570,9 @@ export const createVoicePostgresRuntimeStorage = <
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
-	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+	TAudit extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+	TAuditDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
 >(
 	options: VoicePostgresStoreOptions
 ): VoicePostgresRuntimeStorage<
@@ -499,11 +582,18 @@ export const createVoicePostgresRuntimeStorage = <
 	TEvent,
 	TMapping,
 	TTrace,
-	TTraceDelivery
+	TTraceDelivery,
+	TAudit,
+	TAuditDelivery
 > => {
 	const client = createVoicePostgresClient(options);
 
 	return {
+		audit: createPostgresAuditEventStoreWithClient<TAudit>(client, options),
+		auditDeliveries: createPostgresAuditSinkDeliveryStoreWithClient<TAuditDelivery>(
+			client,
+			options
+		),
 		campaigns: createPostgresCampaignStoreWithClient(client, options),
 		events: createPostgresEventStoreWithClient<TEvent>(client, options),
 		externalObjects: createPostgresExternalObjectMapStoreWithClient<TMapping>(

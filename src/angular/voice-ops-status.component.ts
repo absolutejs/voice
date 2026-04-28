@@ -4,7 +4,7 @@ import {
 	type VoiceOpsStatusViewModel,
 	type VoiceOpsStatusWidgetOptions
 } from '../client/opsStatusWidget';
-import { createVoiceAppKitStatusStore } from '../client/appKitStatus';
+import { createVoiceOpsStatusStore } from '../client/opsStatus';
 
 @Component({
 	selector: 'absolute-voice-ops-status',
@@ -73,11 +73,11 @@ export class VoiceOpsStatusComponent implements OnDestroy, OnInit {
 	@Input() description?: string;
 	@Input() includeLinks = true;
 	@Input() intervalMs?: number;
-	@Input() path = '/app-kit/status';
+	@Input() path = '/api/voice/ops-status';
 	@Input() title?: string;
 
 	private cleanup = () => {};
-	private store?: ReturnType<typeof createVoiceAppKitStatusStore>;
+	private store?: ReturnType<typeof createVoiceOpsStatusStore>;
 
 	model = signal<VoiceOpsStatusViewModel>(
 		createVoiceOpsStatusViewModel({
@@ -88,7 +88,7 @@ export class VoiceOpsStatusComponent implements OnDestroy, OnInit {
 
 	ngOnInit() {
 		const options = this.options();
-		this.store = createVoiceAppKitStatusStore(this.path, options);
+		this.store = createVoiceOpsStatusStore(this.path, options);
 		const sync = () => {
 			this.model.set(
 				createVoiceOpsStatusViewModel(this.store!.getSnapshot(), options)

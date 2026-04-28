@@ -8,9 +8,9 @@ export { createMicrophoneCapture } from './microphone';
 export { createVoiceBargeInMonitor } from './bargeInMonitor';
 export { createVoiceLiveTurnLatencyMonitor } from './liveTurnLatency';
 export {
-	createVoiceAppKitStatusStore,
-	fetchVoiceAppKitStatus
-} from './appKitStatus';
+	createVoiceOpsStatusStore,
+	fetchVoiceOpsStatus
+} from './opsStatus';
 export {
 	createVoiceOpsStatusViewModel,
 	defineVoiceOpsStatusElement,
@@ -103,9 +103,9 @@ export {
 	fetchVoiceWorkflowStatus
 } from './workflowStatus';
 export type {
-	VoiceAppKitStatusClientOptions,
-	VoiceAppKitStatusSnapshot
-} from './appKitStatus';
+	VoiceOpsStatusClientOptions,
+	VoiceOpsStatusSnapshot
+} from './opsStatus';
 export type { VoiceBargeInMonitorOptions } from './bargeInMonitor';
 export type {
 	VoiceLiveTurnLatencyEvent,

@@ -1,37 +1,37 @@
-import type { VoiceAppKitStatusReport } from '../appKit';
+import type { VoiceOpsStatusReport } from '../opsStatus';
 
-export type VoiceAppKitStatusClientOptions = {
+export type VoiceOpsStatusClientOptions = {
 	fetch?: typeof fetch;
 	intervalMs?: number;
 };
 
-export type VoiceAppKitStatusSnapshot = {
+export type VoiceOpsStatusSnapshot = {
 	error: string | null;
 	isLoading: boolean;
-	report?: VoiceAppKitStatusReport;
+	report?: VoiceOpsStatusReport;
 	updatedAt?: number;
 };
 
-export const fetchVoiceAppKitStatus = async (
-	path = '/app-kit/status',
-	options: Pick<VoiceAppKitStatusClientOptions, 'fetch'> = {}
+export const fetchVoiceOpsStatus = async (
+	path = '/api/voice/ops-status',
+	options: Pick<VoiceOpsStatusClientOptions, 'fetch'> = {}
 ) => {
 	const fetchImpl = options.fetch ?? globalThis.fetch;
 	const response = await fetchImpl(path);
 	if (!response.ok) {
-		throw new Error(`Voice app kit status failed: HTTP ${response.status}`);
+		throw new Error(`Voice ops status failed: HTTP ${response.status}`);
 	}
-	return (await response.json()) as VoiceAppKitStatusReport;
+	return (await response.json()) as VoiceOpsStatusReport;
 };
 
-export const createVoiceAppKitStatusStore = (
-	path = '/app-kit/status',
-	options: VoiceAppKitStatusClientOptions = {}
+export const createVoiceOpsStatusStore = (
+	path = '/api/voice/ops-status',
+	options: VoiceOpsStatusClientOptions = {}
 ) => {
 	const listeners = new Set<() => void>();
 	let closed = false;
 	let timer: ReturnType<typeof setInterval> | undefined;
-	let snapshot: VoiceAppKitStatusSnapshot = {
+	let snapshot: VoiceOpsStatusSnapshot = {
 		error: null,
 		isLoading: false
 	};
@@ -51,7 +51,7 @@ export const createVoiceAppKitStatusStore = (
 		};
 		emit();
 		try {
-			const report = await fetchVoiceAppKitStatus(path, options);
+			const report = await fetchVoiceOpsStatus(path, options);
 			snapshot = {
 				error: null,
 				isLoading: false,

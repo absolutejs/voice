@@ -4,6 +4,7 @@ import {
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
+	createVoicePostgresAuditEventStore,
 	createVoicePostgresCampaignStore,
 	createVoicePostgresExternalObjectMapStore,
 	createVoicePostgresIntegrationEventStore,
@@ -487,6 +488,77 @@ test('createVoicePostgresTraceSinkDeliveryStore persists queued trace deliveries
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([
 		'trace-delivery-1'
 	]);
+});
+
+test('createVoicePostgresAuditEventStore persists and filters audit events', async () => {
+	const sql = createFakePostgresClient();
+	const store = createVoicePostgresAuditEventStore({
+		sql
+	});
+
+	await store.append({
+		action: 'llm.provider.call',
+		at: 100,
+		outcome: 'success',
+		resource: {
+			id: 'openai',
+			type: 'provider'
+		},
+		sessionId: 'session-audit',
+		type: 'provider.call'
+	});
+	await store.append({
+		action: 'tool.call',
+		at: 200,
+		outcome: 'error',
+		resource: {
+			id: 'lookup_account',
+			type: 'tool'
+		},
+		sessionId: 'session-audit',
+		type: 'tool.call'
+	});
+
+	const secondStore = createVoicePostgresAuditEventStore({
+		sql
+	});
+
+	expect((await secondStore.list()).map((event) => event.type)).toEqual([
+		'provider.call',
+		'tool.call'
+	]);
+	expect(await secondStore.list({ outcome: 'error' })).toMatchObject([
+		{
+			action: 'tool.call',
+			type: 'tool.call'
+		}
+	]);
+	expect(await secondStore.list({ resourceType: 'provider' })).toHaveLength(1);
+});
+
+test('createVoicePostgresRuntimeStorage exposes persistent audit events', async () => {
+	const sql = createFakePostgresClient();
+	const firstStorage = createVoicePostgresRuntimeStorage({
+		sql
+	});
+	const event = await firstStorage.audit.append({
+		action: 'review.approve',
+		actor: {
+			id: 'operator-1',
+			kind: 'operator'
+		},
+		at: 100,
+		outcome: 'success',
+		type: 'operator.action'
+	});
+	const secondStorage = createVoicePostgresRuntimeStorage({
+		sql
+	});
+
+	expect(await secondStorage.audit.get(event.id)).toMatchObject({
+		action: 'review.approve',
+		type: 'operator.action'
+	});
 });
 
 test('createVoicePostgresTelephonyWebhookIdempotencyStore persists decisions across instances', async () => {

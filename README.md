@@ -11,7 +11,7 @@ Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you wan
 - Self-hosted by default: your app owns sessions, traces, reviews, tasks, handoffs, retention, and provider keys.
 - Provider-neutral: use Deepgram, AssemblyAI, OpenAI, Anthropic, Gemini, ElevenLabs-style TTS, or your own adapters without rewriting app workflow code.
 - Browser and phone surfaces: mount browser WebSocket voice routes plus Twilio, Telnyx, and Plivo telephony routes from the same package.
-- Production proof: App Kit, production readiness, turn quality, turn latency, live browser p50/p95 latency, trace timelines, evals, fixtures, and contracts are package primitives.
+- Production proof: ops status, production readiness, turn quality, turn latency, live browser p50/p95 latency, trace timelines, evals, fixtures, and contracts are package primitives.
 - Framework parity: React, Vue, Svelte, Angular, HTML, HTMX, and plain client entrypoints share the same core behavior.
 - No hosted platform tax: AbsoluteJS Voice does not add a mandatory per-minute orchestration fee between your app and your providers.
 
@@ -21,7 +21,7 @@ Pick the path that matches what you are building:
 
 - Browser voice agent: mount `voice(...)`, choose an STT adapter, and use the React/Vue/Svelte/Angular/HTML/HTMX client helpers for mic, transcript, reconnect, and status UI.
 - Phone voice agent: mount Twilio, Telnyx, or Plivo routes, normalize carrier outcomes, inspect carrier readiness, and persist call lifecycle traces.
-- Production readiness: mount `createVoiceAppKitRoutes(...)` to get ops console/status, quality, evals, provider health, sessions, handoffs, diagnostics, and readiness gates.
+- Production readiness: mount the status and proof primitives you need, such as `createVoiceOpsStatusRoutes(...)`, `createVoiceProductionReadinessRoutes(...)`, quality routes, trace routes, eval routes, and smoke contracts.
 - Provider routing and fallback: use LLM/STT/TTS provider routers, provider health, provider simulation controls, and cost/latency-aware routing policies.
 - Evals and simulation: mount `createVoiceSimulationSuiteRoutes(...)` to run scenario fixtures, workflow contracts, tool contracts, outcome contracts, baseline comparisons, and saved benchmark artifacts before live traffic.
 
@@ -117,14 +117,17 @@ const app = new Elysia()
 
 ## Production Readiness Path
 
-Once the basic route works, mount the App Kit. This gives you the self-hosted operational surface that hosted platforms usually make mandatory:
+Once the basic route works, mount the proof routes you need. These give you the self-hosted operational surfaces that hosted platforms usually make mandatory, without forcing a bundled app kit:
 
 ```ts
 import {
-	createVoiceAppKitRoutes,
+	createVoiceAuditDeliveryRoutes,
+	createVoiceDemoReadyRoutes,
 	createVoiceFileRuntimeStorage,
 	createVoiceLiveLatencyRoutes,
+	createVoiceOpsStatusRoutes,
 	createVoiceProductionReadinessRoutes,
+	createVoiceTraceDeliveryRoutes,
 	createVoiceTraceTimelineRoutes,
 	createVoiceTurnLatencyRoutes,
 	createVoiceTurnQualityRoutes
@@ -136,11 +139,11 @@ const runtime = createVoiceFileRuntimeStorage({
 
 app
 	.use(
-		createVoiceAppKitRoutes({
+		createVoiceOpsStatusRoutes({
 			store: runtime.traces,
 			llmProviders: ['openai', 'anthropic', 'gemini'],
 			sttProviders: ['deepgram', 'assemblyai']
-		}).routes
+		})
 	)
 	.use(
 		createVoiceTurnLatencyRoutes({
@@ -173,18 +176,40 @@ app
 	)
 	.use(
 		createVoiceProductionReadinessRoutes({
+			audit: runtime.audit,
+			auditDeliveries: runtime.auditDeliveries,
 			htmlPath: '/production-readiness',
 			path: '/api/production-readiness',
-			store: runtime.traces
+			store: runtime.traces,
+			traceDeliveries: runtime.traceDeliveries
+		})
+	)
+	.use(
+		createVoiceAuditDeliveryRoutes({
+			htmlPath: '/audit/deliveries',
+			path: '/api/voice-audit-deliveries',
+			store: runtime.auditDeliveries
+		})
+	)
+	.use(
+		createVoiceTraceDeliveryRoutes({
+			htmlPath: '/traces/deliveries',
+			path: '/api/voice-trace-deliveries',
+			store: runtime.traceDeliveries
 		})
 	);
 ```
 
 Recommended proof routes:
 
-- `/app-kit/status`: compact customer-facing app status.
+- `/api/voice/ops-status`: compact status for hooks, widgets, and customer-facing demos.
+- `/api/voice/ops-status/html`: HTML status card for quick internal review.
+- `/demo-ready`: customer-facing demo readiness checklist.
 - `/production-readiness`: production gate summary.
+- `/audit/deliveries`: audit sink export queue and failed delivery details.
+- `/voice/phone/smoke-contract`: trace-backed phone-agent production smoke proof.
 - `/traces`: per-session trace timelines.
+- `/traces/deliveries`: trace sink export queue and failed delivery details.
 - `/turn-latency`: server-side turn-stage latency.
 - `/live-latency`: browser-measured speech-to-assistant p50/p95 latency.
 - `/turn-quality`: STT confidence, correction, fallback, and transcript diagnostics.
@@ -224,14 +249,15 @@ app.use(
 
 The suite rolls up session quality, scenario evals, fixture simulations, tool contracts, and outcome contracts into one pass/fail report. It is the code-owned equivalent of "test this voice flow before production" without requiring a hosted voice-agent dashboard.
 
-## Phone Voice Agent Path
+## Phone Voice Agent In 20 Minutes
 
-Use the telephony primitives when the agent needs to answer or place calls through your own carrier account:
+Use `createVoicePhoneAgent(...)` when the agent needs to answer or place calls through your own Twilio, Telnyx, or Plivo account. This is the self-hosted alternative to a hosted phone-agent dashboard: your app owns the carrier routes, stream URLs, webhooks, traces, readiness checks, and lifecycle outcomes.
 
 ```ts
 import {
 	createVoicePhoneAgent,
-	createVoiceTelephonyOutcomePolicy
+	createVoiceTelephonyOutcomePolicy,
+	runVoicePhoneAgentProductionSmokeContract
 } from '@absolutejs/voice';
 import { deepgram } from '@absolutejs/voice-deepgram';
 
@@ -242,9 +268,26 @@ const outcomePolicy = createVoiceTelephonyOutcomePolicy({
 app
 	.use(
 		createVoicePhoneAgent({
+			setup: {
+				path: '/api/voice/phone/setup',
+				title: 'Support Phone Agent'
+			},
 			matrix: {
 				path: '/api/carriers',
 				title: 'AbsoluteJS Voice Carrier Matrix'
+			},
+			productionSmoke: {
+				maxAgeMs: 24 * 60 * 60 * 1000,
+				required: [
+					'carrier-contract',
+					'media-started',
+					'transcript',
+					'assistant-response',
+					'lifecycle-outcome',
+					'no-session-error',
+					'fresh-trace'
+				],
+				store: runtime.traces
 			},
 			carriers: [
 				{
@@ -274,38 +317,128 @@ app
 	);
 ```
 
-The wrapper mounts selected carrier routes and a readiness matrix. Telnyx and Plivo use the same wrapper with `{ provider: 'telnyx', options: ... }` or `{ provider: 'plivo', options: ... }`. The lower-level `createTwilioVoiceRoutes(...)`, `createTelnyxVoiceRoutes(...)`, and `createPlivoVoiceRoutes(...)` helpers remain available when you need carrier-specific control.
+The wrapper mounts selected carrier routes plus two proof surfaces:
 
-## App Kit And Status Widgets
+- `/api/voice/phone/setup`: one setup report with carrier URLs, smoke links, lifecycle stages, and readiness.
+- `/api/voice/phone/setup?format=html`: copy/paste setup page for carrier dashboards.
+- `/api/carriers`: carrier matrix JSON for Twilio, Telnyx, and Plivo.
+- `/api/carriers?format=html`: side-by-side carrier readiness matrix.
+- `/api/voice/phone/smoke-contract?sessionId=...`: trace-backed production smoke contract.
+- `/voice/phone/smoke-contract?sessionId=...`: HTML production smoke contract.
 
-Use `createVoiceAppKitRoutes(...)` when you want a self-hosted operations surface without hand-wiring every dashboard route. It adds the ops console, quality gates, eval routes, provider health, session replay, handoff health, diagnostics, and `GET /app-kit/status`.
+The setup page tells you exactly what to copy into the carrier dashboard:
+
+- Twilio: set the phone number voice webhook/TwiML URL to the reported TwiML URL, set the status callback to the reported webhook URL, and allow the reported `wss://` media stream.
+- Telnyx: set the connection TeXML URL to the reported TeXML URL, set the status webhook to the reported webhook URL, and allow the reported `wss://` media stream.
+- Plivo: set the answer URL to the reported answer URL, set the status callback to the reported webhook URL, and allow the reported `wss://` media stream.
+
+Each configured carrier can also expose its own setup and smoke pages, for example:
+
+- `/api/voice/twilio/setup?format=html`
+- `/api/voice/twilio/smoke?format=html`
+- `/api/voice/telnyx/setup?format=html`
+- `/api/voice/telnyx/smoke?format=html`
+- `/api/voice/plivo/setup?format=html`
+- `/api/voice/plivo/smoke?format=html`
+
+The phone-agent report normalizes the lifecycle schema across carriers:
+
+- `ringing`
+- `answered`
+- `media-started`
+- `transcript`
+- `assistant-response`
+- `transfer`
+- `voicemail`
+- `no-answer`
+- `completed`
+- `failed`
+
+That is the important Vapi/Retell/Bland gap this primitive closes: a team can mount one phone-agent entrypoint, bring its own carrier account, verify readiness before live calls, and keep call traces and lifecycle outcomes inside its own AbsoluteJS app. Telnyx and Plivo use the same wrapper with `{ provider: 'telnyx', options: ... }` or `{ provider: 'plivo', options: ... }`. The lower-level `createTwilioVoiceRoutes(...)`, `createTelnyxVoiceRoutes(...)`, and `createPlivoVoiceRoutes(...)` helpers remain available when you need carrier-specific control.
+
+After running a real smoke call, certify the phone-agent path from traces:
 
 ```ts
-import { createVoiceAppKitRoutes, createVoiceFileRuntimeStorage } from '@absolutejs/voice';
+const smoke = await runVoicePhoneAgentProductionSmokeContract({
+	maxAgeMs: 24 * 60 * 60 * 1000,
+	required: [
+		'media-started',
+		'transcript',
+		'assistant-response',
+		'lifecycle-outcome',
+		'no-session-error',
+		'fresh-trace'
+	],
+	sessionId: 'phone-smoke-session',
+	store: runtime.traces
+});
+
+if (!smoke.pass) {
+	throw new Error(smoke.issues.map((issue) => issue.message).join('\n'));
+}
+```
+
+Pass those reports into production readiness through `phoneAgentSmokes`. This makes deployment fail when the carrier setup exists but the actual phone-agent call path did not produce media start, transcript, assistant response, terminal lifecycle outcome, and clean trace evidence.
+
+When `productionSmoke` is enabled on `createVoicePhoneAgent(...)`, the wrapper mounts `/api/voice/phone/smoke-contract?sessionId=...` for JSON and `/voice/phone/smoke-contract?sessionId=...` for HTML. It also derives carrier contract evidence from the existing carrier matrix unless you provide a custom `getContract`.
+
+## Ops Status Hooks And Widgets
+
+Use `createVoiceOpsStatusRoutes(...)` when you want a small status endpoint for demos, admin pages, and framework widgets. It is intentionally not a route bundle: mount quality gates, eval routes, provider health, session replay, phone-agent smoke proof, handoff health, and diagnostics explicitly when your app needs them.
+
+```ts
+import {
+	createVoiceDemoReadyRoutes,
+	createVoiceFileRuntimeStorage,
+	createVoiceOpsStatusRoutes,
+	summarizeVoiceOpsStatus
+} from '@absolutejs/voice';
 
 const runtime = createVoiceFileRuntimeStorage({ directory: '.voice-runtime/support' });
 
 app.use(
-	createVoiceAppKitRoutes({
+	createVoiceOpsStatusRoutes({
 		store: runtime.traces,
 		llmProviders: ['openai', 'anthropic', 'gemini'],
 		sttProviders: ['deepgram', 'assemblyai']
-	}).routes
+	})
 );
 ```
 
-The status endpoint is intentionally small enough for customer-facing demos. It can report fixture-backed workflow readiness while leaving deeper live quality/session failures visible on the ops pages.
+The status endpoint is intentionally small enough for customer-facing demos. It can report fixture-backed workflow readiness while leaving deeper live quality/session failures visible on the proof routes you mount separately.
+
+For a single demo page that rolls up ops status, production readiness, phone setup, and phone smoke proof, mount `createVoiceDemoReadyRoutes(...)` with the same reports you already expose elsewhere:
 
 ```ts
 app.use(
-	createVoiceAppKitRoutes({
-		appStatus: {
-			include: { quality: false, sessions: false },
-			preferFixtureWorkflows: true
+	createVoiceDemoReadyRoutes({
+		opsStatus: {
+			href: '/api/voice/ops-status',
+			load: () => summarizeVoiceOpsStatus(opsStatusOptions)
 		},
-		evals: { fixtures: certificationFixtures, scenarios: workflowScenarios },
+		phoneSetup: {
+			href: '/api/voice/phone/setup?format=html',
+			load: () => phoneAgentSetupReport
+		},
+		phoneSmoke: {
+			href: '/voice/phone/smoke-contract',
+			load: () => phoneSmokeReport
+		},
+		productionReadiness: {
+			href: '/production-readiness',
+			load: () => productionReadinessReport
+		}
+	})
+);
+```
+
+```ts
+app.use(
+	createVoiceOpsStatusRoutes({
+		include: { quality: false, sessions: false },
+		preferFixtureWorkflows: true,
 		store: runtime.traces
-	}).routes
+	})
 );
 ```
 
@@ -338,7 +471,7 @@ import { VoiceOpsStatus } from '@absolutejs/voice/vue';
 	import { onDestroy, onMount } from 'svelte';
 	import { createVoiceOpsStatus } from '@absolutejs/voice/svelte';
 
-	const status = createVoiceOpsStatus('/app-kit/status', { intervalMs: 5000 });
+	const status = createVoiceOpsStatus('/api/voice/ops-status', { intervalMs: 5000 });
 	let html = '';
 	onMount(() => status.subscribe(() => (html = status.getHTML())));
 	onDestroy(() => status.close());
@@ -350,9 +483,9 @@ import { VoiceOpsStatus } from '@absolutejs/voice/vue';
 ### Angular Status Widget
 
 ```ts
-import { VoiceAppKitStatusService } from '@absolutejs/voice/angular';
+import { VoiceOpsStatusService } from '@absolutejs/voice/angular';
 
-status = inject(VoiceAppKitStatusService).connect('/app-kit/status', {
+status = inject(VoiceOpsStatusService).connect('/api/voice/ops-status', {
 	intervalMs: 5000
 });
 ```
@@ -369,7 +502,7 @@ status = inject(VoiceAppKitStatusService).connect('/app-kit/status', {
 <script type="module">
 	import { mountVoiceOpsStatus } from '@absolutejs/voice/client';
 
-	mountVoiceOpsStatus(document.querySelector('#voice-ops-status'), '/app-kit/status', {
+	mountVoiceOpsStatus(document.querySelector('#voice-ops-status'), '/api/voice/ops-status', {
 		intervalMs: 5000
 	});
 </script>
@@ -524,7 +657,21 @@ const billingAgent = createVoiceAgent({
 const frontDesk = createVoiceAgentSquad({
 	id: 'front-desk',
 	defaultAgentId: 'support',
-	agents: [supportAgent, billingAgent]
+	agents: [supportAgent, billingAgent],
+	handoffPolicy: ({ handoff }) => {
+		if (handoff.targetAgentId === 'billing') {
+			return {
+				summary: 'Route verified billing requests to the billing specialist.',
+				metadata: { queue: 'billing' }
+			};
+		}
+
+		return {
+			allow: false,
+			reason: `No approved route for ${handoff.targetAgentId}.`,
+			escalate: { reason: 'unsupported-specialist' }
+		};
+	}
 });
 
 voice({
@@ -538,6 +685,56 @@ voice({
 
 `createVoiceAgentSquad(...)` gives you squad-style specialization without locking your app into a hosted voice platform. An agent can return `handoff: { targetAgentId: 'billing' }`; the squad records the handoff, runs the target agent on the same turn, and still returns a standard `VoiceRouteResult`.
 
+For production call centers, pass `handoffPolicy` to keep routing code-owned instead of dashboard-owned. The policy can allow a handoff, reroute it to a different specialist, merge handoff metadata, summarize the reason for the target agent, or block the handoff and return an escalation. Squad traces mark each handoff as `allowed`, `blocked`, `unknown-target`, or `max-exceeded`, so support teams can audit why a caller moved between specialists.
+
+Use `runVoiceAgentSquadContract(...)` in tests or readiness checks when you need proof that a specialist graph still routes correctly:
+
+```ts
+import {
+	createVoiceMemoryTraceEventStore,
+	runVoiceAgentSquadContract
+} from '@absolutejs/voice';
+
+const trace = createVoiceMemoryTraceEventStore();
+const frontDesk = createVoiceAgentSquad({
+	id: 'front-desk',
+	defaultAgentId: 'support',
+	agents: [supportAgent, billingAgent],
+	trace
+});
+
+const report = await runVoiceAgentSquadContract({
+	context: {},
+	squad: frontDesk,
+	trace,
+	contract: {
+		id: 'billing-route',
+		scenarioId: 'billing-route',
+		turns: [
+			{
+				text: 'I have a billing question.',
+				expect: {
+					finalAgentId: 'billing',
+					outcome: 'assistant',
+					assistantIncludes: ['billing'],
+					handoffs: [
+						{
+							fromAgentId: 'support',
+							targetAgentId: 'billing',
+							status: 'allowed'
+						}
+					]
+				}
+			}
+		]
+	}
+});
+
+if (!report.pass) {
+	throw new Error(report.issues.map((issue) => issue.message).join('\n'));
+}
+```
+
 ## Traces And Replay
 
 Use trace stores when you want every call to be inspectable outside a hosted platform. Trace events are append-only records for model passes, tool calls, handoffs, agent results, call lifecycle, turn timing, errors, and cost telemetry.
@@ -545,13 +742,22 @@ Use trace stores when you want every call to be inspectable outside a hosted pla
 ```ts
 import {
 	buildVoiceTraceReplay,
+	buildVoiceAuditExport,
+	createVoiceAuditHTTPSink,
+	createVoiceAuditLogger,
+	createVoiceAuditSinkDeliveryWorker,
+	createVoiceAuditSinkStore,
+	createVoiceAuditTrailRoutes,
 	createVoiceAgent,
 	createVoiceFileRuntimeStorage,
 	createVoiceRedisTaskLeaseCoordinator,
+	createVoiceTraceDeliveryRoutes,
 	createVoiceTraceHTTPSink,
 	createVoiceTraceSinkStore,
 	createVoiceTraceSinkDeliveryWorker,
+	buildVoiceDataRetentionPlan,
 	exportVoiceTrace,
+	applyVoiceDataRetentionPolicy,
 	pruneVoiceTraceEvents,
 	voice
 } from '@absolutejs/voice';
@@ -562,6 +768,30 @@ const runtimeStorage = createVoiceFileRuntimeStorage({
 });
 const redisLeases = createVoiceRedisTaskLeaseCoordinator({
 	url: process.env.REDIS_URL
+});
+const auditStore = createVoiceAuditSinkStore({
+	store: runtimeStorage.audit,
+	deliveryQueue: runtimeStorage.auditDeliveries,
+	sinks: [
+		createVoiceAuditHTTPSink({
+			id: 'security-warehouse',
+			signingSecret: process.env.VOICE_AUDIT_SINK_SECRET,
+			url: process.env.VOICE_AUDIT_SINK_URL!
+		})
+	]
+});
+const audit = createVoiceAuditLogger(auditStore);
+const auditSinkWorker = createVoiceAuditSinkDeliveryWorker({
+	deliveries: runtimeStorage.auditDeliveries,
+	leases: redisLeases,
+	sinks: [
+		createVoiceAuditHTTPSink({
+			id: 'security-warehouse',
+			signingSecret: process.env.VOICE_AUDIT_SINK_SECRET,
+			url: process.env.VOICE_AUDIT_SINK_URL!
+		})
+	],
+	workerId: 'audit-sink-worker'
 });
 const trace = createVoiceTraceSinkStore({
 	store: runtimeStorage.traces,
@@ -589,6 +819,9 @@ const traceSinkWorker = createVoiceTraceSinkDeliveryWorker({
 
 const supportAgent = createVoiceAgent({
 	id: 'support',
+	audit,
+	auditProvider: 'openai',
+	auditModel: 'gpt-4.1',
 	trace,
 	model: {
 		async generate() {
@@ -605,6 +838,17 @@ voice({
 	onTurn: supportAgent.onTurn,
 	onComplete: async () => {}
 });
+app.use(
+	createVoiceAuditTrailRoutes({
+		store: runtimeStorage.audit
+	})
+);
+app.use(
+	createVoiceTraceDeliveryRoutes({
+		store: runtimeStorage.traceDeliveries,
+		worker: traceSinkWorker
+	})
+);
 
 const replay = await exportVoiceTrace({
 	store: runtimeStorage.traces,
@@ -626,17 +870,52 @@ await pruneVoiceTraceEvents({
 	store: runtimeStorage.traces,
 	before: Date.now() - 30 * 24 * 60 * 60 * 1000
 });
+
+await audit.operatorAction({
+	action: 'review.approve',
+	actor: { id: 'operator-123', kind: 'operator' },
+	resource: { id: 'review-123', type: 'review' }
+});
 ```
 
 `createVoiceMemoryTraceEventStore(...)`, `createVoiceFileTraceEventStore(...)`, `createVoiceSQLiteTraceEventStore(...)`, and `createVoicePostgresTraceEventStore(...)` all implement the same `VoiceTraceEventStore` contract. File, SQLite, and Postgres runtime storage expose `runtimeStorage.traces` and `runtimeStorage.traceDeliveries` alongside sessions, reviews, tasks, events, and external object mappings. Passing `trace` to `voice(...)` records session lifecycle, transcript, committed-turn, assistant, cost, and error events; passing it to agents records model passes, tools, results, and handoffs.
 
 For self-hosted QA and support workflows, use `summarizeVoiceTrace(...)`, `evaluateVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. They turn raw trace events into portable artifacts you can attach to tickets, inspect locally, or fail in CI when a call has missing transcripts, missing turns, tool errors, session errors, or excessive handoffs.
 
-For observability pipelines, wrap any trace store with `createVoiceTraceSinkStore(...)` and pass sinks such as `createVoiceTraceHTTPSink(...)`. The wrapper still writes to your normal file, SQLite, or Postgres store, then fans out appended events to your warehouse, logs, S3 bridge, or analytics endpoint. Use `awaitDelivery: true` only when you want trace delivery to block append completion. For durable delivery, pass `deliveryQueue` and run `createVoiceTraceSinkDeliveryWorker(...)` or `createVoiceTraceSinkDeliveryWorkerLoop(...)`; the worker uses the same Redis lease/idempotency primitives as ops workers and supports retries plus dead-letter stores.
+For observability pipelines, wrap any trace store with `createVoiceTraceSinkStore(...)` and pass sinks such as `createVoiceTraceHTTPSink(...)`. The wrapper still writes to your normal file, SQLite, or Postgres store, then fans out appended events to your warehouse, logs, S3 bridge, or analytics endpoint. Use `awaitDelivery: true` only when you want trace delivery to block append completion. For durable delivery, pass `deliveryQueue` and run `createVoiceTraceSinkDeliveryWorker(...)` or `createVoiceTraceSinkDeliveryWorkerLoop(...)`; the worker uses the same Redis lease/idempotency primitives as ops workers and supports retries plus dead-letter stores. Mount `createVoiceTraceDeliveryRoutes({ store: runtimeStorage.traceDeliveries, worker })` to expose `/traces/deliveries`, `/api/voice-trace-deliveries`, and an explicit `POST /api/voice-trace-deliveries/drain` retry path.
 
 When traces may leave your private runtime, pass `redact: true` or a redaction config to `exportVoiceTrace(...)`, `renderVoiceTraceMarkdown(...)`, `renderVoiceTraceHTML(...)`, or `buildVoiceTraceReplay(...)`. The built-in redactor scrubs common email addresses, phone numbers, and sensitive keys like `token`, `secret`, `password`, `apiKey`, `authorization`, `phone`, and `email`; you can pass custom keys or replacement text for stricter policies.
 
 For retention jobs, `pruneVoiceTraceEvents(...)` works against any trace store. Use `dryRun: true` before deleting, filter by session, trace, scenario, turn, or event type, cap each run with `limit`, or keep only the newest N matching events with `keepNewest`.
+
+For whole-runtime data control, use `buildVoiceDataRetentionPlan(...)` first and then `applyVoiceDataRetentionPolicy(...)` when the deletion set is correct. The policy works across stores exposed by file, SQLite, or Postgres runtime storage, including sessions, traces, trace deliveries, audit deliveries, reviews, ops tasks, integration events, and campaigns. A cutoff or per-scope `keepNewest` selector is required before anything is deleted, so an empty policy reports skipped scopes instead of wiping data.
+
+```ts
+const plan = await buildVoiceDataRetentionPlan({
+	before: Date.now() - 30 * 24 * 60 * 60 * 1000,
+	...runtimeStorage
+});
+
+console.log(plan.scopes);
+
+await applyVoiceDataRetentionPolicy({
+	audit: runtimeStorage.audit,
+	before: Date.now() - 30 * 24 * 60 * 60 * 1000,
+	...runtimeStorage
+});
+```
+
+Use `createVoiceAuditLogger(...)` when you need append-only compliance evidence outside call traces. The logger records provider calls, tool calls, handoffs, retention runs, and operator actions into `runtimeStorage.audit`, so self-hosted teams can prove who changed what, which provider ran, which tool fired, and what data-control policy deleted.
+
+Pass `audit` directly to `createVoiceAgent(...)` to record model calls as provider-call audit events and tool executions as tool-call audit events. Pass it to `createVoiceAgentSquad(...)` to record squad handoffs automatically. Use `auditProvider` and `auditModel` on agents when you want readiness and compliance reports to show the actual model provider instead of the agent id.
+
+For compliance pipelines, wrap any audit store with `createVoiceAuditSinkStore(...)` and pass sinks such as `createVoiceAuditHTTPSink(...)`. Audit sinks redact by default, support HMAC signing, retries, event-type filters, optional blocking delivery, durable delivery queues through `runtimeStorage.auditDeliveries`, and background workers through `createVoiceAuditSinkDeliveryWorker(...)` or `createVoiceAuditSinkDeliveryWorkerLoop(...)`. File, SQLite, and Postgres runtime storage all expose `auditDeliveries`, so teams can ship evidence to a SIEM, warehouse, or internal security service without a hosted dashboard. Mount `createVoiceAuditDeliveryRoutes({ store: runtimeStorage.auditDeliveries, worker })` to expose `/audit/deliveries`, `/api/voice-audit-deliveries`, and an explicit `POST /api/voice-audit-deliveries/drain` retry path.
+
+Pass `audit: runtimeStorage.audit` into production readiness when audit coverage should block deploys. By default readiness requires provider-call, retention-policy, and operator-action audit evidence; retention-policy evidence must be from the last 7 days so a stale one-time audit event does not certify an active retention job. Override required event types or freshness with `audit: { store: runtimeStorage.audit, require: [{ type: 'retention.policy', maxAgeMs: ... }] }` when a deployment has different compliance gates. Pass `auditDeliveries: runtimeStorage.auditDeliveries` and `traceDeliveries: runtimeStorage.traceDeliveries` when sink export health should also block deploys; failed or dead-lettered deliveries fail readiness, pending deliveries warn, and pending deliveries older than the configured fail window fail readiness.
+
+Mount `createVoiceAuditTrailRoutes(...)` to expose `/api/voice-audit` and `/audit` over the same store. File, SQLite, and Postgres runtime storage all expose `runtimeStorage.audit`. The JSON and HTML surfaces support filters like `type`, `outcome`, `actorId`, `resourceType`, `resourceId`, `sessionId`, `traceId`, and `limit`, so operators can search audit evidence without writing a custom viewer first.
+
+Use `exportVoiceAuditTrail(...)` or `buildVoiceAuditExport(...)` when audit evidence needs to leave the app. Pass `redact: true` to scrub sensitive keys plus common email and phone patterns from payloads and metadata before generating JSON, Markdown, or HTML. Audit trail routes also expose redacted exports at `/api/voice-audit/export`, `/api/voice-audit/export?format=markdown`, `/api/voice-audit/export?format=html`, and `/audit/export`; export routes redact by default unless `redact=false` is passed.
 
 ## Production Voice Ops
 
@@ -1430,6 +1709,40 @@ const policy = resolveVoiceProviderRoutingPolicyPreset('cost-cap', {
 	minQuality: 0.82
 });
 ```
+
+Use `runVoiceProviderRoutingContract(...)` when provider fallback needs to be certified before production. The contract reads provider routing trace events and verifies the expected selected provider, fallback provider, status, and kind in order.
+
+```ts
+import { runVoiceProviderRoutingContract } from '@absolutejs/voice';
+
+const report = await runVoiceProviderRoutingContract({
+	store: runtime.traces,
+	contract: {
+		id: 'openai-to-anthropic-fallback',
+		expect: [
+			{
+				kind: 'llm',
+				provider: 'openai',
+				selectedProvider: 'openai',
+				fallbackProvider: 'anthropic',
+				status: 'error'
+			},
+			{
+				kind: 'llm',
+				provider: 'anthropic',
+				selectedProvider: 'openai',
+				status: 'fallback'
+			}
+		]
+	}
+});
+
+if (!report.pass) {
+	throw new Error(report.issues.map((issue) => issue.message).join('\n'));
+}
+```
+
+Pass provider routing contract reports into production readiness through `providerRoutingContracts`. Readiness fails when a fallback contract fails, so model-routing regressions become deploy blockers instead of dashboard-only surprises.
 
 For full control, pass an object policy:
 

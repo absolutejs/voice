@@ -7,9 +7,11 @@ import {
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
+	createVoiceAuditEvent,
 	createVoiceFileExternalObjectMapStore,
 	createVoiceFileAssistantMemoryStore,
 	createVoiceFileIntegrationEventStore,
+	createVoiceFileAuditSinkDeliveryStore,
 	createVoiceFileReviewStore,
 	createVoiceFileRuntimeStorage,
 	createVoiceFileSessionStore,
@@ -17,6 +19,7 @@ import {
 	createVoiceFileTraceSinkDeliveryStore,
 	createVoiceFileTraceEventStore,
 	createVoiceTraceEvent,
+	createVoiceAuditSinkDeliveryRecord,
 	createVoiceTraceSinkDeliveryRecord
 } from '../src';
 
@@ -423,6 +426,38 @@ test('createVoiceFileTraceSinkDeliveryStore persists queued trace deliveries', a
 	});
 	expect((await secondStore.list()).map((item) => item.id)).toEqual([
 		'trace-delivery-1'
+	]);
+});
+
+test('createVoiceFileAuditSinkDeliveryStore persists queued audit deliveries', async () => {
+	const directory = await createTempDirectory();
+	const store = createVoiceFileAuditSinkDeliveryStore({
+		directory
+	});
+	const delivery = createVoiceAuditSinkDeliveryRecord({
+		createdAt: 100,
+		events: [
+			createVoiceAuditEvent({
+				action: 'provider.call',
+				at: 100,
+				type: 'provider.call'
+			})
+		],
+		id: 'audit-delivery-1'
+	});
+
+	await store.set(delivery.id, delivery);
+
+	const secondStore = createVoiceFileAuditSinkDeliveryStore({
+		directory
+	});
+
+	expect(await secondStore.get(delivery.id)).toMatchObject({
+		deliveryStatus: 'pending',
+		id: 'audit-delivery-1'
+	});
+	expect((await secondStore.list()).map((item) => item.id)).toEqual([
+		'audit-delivery-1'
 	]);
 });
 

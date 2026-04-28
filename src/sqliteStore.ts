@@ -14,6 +14,17 @@ import {
 	type VoiceTraceEvent,
 	type VoiceTraceEventStore
 } from './trace';
+import {
+	createVoiceAuditEvent,
+	filterVoiceAuditEvents,
+	type StoredVoiceAuditEvent,
+	type VoiceAuditEvent,
+	type VoiceAuditEventStore
+} from './audit';
+import type {
+	VoiceAuditSinkDeliveryRecord,
+	VoiceAuditSinkDeliveryStore
+} from './auditSinks';
 import type {
 	StoredVoiceIntegrationEvent,
 	StoredVoiceExternalObjectMap,
@@ -50,8 +61,12 @@ export type VoiceSQLiteRuntimeStorage<
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
-	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+	TAudit extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+	TAuditDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
 > = {
+	audit: VoiceAuditEventStore<TAudit>;
+	auditDeliveries: VoiceAuditSinkDeliveryStore<TAuditDelivery>;
 	campaigns: VoiceCampaignStore;
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
@@ -317,6 +332,49 @@ const createSQLiteTraceSinkDeliveryStoreWithDatabase = <
 		tableName
 	});
 
+const createSQLiteAuditEventStoreWithDatabase = <
+	TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent
+>(
+	database: Database,
+	tableName: string
+): VoiceAuditEventStore<TEvent> => {
+	const store = createSQLiteRecordStore<TEvent>({
+		database,
+		decorate: (_id, value) => value,
+		getSortAt: (value) => value.at,
+		tableName
+	});
+
+	const append: VoiceAuditEventStore<TEvent>['append'] = async (event) => {
+		const stored = createVoiceAuditEvent(event as VoiceAuditEvent) as TEvent;
+		await store.set(stored.id, stored);
+		return stored;
+	};
+
+	return {
+		append,
+		get: store.get,
+		list: async (filter) => filterVoiceAuditEvents(await store.list(), filter)
+	};
+};
+
+const createSQLiteAuditSinkDeliveryStoreWithDatabase = <
+	TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
+>(
+	database: Database,
+	tableName: string
+): VoiceAuditSinkDeliveryStore<TDelivery> =>
+	createSQLiteRecordStore<TDelivery>({
+		database,
+		decorate: (id, value) =>
+			({
+				...value,
+				id
+			}) as TDelivery,
+		getSortAt: (value) => value.createdAt,
+		tableName
+	});
+
 const createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase = <
 	TResult = unknown
 >(
@@ -432,6 +490,32 @@ export const createVoiceSQLiteTraceSinkDeliveryStore = <
 		})
 	);
 
+export const createVoiceSQLiteAuditEventStore = <
+	TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent
+>(
+	options: VoiceSQLiteStoreOptions
+): VoiceAuditEventStore<TEvent> =>
+	createSQLiteAuditEventStoreWithDatabase(
+		openVoiceSQLiteDatabase(options.path),
+		resolveTableName({
+			fallback: 'audit',
+			options
+		})
+	);
+
+export const createVoiceSQLiteAuditSinkDeliveryStore = <
+	TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
+>(
+	options: VoiceSQLiteStoreOptions
+): VoiceAuditSinkDeliveryStore<TDelivery> =>
+	createSQLiteAuditSinkDeliveryStoreWithDatabase(
+		openVoiceSQLiteDatabase(options.path),
+		resolveTableName({
+			fallback: 'audit_deliveries',
+			options
+		})
+	);
+
 export const createVoiceSQLiteTelephonyWebhookIdempotencyStore = <
 	TResult = unknown
 >(
@@ -463,7 +547,9 @@ export const createVoiceSQLiteRuntimeStorage = <
 	TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 	TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
 	TTrace extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
-	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord
+	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+	TAudit extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+	TAuditDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord
 >(
 	options: VoiceSQLiteStoreOptions
 ): VoiceSQLiteRuntimeStorage<
@@ -473,11 +559,27 @@ export const createVoiceSQLiteRuntimeStorage = <
 	TEvent,
 	TMapping,
 	TTrace,
-	TTraceDelivery
+	TTraceDelivery,
+	TAudit,
+	TAuditDelivery
 > => {
 	const database = openVoiceSQLiteDatabase(options.path);
 
 	return {
+		audit: createSQLiteAuditEventStoreWithDatabase<TAudit>(
+			database,
+			resolveTableName({
+				fallback: 'audit',
+				options
+			})
+		),
+		auditDeliveries: createSQLiteAuditSinkDeliveryStoreWithDatabase<TAuditDelivery>(
+			database,
+			resolveTableName({
+				fallback: 'audit_deliveries',
+				options
+			})
+		),
 		campaigns: createSQLiteCampaignStoreWithDatabase(
 			database,
 			resolveTableName({

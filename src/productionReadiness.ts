@@ -13,6 +13,20 @@ import {
 	type VoiceTelephonyCarrierMatrixInput
 } from './telephony/matrix';
 import type { VoiceTraceEventStore } from './trace';
+import type { VoiceTraceSinkDeliveryStore } from './trace';
+import { summarizeVoiceTraceSinkDeliveries } from './queue';
+import type { VoiceAgentSquadContractReport } from './agentSquadContract';
+import type { VoiceProviderRoutingContractReport } from './providerRoutingContract';
+import type { VoicePhoneAgentProductionSmokeReport } from './phoneAgentProductionSmoke';
+import type {
+	VoiceAuditEventStore,
+	VoiceAuditEventType,
+	VoiceAuditOutcome
+} from './audit';
+import {
+	summarizeVoiceAuditSinkDeliveries,
+	type VoiceAuditSinkDeliveryStore
+} from './auditSinks';
 
 export type VoiceProductionReadinessStatus = 'fail' | 'pass' | 'warn';
 
@@ -36,16 +50,30 @@ export type VoiceProductionReadinessReport = {
 	checkedAt: number;
 	checks: VoiceProductionReadinessCheck[];
 	links: {
+		agentSquadContracts?: string;
+		audit?: string;
+		auditDeliveries?: string;
 		carriers?: string;
 		handoffs?: string;
 		handoffRetry?: string;
 		liveLatency?: string;
+		phoneAgentSmoke?: string;
+		providerRoutingContracts?: string;
 		quality?: string;
 		resilience?: string;
 		sessions?: string;
+		traceDeliveries?: string;
 	};
 	status: VoiceProductionReadinessStatus;
 	summary: {
+		agentSquadContracts?: {
+			failed: number;
+			passed: number;
+			status: VoiceProductionReadinessStatus;
+			total: number;
+		};
+		audit?: VoiceProductionReadinessAuditSummary;
+		auditDeliveries?: VoiceProductionReadinessAuditDeliverySummary;
 		carriers?: {
 			failing: number;
 			providers: number;
@@ -68,6 +96,18 @@ export type VoiceProductionReadinessReport = {
 			degraded: number;
 			total: number;
 		};
+		phoneAgentSmokes?: {
+			failed: number;
+			passed: number;
+			status: VoiceProductionReadinessStatus;
+			total: number;
+		};
+		providerRoutingContracts?: {
+			failed: number;
+			passed: number;
+			status: VoiceProductionReadinessStatus;
+			total: number;
+		};
 		quality: {
 			status: 'fail' | 'pass';
 		};
@@ -79,10 +119,96 @@ export type VoiceProductionReadinessReport = {
 			failed: number;
 			total: number;
 		};
+		traceDeliveries?: VoiceProductionReadinessTraceDeliverySummary;
 	};
 };
 
+export type VoiceProductionReadinessAuditRequirement = {
+	label?: string;
+	maxAgeMs?: number;
+	outcomes?: VoiceAuditOutcome[];
+	status?: VoiceProductionReadinessStatus;
+	type: VoiceAuditEventType;
+};
+
+export type VoiceProductionReadinessAuditSummary = {
+	events: number;
+	missing: VoiceProductionReadinessAuditRequirement[];
+	present: Record<VoiceAuditEventType, number>;
+	required: VoiceProductionReadinessAuditRequirement[];
+	status: VoiceProductionReadinessStatus;
+};
+
+export type VoiceProductionReadinessAuditDeliverySummary = {
+	deadLettered: number;
+	delivered: number;
+	failed: number;
+	failPendingAfterMs: number;
+	pending: number;
+	retryEligible: number;
+	skipped: number;
+	staleFailing: number;
+	staleWarning: number;
+	status: VoiceProductionReadinessStatus;
+	total: number;
+	warnPendingAfterMs: number;
+};
+
+export type VoiceProductionReadinessTraceDeliverySummary = {
+	deadLettered: number;
+	delivered: number;
+	failed: number;
+	failPendingAfterMs: number;
+	pending: number;
+	retryEligible: number;
+	skipped: number;
+	staleFailing: number;
+	staleWarning: number;
+	status: VoiceProductionReadinessStatus;
+	total: number;
+	warnPendingAfterMs: number;
+};
+
+export type VoiceProductionReadinessAuditOptions =
+	| VoiceAuditEventStore
+	| {
+			require?: readonly (
+				| VoiceAuditEventType
+				| VoiceProductionReadinessAuditRequirement
+			)[];
+			store: VoiceAuditEventStore;
+	  };
+
+export type VoiceProductionReadinessAuditDeliveryOptions =
+	| VoiceAuditSinkDeliveryStore
+	| {
+			deadLetters?: VoiceAuditSinkDeliveryStore;
+			failPendingAfterMs?: number;
+			store: VoiceAuditSinkDeliveryStore;
+			warnPendingAfterMs?: number;
+	  };
+
+export type VoiceProductionReadinessTraceDeliveryOptions =
+	| VoiceTraceSinkDeliveryStore
+	| {
+			deadLetters?: VoiceTraceSinkDeliveryStore;
+			failPendingAfterMs?: number;
+			store: VoiceTraceSinkDeliveryStore;
+			warnPendingAfterMs?: number;
+	  };
+
 export type VoiceProductionReadinessRoutesOptions = {
+	agentSquadContracts?:
+		| false
+		| readonly VoiceAgentSquadContractReport[]
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) =>
+				| Promise<readonly VoiceAgentSquadContractReport[]>
+				| readonly VoiceAgentSquadContractReport[]);
+	audit?: false | VoiceProductionReadinessAuditOptions;
+	auditDeliveries?: false | VoiceProductionReadinessAuditDeliveryOptions;
 	carriers?:
 		| false
 		| readonly VoiceTelephonyCarrierMatrixInput[]
@@ -98,10 +224,29 @@ export type VoiceProductionReadinessRoutesOptions = {
 	llmProviders?: readonly string[];
 	name?: string;
 	path?: string;
+	phoneAgentSmokes?:
+		| false
+		| readonly VoicePhoneAgentProductionSmokeReport[]
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) =>
+				| Promise<readonly VoicePhoneAgentProductionSmokeReport[]>
+				| readonly VoicePhoneAgentProductionSmokeReport[]);
+	providerRoutingContracts?:
+		| false
+		| readonly VoiceProviderRoutingContractReport[]
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) =>
+				| Promise<readonly VoiceProviderRoutingContractReport[]>
+				| readonly VoiceProviderRoutingContractReport[]);
 	render?: (report: VoiceProductionReadinessReport) => string | Promise<string>;
 	store: VoiceTraceEventStore;
 	sttProviders?: readonly string[];
 	title?: string;
+	traceDeliveries?: false | VoiceProductionReadinessTraceDeliveryOptions;
 	ttsProviders?: readonly string[];
 	liveLatencyWarnAfterMs?: number;
 	liveLatencyFailAfterMs?: number;
@@ -153,6 +298,277 @@ const resolveCarriers = async (
 	return createVoiceTelephonyCarrierMatrix({
 		providers: [...providers]
 	});
+};
+
+const resolveAgentSquadContracts = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (
+		options.agentSquadContracts === false ||
+		options.agentSquadContracts === undefined
+	) {
+		return undefined;
+	}
+
+	return typeof options.agentSquadContracts === 'function'
+		? await options.agentSquadContracts(input)
+		: options.agentSquadContracts;
+};
+
+const resolveProviderRoutingContracts = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (
+		options.providerRoutingContracts === false ||
+		options.providerRoutingContracts === undefined
+	) {
+		return undefined;
+	}
+
+	return typeof options.providerRoutingContracts === 'function'
+		? await options.providerRoutingContracts(input)
+		: options.providerRoutingContracts;
+};
+
+const resolvePhoneAgentSmokes = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (options.phoneAgentSmokes === false || options.phoneAgentSmokes === undefined) {
+		return undefined;
+	}
+
+	return typeof options.phoneAgentSmokes === 'function'
+		? await options.phoneAgentSmokes(input)
+		: options.phoneAgentSmokes;
+};
+
+const defaultAuditRequirements: VoiceProductionReadinessAuditRequirement[] = [
+	{
+		label: 'Provider-call audit',
+		type: 'provider.call'
+	},
+	{
+		label: 'Retention audit',
+		maxAgeMs: 7 * 24 * 60 * 60 * 1000,
+		type: 'retention.policy'
+	},
+	{
+		label: 'Operator-action audit',
+		type: 'operator.action'
+	}
+];
+
+const resolveAuditRequirement = (
+	requirement:
+		| VoiceAuditEventType
+		| VoiceProductionReadinessAuditRequirement
+): VoiceProductionReadinessAuditRequirement =>
+	typeof requirement === 'string'
+		? {
+				type: requirement
+			}
+		: requirement;
+
+const summarizeAuditEvidence = async (
+	options: VoiceProductionReadinessRoutesOptions
+): Promise<VoiceProductionReadinessAuditSummary | undefined> => {
+	if (!options.audit) {
+		return undefined;
+	}
+
+	const audit =
+		'list' in options.audit
+			? {
+					require: defaultAuditRequirements,
+					store: options.audit
+				}
+			: {
+					require:
+						options.audit.require?.map(resolveAuditRequirement) ??
+						defaultAuditRequirements,
+					store: options.audit.store
+				};
+	const events = await audit.store.list();
+	const present = events.reduce(
+		(counts, event) => {
+			counts[event.type] = (counts[event.type] ?? 0) + 1;
+			return counts;
+		},
+		{} as Record<VoiceAuditEventType, number>
+	);
+	const missing = audit.require.filter((requirement) => {
+		const matching = events.filter((event) => {
+			if (event.type !== requirement.type) {
+				return false;
+			}
+
+			if (
+				typeof requirement.maxAgeMs === 'number' &&
+				Date.now() - event.at > requirement.maxAgeMs
+			) {
+				return false;
+			}
+
+			return true;
+		});
+		if (matching.length === 0) {
+			return true;
+		}
+
+		if (requirement.outcomes && requirement.outcomes.length > 0) {
+			return !matching.some(
+				(event) => event.outcome && requirement.outcomes?.includes(event.outcome)
+			);
+		}
+
+		return false;
+	});
+
+	return {
+		events: events.length,
+		missing,
+		present,
+		required: audit.require,
+		status: missing.some((requirement) => requirement.status === 'fail')
+			? 'fail'
+			: missing.length > 0
+				? 'fail'
+				: events.length === 0
+					? 'warn'
+					: 'pass'
+	};
+};
+
+const summarizeAuditDeliveries = async (
+	options: VoiceProductionReadinessRoutesOptions
+): Promise<VoiceProductionReadinessAuditDeliverySummary | undefined> => {
+	if (!options.auditDeliveries) {
+		return undefined;
+	}
+
+	const auditDeliveries =
+		'list' in options.auditDeliveries
+			? {
+					store: options.auditDeliveries
+				}
+			: options.auditDeliveries;
+	const warnPendingAfterMs = Math.max(
+		0,
+		auditDeliveries.warnPendingAfterMs ?? 60_000
+	);
+	const failPendingAfterMs = Math.max(
+		warnPendingAfterMs,
+		auditDeliveries.failPendingAfterMs ?? 5 * 60_000
+	);
+	const now = Date.now();
+	const deliveries = await auditDeliveries.store.list();
+	const queue = await summarizeVoiceAuditSinkDeliveries(deliveries, {
+		deadLetters: auditDeliveries.deadLetters
+	});
+	const staleWarning = deliveries.filter(
+		(delivery) =>
+			delivery.deliveryStatus === 'pending' &&
+			now - delivery.createdAt >= warnPendingAfterMs &&
+			now - delivery.createdAt < failPendingAfterMs
+	).length;
+	const staleFailing = deliveries.filter(
+		(delivery) =>
+			delivery.deliveryStatus === 'pending' &&
+			now - delivery.createdAt >= failPendingAfterMs
+	).length;
+	const status: VoiceProductionReadinessStatus =
+		queue.deadLettered > 0 || queue.failed > 0 || staleFailing > 0
+			? 'fail'
+			: queue.pending > 0 || queue.retryEligible > 0 || staleWarning > 0
+				? 'warn'
+				: 'pass';
+
+	return {
+		deadLettered: queue.deadLettered,
+		delivered: queue.delivered,
+		failed: queue.failed,
+		failPendingAfterMs,
+		pending: queue.pending,
+		retryEligible: queue.retryEligible,
+		skipped: queue.skipped,
+		staleFailing,
+		staleWarning,
+		status,
+		total: queue.total,
+		warnPendingAfterMs
+	};
+};
+
+const summarizeTraceDeliveries = async (
+	options: VoiceProductionReadinessRoutesOptions
+): Promise<VoiceProductionReadinessTraceDeliverySummary | undefined> => {
+	if (!options.traceDeliveries) {
+		return undefined;
+	}
+
+	const traceDeliveries =
+		'list' in options.traceDeliveries
+			? {
+					store: options.traceDeliveries
+				}
+			: options.traceDeliveries;
+	const warnPendingAfterMs = Math.max(
+		0,
+		traceDeliveries.warnPendingAfterMs ?? 60_000
+	);
+	const failPendingAfterMs = Math.max(
+		warnPendingAfterMs,
+		traceDeliveries.failPendingAfterMs ?? 5 * 60_000
+	);
+	const now = Date.now();
+	const deliveries = await traceDeliveries.store.list();
+	const queue = await summarizeVoiceTraceSinkDeliveries(deliveries, {
+		deadLetters: traceDeliveries.deadLetters
+	});
+	const staleWarning = deliveries.filter(
+		(delivery) =>
+			delivery.deliveryStatus === 'pending' &&
+			now - delivery.createdAt >= warnPendingAfterMs &&
+			now - delivery.createdAt < failPendingAfterMs
+	).length;
+	const staleFailing = deliveries.filter(
+		(delivery) =>
+			delivery.deliveryStatus === 'pending' &&
+			now - delivery.createdAt >= failPendingAfterMs
+	).length;
+	const status: VoiceProductionReadinessStatus =
+		queue.deadLettered > 0 || queue.failed > 0 || staleFailing > 0
+			? 'fail'
+			: queue.pending > 0 || queue.retryEligible > 0 || staleWarning > 0
+				? 'warn'
+				: 'pass';
+
+	return {
+		deadLettered: queue.deadLettered,
+		delivered: queue.delivered,
+		failed: queue.failed,
+		failPendingAfterMs,
+		pending: queue.pending,
+		retryEligible: queue.retryEligible,
+		skipped: queue.skipped,
+		staleFailing,
+		staleWarning,
+		status,
+		total: queue.total,
+		warnPendingAfterMs
+	};
 };
 
 const summarizeLiveLatency = (
@@ -212,7 +628,19 @@ export const buildVoiceProductionReadinessReport = async (
 	const routingEvents = listVoiceRoutingEvents(events);
 	const routingSessions = summarizeVoiceRoutingSessions(routingEvents);
 	const liveLatency = summarizeLiveLatency(events, options);
-	const [quality, providers, sessions, handoffs, carriers] = await Promise.all([
+	const [
+		quality,
+		providers,
+		sessions,
+		handoffs,
+		audit,
+		auditDeliveries,
+		traceDeliveries,
+		carriers,
+		agentSquadContracts,
+		providerRoutingContracts,
+		phoneAgentSmokes
+	] = await Promise.all([
 		evaluateVoiceQuality({ events }),
 		Promise.all([
 			summarizeVoiceProviderHealth({
@@ -230,7 +658,13 @@ export const buildVoiceProductionReadinessReport = async (
 		]).then((groups) => groups.flat()),
 		summarizeVoiceSessions({ events, status: 'all' }),
 		summarizeVoiceHandoffHealth({ events }),
-		resolveCarriers(options, { query, request })
+		summarizeAuditEvidence(options),
+		summarizeAuditDeliveries(options),
+		summarizeTraceDeliveries(options),
+		resolveCarriers(options, { query, request }),
+		resolveAgentSquadContracts(options, { query, request }),
+		resolveProviderRoutingContracts(options, { query, request }),
+		resolvePhoneAgentSmokes(options, { query, request })
 	]);
 	const degradedProviders = providers.filter(
 		(provider) =>
@@ -397,6 +831,231 @@ export const buildVoiceProductionReadinessReport = async (
 				warnings: carriers.summary.warnings
 			}
 		: undefined;
+	const agentSquadContractSummary = agentSquadContracts
+		? ({
+				failed: agentSquadContracts.filter((report) => !report.pass).length,
+				passed: agentSquadContracts.filter((report) => report.pass).length,
+				status: agentSquadContracts.some((report) => !report.pass)
+					? 'fail'
+					: agentSquadContracts.length === 0
+							? 'warn'
+							: 'pass',
+				total: agentSquadContracts.length
+			} satisfies NonNullable<
+				VoiceProductionReadinessReport['summary']['agentSquadContracts']
+			>)
+		: undefined;
+	const providerRoutingContractSummary = providerRoutingContracts
+		? ({
+				failed: providerRoutingContracts.filter((report) => !report.pass).length,
+				passed: providerRoutingContracts.filter((report) => report.pass).length,
+				status: providerRoutingContracts.some((report) => !report.pass)
+					? 'fail'
+					: providerRoutingContracts.length === 0
+						? 'warn'
+						: 'pass',
+				total: providerRoutingContracts.length
+			} satisfies NonNullable<
+				VoiceProductionReadinessReport['summary']['providerRoutingContracts']
+			>)
+		: undefined;
+	const phoneAgentSmokeSummary = phoneAgentSmokes
+		? ({
+				failed: phoneAgentSmokes.filter((report) => !report.pass).length,
+				passed: phoneAgentSmokes.filter((report) => report.pass).length,
+				status: phoneAgentSmokes.some((report) => !report.pass)
+					? 'fail'
+					: phoneAgentSmokes.length === 0
+						? 'warn'
+						: 'pass',
+				total: phoneAgentSmokes.length
+			} satisfies NonNullable<
+				VoiceProductionReadinessReport['summary']['phoneAgentSmokes']
+			>)
+		: undefined;
+
+	if (agentSquadContractSummary) {
+		checks.push({
+			detail:
+				agentSquadContractSummary.status === 'pass'
+					? `${agentSquadContractSummary.passed} agent squad contract(s) are passing.`
+					: agentSquadContractSummary.total === 0
+						? 'No agent squad contracts are configured.'
+						: `${agentSquadContractSummary.failed} agent squad contract(s) failed.`,
+			href: options.links?.agentSquadContracts ?? '/agent-squad-contract',
+			label: 'Agent squad contracts',
+			status: agentSquadContractSummary.status,
+			value: `${agentSquadContractSummary.passed}/${agentSquadContractSummary.total}`,
+			actions:
+				agentSquadContractSummary.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open the specialist routing contract report and inspect failing handoff paths.',
+								href:
+									options.links?.agentSquadContracts ??
+									'/agent-squad-contract',
+								label: 'Open squad contracts'
+							}
+						]
+		});
+	}
+
+	if (providerRoutingContractSummary) {
+		checks.push({
+			detail:
+				providerRoutingContractSummary.status === 'pass'
+					? `${providerRoutingContractSummary.passed} provider routing contract(s) are passing.`
+					: providerRoutingContractSummary.total === 0
+						? 'No provider routing contracts are configured.'
+						: `${providerRoutingContractSummary.failed} provider routing contract(s) failed.`,
+			href:
+				options.links?.providerRoutingContracts ??
+				options.links?.resilience ??
+				'/resilience',
+			label: 'Provider routing contracts',
+			status: providerRoutingContractSummary.status,
+			value: `${providerRoutingContractSummary.passed}/${providerRoutingContractSummary.total}`,
+			actions:
+				providerRoutingContractSummary.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open provider routing evidence and inspect failed fallback expectations.',
+								href:
+									options.links?.providerRoutingContracts ??
+									options.links?.resilience ??
+									'/resilience',
+								label: 'Open provider routing contracts'
+							}
+						]
+		});
+	}
+
+	if (phoneAgentSmokeSummary) {
+		checks.push({
+			detail:
+				phoneAgentSmokeSummary.status === 'pass'
+					? `${phoneAgentSmokeSummary.passed} phone-agent smoke contract(s) are passing.`
+					: phoneAgentSmokeSummary.total === 0
+						? 'No phone-agent production smoke contracts are configured.'
+						: `${phoneAgentSmokeSummary.failed} phone-agent production smoke contract(s) failed.`,
+			href:
+				options.links?.phoneAgentSmoke ??
+				options.links?.sessions ??
+				'/sessions',
+			label: 'Phone agent production smoke',
+			status: phoneAgentSmokeSummary.status,
+			value: `${phoneAgentSmokeSummary.passed}/${phoneAgentSmokeSummary.total}`,
+			actions:
+				phoneAgentSmokeSummary.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open trace replay and inspect media start, transcript, assistant response, and terminal lifecycle evidence.',
+								href:
+									options.links?.phoneAgentSmoke ??
+									options.links?.sessions ??
+									'/sessions',
+								label: 'Open phone smoke traces'
+							}
+						]
+		});
+	}
+
+	if (audit) {
+		const missingLabels = audit.missing.map(
+			(requirement) => requirement.label ?? requirement.type
+		);
+		checks.push({
+			detail:
+				audit.status === 'pass'
+					? `${audit.events} audit event(s) cover required evidence.`
+					: missingLabels.length > 0
+						? `Missing audit evidence: ${missingLabels.join(', ')}.`
+						: 'No audit evidence is recorded yet.',
+			href: options.links?.audit ?? '/audit',
+			label: 'Audit evidence',
+			status: audit.status,
+			value: `${audit.required.length - audit.missing.length}/${audit.required.length}`,
+			actions:
+				audit.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open the audit trail and confirm provider calls, retention runs, and operator actions are being recorded.',
+								href: options.links?.audit ?? '/audit',
+								label: 'Open audit evidence'
+							}
+						]
+		});
+	}
+
+	if (auditDeliveries) {
+		checks.push({
+			detail:
+				auditDeliveries.status === 'pass'
+					? 'Audit sink deliveries are clear.'
+					: auditDeliveries.staleFailing > 0
+						? `${auditDeliveries.staleFailing} audit delivery item(s) are stale past ${Math.round(auditDeliveries.failPendingAfterMs / 1000)}s.`
+						: auditDeliveries.failed > 0 || auditDeliveries.deadLettered > 0
+							? `${auditDeliveries.failed} failed and ${auditDeliveries.deadLettered} dead-lettered audit delivery item(s).`
+							: `${auditDeliveries.pending} audit delivery item(s) are pending.`,
+			href:
+				options.links?.auditDeliveries ??
+				options.links?.audit ??
+				'/audit',
+			label: 'Audit sink delivery',
+			status: auditDeliveries.status,
+			value: `${auditDeliveries.delivered + auditDeliveries.skipped}/${auditDeliveries.total}`,
+			actions:
+				auditDeliveries.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Inspect audit sink delivery failures, dead letters, or stale pending evidence exports.',
+								href:
+									options.links?.auditDeliveries ??
+									options.links?.audit ??
+									'/audit',
+								label: 'Open audit deliveries'
+							}
+						]
+		});
+	}
+
+	if (traceDeliveries) {
+		checks.push({
+			detail:
+				traceDeliveries.status === 'pass'
+					? 'Trace sink deliveries are clear.'
+					: traceDeliveries.staleFailing > 0
+						? `${traceDeliveries.staleFailing} trace delivery item(s) are stale past ${Math.round(traceDeliveries.failPendingAfterMs / 1000)}s.`
+						: traceDeliveries.failed > 0 || traceDeliveries.deadLettered > 0
+							? `${traceDeliveries.failed} failed and ${traceDeliveries.deadLettered} dead-lettered trace delivery item(s).`
+							: `${traceDeliveries.pending} trace delivery item(s) are pending.`,
+			href: options.links?.traceDeliveries ?? '/traces/deliveries',
+			label: 'Trace sink delivery',
+			status: traceDeliveries.status,
+			value: `${traceDeliveries.delivered + traceDeliveries.skipped}/${traceDeliveries.total}`,
+			actions:
+				traceDeliveries.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Inspect trace sink delivery failures, dead letters, or stale pending trace exports.',
+								href: options.links?.traceDeliveries ?? '/traces/deliveries',
+								label: 'Open trace deliveries'
+							}
+						]
+		});
+	}
 
 	if (carriers && carrierSummary) {
 		checks.push({
@@ -426,17 +1085,26 @@ export const buildVoiceProductionReadinessReport = async (
 		checkedAt: Date.now(),
 		checks,
 		links: {
+			agentSquadContracts: '/agent-squad-contract',
+			audit: '/audit',
+			auditDeliveries: '/audit',
 			carriers: '/carriers',
 			handoffs: '/handoffs',
 			handoffRetry: '/api/voice-handoffs/retry',
 			liveLatency: '/traces',
+			phoneAgentSmoke: '/sessions',
+			providerRoutingContracts: '/resilience',
 			quality: '/quality',
 			resilience: '/resilience',
 			sessions: '/sessions',
+			traceDeliveries: '/traces/deliveries',
 			...options.links
 		},
 		status: rollupStatus(checks),
 		summary: {
+			agentSquadContracts: agentSquadContractSummary,
+			audit,
+			auditDeliveries,
 			carriers: carrierSummary,
 			handoffs: {
 				failed: handoffs.failed,
@@ -447,6 +1115,8 @@ export const buildVoiceProductionReadinessReport = async (
 				degraded: degradedProviders,
 				total: providers.length
 			},
+			phoneAgentSmokes: phoneAgentSmokeSummary,
+			providerRoutingContracts: providerRoutingContractSummary,
 			quality: {
 				status: quality.status
 			},
@@ -457,7 +1127,8 @@ export const buildVoiceProductionReadinessReport = async (
 			sessions: {
 				failed: failedSessions,
 				total: sessions.length
-			}
+			},
+			traceDeliveries
 		}
 	};
 };

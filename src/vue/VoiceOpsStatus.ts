@@ -3,7 +3,7 @@ import {
 	createVoiceOpsStatusViewModel,
 	type VoiceOpsStatusWidgetOptions
 } from '../client/opsStatusWidget';
-import { useVoiceAppKitStatus } from './useVoiceAppKitStatus';
+import { useVoiceOpsStatus } from './useVoiceOpsStatus';
 
 export const VoiceOpsStatus = defineComponent({
 	name: 'VoiceOpsStatus',
@@ -15,7 +15,7 @@ export const VoiceOpsStatus = defineComponent({
 		},
 		intervalMs: Number,
 		path: {
-			default: '/app-kit/status',
+			default: '/api/voice/ops-status',
 			type: String
 		},
 		title: String
@@ -27,7 +27,7 @@ export const VoiceOpsStatus = defineComponent({
 			intervalMs: props.intervalMs,
 			title: props.title
 		} satisfies VoiceOpsStatusWidgetOptions;
-		const status = useVoiceAppKitStatus(props.path, options);
+		const status = useVoiceOpsStatus(props.path, options);
 
 		return () => {
 			const model = createVoiceOpsStatusViewModel(

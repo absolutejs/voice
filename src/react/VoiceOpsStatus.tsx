@@ -1,4 +1,4 @@
-import { useVoiceAppKitStatus } from './useVoiceAppKitStatus';
+import { useVoiceOpsStatus } from './useVoiceOpsStatus';
 import {
 	createVoiceOpsStatusViewModel,
 	type VoiceOpsStatusWidgetOptions
@@ -11,10 +11,10 @@ export type VoiceOpsStatusProps = VoiceOpsStatusWidgetOptions & {
 
 export const VoiceOpsStatus = ({
 	className,
-	path = '/app-kit/status',
+	path = '/api/voice/ops-status',
 	...options
 }: VoiceOpsStatusProps) => {
-	const snapshot = useVoiceAppKitStatus(path, options);
+	const snapshot = useVoiceOpsStatus(path, options);
 	const model = createVoiceOpsStatusViewModel(snapshot, options);
 
 	return (

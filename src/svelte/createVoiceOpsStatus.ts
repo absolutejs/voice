@@ -3,13 +3,13 @@ import {
 	renderVoiceOpsStatusHTML,
 	type VoiceOpsStatusWidgetOptions
 } from '../client/opsStatusWidget';
-import { createVoiceAppKitStatusStore } from '../client/appKitStatus';
+import { createVoiceOpsStatusStore } from '../client/opsStatus';
 
 export const createVoiceOpsStatus = (
-	path = '/app-kit/status',
+	path = '/api/voice/ops-status',
 	options: VoiceOpsStatusWidgetOptions = {}
 ) => {
-	const store = createVoiceAppKitStatusStore(path, options);
+	const store = createVoiceOpsStatusStore(path, options);
 
 	return {
 		close: store.close,

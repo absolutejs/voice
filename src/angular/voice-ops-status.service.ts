@@ -1,20 +1,20 @@
 import { computed, Injectable, signal } from '@angular/core';
 import {
-	createVoiceAppKitStatusStore,
-	type VoiceAppKitStatusClientOptions
-} from '../client/appKitStatus';
-import type { VoiceAppKitStatusReport } from '../appKit';
+	createVoiceOpsStatusStore,
+	type VoiceOpsStatusClientOptions
+} from '../client/opsStatus';
+import type { VoiceOpsStatusReport } from '../opsStatus';
 
 @Injectable({ providedIn: 'root' })
-export class VoiceAppKitStatusService {
+export class VoiceOpsStatusService {
 	connect(
-		path = '/app-kit/status',
-		options: VoiceAppKitStatusClientOptions = {}
+		path = '/api/voice/ops-status',
+		options: VoiceOpsStatusClientOptions = {}
 	) {
-		const store = createVoiceAppKitStatusStore(path, options);
+		const store = createVoiceOpsStatusStore(path, options);
 		const errorSignal = signal<string | null>(null);
 		const isLoadingSignal = signal(false);
-		const reportSignal = signal<VoiceAppKitStatusReport | undefined>(undefined);
+		const reportSignal = signal<VoiceOpsStatusReport | undefined>(undefined);
 		const updatedAtSignal = signal<number | undefined>(undefined);
 		const sync = () => {
 			const snapshot = store.getSnapshot();

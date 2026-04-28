@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { serverMessageToAction } from '../src/client/actions';
-import { createVoiceAppKitStatusStore } from '../src/client/appKitStatus';
+import { createVoiceOpsStatusStore } from '../src/client/opsStatus';
 import {
 	createVoiceOpsStatusViewModel,
 	renderVoiceOpsStatusHTML
@@ -126,7 +126,7 @@ test('voice workflow status store fetches scenario eval reports', async () => {
 	store.close();
 });
 
-test('voice ops status widget renders app-kit readiness', () => {
+test('voice ops status widget renders ops readiness', () => {
 	const snapshot = {
 		error: null,
 		isLoading: false,
@@ -164,8 +164,8 @@ test('voice ops status widget renders app-kit readiness', () => {
 	expect(html).toContain('/ops-console');
 });
 
-test('voice app kit status store fetches integrated status reports', async () => {
-	const store = createVoiceAppKitStatusStore('/app-kit/status', {
+test('voice ops status store fetches integrated status reports', async () => {
+	const store = createVoiceOpsStatusStore('/api/voice/ops-status', {
 		fetch: async () =>
 			new Response(
 				JSON.stringify({
