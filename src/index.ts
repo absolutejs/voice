@@ -21,7 +21,9 @@ export {
 export {
 	createVoicePlivoCampaignDialer,
 	createVoiceTelnyxCampaignDialer,
-	createVoiceTwilioCampaignDialer
+	createVoiceTwilioCampaignDialer,
+	getVoiceCampaignDialerProofStatus,
+	runVoiceCampaignDialerProof
 } from './campaignDialers';
 export {
 	createVoiceAssistant,
@@ -423,6 +425,17 @@ export type {
 	VoiceCampaignSummary,
 	VoiceCampaignTickResult
 } from './campaign';
+export type {
+	VoiceCampaignDialerProofCarrierRequest,
+	VoiceCampaignDialerProofOptions,
+	VoiceCampaignDialerProofProvider,
+	VoiceCampaignDialerProofProviderResult,
+	VoiceCampaignDialerProofReport,
+	VoiceCampaignDialerProofStatus,
+	VoicePlivoCampaignDialerOptions,
+	VoiceTelnyxCampaignDialerOptions,
+	VoiceTwilioCampaignDialerOptions
+} from './campaignDialers';
 export type {
 	VoiceBargeInReport,
 	VoiceBargeInRoutesOptions

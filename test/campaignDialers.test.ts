@@ -3,7 +3,9 @@ import {
 	createVoicePlivoCampaignDialer,
 	createVoiceTelnyxCampaignDialer,
 	createVoiceTwilioCampaignDialer,
-	parseVoiceTelephonyWebhookEvent
+	getVoiceCampaignDialerProofStatus,
+	parseVoiceTelephonyWebhookEvent,
+	runVoiceCampaignDialerProof
 } from '../src';
 import type { VoiceCampaignDialerInput } from '../src';
 
@@ -171,4 +173,44 @@ test('parseVoiceTelephonyWebhookEvent keeps callback query metadata for campaign
 		attemptId: 'attempt-1',
 		campaignId: 'campaign-1'
 	});
+});
+
+test('runVoiceCampaignDialerProof dry-runs provider dialers and applies campaign outcomes', async () => {
+	const status = getVoiceCampaignDialerProofStatus({
+		providers: ['twilio', 'telnyx'],
+		runPath: '/api/voice/campaigns/dialer-proof'
+	});
+
+	expect(status).toMatchObject({
+		mode: 'dry-run',
+		ok: true,
+		providers: ['twilio', 'telnyx'],
+		runPath: '/api/voice/campaigns/dialer-proof',
+		safe: true
+	});
+
+	const report = await runVoiceCampaignDialerProof({
+		baseUrl: 'https://voice.example.com',
+		providers: ['twilio', 'telnyx', 'plivo']
+	});
+
+	expect(report.ok).toBe(true);
+	expect(report.providers.map((provider) => provider.provider)).toEqual([
+		'twilio',
+		'telnyx',
+		'plivo'
+	]);
+	for (const provider of report.providers) {
+		expect(provider.carrierRequests).toHaveLength(1);
+		expect(provider.outcomes[0]).toMatchObject({
+			applied: true,
+			status: 'succeeded'
+		});
+		expect(provider.final?.campaign.status).toBe('completed');
+		expect(provider.final?.attempts[0]?.status).toBe('succeeded');
+		expect(provider.final?.recipients[0]?.status).toBe('completed');
+	}
+	expect(JSON.stringify(report.providers[0]?.carrierRequests[0]?.body)).toContain(
+		'campaignId'
+	);
 });
