@@ -5,10 +5,10 @@ import {
 } from '../client/workflowStatus';
 import type { VoiceScenarioEvalReport } from '../evalRoutes';
 
-export const useVoiceWorkflowStatus = (
+export function useVoiceWorkflowStatus(
 	path = '/evals/scenarios/json',
 	options: VoiceWorkflowStatusClientOptions = {}
-) => {
+) {
 	const store = createVoiceWorkflowStatusStore(path, options);
 	const error = ref<string | null>(null);
 	const isLoading = ref(false);

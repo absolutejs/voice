@@ -5,10 +5,10 @@ import {
 } from '../client/turnLatency';
 import type { VoiceTurnLatencyReport } from '../turnLatency';
 
-export const useVoiceTurnLatency = (
+export function useVoiceTurnLatency(
 	path = '/api/turn-latency',
 	options: VoiceTurnLatencyClientOptions = {}
-) => {
+) {
 	const store = createVoiceTurnLatencyStore(path, options);
 	const error = shallowRef<string | null>(null);
 	const isLoading = shallowRef(false);

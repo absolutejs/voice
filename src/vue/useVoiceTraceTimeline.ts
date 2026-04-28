@@ -5,10 +5,10 @@ import {
 } from '../client/traceTimeline';
 import type { VoiceTraceTimelineReport } from '../traceTimeline';
 
-export const useVoiceTraceTimeline = (
+export function useVoiceTraceTimeline(
 	path = '/api/voice-traces',
 	options: VoiceTraceTimelineClientOptions = {}
-) => {
+) {
 	const store = createVoiceTraceTimelineStore(path, options);
 	const error = ref<string | null>(null);
 	const isLoading = ref(false);

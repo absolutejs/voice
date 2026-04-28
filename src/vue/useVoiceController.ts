@@ -5,10 +5,10 @@ import type {
 	VoiceTurnRecord
 } from '../types';
 
-export const useVoiceController = <TResult = unknown>(
+export function useVoiceController<TResult = unknown>(
 	path: string,
 	options: VoiceControllerOptions = {}
-) => {
+) {
 	const controller = createVoiceController<TResult>(path, options);
 	const assistantAudio = shallowRef<typeof controller.assistantAudio>([]);
 	const assistantTexts = shallowRef<string[]>([]);

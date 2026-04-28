@@ -5,10 +5,10 @@ import {
 } from '../client/routingStatus';
 import type { VoiceRoutingDecisionSummary } from '../resilienceRoutes';
 
-export const useVoiceRoutingStatus = (
+export function useVoiceRoutingStatus(
 	path = '/api/routing/latest',
 	options: VoiceRoutingStatusClientOptions = {}
-) => {
+) {
 	const store = createVoiceRoutingStatusStore(path, options);
 	const decision = shallowRef<VoiceRoutingDecisionSummary | null>(null);
 	const error = ref<string | null>(null);

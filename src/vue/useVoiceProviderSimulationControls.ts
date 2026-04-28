@@ -4,11 +4,11 @@ import {
 	type VoiceProviderSimulationControlsOptions
 } from '../client/providerSimulationControls';
 
-export const useVoiceProviderSimulationControls = <
+export function useVoiceProviderSimulationControls<
 	TProvider extends string = string
 >(
 	options: VoiceProviderSimulationControlsOptions<TProvider>
-) => {
+) {
 	const store = createVoiceProviderSimulationControlsStore<TProvider>(options);
 	const error = ref<string | null>(null);
 	const isRunning = ref(false);

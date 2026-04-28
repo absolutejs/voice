@@ -5,10 +5,10 @@ import {
 } from '../client/providerStatus';
 import type { VoiceProviderHealthSummary } from '../providerHealth';
 
-export const useVoiceProviderStatus = <TProvider extends string = string>(
+export function useVoiceProviderStatus<TProvider extends string = string>(
 	path = '/api/provider-status',
 	options: VoiceProviderStatusClientOptions = {}
-) => {
+) {
 	const store = createVoiceProviderStatusStore<TProvider>(path, options);
 	const error = ref<string | null>(null);
 	const isLoading = ref(false);

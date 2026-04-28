@@ -5,12 +5,12 @@ import {
 } from '../client/providerCapabilities';
 import type { VoiceProviderCapabilityReport } from '../providerCapabilities';
 
-export const useVoiceProviderCapabilities = <
+export function useVoiceProviderCapabilities<
 	TProvider extends string = string
 >(
 	path = '/api/provider-capabilities',
 	options: VoiceProviderCapabilitiesClientOptions = {}
-) => {
+) {
 	const store = createVoiceProviderCapabilitiesStore<TProvider>(path, options);
 	const error = shallowRef<string | null>(null);
 	const isLoading = shallowRef(false);

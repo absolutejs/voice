@@ -5,10 +5,10 @@ import type {
 	VoiceTurnRecord
 } from '../types';
 
-export const useVoiceStream = <TResult = unknown>(
+export function useVoiceStream<TResult = unknown>(
 	path: string,
 	options: VoiceConnectionOptions = {}
-) => {
+) {
 	const stream = createVoiceStream<TResult>(path, options);
 	const assistantAudio = shallowRef<typeof stream.assistantAudio>([]);
 	const assistantTexts = shallowRef<string[]>([]);

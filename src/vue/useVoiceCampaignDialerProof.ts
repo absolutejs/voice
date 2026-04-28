@@ -8,10 +8,10 @@ import type {
 	VoiceCampaignDialerProofStatus
 } from '../campaignDialers';
 
-export const useVoiceCampaignDialerProof = (
+export function useVoiceCampaignDialerProof(
 	path = '/api/voice/campaigns/dialer-proof',
 	options: VoiceCampaignDialerProofClientOptions = {}
-) => {
+) {
 	const store = createVoiceCampaignDialerProofStore(path, options);
 	const error = shallowRef<string | null>(null);
 	const isLoading = shallowRef(false);
@@ -28,7 +28,9 @@ export const useVoiceCampaignDialerProof = (
 	};
 	const unsubscribe = store.subscribe(sync);
 	sync();
-	void store.refresh().catch(() => {});
+	if (typeof window !== 'undefined') {
+		void store.refresh().catch(() => {});
+	}
 	onUnmounted(() => {
 		unsubscribe();
 		store.close();

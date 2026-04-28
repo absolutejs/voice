@@ -5,10 +5,10 @@ import {
 } from '../client/turnQuality';
 import type { VoiceTurnQualityReport } from '../turnQuality';
 
-export const useVoiceTurnQuality = (
+export function useVoiceTurnQuality(
 	path = '/api/turn-quality',
 	options: VoiceTurnQualityClientOptions = {}
-) => {
+) {
 	const store = createVoiceTurnQualityStore(path, options);
 	const error = shallowRef<string | null>(null);
 	const isLoading = shallowRef(false);

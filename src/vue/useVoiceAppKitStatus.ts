@@ -5,10 +5,10 @@ import {
 } from '../client/appKitStatus';
 import type { VoiceAppKitStatusReport } from '../appKit';
 
-export const useVoiceAppKitStatus = (
+export function useVoiceAppKitStatus(
 	path = '/app-kit/status',
 	options: VoiceAppKitStatusClientOptions = {}
-) => {
+) {
 	const store = createVoiceAppKitStatusStore(path, options);
 	const error = ref<string | null>(null);
 	const isLoading = ref(false);
