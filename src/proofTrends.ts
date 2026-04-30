@@ -1,5 +1,8 @@
 import { Elysia } from 'elysia';
-import type { VoiceProductionReadinessCheck } from './productionReadiness';
+import type {
+	VoiceProductionReadinessAction,
+	VoiceProductionReadinessCheck
+} from './productionReadiness';
 import type {
 	StoredVoiceTraceEvent,
 	VoiceTraceEventStore
@@ -422,6 +425,7 @@ export type VoiceRealCallProfileHistoryRoutesOptions =
 	};
 
 export type VoiceRealCallProfileReadinessCheckOptions = {
+	browserProofHref?: string;
 	failOnWarnings?: boolean;
 	href?: string;
 	label?: string;
@@ -431,8 +435,14 @@ export type VoiceRealCallProfileReadinessCheckOptions = {
 	minProfiles?: number;
 	requiredProfileIds?: readonly string[];
 	requiredProviderRoles?: readonly string[];
+	operationsRecordsHref?: string;
+	phoneProofHref?: string;
+	productionReadinessHref?: string;
 	sourceHref?: string;
 };
+
+export type VoiceRealCallProfileRecoveryActionOptions =
+	VoiceRealCallProfileReadinessCheckOptions;
 
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -1679,6 +1689,122 @@ const buildRealCallProfileReadinessIssues = (
 	return { issues, warnings };
 };
 
+const uniqueRealCallProfileActions = (
+	actions: VoiceProductionReadinessAction[]
+) => {
+	const seen = new Set<string>();
+	return actions.filter((action) => {
+		const key = `${action.method ?? 'GET'}:${action.href}:${action.label}`;
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+};
+
+export const buildVoiceRealCallProfileRecoveryActions = (
+	report: VoiceRealCallProfileHistoryReport,
+	options: VoiceRealCallProfileRecoveryActionOptions = {}
+): VoiceProductionReadinessAction[] => {
+	const actions: VoiceProductionReadinessAction[] = [
+		{
+			description:
+				'Open the current real-call profile history report and profile defaults.',
+			href: options.href ?? '/voice/real-call-profile-history',
+			label: 'Open real-call profile history'
+		},
+		{
+			description:
+				'Refresh production readiness after collecting or replaying profile evidence.',
+			href: options.productionReadinessHref ?? '/production-readiness',
+			label: 'Refresh production readiness'
+		}
+	];
+	const requiredProfiles = new Set(options.requiredProfileIds ?? []);
+	const profilesById = new Map(
+		report.defaults.profiles.map((profile) => [profile.profileId, profile])
+	);
+	const missingProfiles = [...requiredProfiles].filter(
+		(profileId) => !profilesById.has(profileId)
+	);
+	const warningProfiles = report.defaults.profiles.filter(
+		(profile) =>
+			(requiredProfiles.size === 0 || requiredProfiles.has(profile.profileId)) &&
+			profile.status !== 'pass'
+	);
+	const missingRoleProfiles = report.defaults.profiles.filter((profile) =>
+		(options.requiredProviderRoles ?? []).some(
+			(role) => !profile.providerRoutes[role]
+		)
+	);
+	const ageMs =
+		report.trend.ageMs ??
+		(report.generatedAt ? Date.now() - new Date(report.generatedAt).getTime() : undefined);
+
+	if (
+		missingProfiles.length > 0 ||
+		warningProfiles.length > 0 ||
+		missingRoleProfiles.length > 0 ||
+		(options.minCycles !== undefined &&
+			(report.summary.cycles ?? 0) < options.minCycles) ||
+		(options.minActionableProfiles !== undefined &&
+			report.defaults.summary.actionableProfiles < options.minActionableProfiles)
+	) {
+		actions.push({
+			description:
+				'Run browser profile proof to collect microphone, WebSocket, live-latency, and provider traces for missing profiles.',
+			href: options.browserProofHref ?? '/voice/browser-call-profiles',
+			label: 'Run browser profile proof'
+		});
+		actions.push({
+			description:
+				'Run phone profile proof when required profiles depend on carrier, telephony media, or noisy-call evidence.',
+			href: options.phoneProofHref ?? '/api/voice/phone/smoke',
+			label: 'Run phone profile proof'
+		});
+	}
+
+	if (
+		options.maxAgeMs !== undefined &&
+		(ageMs === undefined || ageMs > options.maxAgeMs)
+	) {
+		actions.push({
+			description:
+				'Collect fresh real-call profile traces because the current history artifact is stale.',
+			href: options.browserProofHref ?? '/voice/browser-call-profiles',
+			label: 'Collect fresh profile evidence'
+		});
+	}
+
+	if (
+		missingRoleProfiles.length > 0 ||
+		report.defaults.summary.actionableProfiles <
+			(options.minActionableProfiles ?? 1)
+	) {
+		actions.push({
+			description:
+				'Collect missing LLM/STT/TTS provider-role evidence so profile defaults can become actionable.',
+			href: options.sourceHref ?? '/api/voice/real-call-profile-history',
+			label: 'Collect missing provider-role evidence'
+		});
+	}
+
+	if (
+		report.recommendations.profiles.some((profile) => profile.status !== 'pass') ||
+		report.defaults.profiles.some((profile) => profile.status !== 'pass')
+	) {
+		actions.push({
+			description:
+				'Open operations records to inspect the sessions behind failing or warning profile evidence.',
+			href: options.operationsRecordsHref ?? '/voice-operations',
+			label: 'Open operations records'
+		});
+	}
+
+	return uniqueRealCallProfileActions(actions);
+};
+
 export const buildVoiceRealCallProfileReadinessCheck = (
 	report: VoiceRealCallProfileHistoryReport,
 	options: VoiceRealCallProfileReadinessCheckOptions = {}
@@ -1698,6 +1824,7 @@ export const buildVoiceRealCallProfileReadinessCheck = (
 			: [...issues, ...warnings].join(' ');
 
 	return {
+		actions: buildVoiceRealCallProfileRecoveryActions(report, options),
 		detail,
 		gateExplanation: {
 			evidenceHref: options.href ?? '/api/voice/real-call-profile-history',

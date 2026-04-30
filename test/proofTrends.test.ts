@@ -12,6 +12,7 @@ import {
 	buildVoiceRealCallProfileEvidenceFromTraceEvents,
 	buildVoiceRealCallProfileHistoryReport,
 	buildVoiceRealCallProfileReadinessCheck,
+	buildVoiceRealCallProfileRecoveryActions,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
@@ -1106,6 +1107,19 @@ describe('proof trends', () => {
 		).toMatchObject({
 			status: 'fail'
 		});
+		expect(
+			buildVoiceRealCallProfileRecoveryActions(history, {
+				minActionableProfiles: 5,
+				requiredProfileIds: ['custom-profile'],
+				requiredProviderRoles: ['llm', 'stt', 'tts']
+			}).map((action) => action.label)
+		).toEqual([
+			'Open real-call profile history',
+			'Refresh production readiness',
+			'Run browser profile proof',
+			'Run phone profile proof',
+			'Collect missing provider-role evidence'
+		]);
 	});
 
 	test('buildVoiceProofTrendRecommendationReport recommends provider switches from sustained comparisons', () => {

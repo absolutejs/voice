@@ -240,6 +240,7 @@ Verified:
 - `@absolutejs/voice@0.0.22-beta.368` adds `buildVoiceRealCallProfileEvidenceFromTraceEvents(...)` and `loadVoiceRealCallProfileEvidenceFromTraceStore(...)`, so ordinary persisted session/provider/live-latency/runtime/turn traces can become real-call benchmark profile history without app-specific glue.
 - `@absolutejs/voice@0.0.22-beta.369` adds `createVoiceProfileTraceTagger(...)`, so apps can wrap any trace store and automatically stamp real sessions with benchmark profile metadata before profile-history ingestion.
 - `@absolutejs/voice@0.0.22-beta.370` adds `buildVoiceRealCallProfileReadinessCheck(...)`, turning real-call profile history into a production-readiness gate for required profiles, cycles, actionable provider defaults, provider roles, and profile recommendation failures.
+- `@absolutejs/voice@0.0.22-beta.371` adds `buildVoiceRealCallProfileRecoveryActions(...)`, so failed real-call profile gates can return exact operator actions for browser proof, phone proof, missing provider-role evidence, operations records, and production-readiness refresh.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 
