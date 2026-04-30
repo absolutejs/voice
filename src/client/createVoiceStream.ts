@@ -101,6 +101,9 @@ export const createVoiceStream = <TResult = unknown>(
 		get scenarioId() {
 			return store.getSnapshot().scenarioId;
 		},
+		get sessionMetadata() {
+			return store.getSnapshot().sessionMetadata;
+		},
 		start,
 		get partial() {
 			return store.getSnapshot().partial;

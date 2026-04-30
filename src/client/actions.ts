@@ -93,6 +93,7 @@ export const serverMessageToAction = <TResult = unknown>(
 				partial: message.partial,
 				scenarioId: message.scenarioId,
 				sessionId: message.sessionId,
+				sessionMetadata: message.sessionMetadata,
 				status: message.status,
 				turns: message.turns,
 				type: 'replay' as const
@@ -100,6 +101,7 @@ export const serverMessageToAction = <TResult = unknown>(
 		case 'session':
 			return {
 				sessionId: message.sessionId,
+				sessionMetadata: message.sessionMetadata,
 				scenarioId: message.scenarioId,
 				status: message.status,
 				type: 'session' as const

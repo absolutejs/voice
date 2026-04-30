@@ -582,6 +582,10 @@ export const createVoiceSession = <
 			partial: session.currentTurn.partialText,
 			scenarioId: session.scenarioId,
 			sessionId: options.id,
+			sessionMetadata:
+				session.metadata && typeof session.metadata === 'object'
+					? (session.metadata as Record<string, unknown>)
+					: undefined,
 			status: session.status,
 			turns: session.turns,
 			type: 'replay'
@@ -2365,6 +2369,10 @@ export const createVoiceSession = <
 		await send({
 			sessionId: options.id,
 			status: session.status,
+			sessionMetadata:
+				session.metadata && typeof session.metadata === 'object'
+					? (session.metadata as Record<string, unknown>)
+					: undefined,
 			scenarioId: session.scenarioId,
 			type: 'session'
 		});

@@ -18,6 +18,7 @@ export function useVoiceStream<TResult = unknown>(
 	const partial = ref('');
 	const reconnect = shallowRef(stream.reconnect);
 	const sessionId = ref(stream.sessionId);
+	const sessionMetadata = shallowRef(stream.sessionMetadata);
 	const status = ref(stream.status);
 	const turns = shallowRef<VoiceTurnRecord<TResult>[]>([]);
 
@@ -30,6 +31,7 @@ export function useVoiceStream<TResult = unknown>(
 		partial.value = stream.partial;
 		reconnect.value = stream.reconnect;
 		sessionId.value = stream.sessionId;
+		sessionMetadata.value = stream.sessionMetadata;
 		status.value = stream.status;
 		turns.value = [...stream.turns];
 	};
@@ -58,6 +60,7 @@ export function useVoiceStream<TResult = unknown>(
 		reconnect,
 		sendAudio: (audio: Uint8Array | ArrayBuffer) => stream.sendAudio(audio),
 		sessionId,
+		sessionMetadata,
 		status,
 		turns
 	};

@@ -1090,6 +1090,7 @@ export type VoiceServerSessionMessage = {
 	sessionId: string;
 	status: VoiceSessionStatus;
 	scenarioId?: string;
+	sessionMetadata?: Record<string, unknown>;
 };
 
 export type VoiceServerReplayMessage<TResult = unknown> = {
@@ -1099,6 +1100,7 @@ export type VoiceServerReplayMessage<TResult = unknown> = {
 	partial: string;
 	scenarioId?: string;
 	sessionId: string;
+	sessionMetadata?: Record<string, unknown>;
 	status: VoiceSessionStatus;
 	turns: VoiceTurnRecord<TResult>[];
 };
@@ -1375,6 +1377,7 @@ export type VoiceHTMXConfig<
 
 export type VoiceStreamState<TResult = unknown> = {
 	call: VoiceCallLifecycleState | null;
+	sessionMetadata: Record<string, unknown> | null;
 	sessionId: string | null;
 	scenarioId: string | null;
 	status: VoiceSessionStatus | 'idle';
@@ -1409,6 +1412,7 @@ export type VoiceStream<TResult = unknown> = {
 	reconnect: VoiceReconnectClientState;
 	sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
 	sessionId: string | null;
+	sessionMetadata: Record<string, unknown> | null;
 	scenarioId: string | null;
 	status: VoiceSessionStatus | 'idle';
 	subscribe: (subscriber: () => void) => () => void;
@@ -1486,6 +1490,7 @@ export type VoiceController<TResult = unknown> = {
 	recordingError: string | null;
 	sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
 	sessionId: string | null;
+	sessionMetadata: Record<string, unknown> | null;
 	scenarioId: string | null;
 	startRecording: () => Promise<void>;
 	status: VoiceSessionStatus | 'idle';
@@ -1518,6 +1523,7 @@ export type VoiceStoreAction<TResult = unknown> =
 	| {
 			type: 'session';
 			sessionId: string;
+			sessionMetadata?: Record<string, unknown>;
 			scenarioId?: string;
 			status: VoiceSessionStatus;
 	  }
@@ -1528,6 +1534,7 @@ export type VoiceStoreAction<TResult = unknown> =
 			partial: string;
 			scenarioId?: string;
 			sessionId: string;
+			sessionMetadata?: Record<string, unknown>;
 			status: VoiceSessionStatus;
 			turns: VoiceTurnRecord<TResult>[];
 	  }

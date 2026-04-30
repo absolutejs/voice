@@ -17,6 +17,7 @@ const createInitialState = (): VoiceStreamState => ({
 	call: null,
 	error: null,
 	isConnected: false,
+	sessionMetadata: null,
 	scenarioId: null,
 	partial: '',
 	reconnect: createInitialReconnectState(),
@@ -147,6 +148,7 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
 							: state.reconnect,
 					scenarioId: action.scenarioId ?? state.scenarioId,
 					sessionId: action.sessionId,
+					sessionMetadata: action.sessionMetadata ?? state.sessionMetadata,
 					status: action.status,
 					turns: [...action.turns]
 				};
@@ -158,6 +160,7 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
 					scenarioId: action.scenarioId ?? state.scenarioId,
 					isConnected: action.status === 'active',
 					sessionId: action.sessionId,
+					sessionMetadata: action.sessionMetadata ?? state.sessionMetadata,
 					status: action.status
 				};
 				break;

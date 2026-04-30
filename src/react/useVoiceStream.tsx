@@ -15,6 +15,7 @@ const EMPTY_SNAPSHOT = {
 		status: 'idle' as const
 	},
 	sessionId: '',
+	sessionMetadata: null,
 	status: 'idle' as const,
 	turns: []
 };

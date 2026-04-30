@@ -22,6 +22,7 @@ const createInitialState = <TResult,>(
 	reconnect: stream.reconnect,
 	recordingError: null,
 	sessionId: stream.sessionId,
+	sessionMetadata: stream.sessionMetadata,
 	scenarioId: stream.scenarioId,
 	status: stream.status,
 	turns: [...stream.turns]
@@ -57,6 +58,7 @@ export const createVoiceController = <TResult = unknown>(
 			partial: stream.partial,
 			reconnect: stream.reconnect,
 			sessionId: stream.sessionId,
+			sessionMetadata: stream.sessionMetadata,
 			scenarioId: stream.scenarioId,
 			status: stream.status,
 			turns: [...stream.turns]
@@ -181,6 +183,9 @@ export const createVoiceController = <TResult = unknown>(
 		sendAudio: (audio) => stream.sendAudio(audio),
 		get sessionId() {
 			return state.sessionId;
+		},
+		get sessionMetadata() {
+			return state.sessionMetadata;
 		},
 		get scenarioId() {
 			return state.scenarioId;

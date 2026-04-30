@@ -20,6 +20,7 @@ export class VoiceStreamService {
 		const partialSignal = signal('');
 		const reconnectSignal = signal(stream.reconnect);
 		const sessionIdSignal = signal(stream.sessionId);
+		const sessionMetadataSignal = signal(stream.sessionMetadata);
 		const statusSignal = signal(stream.status);
 		const turnsSignal = signal<VoiceTurnRecord<TResult>[]>([]);
 
@@ -32,6 +33,7 @@ export class VoiceStreamService {
 			partialSignal.set(stream.partial);
 			reconnectSignal.set(stream.reconnect);
 			sessionIdSignal.set(stream.sessionId);
+			sessionMetadataSignal.set(stream.sessionMetadata);
 			statusSignal.set(stream.status);
 			turnsSignal.set([...stream.turns]);
 		};
@@ -57,6 +59,7 @@ export class VoiceStreamService {
 			sendAudio: (audio: Uint8Array | ArrayBuffer) =>
 				stream.sendAudio(audio),
 			sessionId: computed(() => sessionIdSignal()),
+			sessionMetadata: computed(() => sessionMetadataSignal()),
 			status: computed(() => statusSignal()),
 			turns: computed(() => turnsSignal())
 		};
