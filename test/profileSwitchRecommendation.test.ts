@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	applyVoiceProfileSwitchGuard,
+	buildVoiceProfileSwitchLiveDecisionReport,
+	createVoiceMemoryTraceEventStore,
 	createVoiceProfileSwitchPolicyProofRoutes,
+	createVoiceProfileSwitchLiveDecisionRoutes,
 	createVoiceMemoryAuditEventStore,
 	recommendVoiceProfileSwitch,
 	runVoiceProfileSwitchPolicyProof,
@@ -286,5 +289,89 @@ describe('profile switch recommendations', () => {
 		expect(html).toContain('Voice Profile Switch Policy Proof');
 		expect(html).toContain('Max switches');
 		expect(html).toContain('PASS');
+	});
+
+	test('live decision report summarizes audit and trace guard evidence', async () => {
+		const audit = createVoiceMemoryAuditEventStore();
+		const trace = createVoiceMemoryTraceEventStore();
+		await applyVoiceProfileSwitchGuard({
+			audit,
+			defaults,
+			mode: 'auto',
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			},
+			sessionId: 'session-live-guard'
+		});
+		await trace.append({
+			at: Date.now(),
+			metadata: { source: 'profile-switch-guard' },
+			payload: {
+				action: 'blocked',
+				autoApplied: false,
+				blockedByPolicy: 'max-switches',
+				confidence: 0.84,
+				maxAutoSwitchesPerSession: 1,
+				minConfidence: 0.75,
+				mode: 'auto',
+				reason: 'Blocked by max switch budget.',
+				selectedProfileId: 'meeting-recorder',
+				status: 'switch'
+			},
+			sessionId: 'session-live-guard',
+			type: 'provider.decision'
+		});
+
+		const report = await buildVoiceProfileSwitchLiveDecisionReport({
+			audit,
+			trace
+		});
+
+		expect(report.ok).toBe(true);
+		expect(report.summary.sessions).toBe(1);
+		expect(report.summary.auditEvents).toBe(1);
+		expect(report.summary.traceEvents).toBe(1);
+		expect(report.summary.switches).toBe(1);
+		expect(report.summary.blocked).toBe(1);
+		expect(report.sessions[0]?.blockedByPolicy).toEqual(['max-switches']);
+	});
+
+	test('live decision routes expose JSON and HTML evidence', async () => {
+		const audit = createVoiceMemoryAuditEventStore();
+		const trace = createVoiceMemoryTraceEventStore();
+		await applyVoiceProfileSwitchGuard({
+			audit,
+			defaults,
+			mode: 'auto',
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			},
+			sessionId: 'session-live-route'
+		});
+		const app = createVoiceProfileSwitchLiveDecisionRoutes({
+			audit,
+			trace
+		});
+
+		const jsonResponse = await app.handle(
+			new Request('http://localhost/api/voice/profile-switch-live-decisions')
+		);
+		const json = await jsonResponse.json();
+		expect(json.ok).toBe(true);
+		expect(json.summary.decisions).toBe(1);
+
+		const htmlResponse = await app.handle(
+			new Request('http://localhost/voice/profile-switch-live-decisions')
+		);
+		const html = await htmlResponse.text();
+		expect(html).toContain('Voice Profile Switch Live Decisions');
+		expect(html).toContain('session-live-route');
+		expect(html).toContain('switch');
 	});
 });

@@ -10,6 +10,10 @@ import {
 	type VoiceAuditActor,
 	type VoiceAuditEventStore
 } from './audit';
+import type {
+	StoredVoiceTraceEvent,
+	VoiceTraceEventStore
+} from './trace';
 
 export type VoiceProfileSwitchObservedSignals = {
 	currentProfileId?: string;
@@ -147,6 +151,74 @@ export type VoiceProfileSwitchPolicyProofRoutesOptions =
 		name?: string;
 		path?: string;
 		render?: (report: VoiceProfileSwitchPolicyProofReport) => string | Promise<string>;
+	};
+
+export type VoiceProfileSwitchLiveDecisionEvidence = {
+	action?: VoiceProfileSwitchGuardAction | string;
+	at: number;
+	auditEventId?: string;
+	autoApplied?: boolean;
+	autoSwitchCount?: number;
+	blockedByPolicy?: string;
+	confidence?: number;
+	maxAutoSwitchesPerSession?: number;
+	minConfidence?: number;
+	mode?: VoiceProfileSwitchGuardMode | string;
+	outcome?: string;
+	previousProfileId?: string;
+	reason?: string;
+	recommendedProfileId?: string;
+	scenarioId?: string;
+	selectedProfileId?: string;
+	sessionId: string;
+	source: 'audit' | 'trace';
+	status?: string;
+	traceEventId?: string;
+	traceId?: string;
+};
+
+export type VoiceProfileSwitchLiveDecisionSession = {
+	actionCounts: Record<string, number>;
+	actions: string[];
+	autoApplied: number;
+	blockedByPolicy: string[];
+	decisions: VoiceProfileSwitchLiveDecisionEvidence[];
+	firstSeenAt: number;
+	lastDecision?: VoiceProfileSwitchLiveDecisionEvidence;
+	lastSeenAt: number;
+	sessionId: string;
+};
+
+export type VoiceProfileSwitchLiveDecisionReport = {
+	generatedAt: string;
+	ok: boolean;
+	sessions: VoiceProfileSwitchLiveDecisionSession[];
+	summary: {
+		auditEvents: number;
+		autoApplied: number;
+		blocked: number;
+		decisions: number;
+		recommendations: number;
+		sessions: number;
+		switches: number;
+		traceEvents: number;
+	};
+};
+
+export type VoiceProfileSwitchLiveDecisionReportOptions = {
+	audit?: VoiceAuditEventStore;
+	limit?: number;
+	sessionId?: string;
+	trace?: VoiceTraceEventStore;
+};
+
+export type VoiceProfileSwitchLiveDecisionRoutesOptions =
+	VoiceProfileSwitchLiveDecisionReportOptions & {
+		htmlPath?: false | string;
+		name?: string;
+		path?: string;
+		render?: (report: VoiceProfileSwitchLiveDecisionReport) => string | Promise<string>;
+		title?: string;
 	};
 
 const readDefaults = (
@@ -634,6 +706,261 @@ export const createVoiceProfileSwitchPolicyProofRoutes = (
 				options.render ??
 				((input: VoiceProfileSwitchPolicyProofReport) =>
 					renderVoiceProfileSwitchPolicyProofHTML(input, {
+						title: options.title
+					}));
+			return new Response(await render(report), {
+				headers: { 'Content-Type': 'text/html; charset=utf-8' }
+			});
+		});
+	}
+
+	return routes;
+};
+
+const readStringField = (
+	record: Record<string, unknown> | undefined,
+	key: string
+) => (typeof record?.[key] === 'string' ? record[key] : undefined);
+
+const readNumberField = (
+	record: Record<string, unknown> | undefined,
+	key: string
+) =>
+	typeof record?.[key] === 'number' && Number.isFinite(record[key])
+		? record[key]
+		: undefined;
+
+const readBooleanField = (
+	record: Record<string, unknown> | undefined,
+	key: string
+) => (typeof record?.[key] === 'boolean' ? record[key] : undefined);
+
+const auditEventToLiveDecision = (
+	event: StoredVoiceAuditEvent
+): VoiceProfileSwitchLiveDecisionEvidence | undefined => {
+	if (event.type !== 'profile.switch' || !event.sessionId) {
+		return undefined;
+	}
+	const payload = event.payload;
+	return {
+		action: readStringField(payload, 'action') ?? event.action.replace(/^profile\.switch\./, ''),
+		at: event.at,
+		auditEventId: event.id,
+		autoApplied: readBooleanField(payload, 'autoApplied'),
+		autoSwitchCount: readNumberField(payload, 'autoSwitchCount'),
+		blockedByPolicy: readStringField(payload, 'blockedByPolicy'),
+		confidence: readNumberField(payload, 'confidence'),
+		maxAutoSwitchesPerSession: readNumberField(
+			payload,
+			'maxAutoSwitchesPerSession'
+		),
+		minConfidence: readNumberField(payload, 'minConfidence'),
+		mode: readStringField(payload, 'mode'),
+		outcome: event.outcome,
+		previousProfileId: readStringField(payload, 'previousProfileId'),
+		recommendedProfileId: readStringField(payload, 'recommendedProfileId'),
+		selectedProfileId:
+			readStringField(payload, 'selectedProfileId') ?? event.resource?.id,
+		sessionId: event.sessionId,
+		source: 'audit',
+		status: readStringField(payload, 'status'),
+		traceId: event.traceId
+	};
+};
+
+const traceEventToLiveDecision = (
+	event: StoredVoiceTraceEvent
+): VoiceProfileSwitchLiveDecisionEvidence | undefined => {
+	if (
+		event.type !== 'provider.decision' ||
+		event.metadata?.source !== 'profile-switch-guard'
+	) {
+		return undefined;
+	}
+	const payload = event.payload;
+	return {
+		action: readStringField(payload, 'action'),
+		at: event.at,
+		autoApplied: readBooleanField(payload, 'autoApplied'),
+		autoSwitchCount: readNumberField(payload, 'autoSwitchCount'),
+		blockedByPolicy: readStringField(payload, 'blockedByPolicy'),
+		confidence: readNumberField(payload, 'confidence'),
+		maxAutoSwitchesPerSession: readNumberField(
+			payload,
+			'maxAutoSwitchesPerSession'
+		),
+		minConfidence: readNumberField(payload, 'minConfidence'),
+		mode: readStringField(payload, 'mode'),
+		previousProfileId: readStringField(payload, 'previousProfileId'),
+		reason: readStringField(payload, 'reason'),
+		recommendedProfileId: readStringField(payload, 'recommendedProfileId'),
+		scenarioId: event.scenarioId,
+		selectedProfileId: readStringField(payload, 'selectedProfileId'),
+		sessionId: event.sessionId,
+		source: 'trace',
+		status: readStringField(payload, 'status'),
+		traceEventId: event.id,
+		traceId: event.traceId
+	};
+};
+
+export const buildVoiceProfileSwitchLiveDecisionReport = async (
+	options: VoiceProfileSwitchLiveDecisionReportOptions
+): Promise<VoiceProfileSwitchLiveDecisionReport> => {
+	const [auditEvents, traceEvents] = await Promise.all([
+		options.audit?.list({
+			limit: options.limit,
+			sessionId: options.sessionId,
+			type: 'profile.switch'
+		}) ?? [],
+		options.trace?.list({
+			limit: options.limit,
+			sessionId: options.sessionId,
+			type: 'provider.decision'
+		}) ?? []
+	]);
+	const decisions = [
+		...auditEvents
+			.map(auditEventToLiveDecision)
+			.filter(
+				(decision): decision is VoiceProfileSwitchLiveDecisionEvidence =>
+					Boolean(decision)
+			),
+		...traceEvents
+			.map(traceEventToLiveDecision)
+			.filter(
+				(decision): decision is VoiceProfileSwitchLiveDecisionEvidence =>
+					Boolean(decision)
+			)
+	]
+		.sort((left, right) => right.at - left.at)
+		.slice(0, options.limit);
+	const sessions = Array.from(
+		decisions.reduce((map, decision) => {
+			const existing =
+				map.get(decision.sessionId) ??
+				({
+					actionCounts: {},
+					actions: [],
+					autoApplied: 0,
+					blockedByPolicy: [],
+					decisions: [],
+					firstSeenAt: decision.at,
+					lastSeenAt: decision.at,
+					sessionId: decision.sessionId
+				} satisfies VoiceProfileSwitchLiveDecisionSession);
+			existing.decisions.push(decision);
+			existing.firstSeenAt = Math.min(existing.firstSeenAt, decision.at);
+			existing.lastSeenAt = Math.max(existing.lastSeenAt, decision.at);
+			if (decision.action) {
+				existing.actionCounts[decision.action] =
+					(existing.actionCounts[decision.action] ?? 0) + 1;
+			}
+			if (decision.autoApplied) {
+				existing.autoApplied += 1;
+			}
+			if (
+				decision.blockedByPolicy &&
+				!existing.blockedByPolicy.includes(decision.blockedByPolicy)
+			) {
+				existing.blockedByPolicy.push(decision.blockedByPolicy);
+			}
+			map.set(decision.sessionId, existing);
+			return map;
+		}, new Map<string, VoiceProfileSwitchLiveDecisionSession>())
+	).map(([, session]) => ({
+		...session,
+		actions: Object.keys(session.actionCounts).sort(),
+		decisions: session.decisions.sort((left, right) => right.at - left.at),
+		lastDecision: session.decisions.sort((left, right) => right.at - left.at)[0]
+	}));
+	const actionCount = (action: string) =>
+		decisions.filter((decision) => decision.action === action).length;
+
+	return {
+		generatedAt: new Date().toISOString(),
+		ok: decisions.length > 0,
+		sessions: sessions.sort((left, right) => right.lastSeenAt - left.lastSeenAt),
+		summary: {
+			auditEvents: auditEvents.length,
+			autoApplied: decisions.filter((decision) => decision.autoApplied).length,
+			blocked: actionCount('blocked'),
+			decisions: decisions.length,
+			recommendations: actionCount('recommend'),
+			sessions: sessions.length,
+			switches: actionCount('switch'),
+			traceEvents: traceEvents.length
+		}
+	};
+};
+
+export const renderVoiceProfileSwitchLiveDecisionHTML = (
+	report: VoiceProfileSwitchLiveDecisionReport,
+	options: { title?: string } = {}
+) => {
+	const title = options.title ?? 'Voice Profile Switch Live Decisions';
+	const rows = report.sessions
+		.flatMap((session) =>
+			session.decisions.map(
+				(decision) => `<tr>
+  <td><strong>${escapeHtml(decision.sessionId)}</strong><p>${escapeHtml(new Date(decision.at).toISOString())}</p></td>
+  <td>${escapeHtml(decision.source)}</td>
+  <td>${escapeHtml(decision.action ?? 'unknown')}</td>
+  <td>${escapeHtml(decision.selectedProfileId ?? 'none')}</td>
+  <td>${escapeHtml(decision.blockedByPolicy ?? 'none')}</td>
+  <td>${typeof decision.confidence === 'number' ? `${Math.round(decision.confidence * 100)}%` : 'n/a'}</td>
+  <td>${escapeHtml(decision.reason ?? decision.outcome ?? 'recorded')}</td>
+</tr>`
+			)
+		)
+		.join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#11100b;color:#fff7ed;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top right,rgba(251,146,60,.18),transparent 34%),#11100b}main{max-width:1180px;margin:0 auto}.hero,.card{border:1px solid rgba(251,191,36,.24);border-radius:24px;background:rgba(28,25,23,.78);box-shadow:0 24px 90px rgba(0,0,0,.24);padding:24px;margin-bottom:18px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.metric{border:1px solid rgba(251,191,36,.22);border-radius:18px;padding:16px;background:rgba(120,53,15,.26)}.metric span{display:block;color:#fed7aa;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;margin-top:8px;font-size:1.7rem}table{width:100%;border-collapse:collapse}th,td{padding:13px;text-align:left;border-bottom:1px solid rgba(251,191,36,.18);vertical-align:top}th{color:#fde68a;text-transform:uppercase;font-size:.74rem;letter-spacing:.08em}td p{margin:.35rem 0 0;color:#fdba74}pre{white-space:pre-wrap;overflow:auto;border-radius:18px;background:#020617;padding:18px;color:#ffedd5}.empty{color:#fdba74}</style></head><body><main><section class="hero"><h1>${escapeHtml(title)}</h1><p>This page summarizes real profile switch guard evidence from audit and trace stores. Use it beside policy proof to show bounded policy plus actual session decisions.</p><div class="metric-grid"><div class="metric"><span>Sessions</span><strong>${String(report.summary.sessions)}</strong></div><div class="metric"><span>Decisions</span><strong>${String(report.summary.decisions)}</strong></div><div class="metric"><span>Switches</span><strong>${String(report.summary.switches)}</strong></div><div class="metric"><span>Blocked</span><strong>${String(report.summary.blocked)}</strong></div><div class="metric"><span>Auto applied</span><strong>${String(report.summary.autoApplied)}</strong></div></div></section><section class="card"><h2>Live Guard Decisions</h2>${rows ? `<table><thead><tr><th>Session</th><th>Source</th><th>Action</th><th>Selected</th><th>Blocked by</th><th>Confidence</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No profile switch guard decisions recorded yet. Start a voice session with profileSwitchGuard enabled.</p>'}</section><section class="card"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
+};
+
+export const createVoiceProfileSwitchLiveDecisionRoutes = (
+	options: VoiceProfileSwitchLiveDecisionRoutesOptions
+) => {
+	const path = options.path ?? '/api/voice/profile-switch-live-decisions';
+	const htmlPath =
+		options.htmlPath === undefined
+			? '/voice/profile-switch-live-decisions'
+			: options.htmlPath;
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-profile-switch-live-decisions'
+	}).get(path, async ({ query }) =>
+		buildVoiceProfileSwitchLiveDecisionReport({
+			audit: options.audit,
+			limit:
+				typeof query.limit === 'string' && Number.isFinite(Number(query.limit))
+					? Number(query.limit)
+					: options.limit,
+			sessionId:
+				typeof query.sessionId === 'string' && query.sessionId.trim()
+					? query.sessionId.trim()
+					: options.sessionId,
+			trace: options.trace
+		})
+	);
+
+	if (htmlPath) {
+		routes.get(htmlPath, async ({ query }) => {
+			const report = await buildVoiceProfileSwitchLiveDecisionReport({
+				audit: options.audit,
+				limit:
+					typeof query.limit === 'string' && Number.isFinite(Number(query.limit))
+						? Number(query.limit)
+						: options.limit,
+				sessionId:
+					typeof query.sessionId === 'string' && query.sessionId.trim()
+						? query.sessionId.trim()
+						: options.sessionId,
+				trace: options.trace
+			});
+			const render =
+				options.render ??
+				((input: VoiceProfileSwitchLiveDecisionReport) =>
+					renderVoiceProfileSwitchLiveDecisionHTML(input, {
 						title: options.title
 					}));
 			return new Response(await render(report), {
