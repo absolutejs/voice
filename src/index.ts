@@ -152,6 +152,11 @@ export {
 	renderVoiceMediaPipelineMarkdown
 } from './mediaPipelineRoutes';
 export {
+	buildVoiceTelephonyMediaReport,
+	createVoiceTelephonyMediaRoutes,
+	renderVoiceTelephonyMediaHTML
+} from './telephonyMediaRoutes';
+export {
 	createVoiceBrowserMediaRoutes,
 	getLatestVoiceBrowserMediaReport,
 	renderVoiceBrowserMediaHTML,
@@ -164,6 +169,13 @@ export type {
 	VoiceMediaPipelineReportOptions,
 	VoiceMediaPipelineRoutesOptions
 } from './mediaPipelineRoutes';
+export type {
+	VoiceTelephonyMediaCarrierInput,
+	VoiceTelephonyMediaCarrierReport,
+	VoiceTelephonyMediaReport,
+	VoiceTelephonyMediaRoutesOptions,
+	VoiceTelephonyMediaStatus
+} from './telephonyMediaRoutes';
 export type {
 	VoiceBrowserMediaReport,
 	VoiceBrowserMediaRoutesOptions,
