@@ -553,7 +553,10 @@ const formatProviderMix = (
 		? 'n/a'
 		: providers
 				.map((provider) =>
-					provider.role
+					provider.role &&
+					!(provider.label ?? provider.id)
+						.toLowerCase()
+						.startsWith(provider.role.toLowerCase())
 						? `${provider.role.toUpperCase()} ${provider.label ?? provider.id}`
 						: (provider.label ?? provider.id)
 				)
@@ -809,6 +812,9 @@ export const buildVoiceProofTrendRecommendationReport = (
 	const currentProvider = options.currentProviderId
 		? providers.find((provider) => provider.id === options.currentProviderId)
 		: undefined;
+	const hasSingleProviderRole = new Set(
+		bestProviders.map((provider) => provider.role ?? provider.id)
+	).size <= 1;
 	const bestComparableProvider = currentProvider?.role
 		? bestProviders.find((provider) => provider.role === currentProvider.role)
 		: bestProvider;
@@ -826,9 +832,15 @@ export const buildVoiceProofTrendRecommendationReport = (
 
 	recommendations.push({
 		evidence: {
-			bestProviderId: bestComparableProvider?.id ?? bestProvider?.id,
+			bestProviderId:
+				currentProvider || hasSingleProviderRole
+					? (bestComparableProvider?.id ?? bestProvider?.id)
+					: undefined,
 			bestProviderMix: formatProviderMix(bestProviders),
-			bestProviderP95Ms: bestComparableProvider?.p95Ms ?? bestProvider?.p95Ms,
+			bestProviderP95Ms:
+				currentProvider || hasSingleProviderRole
+					? (bestComparableProvider?.p95Ms ?? bestProvider?.p95Ms)
+					: undefined,
 			budgetMs: budgets.maxProviderP95Ms,
 			currentProviderId: currentProvider?.id ?? options.currentProviderId,
 			currentProviderP95Ms: currentProvider?.p95Ms,
@@ -860,7 +872,10 @@ export const buildVoiceProofTrendRecommendationReport = (
 				: withinBudget(maxProviderP95Ms, budgets.maxProviderP95Ms)
 					? 'Keep current provider path'
 					: 'Change provider routing for latency-sensitive traffic',
-		role: bestComparableProvider?.role,
+		role:
+			currentProvider || hasSingleProviderRole
+				? bestComparableProvider?.role
+				: undefined,
 		status:
 			providers.length > 0
 				? providerSwitchRecommended
