@@ -134,7 +134,7 @@ Our wedge against Pipecat:
 - TypeScript/Bun/AbsoluteJS-native.
 - Framework parity and app UI primitives.
 - Business workflow/readiness/eval primitives bundled with the voice layer.
-- Roadmap intent: AbsoluteJS Voice should eventually own the common media-pipeline primitives that a self-hosted AbsoluteJS voice app needs, instead of treating Pipecat as a permanent competitor dependency. Interop can exist temporarily, but the strategic goal is an AbsoluteJS-native pipeline surface for browser/telephony audio, frame processing, interruption, turn ownership, provider streaming, and proof.
+- Roadmap intent: AbsoluteJS Voice should own the common media-pipeline primitives that a self-hosted AbsoluteJS voice app needs, instead of treating Pipecat as a dependency or bridge target. The strategic goal is an AbsoluteJS-native pipeline surface for browser/telephony audio, frame processing, interruption, turn ownership, provider streaming, and proof.
 
 ### OpenAI Realtime And Deepgram Flux
 
@@ -253,7 +253,7 @@ Depth levels:
 | Direct realtime/duplex providers | Covered | Covered to parity | Core `RealtimeAdapter` contract plus `@absolutejs/voice-openai` and `@absolutejs/voice-gemini` adapter packages exist; example provider-contract proof shows OpenAI and Gemini passing. Cascaded STT/LLM/TTS remains strong. | Improve runtime-channel calibration/live-demo proof, then define AbsoluteJS-native media pipeline primitives instead of treating Pipecat-style orchestration as only an external bridge. |
 | No-code visual builder | Intentional gap | Lag by design | Bland/Retell/Vapi-style visual flows are not our lane. We should provide code-first flow primitives, diagrams, and recipes. | Avoid app kits; add lightweight diagrams/docs only. |
 | Hosted phone-number provisioning | Intentional gap | Lag by design | Vapi/LiveKit Cloud can provision/manage numbers in hosted dashboards. AbsoluteJS should guide carrier setup and verify config, not become a telco platform. | Keep setup reports copy-ready and adapter-friendly. |
-| SIP/media infrastructure | Roadmap gap | Lag today, planned native depth | LiveKit owns rooms, SIP trunks, RTP/SRTP, DTMF, REFER, dispatch, and media networking. AbsoluteJS should not become a phone-number/telco dashboard, but it can own the app-level media pipeline primitives needed for self-hosted voice products. | Build native calibration, frame processing, transport lifecycle, interruption, and provider-streaming primitives before considering any temporary interop package. |
+| SIP/media infrastructure | Roadmap gap | Lag today, planned native depth | LiveKit owns rooms, SIP trunks, RTP/SRTP, DTMF, REFER, dispatch, and media networking. AbsoluteJS should not become a phone-number/telco dashboard, but it can own the app-level media pipeline primitives needed for self-hosted voice products. | Build native calibration, frame processing, transport lifecycle, interruption, and provider-streaming primitives. |
 
 Current depth summary:
 

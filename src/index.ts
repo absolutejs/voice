@@ -144,6 +144,19 @@ export {
 	resolveVoiceDiagnosticsTraceFilter
 } from './diagnosticsRoutes';
 export {
+	buildVoiceMediaPipelineCalibrationReport,
+	createVoiceMediaFrame
+} from './mediaPipeline';
+export type {
+	VoiceMediaFrame,
+	VoiceMediaFrameKind,
+	VoiceMediaFrameSource,
+	VoiceMediaPipelineCalibrationInput,
+	VoiceMediaPipelineCalibrationIssue,
+	VoiceMediaPipelineCalibrationReport,
+	VoiceMediaPipelineStatus
+} from './mediaPipeline';
+export {
 	buildVoiceDemoReadyReport,
 	createVoiceDemoReadyRoutes,
 	renderVoiceDemoReadyHTML

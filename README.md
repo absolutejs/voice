@@ -3525,7 +3525,7 @@ const report = await runTTSAdapterFixture(
 
 For server-to-server use, realtime adapters open provider-specific streaming connections, send session configuration, stream text or PCM input, and emit normalized transcript/audio/error/close events. OpenAI Realtime uses raw 24kHz mono `pcm_s16le` audio. The main `voice(...)` route can run in cascaded mode with `stt` plus optional `tts`, or direct realtime mode with `realtime`. Browser demos should make sure the captured PCM format matches `realtimeInputFormat` or resample before sending audio.
 
-Use `createVoiceRealtimeProviderContractMatrixPreset(...)` to prove which realtime providers are production-ready. Pipecat is represented as an explicit bridge seam by default, not core-owned media infrastructure:
+Use `createVoiceRealtimeProviderContractMatrixPreset(...)` to prove which realtime providers are production-ready. Native media-pipeline primitives such as `VoiceMediaFrame` and `buildVoiceMediaPipelineCalibrationReport(...)` are the path for advanced pipeline behavior in AbsoluteJS apps.
 
 ```ts
 import {

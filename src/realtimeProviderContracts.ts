@@ -34,7 +34,6 @@ export type VoiceRealtimeProviderContractDefinition<
 export type VoiceRealtimeProviderPresetProvider =
 	| 'gemini-live'
 	| 'openai-realtime'
-	| 'pipecat-bridge'
 	| (string & {});
 
 export type VoiceRealtimeProviderContractMatrixPresetOptions<
@@ -150,14 +149,12 @@ const defaultRequiredCapabilities: VoiceRealtimeProviderContractCapability[] = [
 
 const defaultProviderEnv: Record<string, string[]> = {
 	'gemini-live': ['GEMINI_API_KEY'],
-	'openai-realtime': ['OPENAI_API_KEY'],
-	'pipecat-bridge': []
+	'openai-realtime': ['OPENAI_API_KEY']
 };
 
 const defaultRealtimeProviders = [
 	'openai-realtime',
-	'gemini-live',
-	'pipecat-bridge'
+	'gemini-live'
 ] as const;
 
 const statusRank: Record<VoiceRealtimeProviderContractStatus, number> = {
@@ -209,8 +206,7 @@ export const createVoiceRealtimeProviderContractMatrixPreset = <
 			const requiredEnv =
 				options.requiredEnv?.[providerKey] ?? defaultProviderEnv[providerKey] ?? [];
 			const implementationStatus =
-				options.implementationStatus?.[providerKey] ??
-				(providerKey === 'pipecat-bridge' ? 'planned' : 'available');
+				options.implementationStatus?.[providerKey] ?? 'available';
 			const configured =
 				options.configured?.[providerKey] ??
 				(implementationStatus === 'planned'

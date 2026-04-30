@@ -129,7 +129,7 @@ describe('realtime provider contracts', () => {
 		).toBe('warn');
 	});
 
-	test('createVoiceRealtimeProviderContractMatrixPreset declares adapter packages and pipecat seam', () => {
+	test('createVoiceRealtimeProviderContractMatrixPreset declares realtime adapter packages', () => {
 		const preset = createVoiceRealtimeProviderContractMatrixPreset({
 			env: {
 				GEMINI_API_KEY: 'set',
@@ -158,24 +158,13 @@ describe('realtime provider contracts', () => {
 
 		expect(preset.contracts.map((contract) => contract.provider)).toEqual([
 			'openai-realtime',
-			'gemini-live',
-			'pipecat-bridge'
+			'gemini-live'
 		]);
-		expect(
-			preset.contracts.find((contract) => contract.provider === 'pipecat-bridge')
-		).toMatchObject({
-			configured: false,
-			implementationStatus: 'planned',
-			requiredEnv: []
-		});
-		expect(report.status).toBe('warn');
+		expect(report.status).toBe('pass');
 		expect(report.failed).toBe(0);
 		expect(
 			report.rows.find((row) => row.provider === 'openai-realtime')?.selected
 		).toBe(true);
-		expect(
-			report.rows.find((row) => row.provider === 'pipecat-bridge')?.status
-		).toBe('warn');
 	});
 
 	test('createVoiceRealtimeProviderContractRoutes exposes JSON and HTML', async () => {
