@@ -604,25 +604,41 @@ export const buildVoiceProofTrendProfileSummaries = (
 		);
 
 		if (historicalProfiles.length > 0) {
+			const missingProfileReports = reports.filter(
+					(report) =>
+						!report.summary.profiles?.some(
+							(profile: VoiceProofTrendProfileSummary) =>
+								profile.id === definition.id
+						)
+				);
+			const derivedProfiles =
+				missingProfileReports.length > 0
+					? buildVoiceProofTrendProfileSummaries(missingProfileReports, {
+							...options,
+							profiles: [definition]
+						})
+					: [];
+			const profiles = [...historicalProfiles, ...derivedProfiles];
+
 			return {
 				description:
-					definition.description ?? historicalProfiles.find(Boolean)?.description,
+					definition.description ?? profiles.find(Boolean)?.description,
 				id: definition.id,
-				label: definition.label ?? historicalProfiles.find(Boolean)?.label,
+				label: definition.label ?? profiles.find(Boolean)?.label,
 				maxLiveP95Ms: maxNumber(
-					historicalProfiles.map((profile) => profile.maxLiveP95Ms)
+					profiles.map((profile) => profile.maxLiveP95Ms)
 				),
 				maxProviderP95Ms: maxNumber(
-					historicalProfiles.map((profile) => profile.maxProviderP95Ms)
+					profiles.map((profile) => profile.maxProviderP95Ms)
 				),
 				maxTurnP95Ms: maxNumber(
-					historicalProfiles.map((profile) => profile.maxTurnP95Ms)
+					profiles.map((profile) => profile.maxTurnP95Ms)
 				),
 				providers: aggregateProofTrendProviders(
-					historicalProfiles.flatMap((profile) => profile.providers ?? [])
+					profiles.flatMap((profile) => profile.providers ?? [])
 				),
 				runtimeChannel: aggregateProofTrendRuntimeChannel(
-					historicalProfiles
+					profiles
 						.map((profile) => profile.runtimeChannel)
 						.filter(
 							(
@@ -631,11 +647,11 @@ export const buildVoiceProofTrendProfileSummaries = (
 								channel !== undefined
 						)
 				),
-				status: historicalProfiles.some((profile) => profile.status === 'fail')
+				status: profiles.some((profile) => profile.status === 'fail')
 					? 'fail'
-					: historicalProfiles.some((profile) => profile.status === 'warn')
+					: profiles.some((profile) => profile.status === 'warn')
 						? 'warn'
-						: historicalProfiles.every((profile) => profile.status === 'pass')
+						: profiles.every((profile) => profile.status === 'pass')
 							? 'pass'
 							: undefined
 			};

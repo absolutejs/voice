@@ -574,17 +574,51 @@ describe('proof trends', () => {
 				}
 			}
 		});
+		const unprofiled = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:02:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:02:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 6,
+				maxLiveP95Ms: 535,
+				maxProviderP95Ms: 710,
+				maxTurnP95Ms: 691,
+				providers: [
+					{
+						id: 'stt:deepgram',
+						label: 'STT deepgram',
+						p95Ms: 82,
+						role: 'stt',
+						samples: 4,
+						status: 'pass'
+					}
+				],
+				runtimeChannel: {
+					maxFirstAudioLatencyMs: 421,
+					maxInterruptionP95Ms: 191,
+					maxJitterMs: 13,
+					maxTimestampDriftMs: 501,
+					samples: 4,
+					status: 'pass'
+				}
+			}
+		});
 
-		const profiles = buildVoiceProofTrendProfileSummaries([older, newer]);
+		const profiles = buildVoiceProofTrendProfileSummaries([
+			older,
+			newer,
+			unprofiled
+		]);
 		const supportAgent = profiles.find((profile) => profile.id === 'support-agent');
 		const meetingRecorder = profiles.find(
 			(profile) => profile.id === 'meeting-recorder'
 		);
 
 		expect(supportAgent).toMatchObject({
-			maxLiveP95Ms: 548,
-			maxProviderP95Ms: 720,
-			maxTurnP95Ms: 693,
+			maxLiveP95Ms: 552,
+			maxProviderP95Ms: 730,
+			maxTurnP95Ms: 694,
 			runtimeChannel: {
 				maxFirstAudioLatencyMs: 435,
 				maxInterruptionP95Ms: 198
@@ -594,11 +628,11 @@ describe('proof trends', () => {
 		expect(
 			supportAgent?.providers.find((provider) => provider.id === 'stt:deepgram')
 				?.samples
-		).toBe(12);
+		).toBe(16);
 		expect(meetingRecorder).toMatchObject({
-			maxLiveP95Ms: 531,
-			maxProviderP95Ms: 700,
-			maxTurnP95Ms: 690,
+			maxLiveP95Ms: 535,
+			maxProviderP95Ms: 710,
+			maxTurnP95Ms: 691,
 			status: 'pass'
 		});
 	});
