@@ -2,9 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import {
 	applyVoiceProfileSwitchGuard,
 	buildVoiceProfileSwitchLiveDecisionReport,
+	buildVoiceProfileSwitchReadinessReport,
 	createVoiceMemoryTraceEventStore,
 	createVoiceProfileSwitchPolicyProofRoutes,
 	createVoiceProfileSwitchLiveDecisionRoutes,
+	createVoiceProfileSwitchReadinessRoutes,
 	createVoiceMemoryAuditEventStore,
 	recommendVoiceProfileSwitch,
 	runVoiceProfileSwitchPolicyProof,
@@ -373,5 +375,88 @@ describe('profile switch recommendations', () => {
 		expect(html).toContain('Voice Profile Switch Live Decisions');
 		expect(html).toContain('session-live-route');
 		expect(html).toContain('switch');
+	});
+
+	test('readiness report passes when policy proof and live evidence are present', async () => {
+		const audit = createVoiceMemoryAuditEventStore();
+		const trace = createVoiceMemoryTraceEventStore();
+		await applyVoiceProfileSwitchGuard({
+			audit,
+			defaults,
+			mode: 'auto',
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			},
+			sessionId: 'session-readiness'
+		});
+		await trace.append({
+			at: Date.now(),
+			metadata: { source: 'profile-switch-guard' },
+			payload: {
+				action: 'switch',
+				autoApplied: true,
+				confidence: 0.84,
+				mode: 'auto',
+				selectedProfileId: 'noisy-phone-call',
+				status: 'switch'
+			},
+			sessionId: 'session-readiness',
+			type: 'provider.decision'
+		});
+
+		const report = await buildVoiceProfileSwitchReadinessReport({
+			audit,
+			autoMode: true,
+			maxAutoAppliedRatio: 1,
+			policyProof: {
+				allowedProfileIds: ['meeting-recorder', 'noisy-phone-call'],
+				defaults,
+				observed: {
+					currentProfileId: 'meeting-recorder',
+					fallbackUsed: true,
+					providerP95Ms: 950,
+					turnWarnings: 3
+				}
+			},
+			trace
+		});
+
+		expect(report.status).toBe('pass');
+		expect(report.summary.policyCases).toBe(6);
+		expect(report.issues).toHaveLength(0);
+	});
+
+	test('readiness routes expose failing JSON and HTML when evidence is missing', async () => {
+		const app = createVoiceProfileSwitchReadinessRoutes({
+			autoMode: true,
+			policyProof: {
+				defaults,
+				observed: {
+					currentProfileId: 'meeting-recorder',
+					fallbackUsed: true,
+					providerP95Ms: 950,
+					turnWarnings: 3
+				}
+			}
+		});
+
+		const jsonResponse = await app.handle(
+			new Request('http://localhost/api/voice/profile-switch-readiness')
+		);
+		const json = await jsonResponse.json();
+		expect(json.status).toBe('fail');
+		expect(json.issues.map((issue: { code: string }) => issue.code)).toContain(
+			'voice.profile_switch.live_decisions_missing'
+		);
+
+		const htmlResponse = await app.handle(
+			new Request('http://localhost/voice/profile-switch-readiness')
+		);
+		const html = await htmlResponse.text();
+		expect(html).toContain('Voice Profile Switch Readiness');
+		expect(html).toContain('voice.profile_switch.live_decisions_missing');
 	});
 });

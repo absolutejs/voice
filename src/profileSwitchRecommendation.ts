@@ -221,6 +221,54 @@ export type VoiceProfileSwitchLiveDecisionRoutesOptions =
 		title?: string;
 	};
 
+export type VoiceProfileSwitchReadinessStatus = 'fail' | 'pass' | 'warn';
+
+export type VoiceProfileSwitchReadinessIssue = {
+	code: string;
+	message: string;
+	status: Exclude<VoiceProfileSwitchReadinessStatus, 'pass'>;
+};
+
+export type VoiceProfileSwitchReadinessReport = {
+	generatedAt: string;
+	issues: VoiceProfileSwitchReadinessIssue[];
+	live: VoiceProfileSwitchLiveDecisionReport;
+	policy?: VoiceProfileSwitchPolicyProofReport;
+	status: VoiceProfileSwitchReadinessStatus;
+	summary: {
+		auditEvents: number;
+		autoApplied: number;
+		blocked: number;
+		decisions: number;
+		policyCases?: number;
+		sessions: number;
+		switches: number;
+		traceEvents: number;
+	};
+};
+
+export type VoiceProfileSwitchReadinessOptions =
+	VoiceProfileSwitchLiveDecisionReportOptions & {
+		autoMode?: boolean;
+		maxBlockedRatio?: number;
+		maxAutoAppliedRatio?: number;
+		policyProof?: false | VoiceProfileSwitchPolicyProofOptions;
+		requireAudit?: boolean;
+		requireAllowedProfilePolicy?: boolean;
+		requireLiveDecisions?: boolean;
+		requirePolicyProof?: boolean;
+		requireTrace?: boolean;
+	};
+
+export type VoiceProfileSwitchReadinessRoutesOptions =
+	VoiceProfileSwitchReadinessOptions & {
+		htmlPath?: false | string;
+		name?: string;
+		path?: string;
+		render?: (report: VoiceProfileSwitchReadinessReport) => string | Promise<string>;
+		title?: string;
+	};
+
 const readDefaults = (
 	input: VoiceRealCallProfileDefaultsReport | VoiceRealCallProfileHistoryReport
 ) => ('defaults' in input ? input.defaults : input);
@@ -963,6 +1011,188 @@ export const createVoiceProfileSwitchLiveDecisionRoutes = (
 					renderVoiceProfileSwitchLiveDecisionHTML(input, {
 						title: options.title
 					}));
+			return new Response(await render(report), {
+				headers: { 'Content-Type': 'text/html; charset=utf-8' }
+			});
+		});
+	}
+
+	return routes;
+};
+
+const statusFromIssues = (
+	issues: VoiceProfileSwitchReadinessIssue[]
+): VoiceProfileSwitchReadinessStatus =>
+	issues.some((issue) => issue.status === 'fail')
+		? 'fail'
+		: issues.length > 0
+			? 'warn'
+			: 'pass';
+
+export const buildVoiceProfileSwitchReadinessReport = async (
+	options: VoiceProfileSwitchReadinessOptions
+): Promise<VoiceProfileSwitchReadinessReport> => {
+	const live = await buildVoiceProfileSwitchLiveDecisionReport(options);
+	const policy =
+		options.policyProof === false || options.policyProof === undefined
+			? undefined
+			: await runVoiceProfileSwitchPolicyProof(options.policyProof);
+	const issues: VoiceProfileSwitchReadinessIssue[] = [];
+	const requireLiveDecisions = options.requireLiveDecisions ?? true;
+	const requireAudit = options.requireAudit ?? Boolean(options.autoMode);
+	const requireTrace = options.requireTrace ?? true;
+	const requirePolicyProof = options.requirePolicyProof ?? Boolean(options.policyProof);
+	const requireAllowedProfilePolicy =
+		options.requireAllowedProfilePolicy ?? Boolean(options.autoMode);
+	const maxBlockedRatio = options.maxBlockedRatio ?? 0.5;
+	const maxAutoAppliedRatio = options.maxAutoAppliedRatio ?? 0.75;
+	const decisions = live.summary.decisions;
+	const blockedRatio = decisions > 0 ? live.summary.blocked / decisions : 0;
+	const autoAppliedRatio =
+		decisions > 0 ? live.summary.autoApplied / decisions : 0;
+
+	if (requireLiveDecisions && decisions === 0) {
+		issues.push({
+			code: 'voice.profile_switch.live_decisions_missing',
+			message: 'No live profile switch guard decisions have been recorded.',
+			status: 'fail'
+		});
+	}
+	if (requireAudit && live.summary.auditEvents === 0) {
+		issues.push({
+			code: 'voice.profile_switch.audit_missing',
+			message: 'Profile switch guard readiness requires audit evidence.',
+			status: 'fail'
+		});
+	}
+	if (requireTrace && live.summary.traceEvents === 0) {
+		issues.push({
+			code: 'voice.profile_switch.trace_missing',
+			message: 'Profile switch guard readiness requires trace evidence.',
+			status: 'warn'
+		});
+	}
+	if (requirePolicyProof && !policy) {
+		issues.push({
+			code: 'voice.profile_switch.policy_proof_missing',
+			message: 'Profile switch policy proof was not configured.',
+			status: 'fail'
+		});
+	}
+	if (policy && !policy.ok) {
+		issues.push({
+			code: 'voice.profile_switch.policy_proof_failed',
+			message: 'Profile switch policy proof has failing cases.',
+			status: 'fail'
+		});
+	}
+	if (
+		requireAllowedProfilePolicy &&
+		(options.policyProof === false ||
+			!options.policyProof?.allowedProfileIds ||
+			options.policyProof.allowedProfileIds.length === 0)
+	) {
+		issues.push({
+			code: 'voice.profile_switch.allowed_policy_missing',
+			message:
+				'Auto profile switching should declare an allowedProfileIds policy.',
+			status: 'warn'
+		});
+	}
+	if (decisions > 0 && blockedRatio > maxBlockedRatio) {
+		issues.push({
+			code: 'voice.profile_switch.blocked_ratio_high',
+			message: `Blocked profile switch decisions are ${Math.round(blockedRatio * 100)}%, above the ${Math.round(maxBlockedRatio * 100)}% threshold.`,
+			status: 'warn'
+		});
+	}
+	if (decisions > 0 && autoAppliedRatio > maxAutoAppliedRatio) {
+		issues.push({
+			code: 'voice.profile_switch.auto_applied_ratio_high',
+			message: `Auto-applied profile switch decisions are ${Math.round(autoAppliedRatio * 100)}%, above the ${Math.round(maxAutoAppliedRatio * 100)}% threshold.`,
+			status: 'warn'
+		});
+	}
+
+	return {
+		generatedAt: new Date().toISOString(),
+		issues,
+		live,
+		policy,
+		status: statusFromIssues(issues),
+		summary: {
+			auditEvents: live.summary.auditEvents,
+			autoApplied: live.summary.autoApplied,
+			blocked: live.summary.blocked,
+			decisions,
+			policyCases: policy?.summary.total,
+			sessions: live.summary.sessions,
+			switches: live.summary.switches,
+			traceEvents: live.summary.traceEvents
+		}
+	};
+};
+
+export const renderVoiceProfileSwitchReadinessHTML = (
+	report: VoiceProfileSwitchReadinessReport,
+	options: { title?: string } = {}
+) => {
+	const title = options.title ?? 'Voice Profile Switch Readiness';
+	const issues = report.issues
+		.map(
+			(issue) =>
+				`<li class="${escapeHtml(issue.status)}"><strong>${escapeHtml(issue.code)}</strong><p>${escapeHtml(issue.message)}</p></li>`
+		)
+		.join('');
+	const sessions = report.live.sessions
+		.map(
+			(session) =>
+				`<tr><td>${escapeHtml(session.sessionId)}</td><td>${escapeHtml(session.actions.join(', ') || 'none')}</td><td>${String(session.decisions.length)}</td><td>${String(session.autoApplied)}</td><td>${escapeHtml(session.blockedByPolicy.join(', ') || 'none')}</td></tr>`
+		)
+		.join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#0b1020;color:#eff6ff;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top left,rgba(59,130,246,.2),transparent 34%),#0b1020}main{max-width:1140px;margin:0 auto}.hero,.card{background:rgba(15,23,42,.82);border:1px solid rgba(147,197,253,.24);border-radius:24px;margin-bottom:18px;padding:24px}.status{border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{background:rgba(34,197,94,.18);color:#bbf7d0}.warn{background:rgba(245,158,11,.18);color:#fde68a}.fail{background:rgba(239,68,68,.18);color:#fecaca}.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:16px}.metric{background:#0f172a;border:1px solid rgba(147,197,253,.2);border-radius:18px;padding:16px}.metric span{color:#93c5fd;display:block;font-size:.75rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.metric strong{display:block;font-size:1.8rem;margin-top:8px}ul{display:grid;gap:10px;list-style:none;padding:0}li{border-radius:16px;padding:14px}li p{margin:.35rem 0 0}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid rgba(147,197,253,.18);padding:12px;text-align:left}pre{background:#020617;border-radius:18px;color:#dbeafe;overflow:auto;padding:18px}</style></head><body><main><section class="hero"><h1>${escapeHtml(title)}</h1><p>Deploy-facing readiness for profile switching: policy proof, audit evidence, trace evidence, and live session behavior.</p><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status.toUpperCase())}</p><div class="grid"><div class="metric"><span>Sessions</span><strong>${String(report.summary.sessions)}</strong></div><div class="metric"><span>Decisions</span><strong>${String(report.summary.decisions)}</strong></div><div class="metric"><span>Policy cases</span><strong>${String(report.summary.policyCases ?? 0)}</strong></div><div class="metric"><span>Audit</span><strong>${String(report.summary.auditEvents)}</strong></div><div class="metric"><span>Trace</span><strong>${String(report.summary.traceEvents)}</strong></div></div></section><section class="card"><h2>Issues</h2>${issues ? `<ul>${issues}</ul>` : '<p class="pass status">No readiness issues.</p>'}</section><section class="card"><h2>Live Sessions</h2>${sessions ? `<table><thead><tr><th>Session</th><th>Actions</th><th>Decisions</th><th>Auto applied</th><th>Blocked by</th></tr></thead><tbody>${sessions}</tbody></table>` : '<p>No live guard sessions found.</p>'}</section><section class="card"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
+};
+
+export const createVoiceProfileSwitchReadinessRoutes = (
+	options: VoiceProfileSwitchReadinessRoutesOptions
+) => {
+	const path = options.path ?? '/api/voice/profile-switch-readiness';
+	const htmlPath =
+		options.htmlPath === undefined ? '/voice/profile-switch-readiness' : options.htmlPath;
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-profile-switch-readiness'
+	}).get(path, async ({ query }) =>
+		buildVoiceProfileSwitchReadinessReport({
+			...options,
+			limit:
+				typeof query.limit === 'string' && Number.isFinite(Number(query.limit))
+					? Number(query.limit)
+					: options.limit,
+			sessionId:
+				typeof query.sessionId === 'string' && query.sessionId.trim()
+					? query.sessionId.trim()
+					: options.sessionId
+		})
+	);
+
+	if (htmlPath) {
+		routes.get(htmlPath, async ({ query }) => {
+			const report = await buildVoiceProfileSwitchReadinessReport({
+				...options,
+				limit:
+					typeof query.limit === 'string' && Number.isFinite(Number(query.limit))
+						? Number(query.limit)
+						: options.limit,
+				sessionId:
+					typeof query.sessionId === 'string' && query.sessionId.trim()
+						? query.sessionId.trim()
+						: options.sessionId
+			});
+			const render =
+				options.render ??
+				((input: VoiceProfileSwitchReadinessReport) =>
+					renderVoiceProfileSwitchReadinessHTML(input, { title: options.title }));
 			return new Response(await render(report), {
 				headers: { 'Content-Type': 'text/html; charset=utf-8' }
 			});
