@@ -2,10 +2,14 @@ import { describe, expect, test } from 'bun:test';
 import {
 	buildVoiceMediaInterruptionReport,
 	buildVoiceMediaPipelineCalibrationReport,
+	buildVoiceMediaPipelineReport,
 	buildVoiceMediaResamplingPlan,
 	buildVoiceMediaVadReport,
 	createVoiceMediaFrame,
-	createVoiceMediaFrameTransformPipeline
+	createVoiceMediaFrameTransformPipeline,
+	createVoiceMediaPipelineRoutes,
+	evaluateVoiceMediaPipelineEvidence,
+	renderVoiceMediaPipelineMarkdown
 } from '../src';
 
 const raw24k = {
@@ -223,5 +227,108 @@ describe('media pipeline calibration', () => {
 				expect.objectContaining({ code: 'media.interruption_latency' })
 			])
 		);
+	});
+
+	test('builds a combined media pipeline report and assertion', () => {
+		const report = buildVoiceMediaPipelineReport({
+			expectedInputFormat: raw24k,
+			expectedOutputFormat: raw24k,
+			frames: [
+				createVoiceMediaFrame({
+					at: 0,
+					durationMs: 20,
+					format: raw24k,
+					id: 'input-1',
+					kind: 'input-audio',
+					metadata: { speechProbability: 0.8 },
+					source: 'browser',
+					traceEventId: 'trace-input'
+				}),
+				createVoiceMediaFrame({
+					format: raw24k,
+					id: 'assistant-1',
+					kind: 'assistant-audio',
+					latencyMs: 320,
+					source: 'provider',
+					traceEventId: 'trace-assistant'
+				}),
+				createVoiceMediaFrame({
+					id: 'interrupt-1',
+					kind: 'interruption',
+					latencyMs: 110,
+					source: 'voice-runtime',
+					traceEventId: 'trace-interrupt'
+				})
+			],
+			maxFirstAudioLatencyMs: 800,
+			maxInterruptionLatencyMs: 250,
+			requireInterruptionFrame: true,
+			requireTraceEvidence: true
+		});
+		const assertion = evaluateVoiceMediaPipelineEvidence(report, {
+			maxFirstAudioLatencyMs: 800,
+			maxInterruptionLatencyMs: 250,
+			minAssistantAudioFrames: 1,
+			minInputAudioFrames: 1,
+			minTraceLinkedFrames: 3,
+			minVadSegments: 1,
+			requireInterruptionFrame: true,
+			requirePass: true
+		});
+
+		expect(report.status).toBe('pass');
+		expect(report.vad.segments).toHaveLength(1);
+		expect(assertion.ok).toBe(true);
+	});
+
+	test('renders media pipeline routes as JSON, HTML, and Markdown', async () => {
+		const app = createVoiceMediaPipelineRoutes({
+			expectedInputFormat: raw24k,
+			expectedOutputFormat: raw24k,
+			frames: [
+				createVoiceMediaFrame({
+					format: raw24k,
+					id: 'input-1',
+					kind: 'input-audio',
+					metadata: { isSpeech: true },
+					source: 'browser',
+					traceEventId: 'trace-input'
+				}),
+				createVoiceMediaFrame({
+					format: raw24k,
+					id: 'assistant-1',
+					kind: 'assistant-audio',
+					latencyMs: 320,
+					source: 'provider',
+					traceEventId: 'trace-assistant'
+				}),
+				createVoiceMediaFrame({
+					id: 'interrupt-1',
+					kind: 'interruption',
+					latencyMs: 110,
+					source: 'voice-runtime',
+					traceEventId: 'trace-interrupt'
+				})
+			],
+			path: '/api/media',
+			title: 'Media Proof'
+		});
+
+		const jsonResponse = await app.handle(new Request('http://localhost/api/media'));
+		const htmlResponse = await app.handle(
+			new Request('http://localhost/voice/media-pipeline')
+		);
+		const markdownResponse = await app.handle(
+			new Request('http://localhost/voice/media-pipeline.md')
+		);
+		const body = (await jsonResponse.json()) as ReturnType<
+			typeof buildVoiceMediaPipelineReport
+		>;
+		const markdown = renderVoiceMediaPipelineMarkdown(body);
+
+		expect(body.status).toBe('pass');
+		expect(await htmlResponse.text()).toContain('Media Proof');
+		expect(await markdownResponse.text()).toContain('Voice Media Pipeline Proof');
+		expect(markdown).toContain('VAD segments: 1');
 	});
 });

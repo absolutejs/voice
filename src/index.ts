@@ -170,6 +170,21 @@ export type {
 	VoiceMediaVadSegment
 } from './mediaPipeline';
 export {
+	assertVoiceMediaPipelineEvidence,
+	buildVoiceMediaPipelineReport,
+	createVoiceMediaPipelineRoutes,
+	evaluateVoiceMediaPipelineEvidence,
+	renderVoiceMediaPipelineHTML,
+	renderVoiceMediaPipelineMarkdown
+} from './mediaPipelineRoutes';
+export type {
+	VoiceMediaPipelineAssertionInput,
+	VoiceMediaPipelineAssertionReport,
+	VoiceMediaPipelineReport,
+	VoiceMediaPipelineReportOptions,
+	VoiceMediaPipelineRoutesOptions
+} from './mediaPipelineRoutes';
+export {
 	buildVoiceDemoReadyReport,
 	createVoiceDemoReadyRoutes,
 	renderVoiceDemoReadyHTML
