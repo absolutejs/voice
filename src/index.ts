@@ -97,6 +97,25 @@ export {
 	runVoiceReconnectContract
 } from './reconnectContract';
 export {
+	assertVoiceRealtimeChannelEvidence,
+	buildVoiceRealtimeChannelReport,
+	createVoiceRealtimeChannelRoutes,
+	evaluateVoiceRealtimeChannelEvidence,
+	renderVoiceRealtimeChannelHTML,
+	renderVoiceRealtimeChannelMarkdown
+} from './realtimeChannel';
+export type {
+	VoiceRealtimeChannelAssertionInput,
+	VoiceRealtimeChannelAssertionReport,
+	VoiceRealtimeChannelBrowserCapture,
+	VoiceRealtimeChannelIssue,
+	VoiceRealtimeChannelReport,
+	VoiceRealtimeChannelReportOptions,
+	VoiceRealtimeChannelRoutesOptions,
+	VoiceRealtimeChannelRuntimeSample,
+	VoiceRealtimeChannelStatus
+} from './realtimeChannel';
+export {
 	buildVoiceDiagnosticsMarkdown,
 	createVoiceDiagnosticsRoutes,
 	resolveVoiceDiagnosticsTraceFilter
