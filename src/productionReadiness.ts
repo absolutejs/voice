@@ -556,6 +556,15 @@ export type VoiceProductionReadinessRoutesOptions = {
 		  }) =>
 				| Promise<readonly VoiceAgentSquadContractReport[]>
 				| readonly VoiceAgentSquadContractReport[]);
+	additionalChecks?:
+		| false
+		| readonly VoiceProductionReadinessCheck[]
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) =>
+				| Promise<readonly VoiceProductionReadinessCheck[]>
+				| readonly VoiceProductionReadinessCheck[]);
 	audit?: false | VoiceProductionReadinessAuditOptions;
 	auditDeliveries?: false | VoiceProductionReadinessAuditDeliveryOptions;
 	bargeInReports?:
@@ -1348,6 +1357,25 @@ const resolveProofSources = async (
 		: options.proofSources;
 };
 
+const resolveAdditionalChecks = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+): Promise<readonly VoiceProductionReadinessCheck[]> => {
+	if (
+		options.additionalChecks === false ||
+		options.additionalChecks === undefined
+	) {
+		return [];
+	}
+
+	return typeof options.additionalChecks === 'function'
+		? await options.additionalChecks(input)
+		: options.additionalChecks;
+};
+
 const isVoiceDeliveryRuntime = (
 	value: VoiceDeliveryRuntime | VoiceDeliveryRuntimeSummary
 ): value is VoiceDeliveryRuntime =>
@@ -2048,7 +2076,8 @@ export const buildVoiceProductionReadinessReport = async (
 		observabilityExport,
 		observabilityExportDeliveryHistory,
 		observabilityExportReplay,
-		proofSources
+		proofSources,
+		additionalChecks
 	] = await Promise.all([
 		evaluateVoiceQuality({ events }),
 		Promise.all([
@@ -2093,7 +2122,8 @@ export const buildVoiceProductionReadinessReport = async (
 		resolveObservabilityExport(options, { query, request }),
 		resolveObservabilityExportDeliveryHistory(options, { query, request }),
 		resolveObservabilityExportReplay(options, { query, request }),
-		resolveProofSources(options, { query, request })
+		resolveProofSources(options, { query, request }),
+		resolveAdditionalChecks(options, { query, request })
 	]);
 	const deliveryRuntime = summarizeDeliveryRuntime(deliveryRuntimeSummary);
 	const degradedProviders = providers.filter(
@@ -2325,6 +2355,7 @@ export const buildVoiceProductionReadinessReport = async (
 						]
 		}
 	];
+	checks.push(...additionalChecks);
 	const proofSource = (...keys: string[]) =>
 		keys
 			.map((key) => proofSources?.[key])
