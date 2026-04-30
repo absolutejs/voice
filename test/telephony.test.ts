@@ -659,11 +659,29 @@ test('twilio bridge forwards inbound media to the voice session and streams outb
 		type: 'client.telephony_media'
 	});
 	expect(telephonyMediaEvents.map((event) => event.payload.event)).toEqual(
-		expect.arrayContaining(['start', 'media', 'stop'])
+		expect.arrayContaining(['start', 'media', 'mark', 'clear', 'stop'])
 	);
 	expect(
-		telephonyMediaEvents.filter((event) => event.payload.event === 'media')
+		telephonyMediaEvents.filter(
+			(event) =>
+				event.payload.event === 'media' &&
+				event.payload.direction !== 'outbound'
+		)
 	).toHaveLength(2);
+	expect(
+		telephonyMediaEvents.some(
+			(event) =>
+				event.payload.event === 'media' &&
+				event.payload.direction === 'outbound'
+		)
+	).toBe(true);
+	expect(
+		telephonyMediaEvents.some(
+			(event) =>
+				event.payload.event === 'clear' &&
+				event.payload.direction === 'outbound'
+		)
+	).toBe(true);
 	expect(telephonyMediaEvents[0]).toMatchObject({
 		payload: {
 			carrier: 'twilio',

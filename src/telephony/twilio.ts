@@ -858,6 +858,7 @@ const createTwilioSocketAdapter = <TResult>(
 	socket: TwilioMediaStreamSocket,
 	getState: () => {
 		callSid: string | null;
+		carrier: 'plivo' | 'telnyx' | 'twilio';
 		hasOutboundAudioSinceLastInbound: boolean;
 		onVoiceMessage?: (input: {
 			callSid?: string;
@@ -866,8 +867,10 @@ const createTwilioSocketAdapter = <TResult>(
 			streamSid?: string;
 		}) => Promise<void> | void;
 		reviewRecorder?: VoiceCallReviewRecorder;
+		scenarioId: string | null;
 		sessionId: string | null;
 		streamSid: string | null;
+		trace?: VoiceTraceEventStore;
 	}
 ) => ({
 	close: async (code?: number, reason?: string) => {
@@ -899,11 +902,34 @@ const createTwilioSocketAdapter = <TResult>(
 				Uint8Array.from(Buffer.from(message.chunkBase64, 'base64')),
 				message.format
 			);
+			const outboundMessage = {
+				event: 'media',
+				media: {
+					payload,
+					track: 'outbound'
+				},
+				streamSid: state.streamSid
+			};
 			state.hasOutboundAudioSinceLastInbound = true;
 			state.reviewRecorder?.recordTwilioOutbound({
 				bytes: payload.length,
 				event: 'media',
 				track: 'outbound'
+			});
+			await state.trace?.append({
+				at: Date.now(),
+				payload: {
+					audioBytes: Buffer.from(payload, 'base64').byteLength,
+					callSid: state.callSid ?? undefined,
+					carrier: state.carrier,
+					direction: 'outbound',
+					envelope: outboundMessage,
+					event: 'media',
+					streamId: state.streamSid
+				},
+				scenarioId: state.scenarioId ?? undefined,
+				sessionId: state.sessionId ?? state.streamSid,
+				type: 'client.telephony_media'
 			});
 			await Promise.resolve(
 				socket.send(
@@ -920,20 +946,33 @@ const createTwilioSocketAdapter = <TResult>(
 		}
 
 		if (message.type === 'assistant' && message.turnId) {
+			const outboundMessage = {
+				event: 'mark',
+				mark: {
+					name: `assistant:${message.turnId}`
+				},
+				streamSid: state.streamSid
+			} satisfies TwilioOutboundMarkMessage;
 			state.reviewRecorder?.recordTwilioOutbound({
 				event: 'mark',
 				name: `assistant:${message.turnId}`
 			});
+			await state.trace?.append({
+				at: Date.now(),
+				payload: {
+					callSid: state.callSid ?? undefined,
+					carrier: state.carrier,
+					direction: 'outbound',
+					envelope: outboundMessage,
+					event: 'mark',
+					streamId: state.streamSid
+				},
+				scenarioId: state.scenarioId ?? undefined,
+				sessionId: state.sessionId ?? state.streamSid,
+				type: 'client.telephony_media'
+			});
 			await Promise.resolve(
-				socket.send(
-					JSON.stringify({
-						event: 'mark',
-						mark: {
-							name: `assistant:${message.turnId}`
-						},
-						streamSid: state.streamSid
-					} satisfies TwilioOutboundMarkMessage)
-				)
+				socket.send(JSON.stringify(outboundMessage))
 			);
 		}
 	}
@@ -985,6 +1024,7 @@ export const createTwilioMediaStreamBridge = <
 
 	const bridgeState: {
 		callSid: string | null;
+		carrier: 'plivo' | 'telnyx' | 'twilio';
 		hasOutboundAudioSinceLastInbound: boolean;
 		onVoiceMessage?: (input: {
 			callSid?: string;
@@ -996,8 +1036,10 @@ export const createTwilioMediaStreamBridge = <
 		scenarioId: string | null;
 		sessionId: string | null;
 		streamSid: string | null;
+		trace?: VoiceTraceEventStore;
 	} = {
 		callSid: null,
+		carrier: options.telephonyMediaCarrier ?? 'twilio',
 		hasOutboundAudioSinceLastInbound: false,
 		onVoiceMessage: options.onVoiceMessage,
 		reviewRecorder:
@@ -1022,13 +1064,14 @@ export const createTwilioMediaStreamBridge = <
 				: undefined,
 		scenarioId: options.scenarioId ?? null,
 		sessionId: options.sessionId ?? null,
-		streamSid: null
+		streamSid: null,
+		trace: options.trace as VoiceTraceEventStore | undefined
 	};
 	let sessionHandle:
 		| VoiceSessionHandle<TContext, TSession, TResult>
 		| null = null;
 	let reviewArtifactDelivered = false;
-	const telephonyMediaCarrier = options.telephonyMediaCarrier ?? 'twilio';
+	const telephonyMediaCarrier = bridgeState.carrier;
 
 	const appendTelephonyMediaTrace = async (
 		message: TwilioInboundMessage,
@@ -1219,16 +1262,29 @@ export const createTwilioMediaStreamBridge = <
 						bridgeState.hasOutboundAudioSinceLastInbound &&
 						bridgeState.streamSid
 					) {
+						const outboundMessage = {
+							event: 'clear',
+							streamSid: bridgeState.streamSid
+						} satisfies TwilioOutboundClearMessage;
 						bridgeState.reviewRecorder?.recordTwilioOutbound({
 							event: 'clear'
 						});
+						await (options.trace as VoiceTraceEventStore | undefined)?.append({
+							at: Date.now(),
+							payload: {
+								callSid: bridgeState.callSid ?? undefined,
+								carrier: telephonyMediaCarrier,
+								direction: 'outbound',
+								envelope: outboundMessage,
+								event: 'clear',
+								streamId: bridgeState.streamSid
+							},
+							scenarioId: bridgeState.scenarioId ?? undefined,
+							sessionId: bridgeState.sessionId ?? bridgeState.streamSid,
+							type: 'client.telephony_media'
+						});
 						await Promise.resolve(
-							socket.send(
-								JSON.stringify({
-									event: 'clear',
-									streamSid: bridgeState.streamSid
-								} satisfies TwilioOutboundClearMessage)
-							)
+							socket.send(JSON.stringify(outboundMessage))
 						);
 					}
 					bridgeState.hasOutboundAudioSinceLastInbound = false;

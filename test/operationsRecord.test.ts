@@ -226,6 +226,43 @@ const createRecordEvents = () => [
 		},
 		sessionId: 'session-ops',
 		type: 'client.telephony_media'
+	}),
+	createVoiceTraceEvent({
+		at: 300,
+		payload: {
+			audioBytes: 4,
+			carrier: 'twilio',
+			direction: 'outbound',
+			envelope: {
+				event: 'media',
+				media: {
+					payload: Buffer.from(new Uint8Array([5, 6, 7, 8])).toString(
+						'base64'
+					),
+					track: 'outbound'
+				},
+				streamSid: 'MZ-ops'
+			},
+			event: 'media',
+			streamId: 'MZ-ops'
+		},
+		sessionId: 'session-ops',
+		type: 'client.telephony_media'
+	}),
+	createVoiceTraceEvent({
+		at: 310,
+		payload: {
+			carrier: 'twilio',
+			direction: 'outbound',
+			envelope: {
+				event: 'clear',
+				streamSid: 'MZ-ops'
+			},
+			event: 'clear',
+			streamId: 'MZ-ops'
+		},
+		sessionId: 'session-ops',
+		type: 'client.telephony_media'
 	})
 ];
 
@@ -388,7 +425,7 @@ test('buildVoiceOperationsRecord aggregates trace, replay, provider, handoff, to
 		status: 'healthy',
 		summary: {
 			callDurationMs: 160,
-			eventCount: 15,
+			eventCount: 17,
 			turnCount: 1,
 			handoffCount: 1,
 			toolCallCount: 1
@@ -402,13 +439,16 @@ test('buildVoiceOperationsRecord aggregates trace, replay, provider, handoff, to
 		]
 	});
 	expect(record.telephonyMedia).toMatchObject({
-		audioBytes: 4,
+		audioBytes: 8,
 		carriers: ['twilio'],
-		media: 1,
+		clears: 1,
+		inbound: 1,
+		media: 2,
+		outbound: 2,
 		starts: 1,
 		stops: 1,
 		streamIds: ['MZ-ops'],
-		total: 3
+		total: 5
 	});
 	expect(record.telephonyMedia.events[1]).toMatchObject({
 		audioBytes: 4,
@@ -751,5 +791,6 @@ test('renderVoiceOperationsRecordHTML includes copyable primitive snippet', asyn
 	const markdown = renderVoiceOperationsRecordIncidentMarkdown(record);
 	expect(markdown).toContain('Top errors: none');
 	expect(markdown).toContain('Telephony media');
+	expect(markdown).toContain('outbound=2');
 	expect(markdown).toContain('stream=MZ-ops');
 });
