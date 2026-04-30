@@ -170,6 +170,7 @@ export type VoiceProofTrendProviderRecommendation = {
 
 export type VoiceProofTrendRecommendationReport = {
 	bestProvider?: VoiceProofTrendProviderRecommendation;
+	bestProviders: VoiceProofTrendProviderRecommendation[];
 	generatedAt: string;
 	issues: string[];
 	ok: boolean;
@@ -529,6 +530,35 @@ const shouldSwitchProvider = (
 	return improvementMs >= minImprovementMs || improvementRatio >= minImprovementRatio;
 };
 
+const bestProviderByRole = (
+	providers: readonly VoiceProofTrendProviderRecommendation[]
+) => {
+	const best = new Map<string, VoiceProofTrendProviderRecommendation>();
+	for (const provider of providers) {
+		const role = provider.role ?? provider.id;
+		const existing = best.get(role);
+		if (!existing || compareProviders(provider, existing) < 0) {
+			best.set(role, provider);
+		}
+	}
+	return [...best.values()].sort((left, right) =>
+		String(left.role ?? left.id).localeCompare(String(right.role ?? right.id))
+	);
+};
+
+const formatProviderMix = (
+	providers: readonly VoiceProofTrendProviderRecommendation[]
+) =>
+	providers.length === 0
+		? 'n/a'
+		: providers
+				.map((provider) =>
+					provider.role
+						? `${provider.role.toUpperCase()} ${provider.label ?? provider.id}`
+						: (provider.label ?? provider.id)
+				)
+				.join(', ');
+
 export const evaluateVoiceProofTrendEvidence = (
 	report: VoiceProofTrendReport,
 	input: VoiceProofTrendAssertionInput = {}
@@ -773,12 +803,18 @@ export const buildVoiceProofTrendRecommendationReport = (
 	const runtimeChannel = readProofTrendRuntimeChannel(report);
 	const providers = summarizeProofTrendProviders(report, budgets.maxProviderP95Ms);
 	const bestProvider = providers.find((provider) => provider.status === 'pass') ?? providers[0];
+	const bestProviders = bestProviderByRole(providers).filter(
+		(provider) => provider.status === 'pass'
+	);
 	const currentProvider = options.currentProviderId
 		? providers.find((provider) => provider.id === options.currentProviderId)
 		: undefined;
+	const bestComparableProvider = currentProvider?.role
+		? bestProviders.find((provider) => provider.role === currentProvider.role)
+		: bestProvider;
 	const providerSwitchRecommended = shouldSwitchProvider(
 		currentProvider,
-		bestProvider,
+		bestComparableProvider,
 		options
 	);
 	const recommendations: VoiceProofTrendRecommendation[] = [];
@@ -790,8 +826,9 @@ export const buildVoiceProofTrendRecommendationReport = (
 
 	recommendations.push({
 		evidence: {
-			bestProviderId: bestProvider?.id,
-			bestProviderP95Ms: bestProvider?.p95Ms,
+			bestProviderId: bestComparableProvider?.id ?? bestProvider?.id,
+			bestProviderMix: formatProviderMix(bestProviders),
+			bestProviderP95Ms: bestComparableProvider?.p95Ms ?? bestProvider?.p95Ms,
 			budgetMs: budgets.maxProviderP95Ms,
 			currentProviderId: currentProvider?.id ?? options.currentProviderId,
 			currentProviderP95Ms: currentProvider?.p95Ms,
@@ -801,30 +838,36 @@ export const buildVoiceProofTrendRecommendationReport = (
 		nextMove:
 			providers.length > 0
 				? providerSwitchRecommended
-					? `Route latency-sensitive turns to ${bestProvider?.label ?? bestProvider?.id} for this call profile and keep the current path as fallback.`
-					: bestProvider
-						? `Use ${bestProvider.label ?? bestProvider.id} as the fastest proven provider path for this call profile and keep collecting sustained comparisons.`
+					? `Route latency-sensitive ${currentProvider?.role ?? 'provider'} traffic to ${bestComparableProvider?.label ?? bestComparableProvider?.id} for this call profile and keep the current path as fallback.`
+					: bestProviders.length > 0
+						? `Use the fastest proven provider mix for this call profile: ${formatProviderMix(bestProviders)}.`
 						: 'Collect provider-specific sustained samples before making provider-specific routing decisions.'
 				: withinBudget(maxProviderP95Ms, budgets.maxProviderP95Ms)
 					? 'Keep the current provider route for latency-sensitive turns and keep collecting sustained proof.'
 					: 'Route latency-sensitive turns to a faster provider profile or tighten fallback/circuit-breaker budgets before promotion.',
-		providerId: bestProvider?.id,
+		providerId: providerSwitchRecommended
+			? bestComparableProvider?.id
+			: bestProviders.length === 1
+				? bestProviders[0]?.id
+				: undefined,
 		recommendation:
 			providers.length > 0
 				? providerSwitchRecommended
-					? `Switch latency-sensitive routing to ${bestProvider?.label ?? bestProvider?.id}`
-					: bestProvider
-						? `Prefer ${bestProvider.label ?? bestProvider.id} for this call profile`
+					? `Switch latency-sensitive ${currentProvider?.role ?? 'provider'} routing to ${bestComparableProvider?.label ?? bestComparableProvider?.id}`
+					: bestProviders.length > 0
+						? 'Prefer the fastest proven provider mix for this call profile'
 						: 'Collect provider-specific latency samples'
 				: withinBudget(maxProviderP95Ms, budgets.maxProviderP95Ms)
 					? 'Keep current provider path'
 					: 'Change provider routing for latency-sensitive traffic',
-		role: bestProvider?.role,
+		role: bestComparableProvider?.role,
 		status:
 			providers.length > 0
 				? providerSwitchRecommended
 					? 'warn'
-					: bestProvider?.status ?? 'fail'
+					: bestProviders.length > 0
+						? 'pass'
+						: bestProvider?.status ?? 'fail'
 				: withinBudget(maxProviderP95Ms, budgets.maxProviderP95Ms)
 					? 'pass'
 					: maxProviderP95Ms === undefined
@@ -915,6 +958,7 @@ export const buildVoiceProofTrendRecommendationReport = (
 
 	return {
 		bestProvider,
+		bestProviders,
 		generatedAt: new Date().toISOString(),
 		issues,
 		ok: status !== 'fail',
@@ -956,7 +1000,7 @@ export const renderVoiceProofTrendRecommendationMarkdown = (
 	'',
 	`- Status: ${report.status}`,
 	`- Source: ${report.source}`,
-	`- Best provider: ${report.bestProvider?.label ?? report.bestProvider?.id ?? 'n/a'}`,
+	`- Best provider mix: ${formatProviderMix(report.bestProviders)}`,
 	`- Provider comparisons: ${String(report.summary.providerComparisonCount)}`,
 	`- Recommended actions: ${String(report.summary.recommendedActions)}`,
 	'',
@@ -1007,7 +1051,7 @@ export const renderVoiceProofTrendRecommendationHTML = (
 					)
 					.join('');
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}pre{background:#0b1110;border-radius:14px;overflow:auto;padding:12px}a{color:#5eead4}li{margin:.45rem 0}li span,li small{display:block;color:#c9d3ca}</style></head><body><main><section class="hero"><p class="eyebrow">Sustained proof recommendations</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Provider ${report.summary.keepCurrentProviderPath ? 'keep' : 'change'}</span><span class="pill">Best ${escapeHtml(report.bestProvider?.label ?? report.bestProvider?.id ?? 'n/a')}</span><span class="pill">Runtime ${report.summary.keepCurrentRuntimeChannel ? 'keep' : 'tune'}</span><span class="pill">${String(report.summary.recommendedActions)} action(s)</span></div></section>${cards}<section class="hero"><h2>Provider Comparison</h2><ul>${providerRows}</ul></section><section class="hero"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}pre{background:#0b1110;border-radius:14px;overflow:auto;padding:12px}a{color:#5eead4}li{margin:.45rem 0}li span,li small{display:block;color:#c9d3ca}</style></head><body><main><section class="hero"><p class="eyebrow">Sustained proof recommendations</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Provider ${report.summary.keepCurrentProviderPath ? 'keep' : 'change'}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.bestProviders))}</span><span class="pill">Runtime ${report.summary.keepCurrentRuntimeChannel ? 'keep' : 'tune'}</span><span class="pill">${String(report.summary.recommendedActions)} action(s)</span></div></section>${cards}<section class="hero"><h2>Provider Comparison</h2><ul>${providerRows}</ul></section><section class="hero"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
 };
 
 export const createVoiceProofTrendRecommendationRoutes = (

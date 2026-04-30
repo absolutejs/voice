@@ -455,7 +455,7 @@ describe('proof trends', () => {
 		expect(json.summary.keepCurrentProviderPath).toBe(true);
 		expect(json.bestProvider.id).toBe('openai-realtime');
 		expect(htmlResponse.headers.get('content-type')).toContain('text/html');
-		expect(html).toContain('Prefer OpenAI Realtime');
+		expect(html).toContain('Prefer the fastest proven provider mix');
 		expect(html).toContain('Provider Comparison');
 		expect(markdownResponse.headers.get('content-type')).toContain(
 			'text/markdown'
