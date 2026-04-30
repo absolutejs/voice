@@ -157,7 +157,7 @@ export type TwilioMediaStreamBridgeOptions<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TResult = unknown
-> = Omit<VoicePluginConfig<TContext, TSession, TResult>, 'htmx' | 'path'> & {
+> = Omit<VoicePluginConfig<TContext, TSession, TResult>, 'htmx' | 'path' | 'stt'> & {
 	clearOnInboundMedia?: boolean;
 	context: TContext;
 	logger?: VoiceLogger;
@@ -176,6 +176,7 @@ export type TwilioMediaStreamBridgeOptions<
 	};
 	scenarioId?: string;
 	sessionId?: string;
+	stt: STTAdapter;
 };
 
 export type TwilioMediaStreamBridge = {

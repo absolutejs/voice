@@ -4,6 +4,7 @@ import {
 	createGeminiVoiceAssistantModel,
 	createJSONVoiceAssistantModel,
 	createOpenAIVoiceAssistantModel,
+	createVoiceProviderOrchestrationProfile,
 	createVoiceProviderRouter,
 	resolveVoiceProviderRoutingPolicyPreset,
 	createVoiceSessionRecord,
@@ -358,6 +359,137 @@ test('resolveVoiceProviderRoutingPolicyPreset exposes cost cap routing', async (
 		assistantText: 'cheap'
 	});
 	expect(calls).toEqual(['cheap']);
+});
+
+test('createVoiceProviderOrchestrationProfile resolves surface-specific routing policy', async () => {
+	const calls: string[] = [];
+	const profile = createVoiceProviderOrchestrationProfile({
+		defaultSurface: 'live-call',
+		id: 'support-agent-providers',
+		surfaces: {
+			'background-summary': {
+				fallback: ['cheap', 'fast'],
+				maxCost: 2,
+				minQuality: 0.8,
+				policy: 'cost-cap',
+				providerProfiles: {
+					cheap: { cost: 1, latencyMs: 700, quality: 0.84 },
+					fast: { cost: 5, latencyMs: 120, quality: 0.9 }
+				}
+			},
+			'live-call': {
+				fallback: ['fast', 'cheap'],
+				maxLatencyMs: 250,
+				policy: 'latency-first',
+				providerHealth: {
+					cooldownMs: 30_000
+				},
+				providerProfiles: {
+					cheap: { cost: 1, latencyMs: 700, quality: 0.84 },
+					fast: { cost: 5, latencyMs: 120, quality: 0.9 }
+				},
+				timeoutMs: 1500
+			}
+		}
+	});
+	const model = createVoiceProviderRouter({
+		orchestrationProfile: profile,
+		orchestrationSurface: 'live-call',
+		providers: {
+			cheap: {
+				generate: async () => {
+					calls.push('cheap');
+					return {
+						assistantText: 'cheap'
+					};
+				}
+			},
+			fast: {
+				generate: async () => {
+					calls.push('fast');
+					return {
+						assistantText: 'fast'
+					};
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'fast'
+	});
+	expect(calls).toEqual(['fast']);
+	expect(profile.resolve('background-summary').policy).toMatchObject({
+		maxCost: 2,
+		minQuality: 0.8,
+		strategy: 'prefer-cheapest'
+	});
+});
+
+test('createVoiceProviderOrchestrationProfile composes fallback and circuit breaker settings', async () => {
+	let currentTime = 5_000;
+	const calls: string[] = [];
+	const events: Array<Record<string, unknown>> = [];
+	const profile = createVoiceProviderOrchestrationProfile({
+		id: 'resilient-live-agent',
+		surfaces: {
+			live: {
+				fallback: ['primary', 'backup'],
+				fallbackMode: 'rate-limit',
+				policy: 'quality-first',
+				providerHealth: {
+					cooldownMs: 500,
+					now: () => currentTime,
+					rateLimitCooldownMs: 1_500
+				},
+				providerProfiles: {
+					backup: { quality: 0.88 },
+					primary: { quality: 0.96 }
+				}
+			}
+		}
+	});
+	const model = createVoiceProviderRouter({
+		onProviderEvent: (event) => {
+			events.push(event);
+		},
+		orchestrationProfile: profile,
+		providers: {
+			backup: {
+				generate: async () => {
+					calls.push('backup');
+					return {
+						assistantText: 'backup'
+					};
+				}
+			},
+			primary: {
+				generate: async () => {
+					calls.push('primary');
+					throw new Error('HTTP 429 rate limit');
+				}
+			}
+		} satisfies Record<string, VoiceAgentModel>
+	});
+
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'backup'
+	});
+	currentTime = 5_100;
+	expect(await model.generate(createInput())).toMatchObject({
+		assistantText: 'backup'
+	});
+	expect(calls).toEqual(['primary', 'backup', 'backup']);
+	expect(events[0]).toMatchObject({
+		fallbackProvider: 'backup',
+		provider: 'primary',
+		providerHealth: {
+			status: 'suppressed',
+			suppressedUntil: 6_500
+		},
+		rateLimited: true,
+		status: 'error'
+	});
 });
 
 test('createVoiceProviderRouter can fall back only on rate limits', async () => {

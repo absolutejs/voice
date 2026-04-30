@@ -4,10 +4,18 @@ import {
 	type VoiceEvalLink,
 	type VoiceEvalRoutesOptions
 } from './evalRoutes';
+import {
+	buildVoiceDeliverySinkReport,
+	type VoiceDeliverySinkRoutesOptions
+} from './deliverySinkRoutes';
 import { summarizeVoiceHandoffHealth } from './handoffHealth';
 import { summarizeVoiceProviderHealth } from './providerHealth';
 import { evaluateVoiceQuality, type VoiceQualityRoutesOptions } from './qualityRoutes';
-import { summarizeVoiceSessions } from './sessionReplay';
+import {
+	summarizeVoiceProviderFallbackRecovery,
+	summarizeVoiceSessions,
+	type VoiceProviderFallbackRecoverySummary
+} from './sessionReplay';
 import {
 	filterVoiceTraceEvents,
 	type StoredVoiceTraceEvent,
@@ -22,10 +30,13 @@ export type VoiceOpsStatusLink = VoiceEvalLink & {
 };
 
 export type VoiceOpsStatusOptions<TProvider extends string = string> = {
+	deliverySinks?: false | VoiceDeliverySinkRoutesOptions;
 	evals?: false | Partial<VoiceEvalRoutesOptions>;
 	include?: {
+		deliverySinks?: boolean;
 		handoffs?: boolean;
 		providers?: boolean;
+		providerRecovery?: boolean;
 		quality?: boolean;
 		sessions?: boolean;
 		workflows?: boolean;
@@ -51,11 +62,17 @@ export type VoiceOpsStatusReport = {
 			status: VoiceOpsStatus;
 			total: number;
 		};
+		deliverySinks?: {
+			auditTotal: number;
+			status: VoiceOpsStatus;
+			traceTotal: number;
+		};
 		providers?: {
 			degraded: number;
 			status: VoiceOpsStatus;
 			total: number;
 		};
+		providerRecovery?: VoiceProviderFallbackRecoverySummary;
 		quality?: {
 			status: VoiceOpsStatus;
 		};
@@ -136,7 +153,8 @@ export const summarizeVoiceOpsStatus = async <
 	const events: StoredVoiceTraceEvent[] = filterVoiceTraceEvents(
 		await options.store.list()
 	);
-	const [quality, workflows, providers, sessions, handoffs] = await Promise.all([
+	const [quality, workflows, providers, sessions, handoffs, deliverySinks] =
+		await Promise.all([
 		options.quality === false || !shouldInclude('quality')
 			? undefined
 			: evaluateVoiceQuality({
@@ -201,8 +219,14 @@ export const summarizeVoiceOpsStatus = async <
 			? undefined
 			: summarizeVoiceHandoffHealth({
 					events
-				})
+				}),
+		!options.deliverySinks || !shouldInclude('deliverySinks')
+			? undefined
+			: buildVoiceDeliverySinkReport(options.deliverySinks)
 	]);
+	const providerRecovery = shouldInclude('providerRecovery')
+		? summarizeVoiceProviderFallbackRecovery(events)
+		: undefined;
 	const surfaces: VoiceOpsStatusReport['surfaces'] = {};
 	const statuses: VoiceOpsStatus[] = [];
 
@@ -229,6 +253,10 @@ export const summarizeVoiceOpsStatus = async <
 		};
 		statuses.push(status);
 	}
+	if (providerRecovery) {
+		surfaces.providerRecovery = providerRecovery;
+		statuses.push(providerRecovery.status);
+	}
 	if (sessions) {
 		const failed = sessions.filter((session) => session.status === 'failed').length;
 		const status = failed > 0 ? 'fail' : 'pass';
@@ -248,10 +276,43 @@ export const summarizeVoiceOpsStatus = async <
 		};
 		statuses.push(status);
 	}
+	if (deliverySinks) {
+		const status = deliverySinks.status === 'fail' ? 'fail' : 'pass';
+		surfaces.deliverySinks = {
+			auditTotal: deliverySinks.auditDeliveries?.summary.total ?? 0,
+			status,
+			traceTotal: deliverySinks.traceDeliveries?.summary.total ?? 0
+		};
+		statuses.push(status);
+	}
+
+	const baseLinks = options.links ?? DEFAULT_LINKS;
+	const deliverySinkOptions = options.deliverySinks || undefined;
+	const links =
+		deliverySinkOptions &&
+		!baseLinks.some(
+			(link) =>
+				link.href === (deliverySinkOptions.htmlPath ?? '/delivery-sinks') ||
+				link.statusHref ===
+					(deliverySinkOptions.path ?? '/api/voice-delivery-sinks')
+		)
+			? [
+					...baseLinks,
+					{
+						description: 'Audit and trace delivery sink health.',
+						href:
+							deliverySinkOptions.htmlPath === false
+								? (deliverySinkOptions.path ?? '/api/voice-delivery-sinks')
+								: (deliverySinkOptions.htmlPath ?? '/delivery-sinks'),
+						label: 'Delivery Sinks',
+						statusHref: deliverySinkOptions.path ?? '/api/voice-delivery-sinks'
+					}
+				]
+			: baseLinks;
 
 	return {
 		checkedAt: Date.now(),
-		links: options.links ?? DEFAULT_LINKS,
+		links,
 		status: statuses.includes('fail') ? 'fail' : 'pass',
 		surfaces,
 		...countStatus(statuses)

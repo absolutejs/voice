@@ -7,6 +7,7 @@ import {
 	createVoiceMemoryTraceEventStore,
 	createVoiceSessionRecord,
 	createVoiceToolRuntime,
+	evaluateVoiceAgentSquadContractEvidence,
 	runVoiceAgentSquadContract,
 	type VoiceAgentMessage,
 	type VoiceAgentModel,
@@ -704,10 +705,173 @@ test('createVoiceAgentSquad can reroute handoffs through policy', async () => {
 			payload: {
 				agentId: 'front-desk',
 				fromAgentId: 'intake',
+				metadata: {
+					queue: 'billing',
+					risk: 'cancel'
+				},
 				originalTargetAgentId: 'billing',
 				reason: 'Route cancellation risk to retention.',
 				status: 'allowed',
+				summary: 'Route cancellation risk to retention.',
 				targetAgentId: 'retention'
+			}
+		}
+	]);
+});
+
+test('createVoiceAgentSquad returns durable squad handoff state', async () => {
+	const intake = createVoiceAgent({
+		id: 'intake',
+		model: {
+			generate: () => ({
+				handoff: {
+					metadata: {
+						intent: 'billing'
+					},
+					reason: 'billing question',
+					targetAgentId: 'billing'
+				}
+			})
+		}
+	});
+	const billing = createVoiceAgent({
+		id: 'billing',
+		model: {
+			generate: () => ({
+				assistantText: 'Billing can help.'
+			})
+		}
+	});
+	const squad = createVoiceAgentSquad({
+		agents: [intake, billing],
+		defaultAgentId: 'intake',
+		handoffPolicy: () => ({
+			metadata: {
+				priority: 'high'
+			},
+			summary: 'Move this turn to billing with account context.'
+		}),
+		id: 'front-desk'
+	});
+
+	const result = await squad.run({
+		api: createApi(),
+		context: {},
+		session: createVoiceSessionRecord('session-agent'),
+		turn: createTurn('Billing please')
+	});
+
+	expect(result.squad).toMatchObject({
+		agentId: 'billing',
+		handoffCount: 1,
+		lastHandoff: {
+			fromAgentId: 'intake',
+			metadata: {
+				intent: 'billing',
+				priority: 'high'
+			},
+			reason: 'Move this turn to billing with account context.',
+			status: 'allowed',
+			summary: 'Move this turn to billing with account context.',
+			targetAgentId: 'billing',
+			turnId: 'turn-1'
+		},
+		previousAgentId: 'intake'
+	});
+	expect(result.squad?.handoffs).toHaveLength(1);
+});
+
+test('createVoiceAgentSquad can apply handoff context policy for the next specialist', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	let billingMessages: VoiceAgentMessage[] = [];
+	let billingSystem: string | undefined;
+	const intake = createVoiceAgent({
+		id: 'intake',
+		model: {
+			generate: () => ({
+				handoff: {
+					metadata: {
+						intent: 'billing'
+					},
+					reason: 'billing question',
+					targetAgentId: 'billing'
+				}
+			})
+		}
+	});
+	const billing = createVoiceAgent({
+		id: 'billing',
+		model: {
+			generate: ({ messages, system }) => {
+				billingMessages = messages;
+				billingSystem = system;
+				return {
+					assistantText: 'Billing has the compact context.'
+				};
+			}
+		}
+	});
+	const squad = createVoiceAgentSquad({
+		agents: [intake, billing],
+		contextPolicy: ({ summaryMessage, turn }) => ({
+			messages: [
+				summaryMessage,
+				{
+					content: turn.text,
+					role: 'user'
+				}
+			],
+			metadata: {
+				contextPolicy: 'summary-plus-current-turn'
+			},
+			system: 'Use only the provided handoff summary and current turn.'
+		}),
+		defaultAgentId: 'intake',
+		handoffPolicy: () => ({
+			summary: 'Billing specialist should see only compact account context.'
+		}),
+		id: 'front-desk',
+		trace
+	});
+	const session = createVoiceSessionRecord('session-agent');
+	session.turns.push({
+		committedAt: 90,
+		id: 'previous-turn',
+		text: 'This earlier detail should not reach billing.',
+		transcripts: []
+	});
+
+	const result = await squad.run({
+		api: createApi(),
+		context: {},
+		session,
+		turn: createTurn('Billing please')
+	});
+
+	expect(result.assistantText).toBe('Billing has the compact context.');
+	expect(billingSystem).toBe('Use only the provided handoff summary and current turn.');
+	expect(billingMessages.slice(0, 2)).toEqual([
+		expect.objectContaining({
+			content: 'Billing specialist should see only compact account context.',
+			role: 'system'
+		}),
+		{
+			content: 'Billing please',
+			role: 'user'
+		}
+	]);
+	expect(JSON.stringify(billingMessages)).not.toContain('earlier detail');
+	expect(result.squad?.lastHandoff?.metadata).toMatchObject({
+		contextPolicy: 'summary-plus-current-turn',
+		intent: 'billing'
+	});
+	expect(await trace.list({ type: 'agent.context' })).toMatchObject([
+		{
+			payload: {
+				fromAgentId: 'intake',
+				nextMessageCount: 2,
+				status: 'applied',
+				targetAgentId: 'billing'
 			}
 		}
 	]);
@@ -918,6 +1082,7 @@ test('runVoiceAgentSquadContract certifies specialist routing paths', async () =
 						handoffs: [
 							{
 								fromAgentId: 'intake',
+								reasonIncludes: ['billing question'],
 								status: 'allowed',
 								targetAgentId: 'billing'
 							}
@@ -959,6 +1124,75 @@ test('runVoiceAgentSquadContract certifies specialist routing paths', async () =
 			}
 		]
 	});
+});
+
+test('runVoiceAgentSquadContract certifies handoff metadata and summaries', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	const intake = createVoiceAgent({
+		id: 'intake',
+		model: {
+			generate: () => ({
+				handoff: {
+					metadata: {
+						intent: 'billing'
+					},
+					reason: 'customer has invoice confusion',
+					targetAgentId: 'billing'
+				}
+			})
+		}
+	});
+	const billing = createVoiceAgent({
+		id: 'billing',
+		model: {
+			generate: () => ({
+				assistantText: 'Billing can help with invoices.'
+			})
+		}
+	});
+	const squad = createVoiceAgentSquad({
+		agents: [intake, billing],
+		defaultAgentId: 'intake',
+		handoffPolicy: () => ({
+			metadata: {
+				priority: 'high'
+			},
+			summary: 'Send invoice confusion to billing specialist.'
+		}),
+		id: 'front-desk',
+		trace
+	});
+
+	const report = await runVoiceAgentSquadContract({
+		context: {},
+		contract: {
+			id: 'billing-handoff-detail',
+			turns: [
+				{
+					expect: {
+						handoffs: [
+							{
+								metadata: {
+									intent: 'billing',
+									priority: 'high'
+								},
+								reasonIncludes: ['invoice confusion'],
+								status: 'allowed',
+								summaryIncludes: ['billing specialist'],
+								targetAgentId: 'billing'
+							}
+						],
+						outcome: 'assistant'
+					},
+					text: 'My invoice looks wrong.'
+				}
+			]
+		},
+		squad,
+		trace
+	});
+
+	expect(report.pass).toBe(true);
 });
 
 test('runVoiceAgentSquadContract reports routing regressions', async () => {
@@ -1022,5 +1256,97 @@ test('runVoiceAgentSquadContract reports routing regressions', async () => {
 	]);
 	expect(report.issues.map((issue) => issue.message).join(' ')).toContain(
 		'Expected final agent billing, saw sales.'
+	);
+});
+
+test('evaluateVoiceAgentSquadContractEvidence accepts complete squad proof', () => {
+	const report = evaluateVoiceAgentSquadContractEvidence(
+		[
+			{
+				contractId: 'billing-route',
+				issues: [],
+				pass: true,
+				scenarioId: 'billing-route',
+				sessionId: 'contract-session',
+				turns: [
+					{
+						agentId: 'billing',
+						handoffs: [
+							{
+								fromAgentId: 'front-desk',
+								status: 'allowed',
+								targetAgentId: 'billing'
+							}
+						],
+						issues: [],
+						outcome: 'complete',
+						pass: true,
+						result: { agentId: 'billing' } as never,
+						turnId: 'turn-1'
+					}
+				]
+			}
+		],
+		{
+			maxBlockedHandoffs: 0,
+			maxFailed: 0,
+			maxIssues: 0,
+			minContracts: 1,
+			minHandoffs: 1,
+			requiredContractIds: ['billing-route'],
+			requiredFinalAgentIds: ['billing'],
+			requiredHandoffStatuses: ['allowed'],
+			requiredHandoffTargets: ['billing'],
+			requiredScenarioIds: ['billing-route']
+		}
+	);
+
+	expect(report.ok).toBe(true);
+	expect(report.handoffs).toBe(1);
+	expect(report.finalAgentIds).toEqual(['billing']);
+});
+
+test('evaluateVoiceAgentSquadContractEvidence reports missing squad proof', () => {
+	const report = evaluateVoiceAgentSquadContractEvidence(
+		[
+			{
+				contractId: 'sales-route',
+				issues: [{ code: 'agent_squad.final_agent_mismatch', message: 'wrong agent' }],
+				pass: false,
+				sessionId: 'contract-session',
+				turns: [
+					{
+						agentId: 'sales',
+						handoffs: [],
+						issues: [],
+						pass: true,
+						result: { agentId: 'sales' } as never,
+						turnId: 'turn-1'
+					}
+				]
+			}
+		],
+		{
+			maxFailed: 0,
+			maxIssues: 0,
+			minHandoffs: 1,
+			requiredContractIds: ['billing-route'],
+			requiredFinalAgentIds: ['billing'],
+			requiredHandoffStatuses: ['allowed'],
+			requiredHandoffTargets: ['billing']
+		}
+	);
+
+	expect(report.ok).toBe(false);
+	expect(report.issues).toEqual(
+		expect.arrayContaining([
+			'Expected at most 0 failing agent squad contract(s), found 1.',
+			'Expected at most 0 agent squad contract issue(s), found 1.',
+			'Expected at least 1 agent squad handoff(s), found 0.',
+			'Missing agent squad contract: billing-route.',
+			'Missing final agent: billing.',
+			'Missing agent squad handoff target: billing.',
+			'Missing agent squad handoff status: allowed.'
+		])
 	);
 });

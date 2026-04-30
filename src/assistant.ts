@@ -572,7 +572,28 @@ export const createVoiceAssistant = <
 						tools: variant.tools ?? baseModelOptions.tools
 					})
 				: agent;
-		const runResult = (await runner.run(input)) ?? {};
+		const liveOpsInstruction = input.liveOps?.injectedInstruction?.trim();
+		if (liveOpsInstruction) {
+			await appendAssistantTrace({
+				assistantId: options.id,
+				event: {
+					action: 'instruction-injected',
+					artifactPlan: artifactPlanName,
+					instruction: liveOpsInstruction
+				},
+				session: input.session,
+				trace: options.trace,
+				turnId: input.turn.id,
+				type: 'assistant.run'
+			});
+		}
+		const runResult =
+			(await runner.run({
+				...input,
+				system: liveOpsInstruction
+					? `Operator instruction for this turn: ${liveOpsInstruction}`
+					: undefined
+			})) ?? {};
 		const result = runResult as VoiceRouteResult<TResult> & {
 			toolResults?: Array<{ toolName: string }>;
 		};

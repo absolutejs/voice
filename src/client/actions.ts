@@ -58,6 +58,11 @@ export const serverMessageToAction = <TResult = unknown>(
 				sessionId: message.sessionId,
 				type: 'complete' as const
 			};
+		case 'connection':
+			return {
+				reconnect: message.reconnect,
+				type: 'connection' as const
+			};
 		case 'call_lifecycle':
 			return {
 				event: message.event,
@@ -80,6 +85,17 @@ export const serverMessageToAction = <TResult = unknown>(
 			return {
 				transcript: message.transcript,
 				type: 'partial' as const
+			};
+		case 'replay':
+			return {
+				assistantTexts: message.assistantTexts,
+				call: message.call,
+				partial: message.partial,
+				scenarioId: message.scenarioId,
+				sessionId: message.sessionId,
+				status: message.status,
+				turns: message.turns,
+				type: 'replay' as const
 			};
 		case 'session':
 			return {

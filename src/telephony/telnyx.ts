@@ -1,4 +1,6 @@
 import { Buffer } from 'node:buffer';
+import { Database } from 'bun:sqlite';
+import type { RedisClient } from 'bun';
 import { Elysia } from 'elysia';
 import {
 	evaluateVoiceTelephonyContract,
@@ -22,6 +24,7 @@ import {
 	type TwilioMediaStreamSocket,
 	type TwilioOutboundMessage
 } from './twilio';
+import type { VoicePostgresClient } from '../postgresStore';
 
 export type TelnyxMediaPayload = {
 	chunk?: string;
@@ -209,11 +212,57 @@ export type TelnyxVoiceRoutesOptions<
 		VoiceTelephonyWebhookRoutesOptions<TContext, TSession, TResult>,
 		'context' | 'path' | 'policy' | 'provider'
 	> & {
+		eventStore?: VoiceTelnyxWebhookEventStore;
 		path?: string;
 		policy?: VoiceTelephonyOutcomePolicy;
 		publicKey?: string;
 		toleranceSeconds?: number;
 	};
+};
+
+export type VoiceTelnyxWebhookEventStore = {
+	claim?: (eventId: string) => Promise<boolean> | boolean;
+	has: (eventId: string) => Promise<boolean> | boolean;
+	set: (eventId: string) => Promise<void> | void;
+};
+
+export type VoiceTelnyxWebhookEventStoreOptions = {
+	ttlSeconds?: number;
+};
+
+export type VoiceSQLiteTelnyxWebhookEventStoreOptions =
+	VoiceTelnyxWebhookEventStoreOptions & {
+		database?: Database;
+		path?: string;
+		tableName?: string;
+		tablePrefix?: string;
+	};
+
+export type VoicePostgresTelnyxWebhookEventStoreOptions =
+	VoiceTelnyxWebhookEventStoreOptions & {
+		connectionString?: string;
+		schemaName?: string;
+		sql?: VoicePostgresClient;
+		tableName?: string;
+		tablePrefix?: string;
+	};
+
+export type VoiceRedisTelnyxWebhookEventClient = Pick<
+	RedisClient,
+	'exists' | 'set'
+>;
+
+export type VoiceRedisTelnyxWebhookEventStoreOptions =
+	VoiceTelnyxWebhookEventStoreOptions & {
+		client?: VoiceRedisTelnyxWebhookEventClient;
+		keyPrefix?: string;
+		url?: string;
+	};
+
+export type VoiceTelnyxWebhookVerifierOptions = {
+	eventStore?: VoiceTelnyxWebhookEventStore;
+	publicKey?: string;
+	toleranceSeconds?: number;
 };
 
 const escapeXml = (value: string) =>
@@ -500,6 +549,304 @@ export const verifyVoiceTelnyxWebhookSignature = async (input: {
 	}
 };
 
+export const createMemoryVoiceTelnyxWebhookEventStore =
+	(): VoiceTelnyxWebhookEventStore => {
+		const eventIds = new Set<string>();
+
+		return {
+			claim: (eventId) => {
+				if (eventIds.has(eventId)) {
+					return false;
+				}
+				eventIds.add(eventId);
+				return true;
+			},
+			has: (eventId) => eventIds.has(eventId),
+			set: (eventId) => {
+				eventIds.add(eventId);
+			}
+		};
+	};
+
+const normalizeTelnyxStoreIdentifierSegment = (value: string) =>
+	value
+		.trim()
+		.replace(/[^a-zA-Z0-9_]+/g, '_')
+		.replace(/^_+|_+$/g, '') || 'voice';
+
+const quoteTelnyxStoreIdentifier = (value: string) =>
+	`"${value.replace(/"/g, '""')}"`;
+
+const resolveTelnyxEventTableName = (input: {
+	fallback: string;
+	tableName?: string;
+	tablePrefix?: string;
+}) => {
+	if (input.tableName) {
+		return normalizeTelnyxStoreIdentifierSegment(input.tableName);
+	}
+
+	return `${normalizeTelnyxStoreIdentifierSegment(input.tablePrefix ?? 'voice')}_${normalizeTelnyxStoreIdentifierSegment(input.fallback)}`;
+};
+
+const getTelnyxEventExpiresAt = (ttlSeconds?: number) =>
+	typeof ttlSeconds === 'number' && ttlSeconds > 0
+		? Date.now() + Math.ceil(ttlSeconds * 1000)
+		: null;
+
+export const createVoiceSQLiteTelnyxWebhookEventStore = (
+	options: VoiceSQLiteTelnyxWebhookEventStoreOptions
+): VoiceTelnyxWebhookEventStore => {
+	const database =
+		options.database ??
+		new Database(options.path ?? ':memory:', {
+			create: true
+		});
+	const tableName = resolveTelnyxEventTableName({
+		fallback: 'telnyx_webhook_events',
+		tableName: options.tableName,
+		tablePrefix: options.tablePrefix
+	});
+
+	database.exec(
+		`CREATE TABLE IF NOT EXISTS "${tableName}" (
+			event_id TEXT PRIMARY KEY,
+			created_at INTEGER NOT NULL,
+			expires_at INTEGER
+		)`
+	);
+	const pruneExpired = database.query(
+		`DELETE FROM "${tableName}" WHERE expires_at IS NOT NULL AND expires_at <= ?1`
+	);
+	const select = database.query(
+		`SELECT event_id FROM "${tableName}" WHERE event_id = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1`
+	);
+	const insert = database.query(
+		`INSERT OR IGNORE INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)`
+	);
+	const upsert = database.query(
+		`INSERT INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)
+		 ON CONFLICT(event_id) DO UPDATE SET expires_at = excluded.expires_at`
+	);
+
+	return {
+		claim: (eventId) => {
+			const now = Date.now();
+			pruneExpired.run(now);
+			const result = insert.run(
+				eventId,
+				now,
+				getTelnyxEventExpiresAt(options.ttlSeconds)
+			);
+			return result.changes > 0;
+		},
+		has: (eventId) => Boolean(select.get(eventId, Date.now())),
+		set: (eventId) => {
+			upsert.run(
+				eventId,
+				Date.now(),
+				getTelnyxEventExpiresAt(options.ttlSeconds)
+			);
+		}
+	};
+};
+
+const createVoiceTelnyxPostgresClient = async (
+	options: VoicePostgresTelnyxWebhookEventStoreOptions
+): Promise<VoicePostgresClient> => {
+	if (options.sql) {
+		return options.sql;
+	}
+
+	if (!options.connectionString) {
+		throw new Error(
+			'createVoicePostgresTelnyxWebhookEventStore requires either options.sql or options.connectionString.'
+		);
+	}
+
+	const sql = new Bun.SQL(options.connectionString);
+	return {
+		unsafe: sql.unsafe.bind(sql)
+	};
+};
+
+const resolveTelnyxEventQualifiedTableName = (
+	options: VoicePostgresTelnyxWebhookEventStoreOptions
+) => {
+	const schema = normalizeTelnyxStoreIdentifierSegment(
+		options.schemaName ?? 'public'
+	);
+	const table = resolveTelnyxEventTableName({
+		fallback: 'telnyx_webhook_events',
+		tableName: options.tableName,
+		tablePrefix: options.tablePrefix
+	});
+	return `${quoteTelnyxStoreIdentifier(schema)}.${quoteTelnyxStoreIdentifier(table)}`;
+};
+
+export const createVoicePostgresTelnyxWebhookEventStore = (
+	options: VoicePostgresTelnyxWebhookEventStoreOptions = {}
+): VoiceTelnyxWebhookEventStore => {
+	const qualifiedTableName = resolveTelnyxEventQualifiedTableName(options);
+	const schemaMatch = qualifiedTableName.match(/^"([^"]+)"\./);
+	const client = createVoiceTelnyxPostgresClient(options);
+	const initialized = (async () => {
+		const sql = await client;
+		if (schemaMatch?.[1]) {
+			await sql.unsafe(
+				`CREATE SCHEMA IF NOT EXISTS ${quoteTelnyxStoreIdentifier(schemaMatch[1])}`
+			);
+		}
+		await sql.unsafe(
+			`CREATE TABLE IF NOT EXISTS ${qualifiedTableName} (
+				event_id TEXT PRIMARY KEY,
+				created_at BIGINT NOT NULL,
+				expires_at BIGINT
+			)`
+		);
+	})();
+
+	const pruneExpired = async () => {
+		await initialized;
+		const sql = await client;
+		await sql.unsafe(
+			`DELETE FROM ${qualifiedTableName} WHERE expires_at IS NOT NULL AND expires_at <= $1`,
+			[Date.now()]
+		);
+	};
+
+	return {
+		claim: async (eventId) => {
+			await pruneExpired();
+			const sql = await client;
+			const rows = await sql.unsafe(
+				`INSERT INTO ${qualifiedTableName} (event_id, created_at, expires_at)
+				 VALUES ($1, $2, $3)
+				 ON CONFLICT (event_id) DO NOTHING
+				 RETURNING event_id`,
+				[eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)]
+			);
+			return rows.length > 0;
+		},
+		has: async (eventId) => {
+			await initialized;
+			const sql = await client;
+			const rows = await sql.unsafe(
+				`SELECT event_id FROM ${qualifiedTableName}
+				 WHERE event_id = $1 AND (expires_at IS NULL OR expires_at > $2)
+				 LIMIT 1`,
+				[eventId, Date.now()]
+			);
+			return rows.length > 0;
+		},
+		set: async (eventId) => {
+			await initialized;
+			const sql = await client;
+			await sql.unsafe(
+				`INSERT INTO ${qualifiedTableName} (event_id, created_at, expires_at)
+				 VALUES ($1, $2, $3)
+				 ON CONFLICT (event_id) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+				[eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)]
+			);
+		}
+	};
+};
+
+const getTelnyxRedisEventKey = (keyPrefix: string, eventId: string) =>
+	`${keyPrefix}:${eventId}`;
+
+export const createVoiceRedisTelnyxWebhookEventStore = (
+	options: VoiceRedisTelnyxWebhookEventStoreOptions = {}
+): VoiceTelnyxWebhookEventStore => {
+	const client = options.client ?? new Bun.RedisClient(options.url);
+	const keyPrefix = options.keyPrefix?.trim() || 'voice:telnyx-webhook-event';
+	const ttlSeconds = options.ttlSeconds;
+
+	const setEvent = async (eventId: string, nx: boolean) => {
+		const key = getTelnyxRedisEventKey(keyPrefix, eventId);
+		if (typeof ttlSeconds === 'number' && ttlSeconds > 0) {
+			return client.set(
+				key,
+				'1',
+				'EX',
+				String(Math.ceil(ttlSeconds)),
+				...(nx ? (['NX'] as const) : [])
+			);
+		}
+
+		return client.set(key, '1', ...(nx ? (['NX'] as const) : []));
+	};
+
+	return {
+		claim: async (eventId) => (await setEvent(eventId, true)) === 'OK',
+		has: async (eventId) =>
+			Boolean(await client.exists(getTelnyxRedisEventKey(keyPrefix, eventId))),
+		set: async (eventId) => {
+			await setEvent(eventId, false);
+		}
+	};
+};
+
+const readTelnyxWebhookEventId = (rawBody: string) => {
+	try {
+		const body = JSON.parse(rawBody) as unknown;
+		if (!body || typeof body !== 'object' || Array.isArray(body)) {
+			return undefined;
+		}
+		const record = body as Record<string, unknown>;
+		const data = record.data;
+		if (data && typeof data === 'object' && !Array.isArray(data)) {
+			const eventId = (data as Record<string, unknown>).id;
+			if (typeof eventId === 'string' && eventId.trim()) {
+				return eventId;
+			}
+		}
+		const eventId = record.id ?? record.event_id;
+		return typeof eventId === 'string' && eventId.trim() ? eventId : undefined;
+	} catch {
+		return undefined;
+	}
+};
+
+export const createVoiceTelnyxWebhookVerifier =
+	(options: VoiceTelnyxWebhookVerifierOptions) =>
+	async (input: {
+		rawBody: string;
+		headers: Headers;
+	}): Promise<VoiceTelephonyWebhookVerificationResult> => {
+		const verification = await verifyVoiceTelnyxWebhookSignature({
+			body: input.rawBody,
+			headers: input.headers,
+			publicKey: options.publicKey,
+			toleranceSeconds: options.toleranceSeconds
+		});
+		if (!verification.ok) {
+			return verification;
+		}
+
+		const eventStore = options.eventStore;
+		if (!eventStore) {
+			return verification;
+		}
+
+		const eventId = readTelnyxWebhookEventId(input.rawBody);
+		if (!eventId) {
+			return { ok: false, reason: 'invalid-signature' };
+		}
+
+		if (eventStore.claim) {
+			return (await eventStore.claim(eventId))
+				? verification
+				: { ok: false, reason: 'invalid-signature' };
+		}
+		if (await eventStore.has(eventId)) {
+			return { ok: false, reason: 'invalid-signature' };
+		}
+
+		await eventStore.set(eventId);
+		return verification;
+	};
+
 const buildTelnyxVoiceSetupStatus = async <
 	TContext,
 	TSession extends VoiceSessionRecord,
@@ -733,16 +1080,11 @@ export const createTelnyxVoiceRoutes = <
 	const verify =
 		options.webhook?.verify ??
 		(options.webhook?.publicKey
-			? ((input: {
-					rawBody: string;
-					headers: Headers;
-			  }) =>
-					verifyVoiceTelnyxWebhookSignature({
-						body: input.rawBody,
-						headers: input.headers,
-						publicKey: options.webhook?.publicKey,
-						toleranceSeconds: options.webhook?.toleranceSeconds
-					}))
+			? createVoiceTelnyxWebhookVerifier({
+					eventStore: options.webhook.eventStore,
+					publicKey: options.webhook.publicKey,
+					toleranceSeconds: options.webhook.toleranceSeconds
+				})
 			: undefined);
 	const app = new Elysia({
 		name: options.name ?? 'absolutejs-voice-telnyx'

@@ -22,11 +22,36 @@ export const createVoiceStream = <TResult = unknown>(
 	const notify = () => {
 		subscribers.forEach((subscriber) => subscriber());
 	};
+	const reportReconnect = () => {
+		if (!options.reconnectReportPath || typeof fetch === 'undefined') {
+			return;
+		}
+
+		const snapshot = store.getSnapshot();
+		const body = JSON.stringify({
+			at: Date.now(),
+			reconnect: snapshot.reconnect,
+			scenarioId: snapshot.scenarioId,
+			sessionId: connection.getSessionId(),
+			turnIds: snapshot.turns.map((turn) => turn.id)
+		});
+		void fetch(options.reconnectReportPath, {
+			body,
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			keepalive: true,
+			method: 'POST'
+		}).catch(() => {});
+	};
 
 	const unsubscribeConnection = connection.subscribe((message) => {
 		const action = serverMessageToAction<TResult>(message as never);
 		if (action) {
 			store.dispatch(action as never);
+			if (message.type === 'connection') {
+				reportReconnect();
+			}
 			notify();
 		}
 	});
@@ -62,6 +87,9 @@ export const createVoiceStream = <TResult = unknown>(
 		start,
 		get partial() {
 			return store.getSnapshot().partial;
+		},
+		get reconnect() {
+			return store.getSnapshot().reconnect;
 		},
 		get sessionId() {
 			return connection.getSessionId();

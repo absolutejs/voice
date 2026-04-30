@@ -21,7 +21,13 @@ export const renderVoiceOpsStatusHTML = (
 	const surfaces = Object.entries(report.surfaces)
 		.map(([key, surface]) => {
 			const value =
-				'total' in surface
+				'recovered' in surface
+					? surface.total === 0
+						? '0 events'
+						: `${surface.recovered}/${surface.total}`
+					: 'auditTotal' in surface
+						? `${surface.auditTotal + surface.traceTotal} deliveries`
+					: 'total' in surface
 					? `${Math.max(surface.total - ('failed' in surface ? surface.failed : 'degraded' in surface ? surface.degraded : 0), 0)}/${surface.total}`
 					: surface.status;
 			return `<article class="surface ${escapeHtml(surface.status)}"><span>${escapeHtml(surface.status.toUpperCase())}</span><h2>${escapeHtml(key)}</h2><strong>${escapeHtml(value)}</strong></article>`;

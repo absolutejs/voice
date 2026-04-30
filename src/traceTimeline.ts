@@ -17,6 +17,7 @@ export type VoiceTraceTimelineEvent = {
 	id: string;
 	label: string;
 	offsetMs: number;
+	payload: Record<string, unknown>;
 	provider?: string;
 	status?: string;
 	turnId?: string;
@@ -39,6 +40,7 @@ export type VoiceTraceTimelineSession = {
 	evaluation: ReturnType<typeof evaluateVoiceTrace>;
 	events: VoiceTraceTimelineEvent[];
 	lastEventAt?: number;
+	operationsRecordHref?: string;
 	providers: VoiceTraceTimelineProviderSummary[];
 	sessionId: string;
 	startedAt?: number;
@@ -60,6 +62,7 @@ export type VoiceTraceTimelineRoutesOptions = {
 	htmlPath?: string;
 	limit?: number;
 	name?: string;
+	operationsRecordHref?: false | string | ((sessionId: string) => string);
 	path?: string;
 	redact?: VoiceTraceRedactionConfig;
 	render?: (report: VoiceTraceTimelineReport) => string | Promise<string>;
@@ -129,6 +132,23 @@ const eventStatus = (event: StoredVoiceTraceEvent) =>
 
 const eventElapsedMs = (event: StoredVoiceTraceEvent) =>
 	firstNumber(event.payload, ['elapsedMs', 'latencyMs', 'durationMs']);
+
+const resolveSessionHref = (
+	value: false | string | ((sessionId: string) => string) | undefined,
+	sessionId: string
+) => {
+	if (value === false) {
+		return undefined;
+	}
+	if (typeof value === 'function') {
+		return value(sessionId);
+	}
+	if (typeof value === 'string') {
+		const encoded = encodeURIComponent(sessionId);
+		return value.includes(':sessionId') ? value.replace(':sessionId', encoded) : `${value.replace(/\/$/, '')}/${encoded}`;
+	}
+	return undefined;
+};
 
 const timelineLabel = (event: StoredVoiceTraceEvent) => {
 	switch (event.type) {
@@ -250,6 +270,7 @@ export const summarizeVoiceTraceTimeline = (
 	options: {
 		evaluation?: VoiceTraceEvaluationOptions;
 		limit?: number;
+		operationsRecordHref?: false | string | ((sessionId: string) => string);
 		redact?: VoiceTraceRedactionConfig;
 	} = {}
 ): VoiceTraceTimelineReport => {
@@ -283,12 +304,17 @@ export const summarizeVoiceTraceTimeline = (
 					id: event.id,
 					label: timelineLabel(event),
 					offsetMs: Math.max(0, event.at - startedAt),
+					payload: event.payload,
 					provider: eventProvider(event),
 					status: eventStatus(event),
 					turnId: event.turnId,
 					type: event.type
 				})),
 				lastEventAt: sorted.at(-1)?.at,
+				operationsRecordHref: resolveSessionHref(
+					options.operationsRecordHref,
+					sessionId
+				),
 				providers: summarizeProviders(sorted),
 				sessionId,
 				startedAt: summary.startedAt,
@@ -338,7 +364,10 @@ export const renderVoiceTraceTimelineSessionHTML = (
 				)
 				.join('')
 		: '<li>none</li>';
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? 'Voice Trace Timeline')}</title><style>${timelineCSS}</style></head><body><main><a href="/traces">Back to traces</a><header><p class="eyebrow">Call timeline</p><h1>${escapeHtml(session.sessionId)}</h1><p class="status ${escapeHtml(session.status)}">${escapeHtml(session.status)}</p></header><section class="metrics"><article><span>Events</span><strong>${String(session.summary.eventCount)}</strong></article><article><span>Turns</span><strong>${String(session.summary.turnCount)}</strong></article><article><span>Errors</span><strong>${String(session.summary.errorCount)}</strong></article><article><span>Duration</span><strong>${formatMs(session.summary.callDurationMs)}</strong></article></section><section><h2>Providers</h2>${renderProviderCards(session)}</section><section><h2>Issues</h2><ul>${issues}</ul></section><section><h2>Timeline</h2><table><thead><tr><th>Offset</th><th>Type</th><th>Event</th><th>Provider</th><th>Status</th><th>Latency</th></tr></thead><tbody>${events}</tbody></table></section></main></body></html>`;
+	const supportLinks = session.operationsRecordHref
+		? `<p><a href="${escapeHtml(session.operationsRecordHref)}">Open operations record</a></p>`
+		: '';
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? 'Voice Trace Timeline')}</title><style>${timelineCSS}</style></head><body><main><a href="/traces">Back to traces</a><header><p class="eyebrow">Call timeline</p><h1>${escapeHtml(session.sessionId)}</h1><p class="status ${escapeHtml(session.status)}">${escapeHtml(session.status)}</p>${supportLinks}</header><section class="metrics"><article><span>Events</span><strong>${String(session.summary.eventCount)}</strong></article><article><span>Turns</span><strong>${String(session.summary.turnCount)}</strong></article><article><span>Errors</span><strong>${String(session.summary.errorCount)}</strong></article><article><span>Duration</span><strong>${formatMs(session.summary.callDurationMs)}</strong></article></section><section><h2>Providers</h2>${renderProviderCards(session)}</section><section><h2>Issues</h2><ul>${issues}</ul></section><section><h2>Timeline</h2><table><thead><tr><th>Offset</th><th>Type</th><th>Event</th><th>Provider</th><th>Status</th><th>Latency</th></tr></thead><tbody>${events}</tbody></table></section></main></body></html>`;
 };
 
 const renderSessionRows = (report: VoiceTraceTimelineReport) =>
@@ -347,7 +376,7 @@ const renderSessionRows = (report: VoiceTraceTimelineReport) =>
 		: report.sessions
 				.map(
 					(session) =>
-						`<tr class="${escapeHtml(session.status)}"><td><a href="/traces/${encodeURIComponent(session.sessionId)}">${escapeHtml(session.sessionId)}</a></td><td>${escapeHtml(session.status)}</td><td>${String(session.summary.eventCount)}</td><td>${String(session.summary.turnCount)}</td><td>${String(session.summary.errorCount)}</td><td>${formatMs(session.summary.callDurationMs)}</td><td>${session.providers.map((provider) => escapeHtml(provider.provider)).join(', ')}</td></tr>`
+						`<tr class="${escapeHtml(session.status)}"><td>${session.operationsRecordHref ? `<a href="${escapeHtml(session.operationsRecordHref)}">${escapeHtml(session.sessionId)}</a>` : `<a href="/traces/${encodeURIComponent(session.sessionId)}">${escapeHtml(session.sessionId)}</a>`}</td><td>${escapeHtml(session.status)}</td><td>${String(session.summary.eventCount)}</td><td>${String(session.summary.turnCount)}</td><td>${String(session.summary.errorCount)}</td><td>${formatMs(session.summary.callDurationMs)}</td><td>${session.providers.map((provider) => escapeHtml(provider.provider)).join(', ')}</td></tr>`
 				)
 				.join('');
 
@@ -357,8 +386,36 @@ const timelineCSS =
 export const renderVoiceTraceTimelineHTML = (
 	report: VoiceTraceTimelineReport,
 	options: { title?: string } = {}
-) =>
-	`<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? 'Voice Trace Timelines')}</title><style>${timelineCSS}</style></head><body><main><header><p class="eyebrow">Self-hosted voice debugging</p><h1>${escapeHtml(options.title ?? 'Voice Trace Timelines')}</h1><p class="muted">Per-call event timelines with provider latency, fallback, timeout, handoff, and error context.</p></header><section class="metrics"><article><span>Sessions</span><strong>${String(report.total)}</strong></article><article><span>Failed</span><strong>${String(report.failed)}</strong></article><article><span>Warnings</span><strong>${String(report.warnings)}</strong></article></section><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Duration</th><th>Providers</th></tr></thead><tbody>${renderSessionRows(report)}</tbody></table></main></body></html>`;
+) => {
+	const snippet = escapeHtml(`const traceStore = createVoiceTraceSinkStore({
+	store: runtimeStorage.traces,
+	sinks: [
+		createVoiceTraceHTTPSink({
+			endpoint: process.env.VOICE_TRACE_WEBHOOK_URL
+		})
+	]
+});
+
+app.use(
+	createVoiceTraceTimelineRoutes({
+		htmlPath: '/traces',
+		path: '/api/voice-traces',
+		redact: {
+			keys: ['authorization', 'apiKey', 'token']
+		},
+		store: traceStore
+	})
+);
+
+app.use(
+	createVoiceProductionReadinessRoutes({
+		store: traceStore,
+		traceDeliveries: runtimeStorage.traceDeliveries
+	})
+);`);
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? 'Voice Trace Timelines')}</title><style>${timelineCSS}.primitive{background:#181f27;border:1px solid #334155;border-radius:20px;margin:20px 0;padding:18px}.primitive p{line-height:1.55}.primitive pre{background:#0b1118;border:1px solid #2b3642;border-radius:16px;color:#dbeafe;overflow:auto;padding:14px}.primitive code{color:#bfdbfe}</style></head><body><main><header><p class="eyebrow">Self-hosted voice debugging</p><h1>${escapeHtml(options.title ?? 'Voice Trace Timelines')}</h1><p class="muted">Per-call event timelines with provider latency, fallback, timeout, handoff, and error context.</p></header><section class="metrics"><article><span>Sessions</span><strong>${String(report.total)}</strong></article><article><span>Failed</span><strong>${String(report.failed)}</strong></article><article><span>Warnings</span><strong>${String(report.warnings)}</strong></article></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceTraceTimelineRoutes(...)</code> makes traces the proof backbone</h2><p class="muted">Mount trace timelines from the same trace store used by readiness, simulations, provider recovery, delivery sinks, and phone-agent smoke proof.</p><pre><code>${snippet}</code></pre></section><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Duration</th><th>Providers</th></tr></thead><tbody>${renderSessionRows(report)}</tbody></table></main></body></html>`;
+};
 
 export const createVoiceTraceTimelineRoutes = (
 	options: VoiceTraceTimelineRoutesOptions
@@ -374,6 +431,7 @@ export const createVoiceTraceTimelineRoutes = (
 		summarizeVoiceTraceTimeline(await options.store.list(), {
 			evaluation: options.evaluation,
 			limit: options.limit,
+			operationsRecordHref: options.operationsRecordHref,
 			redact: options.redact
 		});
 
@@ -383,6 +441,7 @@ export const createVoiceTraceTimelineRoutes = (
 			{
 				evaluation: options.evaluation,
 				limit: 1,
+				operationsRecordHref: options.operationsRecordHref,
 				redact: options.redact
 			}
 		);

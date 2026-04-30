@@ -134,6 +134,22 @@ export const renderVoiceBargeInHTML = (
 	options: { title?: string } = {}
 ) => {
 	const title = options.title ?? 'Voice Barge-In';
+	const snippet = `const traceStore = createVoiceMemoryTraceEventStore();
+
+app.use(
+  createVoiceBargeInRoutes({
+    htmlPath: '/barge-in',
+    path: '/api/voice-barge-in',
+    store: traceStore,
+    thresholdMs: 250
+  })
+);
+
+// Browser/runtime side:
+const bargeInMonitor = createVoiceBargeInMonitor({
+  path: '/api/voice-barge-in',
+  sessionId
+});`;
 	const sessions = report.sessions.length
 		? report.sessions
 				.map(
@@ -143,7 +159,7 @@ export const renderVoiceBargeInHTML = (
 				.join('')
 		: '<tr><td colspan="5">No barge-in events yet.</td></tr>';
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.5rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #475569;border-radius:999px;display:inline-flex;padding:8px 12px}.pass{color:#86efac}.warn{color:#fbbf24}.fail{color:#fca5a5}.empty{color:#cbd5e1}.metrics{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:20px 0}.metrics article{background:#181f27;border:1px solid #2b3642;border-radius:20px;padding:16px}.metrics span{color:#a8b0b8}.metrics strong{display:block;font-size:2rem}table{background:#181f27;border-collapse:collapse;border-radius:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #2b3642;padding:12px;text-align:left}</style></head><body><main><p class="eyebrow">Interruption quality</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><section class="metrics"><article><span>Interruptions</span><strong>${String(report.total)}</strong></article><article><span>Avg latency</span><strong>${String(report.averageLatencyMs ?? 0)}ms</strong></article><article><span>Passed</span><strong>${String(report.passed)}</strong></article><article><span>Failed</span><strong>${String(report.failed)}</strong></article></section><table><thead><tr><th>Session</th><th>Total</th><th>Passed</th><th>Failed</th><th>Avg latency</th></tr></thead><tbody>${sessions}</tbody></table></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.5rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #475569;border-radius:999px;display:inline-flex;padding:8px 12px}.pass{color:#86efac}.warn{color:#fbbf24}.fail{color:#fca5a5}.empty{color:#cbd5e1}.metrics{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:20px 0}.metrics article,.primitive{background:#181f27;border:1px solid #2b3642;border-radius:20px;padding:16px}.metrics span{color:#a8b0b8}.metrics strong{display:block;font-size:2rem}.primitive{margin:0 0 20px}.primitive h2{margin:.2rem 0 .5rem}.primitive p{color:#cbd5e1}.primitive pre{background:#0a0d10;border:1px solid #2b3642;border-radius:16px;color:#d9fff7;overflow:auto;padding:16px}table{background:#181f27;border-collapse:collapse;border-radius:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #2b3642;padding:12px;text-align:left}</style></head><body><main><p class="eyebrow">Interruption quality</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><section class="metrics"><article><span>Interruptions</span><strong>${String(report.total)}</strong></article><article><span>Avg latency</span><strong>${String(report.averageLatencyMs ?? 0)}ms</strong></article><article><span>Passed</span><strong>${String(report.passed)}</strong></article><article><span>Failed</span><strong>${String(report.failed)}</strong></article></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceBargeInRoutes(...)</code> proves interruption quality</h2><p>Use the shared trace store for browser interrupts, readiness gates, trace timelines, and production evidence instead of trusting a black-box hosted dashboard.</p><pre><code>${escapeHtml(snippet)}</code></pre></section><table><thead><tr><th>Session</th><th>Total</th><th>Passed</th><th>Failed</th><th>Avg latency</th></tr></thead><tbody>${sessions}</tbody></table></main></body></html>`;
 };
 
 export const createVoiceBargeInRoutes = (options: VoiceBargeInRoutesOptions) => {

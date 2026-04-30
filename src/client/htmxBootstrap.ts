@@ -2,7 +2,7 @@ import { createVoiceController } from './controller';
 import { createVoiceAudioPlayer } from './audioPlayer';
 import { createVoiceBargeInMonitor } from './bargeInMonitor';
 import { bindVoiceBargeIn } from './duplex';
-import type { VoiceBargeInBinding } from '../types';
+import type { VoiceBargeInBinding, VoiceReconnectClientState } from '../types';
 
 type VoiceDemoMode = 'guided' | 'general';
 
@@ -97,6 +97,21 @@ const formatErrorMessage = (error: unknown): string => {
 	}
 
 	return 'Unexpected error';
+};
+
+const formatReconnectState = (reconnect: VoiceReconnectClientState) => {
+	const pieces: string[] = [reconnect.status];
+
+	if (reconnect.attempts > 0 || reconnect.maxAttempts > 0) {
+		pieces.push(`${reconnect.attempts}/${reconnect.maxAttempts} attempts`);
+	}
+
+	if (reconnect.nextAttemptAt) {
+		const waitMs = Math.max(0, reconnect.nextAttemptAt - Date.now());
+		pieces.push(`retry in ${Math.ceil(waitMs / 100) / 10}s`);
+	}
+
+	return pieces.join(' · ');
 };
 
 const createInitialVoiceWaveLevels = (count = VOICE_WAVE_POINTS) =>
@@ -308,6 +323,7 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 	const guidedPrompts = parsePromptList(root.dataset.voiceGuidedPrompts);
 	const guidedLabel = root.dataset.voiceGuidedLabel ?? DEFAULT_GUIDED_LABEL;
 	const generalLabel = root.dataset.voiceGeneralLabel ?? DEFAULT_GENERAL_LABEL;
+	const reconnectReportPath = root.dataset.voiceReconnectReportPath;
 	const bargeInPath = root.dataset.voiceBargeInPath;
 	const bargeInMonitor = bargeInPath
 		? createVoiceBargeInMonitor({
@@ -348,6 +364,11 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 		root.dataset.voicePrompt,
 		HTMLElement,
 		'status-prompt'
+	);
+	const reconnectStatus = resolveElement(
+		root,
+		root.dataset.voiceReconnect,
+		HTMLElement
 	);
 	const chatList = requireElement(
 		root,
@@ -425,6 +446,9 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 				renderWave();
 			}
 		},
+		connection: {
+			reconnectReportPath
+		},
 		preset: 'guided-intake'
 	});
 	const generalVoice = createVoiceController(generalPath, {
@@ -442,6 +466,9 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 				waveLevels = pushVoiceWaveLevel(waveLevels, level);
 				renderWave();
 			}
+		},
+		connection: {
+			reconnectReportPath
 		},
 		preset: 'dictation'
 	});
@@ -482,6 +509,9 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
 		const status = voice.status;
 		connectionMetric.textContent = voice.isConnected ? 'Connected' : 'Waiting';
 		errorStatus.textContent = micError || voice.error || 'None';
+		if (reconnectStatus) {
+			reconnectStatus.textContent = formatReconnectState(voice.reconnect);
+		}
 		microphoneStatus.textContent = isCapturing
 			? DEFAULT_MIC_LIVE
 			: DEFAULT_MIC_IDLE;

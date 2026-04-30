@@ -1,0 +1,26 @@
+{
+	"artifacts": [
+		{
+			"bytes": 325396,
+			"contentType": "image/png",
+			"href": "/voice/provider-slos",
+			"id": "provider-slo-screenshot",
+			"kind": "screenshot",
+			"label": "Provider SLO screenshot",
+			"status": "pass"
+		}
+	],
+	"checkedAt": 1710000000000,
+	"schema": {
+		"id": "com.absolutejs.voice.observability-export",
+		"version": "1.0.0"
+	},
+	"status": "pass",
+	"summary": {
+		"downloadable": 0,
+		"failed": 0,
+		"required": 0,
+		"total": 1,
+		"warn": 0
+	}
+}

@@ -137,6 +137,15 @@ export type VoiceProviderRouterProviderProfile = {
 	timeoutMs?: number;
 };
 
+const isVoiceProviderRoutingPolicyPreset = (
+	value: string
+): value is VoiceProviderRouterPolicyPreset =>
+	value === 'balanced' ||
+	value === 'cost-cap' ||
+	value === 'cost-first' ||
+	value === 'latency-first' ||
+	value === 'quality-first';
+
 export const resolveVoiceProviderRoutingPolicyPreset = <
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -195,6 +204,31 @@ export const resolveVoiceProviderRoutingPolicyPreset = <
 	}
 };
 
+const resolveVoiceProviderRoutingPolicy = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string
+>(
+	policy?: VoiceProviderRouterPolicy<TContext, TSession, TProvider>
+): Extract<
+	VoiceProviderRouterPolicy<TContext, TSession, TProvider>,
+	Record<string, unknown>
+> | undefined => {
+	if (!policy) {
+		return undefined;
+	}
+	if (typeof policy === 'string') {
+		return isVoiceProviderRoutingPolicyPreset(policy)
+			? resolveVoiceProviderRoutingPolicyPreset<TContext, TSession, TProvider>(
+					policy
+				)
+			: {
+					strategy: policy
+				};
+	}
+	return policy;
+};
+
 export type VoiceProviderRouterHealthOptions = {
 	cooldownMs?: number;
 	failureThreshold?: number;
@@ -211,6 +245,187 @@ export type VoiceProviderRouterProviderHealth<
 	provider: TProvider;
 	status: 'healthy' | 'suppressed';
 	suppressedUntil?: number;
+};
+
+export type VoiceProviderOrchestrationSurface<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string
+> = {
+	allowProviders?:
+		| readonly TProvider[]
+		| ((
+				input: VoiceAgentModelInput<TContext, TSession>
+			) => readonly TProvider[] | Promise<readonly TProvider[]>);
+	fallback?:
+		| readonly TProvider[]
+		| ((
+				input: VoiceAgentModelInput<TContext, TSession>
+			) => readonly TProvider[] | Promise<readonly TProvider[]>);
+	fallbackMode?: VoiceProviderRouterFallbackMode;
+	maxCost?: number;
+	maxLatencyMs?: number;
+	minQuality?: number;
+	policy?: VoiceProviderRouterPolicy<TContext, TSession, TProvider>;
+	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
+	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
+	strategy?: VoiceProviderRouterStrategy;
+	timeoutMs?: number;
+	weights?: VoiceProviderRouterPolicyWeights;
+};
+
+export type VoiceProviderOrchestrationProfile<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string,
+	TSurface extends string = string
+> = {
+	defaultSurface?: TSurface;
+	id: string;
+	resolve: (
+		surface?: TSurface
+	) => VoiceProviderOrchestrationResolvedSurface<TContext, TSession, TProvider>;
+	surfaces: Record<
+		TSurface,
+		VoiceProviderOrchestrationSurface<TContext, TSession, TProvider>
+	>;
+};
+
+export type VoiceProviderOrchestrationProfileOptions<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string,
+	TSurface extends string = string
+> = {
+	defaultSurface?: TSurface;
+	id: string;
+	surfaces: Record<
+		TSurface,
+		VoiceProviderOrchestrationSurface<TContext, TSession, TProvider>
+	>;
+};
+
+export type VoiceProviderOrchestrationResolvedSurface<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string
+> = {
+	allowProviders?: VoiceProviderOrchestrationSurface<
+		TContext,
+		TSession,
+		TProvider
+	>['allowProviders'];
+	fallback?: VoiceProviderOrchestrationSurface<
+		TContext,
+		TSession,
+		TProvider
+	>['fallback'];
+	fallbackMode?: VoiceProviderRouterFallbackMode;
+	policy?: VoiceProviderRouterPolicy<TContext, TSession, TProvider>;
+	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
+	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
+	timeoutMs?: number;
+};
+
+const mergeDefinedProviderPolicyFields = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string
+>(
+	base:
+		| Extract<
+				VoiceProviderRouterPolicy<TContext, TSession, TProvider>,
+				Record<string, unknown>
+		  >
+		| undefined,
+	surface: VoiceProviderOrchestrationSurface<TContext, TSession, TProvider>
+): Extract<
+	VoiceProviderRouterPolicy<TContext, TSession, TProvider>,
+	Record<string, unknown>
+> => {
+	const next: Extract<
+		VoiceProviderRouterPolicy<TContext, TSession, TProvider>,
+		Record<string, unknown>
+	> = {
+		...(base ?? {})
+	};
+	if (surface.allowProviders !== undefined) {
+		next.allowProviders = surface.allowProviders;
+	}
+	if (surface.fallbackMode !== undefined) {
+		next.fallbackMode = surface.fallbackMode;
+	}
+	if (surface.maxCost !== undefined) {
+		next.maxCost = surface.maxCost;
+	}
+	if (surface.maxLatencyMs !== undefined) {
+		next.maxLatencyMs = surface.maxLatencyMs;
+	}
+	if (surface.minQuality !== undefined) {
+		next.minQuality = surface.minQuality;
+	}
+	if (surface.strategy !== undefined) {
+		next.strategy = surface.strategy;
+	}
+	if (surface.weights !== undefined) {
+		next.weights = {
+			...(base?.weights ?? {}),
+			...surface.weights
+		};
+	}
+	return next;
+};
+
+export const createVoiceProviderOrchestrationProfile = <
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TProvider extends string = string,
+	TSurface extends string = string
+>(
+	options: VoiceProviderOrchestrationProfileOptions<
+		TContext,
+		TSession,
+		TProvider,
+		TSurface
+	>
+): VoiceProviderOrchestrationProfile<
+	TContext,
+	TSession,
+	TProvider,
+	TSurface
+> => {
+	const surfaceNames = Object.keys(options.surfaces) as TSurface[];
+	const defaultSurface = options.defaultSurface ?? surfaceNames[0];
+	if (!defaultSurface || !options.surfaces[defaultSurface]) {
+		throw new Error('Voice provider orchestration profile has no surfaces.');
+	}
+
+	return {
+		defaultSurface,
+		id: options.id,
+		resolve: (surface = defaultSurface) => {
+			const config = options.surfaces[surface];
+			if (!config) {
+				throw new Error(
+					`Voice provider orchestration profile ${options.id} has no surface "${surface}".`
+				);
+			}
+			const policy = mergeDefinedProviderPolicyFields(
+				resolveVoiceProviderRoutingPolicy(config.policy),
+				config
+			);
+			return {
+				allowProviders: config.allowProviders,
+				fallback: config.fallback,
+				fallbackMode: config.fallbackMode,
+				policy,
+				providerHealth: config.providerHealth,
+				providerProfiles: config.providerProfiles,
+				timeoutMs: config.timeoutMs
+			};
+		},
+		surfaces: options.surfaces
+	};
 };
 
 export type VoiceProviderRouterOptions<
@@ -237,6 +452,12 @@ export type VoiceProviderRouterOptions<
 		event: VoiceProviderRouterEvent<TProvider>,
 		input: VoiceAgentModelInput<TContext, TSession>
 	) => Promise<void> | void;
+	orchestrationProfile?: VoiceProviderOrchestrationProfile<
+		TContext,
+		TSession,
+		TProvider
+	>;
+	orchestrationSurface?: string;
 	policy?: VoiceProviderRouterPolicy<TContext, TSession, TProvider>;
 	providerHealth?: boolean | VoiceProviderRouterHealthOptions;
 	providerProfiles?: Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
@@ -485,29 +706,28 @@ export const createVoiceProviderRouter = <
 ): VoiceAgentModel<TContext, TSession, TResult> => {
 	const providerIds = Object.keys(options.providers) as TProvider[];
 	const firstProvider = providerIds[0];
+	const orchestrationSurface = options.orchestrationProfile?.resolve(
+		options.orchestrationSurface
+	);
 	const policy =
-		typeof options.policy === 'string'
-			? options.policy === 'balanced' ||
-				options.policy === 'cost-cap' ||
-				options.policy === 'cost-first' ||
-				options.policy === 'latency-first' ||
-				options.policy === 'quality-first'
-				? resolveVoiceProviderRoutingPolicyPreset<
-						TContext,
-						TSession,
-						TProvider
-					>(options.policy)
-				: {
-						strategy: options.policy
-					}
-			: options.policy;
+		resolveVoiceProviderRoutingPolicy(options.policy) ??
+		resolveVoiceProviderRoutingPolicy(orchestrationSurface?.policy);
 	const strategy = policy?.strategy ?? 'prefer-selected';
 	const fallbackMode =
-		policy?.fallbackMode ?? options.fallbackMode ?? 'provider-error';
-	const healthOptions =
-		typeof options.providerHealth === 'object'
-			? options.providerHealth
-			: options.providerHealth
+		policy?.fallbackMode ??
+		options.fallbackMode ??
+		orchestrationSurface?.fallbackMode ??
+		'provider-error';
+	const providerProfiles = {
+		...(orchestrationSurface?.providerProfiles ?? {}),
+		...(options.providerProfiles ?? {})
+	} as Partial<Record<TProvider, VoiceProviderRouterProviderProfile>>;
+	const providerHealthOption =
+		options.providerHealth ?? orchestrationSurface?.providerHealth;
+	const healthOptions: VoiceProviderRouterHealthOptions | undefined =
+		typeof providerHealthOption === 'object'
+			? providerHealthOption
+			: providerHealthOption
 				? {}
 				: undefined;
 	const healthState = new Map<
@@ -522,7 +742,10 @@ export const createVoiceProviderRouter = <
 		healthOptions?.rateLimitCooldownMs ?? 60_000
 	);
 	const getProviderTimeoutMs = (provider: TProvider) => {
-		const timeoutMs = options.providerProfiles?.[provider]?.timeoutMs ?? options.timeoutMs;
+		const timeoutMs =
+			providerProfiles[provider]?.timeoutMs ??
+			options.timeoutMs ??
+			orchestrationSurface?.timeoutMs;
 		return typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0
 			? timeoutMs
 			: undefined;
@@ -609,7 +832,10 @@ export const createVoiceProviderRouter = <
 	const resolveAllowedProviders = async (
 		input: VoiceAgentModelInput<TContext, TSession>
 	) => {
-		const allowProviders = policy?.allowProviders ?? options.allowProviders;
+		const allowProviders =
+			policy?.allowProviders ??
+			options.allowProviders ??
+			orchestrationSurface?.allowProviders;
 		const allowed =
 			typeof allowProviders === 'function'
 				? await allowProviders(input)
@@ -618,7 +844,7 @@ export const createVoiceProviderRouter = <
 	};
 
 	const passesBudgetFilters = (provider: TProvider) => {
-		const profile = options.providerProfiles?.[provider];
+		const profile = providerProfiles[provider];
 		if (
 			typeof policy?.maxCost === 'number' &&
 			typeof profile?.cost === 'number' &&
@@ -644,7 +870,7 @@ export const createVoiceProviderRouter = <
 	};
 
 	const getBalancedScore = (provider: TProvider) => {
-		const profile = options.providerProfiles?.[provider];
+		const profile = providerProfiles[provider];
 		if (policy?.scoreProvider) {
 			return policy.scoreProvider(provider, profile);
 		}
@@ -669,8 +895,8 @@ export const createVoiceProviderRouter = <
 		}
 
 		return [...providers].sort((left, right) => {
-			const leftProfile = options.providerProfiles?.[left];
-			const rightProfile = options.providerProfiles?.[right];
+			const leftProfile = providerProfiles[left];
+			const rightProfile = providerProfiles[right];
 			if (strategy === 'quality-first') {
 				return (
 					(rightProfile?.quality ?? Number.MIN_SAFE_INTEGER) -
@@ -708,10 +934,11 @@ export const createVoiceProviderRouter = <
 	) => {
 		const selectedProvider = await options.selectProvider?.(input);
 		const allowedProviders = await resolveAllowedProviders(input);
+		const fallbackSource = options.fallback ?? orchestrationSurface?.fallback;
 		const fallbackOrder =
-			typeof options.fallback === 'function'
-				? await options.fallback(input)
-				: options.fallback;
+			typeof fallbackSource === 'function'
+				? await fallbackSource(input)
+				: fallbackSource;
 		const allowedRankedProviders = sortProviders([
 			...(fallbackOrder ?? providerIds)
 		]).filter((provider) => allowedProviders.has(provider));

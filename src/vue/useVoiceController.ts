@@ -16,6 +16,7 @@ export function useVoiceController<TResult = unknown>(
 	const isConnected = ref(false);
 	const isRecording = ref(false);
 	const partial = ref('');
+	const reconnect = shallowRef(controller.reconnect);
 	const recordingError = ref<string | null>(null);
 	const sessionId = ref(controller.sessionId);
 	const status = ref(controller.status);
@@ -28,6 +29,7 @@ export function useVoiceController<TResult = unknown>(
 		isConnected.value = controller.isConnected;
 		isRecording.value = controller.isRecording;
 		partial.value = controller.partial;
+		reconnect.value = controller.reconnect;
 		recordingError.value = controller.recordingError;
 		sessionId.value = controller.sessionId;
 		status.value = controller.status;
@@ -54,6 +56,7 @@ export function useVoiceController<TResult = unknown>(
 		isConnected,
 		isRecording,
 		partial,
+		reconnect,
 		recordingError,
 		sendAudio: (audio: Uint8Array | ArrayBuffer) => controller.sendAudio(audio),
 		sessionId,

@@ -22,6 +22,7 @@ export type VoiceRoutingEvent = {
 	operation?: string;
 	provider?: string;
 	routing?: string;
+	scenarioId?: string;
 	selectedProvider?: string;
 	sessionId: string;
 	status?: string;
@@ -170,6 +171,7 @@ export const listVoiceRoutingEvents = (
 			operation: getString(event.payload.operation),
 			provider,
 			routing: getString(event.payload.routing),
+			scenarioId: event.scenarioId,
 			selectedProvider: getString(event.payload.selectedProvider),
 			sessionId: event.sessionId,
 			status: providerStatus,
@@ -513,6 +515,39 @@ export const renderVoiceResilienceHTML = (input: VoiceResiliencePageData) => {
 				.map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
 				.join(' · ')
 		: '';
+	const snippet = escapeHtml(`const sttSimulator = createVoiceIOProviderFailureSimulator({
+	kind: 'stt',
+	providers: ['deepgram', 'assemblyai'],
+	fallback: ['deepgram', 'assemblyai'],
+	onProviderEvent: async (event, input) => {
+		await traceStore.append({
+			at: event.at,
+			payload: { ...event, providerStatus: event.status },
+			sessionId: input.sessionId,
+			type: 'session.error'
+		});
+	}
+});
+
+app.use(
+	createVoiceResilienceRoutes({
+		store: traceStore,
+		sttProviders: ['deepgram', 'assemblyai'],
+		sttSimulation: {
+			failureProviders: ['deepgram'],
+			fallbackRequiredProvider: 'assemblyai',
+			providers: [{ provider: 'deepgram' }, { provider: 'assemblyai' }],
+			run: sttSimulator.run
+		}
+	})
+);
+
+app.use(
+	createVoiceProductionReadinessRoutes({
+		links: { resilience: '/resilience' },
+		store: traceStore
+	})
+);`);
 
 	return `<!doctype html>
 <html lang="en">
@@ -548,6 +583,9 @@ export const renderVoiceResilienceHTML = (input: VoiceResiliencePageData) => {
     button:disabled { cursor: not-allowed; opacity: 0.45; }
     .simulate-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
     .simulate-output { background: #050505; border: 1px solid #27272a; border-radius: 14px; color: #d4d4d8; overflow: auto; padding: 12px; white-space: pre-wrap; }
+    .primitive { border-color: rgba(245, 158, 11, 0.45); }
+    .primitive pre { background: #050505; border: 1px solid #27272a; border-radius: 14px; color: #fef3c7; overflow: auto; padding: 14px; }
+    .primitive code { color: #fef3c7; }
     a { color: #f59e0b; }
     @media (max-width: 850px) { .grid, .provider-grid, .session-grid, dl { grid-template-columns: 1fr; } }
   </style>
@@ -559,6 +597,12 @@ export const renderVoiceResilienceHTML = (input: VoiceResiliencePageData) => {
       <p>One view for the production reliability story: LLM failover, STT/TTS routing, latency budgets, timeouts, and fallback decisions.</p>
       ${links ? `<p>${links}</p>` : ''}
       <p>${kindCounts || '<span class="pill">No routing events yet</span>'}</p>
+    </section>
+    <section class="primitive">
+      <p class="muted">Copy into your app</p>
+      <h2><code>createVoiceResilienceRoutes(...)</code> builds this failover proof surface</h2>
+      <p class="muted">Mount one route group for provider health, routing traces, and failure simulation. Feed the same trace store into production readiness so unresolved provider errors fail the deploy gate while recovered fallback stays visible.</p>
+      <pre><code>${snippet}</code></pre>
     </section>
     <section class="grid">
       <article class="card metric"><span>Total routing events</span><strong>${summary.total}</strong></article>

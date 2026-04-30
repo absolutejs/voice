@@ -4,6 +4,7 @@ import {
 	createVoiceMemoryTraceEventStore,
 	createVoiceTraceHTTPSink,
 	createVoiceTraceEvent,
+	createVoiceTraceS3Sink,
 	createVoiceTraceSinkStore,
 	deliverVoiceTraceEventsToSinks,
 	evaluateVoiceTrace,
@@ -481,6 +482,49 @@ test('createVoiceTraceHTTPSink posts trace envelopes with optional redaction', a
 	).toBe('Email [redacted]');
 	expect(requests[0]?.headers.get('x-absolutejs-signature')).toStartWith(
 		'sha256='
+	);
+});
+
+test('createVoiceTraceS3Sink writes trace envelopes to object storage', async () => {
+	const writes: Array<{ data: string; key: string }> = [];
+	const event = createVoiceTraceEvent({
+		at: 100,
+		payload: {
+			text: 'Trace me'
+		},
+		sessionId: 'session-s3',
+		type: 'turn.assistant'
+	});
+
+	const result = await deliverVoiceTraceEventsToSinks({
+		events: [event],
+		redact: false,
+		sinks: [
+			createVoiceTraceS3Sink({
+				bucket: 'voice-bucket',
+				client: {
+					file: (key) => ({
+						write: (data) => {
+							writes.push({ data, key: String(key) });
+							return Promise.resolve(String(data).length);
+						}
+					})
+				} as never,
+				id: 'trace-s3',
+				keyPrefix: 'exports/traces'
+			})
+		]
+	});
+
+	expect(result.status).toBe('delivered');
+	expect(writes).toHaveLength(1);
+	expect(writes[0]?.key).toStartWith('exports/traces/');
+	expect(JSON.parse(writes[0]?.data ?? '{}')).toMatchObject({
+		eventCount: 1,
+		source: 'absolutejs-voice'
+	});
+	expect(result.sinkDeliveries['trace-s3']?.deliveredTo).toStartWith(
+		's3://voice-bucket/exports/traces/'
 	);
 });
 

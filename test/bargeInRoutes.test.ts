@@ -85,5 +85,9 @@ test('createVoiceBargeInRoutes accepts monitor events and renders dashboard', as
 	});
 
 	const html = await app.handle(new Request('http://localhost/barge-in'));
-	expect(await html.text()).toContain('Voice Barge-In');
+	const htmlText = await html.text();
+	expect(htmlText).toContain('Voice Barge-In');
+	expect(htmlText).toContain('Copy into your app');
+	expect(htmlText).toContain('createVoiceBargeInRoutes');
+	expect(htmlText).toContain('createVoiceBargeInMonitor');
 });

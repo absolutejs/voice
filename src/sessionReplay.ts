@@ -47,6 +47,7 @@ export type VoiceSessionListItem = {
 	errorCount: number;
 	eventCount: number;
 	latestOutcome?: string;
+	operationsRecordHref?: string;
 	providerErrors: Record<string, number>;
 	providers: string[];
 	replayHref: string;
@@ -57,9 +58,20 @@ export type VoiceSessionListItem = {
 	turnCount: number;
 };
 
+export type VoiceProviderFallbackRecoverySummary = {
+	recovered: number;
+	recoveredSessions: number;
+	recoveredTurns: number;
+	status: 'fail' | 'pass';
+	total: number;
+	unresolvedErrors: number;
+	unresolvedSessions: number;
+};
+
 export type VoiceSessionListOptions = {
 	events?: StoredVoiceTraceEvent[];
 	limit?: number;
+	operationsRecordHref?: false | string | ((session: Omit<VoiceSessionListItem, 'operationsRecordHref' | 'replayHref'>) => string);
 	provider?: string;
 	q?: string;
 	replayHref?: false | string | ((session: Omit<VoiceSessionListItem, 'replayHref'>) => string);
@@ -115,6 +127,66 @@ const escapeHtml = (value: string) =>
 
 const increment = (record: Record<string, number>, key: string) => {
 	record[key] = (record[key] ?? 0) + 1;
+};
+
+const resolveSessionHref = (
+	value:
+		| false
+		| string
+		| ((session: Omit<VoiceSessionListItem, 'operationsRecordHref' | 'replayHref'>) => string)
+		| undefined,
+	session: Omit<VoiceSessionListItem, 'operationsRecordHref' | 'replayHref'>
+) => {
+	if (value === false) {
+		return undefined;
+	}
+	if (typeof value === 'function') {
+		return value(session);
+	}
+	if (typeof value === 'string') {
+		const encoded = encodeURIComponent(session.sessionId);
+		return value.includes(':sessionId') ? value.replace(':sessionId', encoded) : `${value.replace(/\/$/, '')}/${encoded}`;
+	}
+	return undefined;
+};
+
+const isProviderErrorEvent = (event: StoredVoiceTraceEvent) =>
+	event.type === 'session.error' &&
+	(event.payload.providerStatus === 'error' ||
+		typeof event.payload.error === 'string');
+
+const isRecoveredProviderFallbackEvent = (event: StoredVoiceTraceEvent) =>
+	event.type === 'session.error' &&
+	(event.payload.providerStatus === 'fallback' ||
+		event.payload.status === 'fallback') &&
+	event.payload.recovered === true;
+
+const turnRecoveryKey = (event: StoredVoiceTraceEvent) =>
+	event.turnId ?? `session:${event.sessionId}`;
+
+export const summarizeVoiceProviderFallbackRecovery = (
+	events: StoredVoiceTraceEvent[]
+): VoiceProviderFallbackRecoverySummary => {
+	const sorted = filterVoiceTraceEvents(events);
+	const recoveredEvents = sorted.filter(isRecoveredProviderFallbackEvent);
+	const recoveredKeys = new Set(recoveredEvents.map((event) => turnRecoveryKey(event)));
+	const recoveredSessions = new Set(recoveredEvents.map((event) => event.sessionId));
+	const unresolvedErrorEvents = sorted.filter(
+		(event) => isProviderErrorEvent(event) && !recoveredKeys.has(turnRecoveryKey(event))
+	);
+	const unresolvedSessions = new Set(
+		unresolvedErrorEvents.map((event) => event.sessionId)
+	);
+
+	return {
+		recovered: recoveredEvents.length,
+		recoveredSessions: recoveredSessions.size,
+		recoveredTurns: recoveredKeys.size,
+		status: unresolvedErrorEvents.length > 0 ? 'fail' : 'pass',
+		total: recoveredEvents.length + unresolvedErrorEvents.length,
+		unresolvedErrors: unresolvedErrorEvents.length,
+		unresolvedSessions: unresolvedSessions.size
+	};
 };
 
 const buildReplayTurns = (
@@ -234,17 +306,18 @@ export const summarizeVoiceSessions = async (
 		const providers = new Set<string>();
 		let latestOutcome: string | undefined;
 		let errorCount = 0;
+		const recoveredTurns = new Set(
+			sorted
+				.filter(isRecoveredProviderFallbackEvent)
+				.map((event) => turnRecoveryKey(event))
+		);
 
 		for (const event of sorted) {
 			const provider = getString(event.payload.provider);
 			if (provider) {
 				providers.add(provider);
 			}
-			if (
-				event.type === 'session.error' &&
-				(event.payload.providerStatus === 'error' ||
-					typeof event.payload.error === 'string')
-			) {
+			if (isProviderErrorEvent(event) && !recoveredTurns.has(turnRecoveryKey(event))) {
 				errorCount += 1;
 				increment(providerErrors, provider ?? 'unknown');
 			}
@@ -254,7 +327,7 @@ export const summarizeVoiceSessions = async (
 			}
 		}
 
-		const item: Omit<VoiceSessionListItem, 'replayHref'> = {
+		const item: Omit<VoiceSessionListItem, 'operationsRecordHref' | 'replayHref'> = {
 			endedAt: summary.endedAt,
 			errorCount,
 			eventCount: summary.eventCount,
@@ -276,6 +349,10 @@ export const summarizeVoiceSessions = async (
 
 		return {
 			...item,
+			operationsRecordHref: resolveSessionHref(
+				options.operationsRecordHref,
+				item
+			),
 			replayHref
 		};
 	});
@@ -333,7 +410,7 @@ export const renderVoiceSessionsHTML = (sessions: VoiceSessionListItem[]) =>
 							? `<p>Providers: ${session.providers.map(escapeHtml).join(', ')}</p>`
 							: '',
 						session.replayHref
-							? `<p><a href="${escapeHtml(session.replayHref)}">Open replay</a></p>`
+							? `<p>${session.operationsRecordHref ? `<a href="${escapeHtml(session.operationsRecordHref)}">Open operations record</a> · ` : ''}<a href="${escapeHtml(session.replayHref)}">Open replay</a></p>`
 							: '',
 						'</article>'
 					].join('')

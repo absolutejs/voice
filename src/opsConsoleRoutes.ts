@@ -1,4 +1,9 @@
 import { Elysia } from 'elysia';
+import {
+	buildVoiceDeliverySinkReport,
+	type VoiceDeliverySinkReport,
+	type VoiceDeliverySinkRoutesOptions
+} from './deliverySinkRoutes';
 import { summarizeVoiceHandoffHealth } from './handoffHealth';
 import { summarizeVoiceProviderHealth } from './providerHealth';
 import { evaluateVoiceQuality, type VoiceQualityReport } from './qualityRoutes';
@@ -24,6 +29,7 @@ export type VoiceOpsConsoleReport = {
 		total: number;
 	};
 	links: VoiceOpsConsoleLink[];
+	deliverySinks?: VoiceDeliverySinkReport;
 	providers: {
 		degraded: number;
 		healthy: number;
@@ -42,6 +48,7 @@ export type VoiceOpsConsoleReport = {
 
 export type VoiceOpsConsoleRoutesOptions = {
 	headers?: HeadersInit;
+	deliverySinks?: false | VoiceDeliverySinkRoutesOptions;
 	links?: VoiceOpsConsoleLink[];
 	llmProviders?: readonly string[];
 	name?: string;
@@ -138,15 +145,42 @@ export const buildVoiceOpsConsoleReport = async (
 	const quality = await evaluateVoiceQuality({ events });
 	const routingEvents = listVoiceRoutingEvents(events).slice(0, 10);
 	const trace = summarizeVoiceTrace(events);
+	const deliverySinkOptions = options.deliverySinks || undefined;
+	const deliverySinks = deliverySinkOptions
+		? await buildVoiceDeliverySinkReport(deliverySinkOptions)
+		: undefined;
+	const baseLinks = options.links ?? DEFAULT_LINKS;
+	const links =
+		deliverySinks &&
+		!baseLinks.some(
+			(link) =>
+				link.href === (deliverySinkOptions?.htmlPath ?? '/delivery-sinks') ||
+				link.statusHref === (deliverySinkOptions?.path ?? '/api/voice-delivery-sinks')
+		)
+			? [
+					...baseLinks,
+					{
+						description:
+							'Configured audit and trace delivery sinks with queue health.',
+						href:
+							deliverySinkOptions?.htmlPath === false
+								? (deliverySinkOptions.path ?? '/api/voice-delivery-sinks')
+								: (deliverySinkOptions?.htmlPath ?? '/delivery-sinks'),
+						label: 'Delivery Sinks',
+						statusHref: deliverySinkOptions?.path ?? '/api/voice-delivery-sinks'
+					}
+				]
+			: baseLinks;
 
 	return {
 		checkedAt: Date.now(),
+		deliverySinks,
 		eventCount: events.length,
 		handoffs: {
 			failed: handoffs.failed,
 			total: handoffs.total
 		},
-		links: options.links ?? DEFAULT_LINKS,
+		links,
 		providers: countProviderStatuses(providers),
 		quality,
 		recentRoutingEvents: routingEvents,

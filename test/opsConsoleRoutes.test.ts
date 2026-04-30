@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import {
 	buildVoiceOpsConsoleReport,
+	createVoiceMemoryAuditSinkDeliveryStore,
 	createVoiceMemoryTraceEventStore,
+	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceOpsConsoleRoutes,
 	renderVoiceOpsConsoleHTML
 } from '../src';
@@ -73,6 +75,42 @@ test('buildVoiceOpsConsoleReport summarizes operations surfaces', async () => {
 	expect(report.providers.degraded).toBeGreaterThan(0);
 	expect(report.recentRoutingEvents).toHaveLength(1);
 	expect(report.recentSessions[0]?.sessionId).toBe('session-ops');
+});
+
+test('buildVoiceOpsConsoleReport adds delivery sink surface when configured', async () => {
+	const report = await buildVoiceOpsConsoleReport({
+		deliverySinks: {
+			auditDeliveries: {
+				store: createVoiceMemoryAuditSinkDeliveryStore()
+			},
+			traceDeliveries: {
+				store: createVoiceMemoryTraceSinkDeliveryStore()
+			}
+		},
+		links: [
+			{
+				href: '/custom',
+				label: 'Custom'
+			}
+		],
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.deliverySinks?.status).toBe('warn');
+	expect(report.links).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/custom',
+				label: 'Custom'
+			}),
+			expect.objectContaining({
+				href: '/delivery-sinks',
+				label: 'Delivery Sinks',
+				statusHref: '/api/voice-delivery-sinks'
+			})
+		])
+	);
+	expect(renderVoiceOpsConsoleHTML(report)).toContain('Delivery Sinks');
 });
 
 test('renderVoiceOpsConsoleHTML renders linked control plane', async () => {

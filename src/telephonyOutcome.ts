@@ -95,6 +95,80 @@ export type StoredVoiceTelephonyWebhookDecision<TResult = unknown> =
 		updatedAt: number;
 	};
 
+export type VoiceTelephonyWebhookNormalizationEvidenceDecision = {
+	action?: VoiceTelephonyOutcomeAction | string;
+	applied?: boolean;
+	decision?: {
+		action?: VoiceTelephonyOutcomeAction | string;
+		disposition?: VoiceCallDisposition | string;
+		source?: VoiceTelephonyOutcomeDecision['source'] | string;
+	};
+	disposition?: VoiceCallDisposition | string;
+	duplicate?: boolean;
+	campaignOutcome?: unknown;
+	event?: VoiceTelephonyOutcomeProviderEvent;
+	idempotencyKey?: string;
+	provider?: VoiceTelephonyWebhookProvider | string;
+	routeResult?: unknown;
+	sessionId?: string;
+	source?: VoiceTelephonyOutcomeDecision['source'] | string;
+};
+
+export type VoiceTelephonyWebhookVerificationEvidenceAttempt = {
+	decisions?: number;
+	provider?: VoiceTelephonyWebhookProvider | string;
+	rejected?: boolean;
+	replayRejected?: boolean;
+	sideEffects?: number;
+	status?: number;
+	verification?: VoiceTelephonyWebhookVerificationResult;
+};
+
+export type VoiceTelephonyWebhookNormalizationEvidenceInput = {
+	decisions?: VoiceTelephonyWebhookNormalizationEvidenceDecision[];
+	maxMissingSessionIds?: number;
+	minApplied?: number;
+	minDecisions?: number;
+	minDuplicateIdempotencyKeys?: number;
+	minDuplicates?: number;
+	maxDuplicateCampaignOutcomesApplied?: number;
+	maxRejectedVerificationSideEffects?: number;
+	minRejectedVerificationAttempts?: number;
+	minReplayRejectedVerificationAttempts?: number;
+	requiredActions?: VoiceTelephonyOutcomeAction[];
+	requiredDispositions?: VoiceCallDisposition[];
+	requiredDuplicateProviders?: VoiceTelephonyWebhookProvider[];
+	requiredProviders?: VoiceTelephonyWebhookProvider[];
+	requiredReplayRejectedVerificationProviders?: VoiceTelephonyWebhookProvider[];
+	requiredRejectedVerificationProviders?: VoiceTelephonyWebhookProvider[];
+	requireRouteResults?: boolean;
+	verificationAttempts?: VoiceTelephonyWebhookVerificationEvidenceAttempt[];
+};
+
+export type VoiceTelephonyWebhookNormalizationEvidenceReport = {
+	actions: VoiceTelephonyOutcomeAction[];
+	applied: number;
+	decisions: number;
+	dispositions: VoiceCallDisposition[];
+	duplicateCampaignOutcomesApplied: number;
+	duplicateIdempotencyKeys: number;
+	duplicateOutcomeReasons: string[];
+	duplicateProviders: VoiceTelephonyWebhookProvider[];
+	duplicates: number;
+	issues: string[];
+	missingSessionIds: number;
+	ok: boolean;
+	providers: VoiceTelephonyWebhookProvider[];
+	rejectedVerificationAttempts: number;
+	rejectedVerificationProviders: VoiceTelephonyWebhookProvider[];
+	rejectedVerificationSideEffects: number;
+	replayRejectedVerificationAttempts: number;
+	replayRejectedVerificationProviders: VoiceTelephonyWebhookProvider[];
+	routeResults: number;
+	sources: string[];
+	verificationAttempts: number;
+};
+
 export type VoiceTelephonyWebhookIdempotencyStore<
 	TResult = unknown
 > = {
@@ -250,6 +324,20 @@ const DEFAULT_NO_ANSWER_SIP_CODES = [408, 480, 486, 487, 603];
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+const uniqueSorted = <Value extends string>(values: Value[]): Value[] =>
+	Array.from(new Set(values)).sort();
+
+const findMissing = <Value extends string>(
+	values: Value[],
+	required: Value[] | undefined
+): Value[] => {
+	if (!required?.length) {
+		return [];
+	}
+	const valueSet = new Set(values);
+	return required.filter((value) => !valueSet.has(value));
+};
+
 export class VoiceTelephonyWebhookVerificationError extends Error {
 	result: VoiceTelephonyWebhookVerificationResult;
 
@@ -271,6 +359,268 @@ export const createMemoryVoiceTelephonyWebhookIdempotencyStore = <
 			decisions.set(key, decision);
 		}
 	};
+};
+
+const isTelephonyWebhookProvider = (
+	value: unknown
+): value is VoiceTelephonyWebhookProvider =>
+	value === 'generic' ||
+	value === 'plivo' ||
+	value === 'telnyx' ||
+	value === 'twilio';
+
+const isTelephonyOutcomeAction = (
+	value: unknown
+): value is VoiceTelephonyOutcomeAction =>
+	value === 'complete' ||
+	value === 'escalate' ||
+	value === 'ignore' ||
+	value === 'no-answer' ||
+	value === 'transfer' ||
+	value === 'voicemail';
+
+const isCallDisposition = (value: unknown): value is VoiceCallDisposition =>
+	value === 'completed' ||
+	value === 'escalated' ||
+	value === 'failed' ||
+	value === 'no-answer' ||
+	value === 'transferred' ||
+	value === 'voicemail';
+
+export const evaluateVoiceTelephonyWebhookNormalizationEvidence = (
+	input: VoiceTelephonyWebhookNormalizationEvidenceInput = {}
+): VoiceTelephonyWebhookNormalizationEvidenceReport => {
+	const issues: string[] = [];
+	const decisions = input.decisions ?? [];
+	const verificationAttempts = input.verificationAttempts ?? [];
+	const actions = uniqueSorted(
+		decisions
+			.map((decision) => decision.decision?.action ?? decision.action)
+			.filter(isTelephonyOutcomeAction)
+	);
+	const dispositions = uniqueSorted(
+		decisions
+			.map((decision) => decision.decision?.disposition ?? decision.disposition)
+			.filter(isCallDisposition)
+	);
+	const providers = uniqueSorted(
+		decisions
+			.map((decision) => decision.provider ?? decision.event?.provider)
+			.filter(isTelephonyWebhookProvider)
+	);
+	const sources = uniqueSorted(
+		decisions
+			.map((decision) => decision.decision?.source ?? decision.source)
+			.filter((source): source is string => typeof source === 'string')
+	);
+	const applied = decisions.filter((decision) => decision.applied === true).length;
+	const duplicateDecisions = decisions.filter(
+		(decision) => decision.duplicate === true
+	);
+	const duplicateProviders = uniqueSorted(
+		duplicateDecisions
+			.map((decision) => decision.provider ?? decision.event?.provider)
+			.filter(isTelephonyWebhookProvider)
+	);
+	const duplicateIdempotencyKeys = new Set(
+		duplicateDecisions
+			.map((decision) => decision.idempotencyKey)
+			.filter((key): key is string => typeof key === 'string' && key.length > 0)
+	).size;
+	const duplicateCampaignOutcomesApplied = duplicateDecisions.filter(
+		(decision) =>
+			isRecord(decision.campaignOutcome) &&
+			decision.campaignOutcome.applied === true
+	).length;
+	const duplicateOutcomeReasons = uniqueSorted(
+		duplicateDecisions
+			.map((decision) =>
+				isRecord(decision.campaignOutcome)
+					? decision.campaignOutcome.reason
+					: undefined
+			)
+			.filter((reason): reason is string => typeof reason === 'string')
+	);
+	const routeResults = decisions.filter((decision) =>
+		isRecord(decision.routeResult)
+	).length;
+	const missingSessionIds = decisions.filter(
+		(decision) => !decision.sessionId
+	).length;
+	const rejectedVerificationAttempts = verificationAttempts.filter(
+		(attempt) =>
+			attempt.rejected === true ||
+			attempt.status === 401 ||
+			(attempt.verification?.ok === false &&
+				attempt.verification.reason === 'invalid-signature')
+	);
+	const rejectedVerificationProviders = uniqueSorted(
+		rejectedVerificationAttempts
+			.map((attempt) => attempt.provider)
+			.filter(isTelephonyWebhookProvider)
+	);
+	const replayRejectedVerificationAttempts = rejectedVerificationAttempts.filter(
+		(attempt) => attempt.replayRejected === true
+	);
+	const replayRejectedVerificationProviders = uniqueSorted(
+		replayRejectedVerificationAttempts
+			.map((attempt) => attempt.provider)
+			.filter(isTelephonyWebhookProvider)
+	);
+	const rejectedVerificationSideEffects = rejectedVerificationAttempts.reduce(
+		(total, attempt) => total + Math.max(0, attempt.sideEffects ?? 0),
+		0
+	);
+
+	if (
+		input.minDecisions !== undefined &&
+		decisions.length < input.minDecisions
+	) {
+		issues.push(
+			`Expected at least ${String(input.minDecisions)} telephony webhook decision(s), found ${String(decisions.length)}.`
+		);
+	}
+	if (input.minApplied !== undefined && applied < input.minApplied) {
+		issues.push(
+			`Expected at least ${String(input.minApplied)} applied telephony webhook decision(s), found ${String(applied)}.`
+		);
+	}
+	if (
+		input.minDuplicates !== undefined &&
+		duplicateDecisions.length < input.minDuplicates
+	) {
+		issues.push(
+			`Expected at least ${String(input.minDuplicates)} duplicate telephony webhook decision(s), found ${String(duplicateDecisions.length)}.`
+		);
+	}
+	if (
+		input.minDuplicateIdempotencyKeys !== undefined &&
+		duplicateIdempotencyKeys < input.minDuplicateIdempotencyKeys
+	) {
+		issues.push(
+			`Expected at least ${String(input.minDuplicateIdempotencyKeys)} duplicate telephony webhook idempotency key(s), found ${String(duplicateIdempotencyKeys)}.`
+		);
+	}
+	if (
+		input.maxDuplicateCampaignOutcomesApplied !== undefined &&
+		duplicateCampaignOutcomesApplied >
+			input.maxDuplicateCampaignOutcomesApplied
+	) {
+		issues.push(
+			`Expected at most ${String(input.maxDuplicateCampaignOutcomesApplied)} duplicate telephony webhook campaign outcome application(s), found ${String(duplicateCampaignOutcomesApplied)}.`
+		);
+	}
+	if (
+		input.minRejectedVerificationAttempts !== undefined &&
+		rejectedVerificationAttempts.length <
+			input.minRejectedVerificationAttempts
+	) {
+		issues.push(
+			`Expected at least ${String(input.minRejectedVerificationAttempts)} rejected telephony webhook verification attempt(s), found ${String(rejectedVerificationAttempts.length)}.`
+		);
+	}
+	if (
+		input.maxRejectedVerificationSideEffects !== undefined &&
+		rejectedVerificationSideEffects >
+			input.maxRejectedVerificationSideEffects
+	) {
+		issues.push(
+			`Expected at most ${String(input.maxRejectedVerificationSideEffects)} rejected telephony webhook side effect(s), found ${String(rejectedVerificationSideEffects)}.`
+		);
+	}
+	if (
+		input.minReplayRejectedVerificationAttempts !== undefined &&
+		replayRejectedVerificationAttempts.length <
+			input.minReplayRejectedVerificationAttempts
+	) {
+		issues.push(
+			`Expected at least ${String(input.minReplayRejectedVerificationAttempts)} replay-rejected telephony webhook verification attempt(s), found ${String(replayRejectedVerificationAttempts.length)}.`
+		);
+	}
+	if (
+		input.maxMissingSessionIds !== undefined &&
+		missingSessionIds > input.maxMissingSessionIds
+	) {
+		issues.push(
+			`Expected at most ${String(input.maxMissingSessionIds)} telephony webhook decision(s) without sessionId, found ${String(missingSessionIds)}.`
+		);
+	}
+	if (input.requireRouteResults && routeResults < decisions.length) {
+		issues.push(
+			`Expected every telephony webhook decision to include a route result, found ${String(routeResults)} of ${String(decisions.length)}.`
+		);
+	}
+	for (const provider of findMissing(providers, input.requiredProviders)) {
+		issues.push(`Missing telephony webhook provider: ${provider}.`);
+	}
+	for (const provider of findMissing(
+		duplicateProviders,
+		input.requiredDuplicateProviders
+	)) {
+		issues.push(`Missing duplicate telephony webhook provider: ${provider}.`);
+	}
+	for (const provider of findMissing(
+		rejectedVerificationProviders,
+		input.requiredRejectedVerificationProviders
+	)) {
+		issues.push(
+			`Missing rejected telephony webhook verification provider: ${provider}.`
+		);
+	}
+	for (const provider of findMissing(
+		replayRejectedVerificationProviders,
+		input.requiredReplayRejectedVerificationProviders
+	)) {
+		issues.push(
+			`Missing replay-rejected telephony webhook verification provider: ${provider}.`
+		);
+	}
+	for (const action of findMissing(actions, input.requiredActions)) {
+		issues.push(`Missing telephony webhook action: ${action}.`);
+	}
+	for (const disposition of findMissing(
+		dispositions,
+		input.requiredDispositions
+	)) {
+		issues.push(`Missing telephony webhook disposition: ${disposition}.`);
+	}
+
+	return {
+		actions,
+		applied,
+		decisions: decisions.length,
+		dispositions,
+		duplicateCampaignOutcomesApplied,
+		duplicateIdempotencyKeys,
+		duplicateOutcomeReasons,
+		duplicateProviders,
+		duplicates: duplicateDecisions.length,
+		issues,
+		missingSessionIds,
+		ok: issues.length === 0,
+		providers,
+		rejectedVerificationAttempts: rejectedVerificationAttempts.length,
+		rejectedVerificationProviders,
+		rejectedVerificationSideEffects,
+		replayRejectedVerificationAttempts:
+			replayRejectedVerificationAttempts.length,
+		replayRejectedVerificationProviders,
+		routeResults,
+		sources,
+		verificationAttempts: verificationAttempts.length
+	};
+};
+
+export const assertVoiceTelephonyWebhookNormalizationEvidence = (
+	input: VoiceTelephonyWebhookNormalizationEvidenceInput = {}
+): VoiceTelephonyWebhookNormalizationEvidenceReport => {
+	const assertion = evaluateVoiceTelephonyWebhookNormalizationEvidence(input);
+	if (!assertion.ok) {
+		throw new Error(
+			`Voice telephony webhook normalization evidence assertion failed: ${assertion.issues.join(' ')}`
+		);
+	}
+	return assertion;
 };
 
 const normalizeToken = (value: unknown) =>

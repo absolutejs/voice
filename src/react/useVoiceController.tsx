@@ -10,6 +10,11 @@ const EMPTY_SNAPSHOT = {
 	isConnected: false,
 	isRecording: false,
 	partial: '',
+	reconnect: {
+		attempts: 0,
+		maxAttempts: 0,
+		status: 'idle' as const
+	},
 	recordingError: null,
 	sessionId: '',
 	status: 'idle' as const,

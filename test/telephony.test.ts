@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
 import {
+	assertVoiceTelephonyWebhookNormalizationEvidence,
+	evaluateVoiceTelephonyWebhookNormalizationEvidence
+} from '../src';
+import {
 	createTwilioMediaStreamBridge,
 	createTwilioVoiceRoutes,
 	createTwilioVoiceResponse,
@@ -159,6 +163,178 @@ const waitFor = async (
 		await Bun.sleep(intervalMs);
 	}
 };
+
+test('evaluateVoiceTelephonyWebhookNormalizationEvidence gates carrier decisions', () => {
+	const decisions = [
+		{
+			applied: true,
+			decision: {
+				action: 'no-answer',
+				disposition: 'no-answer',
+				source: 'sip'
+			},
+			idempotencyKey: 'twilio:no-answer:busy',
+			provider: 'twilio',
+			routeResult: {
+				noAnswer: {}
+			},
+			sessionId: 'twilio-no-answer'
+		},
+		{
+			applied: true,
+			decision: {
+				action: 'no-answer',
+				disposition: 'no-answer',
+				source: 'sip'
+			},
+			duplicate: true,
+			campaignOutcome: {
+				applied: false,
+				reason: 'terminal-attempt'
+			},
+			idempotencyKey: 'twilio:no-answer:busy',
+			provider: 'twilio',
+			routeResult: {
+				noAnswer: {}
+			},
+			sessionId: 'twilio-no-answer'
+		},
+		{
+			applied: true,
+			decision: {
+				action: 'voicemail',
+				disposition: 'voicemail',
+				source: 'answered-by'
+			},
+			idempotencyKey: 'telnyx:voicemail:completed',
+			provider: 'telnyx',
+			routeResult: {
+				voicemail: {}
+			},
+			sessionId: 'telnyx-voicemail'
+		},
+		{
+			applied: true,
+			decision: {
+				action: 'voicemail',
+				disposition: 'voicemail',
+				source: 'answered-by'
+			},
+			duplicate: true,
+			campaignOutcome: {
+				applied: false,
+				reason: 'terminal-attempt'
+			},
+			idempotencyKey: 'telnyx:voicemail:completed',
+			provider: 'telnyx',
+			routeResult: {
+				voicemail: {}
+			},
+			sessionId: 'telnyx-voicemail'
+		},
+		{
+			applied: true,
+			decision: {
+				action: 'transfer',
+				disposition: 'transferred',
+				source: 'status'
+			},
+			provider: 'plivo',
+			routeResult: {
+				transfer: {
+					target: 'billing'
+				}
+			},
+			sessionId: 'plivo-transfer'
+		},
+		{
+			applied: true,
+			decision: {
+				action: 'complete',
+				disposition: 'completed',
+				source: 'status'
+			},
+			provider: 'twilio',
+			routeResult: {
+				complete: true
+			},
+			sessionId: 'twilio-complete'
+		}
+	];
+
+	const assertion = evaluateVoiceTelephonyWebhookNormalizationEvidence({
+		decisions,
+		maxMissingSessionIds: 0,
+		maxDuplicateCampaignOutcomesApplied: 0,
+		minApplied: 4,
+		minDecisions: 4,
+		minDuplicateIdempotencyKeys: 2,
+		minDuplicates: 2,
+		maxRejectedVerificationSideEffects: 0,
+		minRejectedVerificationAttempts: 1,
+		minReplayRejectedVerificationAttempts: 1,
+		requiredActions: ['complete', 'no-answer', 'transfer', 'voicemail'],
+		requiredDispositions: [
+			'completed',
+			'no-answer',
+			'transferred',
+			'voicemail'
+		],
+		requiredDuplicateProviders: ['telnyx', 'twilio'],
+		requiredProviders: ['plivo', 'telnyx', 'twilio'],
+		requiredReplayRejectedVerificationProviders: ['telnyx'],
+		requiredRejectedVerificationProviders: ['twilio'],
+		requireRouteResults: true,
+		verificationAttempts: [
+			{
+				provider: 'twilio',
+				rejected: true,
+				sideEffects: 0,
+				status: 401,
+				verification: {
+					ok: false,
+					reason: 'invalid-signature'
+				}
+			},
+			{
+				provider: 'telnyx',
+				rejected: true,
+				replayRejected: true,
+				sideEffects: 0,
+				status: 401,
+				verification: {
+					ok: false,
+					reason: 'invalid-signature'
+				}
+			}
+		]
+	});
+
+	expect(assertion.ok).toBe(true);
+	expect(assertion.duplicates).toBe(2);
+	expect(assertion.duplicateCampaignOutcomesApplied).toBe(0);
+	expect(assertion.duplicateOutcomeReasons).toEqual(['terminal-attempt']);
+	expect(assertion.duplicateIdempotencyKeys).toBe(2);
+	expect(assertion.duplicateProviders).toEqual(['telnyx', 'twilio']);
+	expect(assertion.rejectedVerificationAttempts).toBe(2);
+	expect(assertion.rejectedVerificationProviders).toEqual(['telnyx', 'twilio']);
+	expect(assertion.rejectedVerificationSideEffects).toBe(0);
+	expect(assertion.replayRejectedVerificationAttempts).toBe(1);
+	expect(assertion.replayRejectedVerificationProviders).toEqual(['telnyx']);
+	expect(assertion.providers).toEqual(['plivo', 'telnyx', 'twilio']);
+	expect(assertion.actions).toEqual([
+		'complete',
+		'no-answer',
+		'transfer',
+		'voicemail'
+	]);
+	expect(() =>
+		assertVoiceTelephonyWebhookNormalizationEvidence({
+			decisions,
+			requiredProviders: ['generic']
+		})
+	).toThrow('Missing telephony webhook provider: generic.');
+});
 
 test('createTwilioVoiceResponse emits TwiML with stream parameters', () => {
 	const xml = createTwilioVoiceResponse({

@@ -395,6 +395,10 @@ export const voice = <
 >(
 	config: VoicePluginConfig<TContext, TSession, TResult>
 ) => {
+	if (!config.stt && !config.realtime) {
+		throw new Error('voice requires either an stt or realtime adapter.');
+	}
+
 	const runtime: VoiceRuntime = {
 		activeSessions: new Map(),
 		logger: resolveLogger(config.logger),
@@ -436,6 +440,7 @@ export const voice = <
 			handoff: config.handoff,
 			languageStrategy: config.languageStrategy,
 			lexicon,
+			liveOps: config.liveOps,
 			logger: sessionOptions.logger,
 			phraseHints,
 			reconnect: sessionOptions.reconnect,
@@ -481,6 +486,8 @@ export const voice = <
 			socket: createSocketAdapter(ws),
 			store: config.session,
 			trace: config.trace,
+			realtime: config.realtime,
+			realtimeInputFormat: config.realtimeInputFormat,
 			stt: config.stt,
 			sttFallback: sessionOptions.sttFallback,
 			sttLifecycle: sessionOptions.sttLifecycle,

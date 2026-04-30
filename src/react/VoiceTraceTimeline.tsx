@@ -56,7 +56,19 @@ export const VoiceTraceTimeline = ({
 								{session.label} · {session.durationLabel} ·{' '}
 								{session.providerLabel}
 							</p>
-							<a href={session.detailHref}>Open timeline</a>
+							<p className="absolute-voice-trace-timeline__actions">
+								<a href={session.detailHref}>Open timeline</a>
+								{session.operationsRecordHref ? (
+									<a href={session.operationsRecordHref}>
+										Open operations record
+									</a>
+								) : null}
+								{session.incidentBundleHref ? (
+									<a href={session.incidentBundleHref}>
+										Export incident bundle
+									</a>
+								) : null}
+							</p>
 						</article>
 					))}
 				</div>

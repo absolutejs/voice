@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
 	createVoiceAuditEvent,
 	createVoiceAuditHTTPSink,
+	createVoiceAuditS3Sink,
 	createVoiceAuditSinkDeliveryRecord,
 	createVoiceAuditSinkDeliveryWorker,
 	createVoiceAuditSinkStore,
@@ -101,6 +102,45 @@ test('createVoiceAuditHTTPSink posts signed audit envelopes', async () => {
 		eventCount: 1,
 		source: 'absolutejs-voice'
 	});
+});
+
+test('createVoiceAuditS3Sink writes audit envelopes to object storage', async () => {
+	const writes: Array<{ data: string; key: string }> = [];
+	const event = createVoiceAuditEvent({
+		action: 'operator.review',
+		type: 'operator.action'
+	});
+
+	const result = await deliverVoiceAuditEventsToSinks({
+		events: [event],
+		redact: false,
+		sinks: [
+			createVoiceAuditS3Sink({
+				bucket: 'voice-bucket',
+				client: {
+					file: (key) => ({
+						write: (data) => {
+							writes.push({ data, key: String(key) });
+							return Promise.resolve(String(data).length);
+						}
+					})
+				} as never,
+				id: 'audit-s3',
+				keyPrefix: 'exports/audit'
+			})
+		]
+	});
+
+	expect(result.status).toBe('delivered');
+	expect(writes).toHaveLength(1);
+	expect(writes[0]?.key).toStartWith('exports/audit/');
+	expect(JSON.parse(writes[0]?.data ?? '{}')).toMatchObject({
+		eventCount: 1,
+		source: 'absolutejs-voice'
+	});
+	expect(result.sinkDeliveries['audit-s3']?.deliveredTo).toStartWith(
+		's3://voice-bucket/exports/audit/'
+	);
 });
 
 test('createVoiceAuditSinkStore can queue delivery records for workers', async () => {

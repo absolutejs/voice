@@ -1,3 +1,4 @@
+import type { S3Client, S3Options } from 'bun';
 import type {
 	StoredVoiceAuditEvent,
 	VoiceAuditEventStore,
@@ -79,6 +80,27 @@ export type VoiceAuditHTTPSinkOptions<
 	signingSecret?: string;
 	timeoutMs?: number;
 	url: string;
+};
+
+export type VoiceS3AuditSinkFile = {
+	write: (data: string, options?: BlobPropertyBag) => Promise<number> | number;
+};
+
+export type VoiceS3AuditSinkClient = Pick<S3Client, 'file'>;
+
+export type VoiceAuditS3SinkOptions<
+	TBody extends Record<string, unknown> = Record<string, unknown>
+> = S3Options & {
+	body?: (input: {
+		events: StoredVoiceAuditEvent[];
+		key: string;
+	}) => Promise<TBody> | TBody;
+	client?: VoiceS3AuditSinkClient;
+	contentType?: string;
+	eventTypes?: VoiceAuditEventType[];
+	id: string;
+	keyPrefix?: string;
+	kind?: string;
 };
 
 export type VoiceAuditSinkStoreOptions<
@@ -192,6 +214,24 @@ const createVoiceAuditSinkDeliveryError = (input: {
 	}
 
 	return `Attempt ${input.attempt} failed: ${String(input.error)}`;
+};
+
+const normalizeVoiceAuditS3KeyPrefix = (prefix?: string) =>
+	prefix?.trim().replace(/^\/+|\/+$/g, '') ?? 'voice/audit-deliveries';
+
+const createVoiceAuditS3ObjectKey = (
+	prefix: string,
+	events: StoredVoiceAuditEvent[]
+) => {
+	const firstEvent = events[0];
+	const safeSessionId = encodeURIComponent(firstEvent?.sessionId ?? 'audit');
+	const safeEventId = encodeURIComponent(firstEvent?.id ?? crypto.randomUUID());
+	return `${prefix}/${safeSessionId}/${Date.now()}-${safeEventId}.json`;
+};
+
+const resolveVoiceS3DeliveredTo = (options: S3Options, key: string) => {
+	const bucket = (options as { bucket?: string }).bucket;
+	return bucket ? `s3://${bucket}/${key}` : `s3://${key}`;
 };
 
 const aggregateVoiceAuditSinkDeliveryStatus = (
@@ -360,6 +400,56 @@ export const createVoiceAuditHTTPSink = <
 	id: options.id,
 	kind: options.kind ?? 'http'
 });
+
+export const createVoiceAuditS3Sink = <
+	TBody extends Record<string, unknown> = Record<string, unknown>
+>(
+	options: VoiceAuditS3SinkOptions<TBody>
+): VoiceAuditSink => {
+	const client = options.client ?? new Bun.S3Client(options);
+	const keyPrefix = normalizeVoiceAuditS3KeyPrefix(options.keyPrefix);
+
+	return {
+		deliver: async ({ events }) => {
+			const key = createVoiceAuditS3ObjectKey(keyPrefix, events);
+			const payload = options.body
+				? await options.body({ events, key })
+				: {
+						eventCount: events.length,
+						events,
+						key,
+						source: 'absolutejs-voice'
+					};
+
+			try {
+				const file = client.file(key, options) as VoiceS3AuditSinkFile;
+				await file.write(JSON.stringify(payload), {
+					type: options.contentType ?? 'application/json'
+				});
+
+				return {
+					attempts: 1,
+					deliveredAt: Date.now(),
+					deliveredTo: resolveVoiceS3DeliveredTo(options, key),
+					eventCount: events.length,
+					responseBody: { key },
+					status: 'delivered'
+				};
+			} catch (error) {
+				return {
+					attempts: 1,
+					deliveredTo: resolveVoiceS3DeliveredTo(options, key),
+					error: error instanceof Error ? error.message : String(error),
+					eventCount: events.length,
+					status: 'failed'
+				};
+			}
+		},
+		eventTypes: options.eventTypes,
+		id: options.id,
+		kind: options.kind ?? 's3'
+	};
+};
 
 export const deliverVoiceAuditEventsToSinks = async (input: {
 	events: StoredVoiceAuditEvent[];

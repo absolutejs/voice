@@ -64,6 +64,34 @@ export type VoiceSimulationSuiteSectionSummary = {
 	total: number;
 };
 
+export type VoiceSimulationSuiteSection =
+	| 'fixtures'
+	| 'outcomes'
+	| 'scenarios'
+	| 'sessions'
+	| 'tools';
+
+export type VoiceSimulationSuiteAssertionInput = {
+	maxActions?: number;
+	maxFailed?: number;
+	minPassed?: number;
+	minSections?: number;
+	requiredSections?: VoiceSimulationSuiteSection[];
+	sectionMinimums?: Partial<Record<VoiceSimulationSuiteSection, number>>;
+};
+
+export type VoiceSimulationSuiteAssertionReport = {
+	actions: number;
+	failed: number;
+	issues: string[];
+	ok: boolean;
+	passed: number;
+	sections: VoiceSimulationSuiteSection[];
+	sectionTotals: Partial<Record<VoiceSimulationSuiteSection, number>>;
+	status: VoiceSimulationSuiteStatus;
+	total: number;
+};
+
 export type VoiceSimulationSuiteOptions<
 	TSession extends VoiceSessionRecord = VoiceSessionRecord
 > = {
@@ -84,6 +112,7 @@ export type VoiceSimulationSuiteOptions<
 		tools?: boolean;
 	};
 	limit?: number;
+	operationsRecordHref?: false | string | ((sessionId: string) => string);
 	outcomes?: Omit<VoiceOutcomeContractOptions<TSession>, 'contracts'> & {
 		contracts: VoiceOutcomeContractDefinition[];
 	};
@@ -154,7 +183,7 @@ const collectSimulationActions = (input: {
 			description: firstFailed
 				? `Inspect session ${firstFailed.sessionId}; at least one quality metric is outside threshold.`
 				: 'Inspect failing session quality reports.',
-			href: input.links?.sessions,
+			href: firstFailed?.operationsRecordHref ?? input.links?.sessions,
 			label: 'Review failing session quality',
 			section: 'sessions',
 			severity: 'error'
@@ -169,9 +198,12 @@ const collectSimulationActions = (input: {
 			scenario.issues[0] ??
 			scenario.sessions.find((session) => session.issues.length > 0)?.issues[0] ??
 			'Scenario did not meet its expected trace conditions.';
+		const failedSession = scenario.sessions.find(
+			(session) => session.status === 'fail'
+		);
 		actions.push({
 			description: `${scenario.label}: ${issue}`,
-			href: input.links?.scenarios,
+			href: failedSession?.operationsRecordHref ?? input.links?.scenarios,
 			label: `Fix scenario ${scenario.label}`,
 			section: 'scenarios',
 			severity: 'error'
@@ -185,11 +217,14 @@ const collectSimulationActions = (input: {
 		const failedScenario = fixture.report.scenarios.find(
 			(scenario) => scenario.status === 'fail'
 		);
+		const failedSession = failedScenario?.sessions.find(
+			(session) => session.status === 'fail'
+		);
 		actions.push({
 			description: failedScenario
 				? `${fixture.label}: ${failedScenario.label} failed.`
 				: `${fixture.label}: fixture simulation failed.`,
-			href: input.links?.fixtures,
+			href: failedSession?.operationsRecordHref ?? input.links?.fixtures,
 			label: `Update fixture ${fixture.label}`,
 			section: 'fixtures',
 			severity: 'error'
@@ -249,12 +284,14 @@ export const runVoiceSimulationSuite = async <
 		shouldRunSessions
 			? runVoiceSessionEvals({
 					limit: options.limit,
+					operationsRecordHref: options.operationsRecordHref,
 					store: options.store,
 					thresholds: options.thresholds
 				})
 			: undefined,
 		shouldRunScenarios
 			? runVoiceScenarioEvals({
+					operationsRecordHref: options.operationsRecordHref,
 					scenarios: options.scenarios,
 					store: options.store
 				})
@@ -263,6 +300,7 @@ export const runVoiceSimulationSuite = async <
 			? runVoiceScenarioFixtureEvals({
 					fixtures: options.fixtures,
 					fixtureStore: options.fixtureStore,
+					operationsRecordHref: options.operationsRecordHref,
 					scenarios: options.scenarios
 				})
 			: undefined,
@@ -311,6 +349,91 @@ export const runVoiceSimulationSuite = async <
 	};
 };
 
+const simulationSectionNames = [
+	'fixtures',
+	'outcomes',
+	'scenarios',
+	'sessions',
+	'tools'
+] as const;
+
+export const evaluateVoiceSimulationSuiteEvidence = (
+	report: VoiceSimulationSuiteReport,
+	input: VoiceSimulationSuiteAssertionInput = {}
+): VoiceSimulationSuiteAssertionReport => {
+	const issues: string[] = [];
+	const maxFailed = input.maxFailed ?? 0;
+	const maxActions = input.maxActions ?? 0;
+	const sections = simulationSectionNames.filter(
+		(section): section is VoiceSimulationSuiteSection =>
+			report.summary[section] !== undefined
+	);
+	const sectionTotals = Object.fromEntries(
+		sections.map((section) => [section, report.summary[section]?.total ?? 0])
+	) as Partial<Record<VoiceSimulationSuiteSection, number>>;
+
+	if (report.failed > maxFailed) {
+		issues.push(
+			`Expected at most ${String(maxFailed)} failing simulation section(s), found ${String(report.failed)}.`
+		);
+	}
+	if (report.actions.length > maxActions) {
+		issues.push(
+			`Expected at most ${String(maxActions)} simulation action(s), found ${String(report.actions.length)}.`
+		);
+	}
+	if (input.minSections !== undefined && report.total < input.minSections) {
+		issues.push(
+			`Expected at least ${String(input.minSections)} simulation section(s), found ${String(report.total)}.`
+		);
+	}
+	if (input.minPassed !== undefined && report.passed < input.minPassed) {
+		issues.push(
+			`Expected at least ${String(input.minPassed)} passing simulation section(s), found ${String(report.passed)}.`
+		);
+	}
+	for (const section of input.requiredSections ?? []) {
+		if (!sections.includes(section)) {
+			issues.push(`Missing simulation section: ${section}.`);
+		}
+	}
+	for (const [section, minimum] of Object.entries(
+		input.sectionMinimums ?? {}
+	) as Array<[VoiceSimulationSuiteSection, number]>) {
+		const total = sectionTotals[section] ?? 0;
+		if (total < minimum) {
+			issues.push(
+				`Expected simulation section ${section} to include at least ${String(minimum)} item(s), found ${String(total)}.`
+			);
+		}
+	}
+
+	return {
+		actions: report.actions.length,
+		failed: report.failed,
+		issues,
+		ok: issues.length === 0,
+		passed: report.passed,
+		sections,
+		sectionTotals,
+		status: report.status,
+		total: report.total
+	};
+};
+
+export const assertVoiceSimulationSuiteEvidence = (
+	report: VoiceSimulationSuiteReport,
+	input: VoiceSimulationSuiteAssertionInput = {}
+): VoiceSimulationSuiteAssertionReport => {
+	const assertion = evaluateVoiceSimulationSuiteEvidence(report, input);
+	if (!assertion.ok) {
+		throw new Error(
+			`Voice simulation suite evidence assertion failed: ${assertion.issues.join(' ')}`
+		);
+	}
+	return assertion;
+};
+
 const renderSection = (
 	label: string,
 	summary: VoiceSimulationSuiteSectionSummary | undefined
@@ -334,8 +457,41 @@ export const renderVoiceSimulationSuiteHTML = (
 	options: { title?: string } = {}
 ) => {
 	const title = options.title ?? 'Voice Simulation Suite';
+	const snippet = escapeHtml(`app.use(
+	createVoiceSimulationSuiteRoutes({
+		htmlPath: '/voice/simulations',
+		path: '/api/voice/simulations',
+		store: traceStore,
+		scenarios: workflowScenarios,
+		fixtureStore,
+		tools: toolContracts,
+		outcomes: {
+			contracts: outcomeContracts,
+			sessions: loadCompletedSessions
+		},
+		actionLinks: {
+			scenarios: '/evals/scenarios',
+			fixtures: '/evals/fixtures',
+			tools: '/tool-contracts',
+			outcomes: '/reviews'
+		}
+	})
+);
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10151c;color:#f8f3e7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero{background:linear-gradient(135deg,rgba(34,197,94,.18),rgba(59,130,246,.12));border:1px solid #283544;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#93c5fd;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.badge{border:1px solid #3f3f46;border-radius:999px;display:inline-flex;padding:8px 12px}.pass{color:#86efac}.fail{color:#fca5a5}.grid,.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin:18px 0}.grid article,.action{background:#151d27;border:1px solid #283544;border-radius:18px;color:inherit;padding:16px;text-decoration:none}.grid span,.action span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0;text-transform:uppercase}.action strong{display:block;color:#f8f3e7;margin-bottom:.35rem}.action p{color:#d8dee6;margin:.3rem 0 .6rem}pre{background:#151d27;border:1px solid #283544;border-radius:18px;overflow:auto;padding:16px}</style></head><body><main><section class="hero"><p class="eyebrow">Pre-production proof</p><h1>${escapeHtml(title)}</h1><p>One report for session quality, scenario evals, fixture simulations, tool contracts, and outcome contracts.</p><p class="badge ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><section class="grid">${renderSection('Sessions', report.summary.sessions)}${renderSection('Scenarios', report.summary.scenarios)}${renderSection('Fixtures', report.summary.fixtures)}${renderSection('Tools', report.summary.tools)}${renderSection('Outcomes', report.summary.outcomes)}</section></section><h2>Actions</h2><section class="actions">${report.actions.length > 0 ? report.actions.map(renderAction).join('') : '<article class="action"><strong>No action required</strong><p>All enabled simulation sections are passing.</p></article>'}</section><pre>${escapeHtml(JSON.stringify({ summary: report.summary, actions: report.actions }, null, 2))}</pre></main></body></html>`;
+app.use(
+	createVoiceProductionReadinessRoutes({
+		proofSources: {
+			simulations: {
+				href: '/voice/simulations',
+				source: 'simulation-suite',
+				sourceLabel: 'Pre-production simulation suite'
+			}
+		},
+		store: traceStore
+	})
+);`);
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10151c;color:#f8f3e7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero,.primitive{background:linear-gradient(135deg,rgba(34,197,94,.18),rgba(59,130,246,.12));border:1px solid #283544;border-radius:28px;margin-bottom:18px;padding:28px}.primitive{background:#151d27;border-color:#355078}.eyebrow{color:#93c5fd;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.badge{border:1px solid #3f3f46;border-radius:999px;display:inline-flex;padding:8px 12px}.pass{color:#86efac}.fail{color:#fca5a5}.grid,.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin:18px 0}.grid article,.action{background:#151d27;border:1px solid #283544;border-radius:18px;color:inherit;padding:16px;text-decoration:none}.grid span,.action span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0;text-transform:uppercase}.action strong{display:block;color:#f8f3e7;margin-bottom:.35rem}.action p,.primitive p{color:#d8dee6;line-height:1.55;margin:.3rem 0 .6rem}pre{background:#151d27;border:1px solid #283544;border-radius:18px;overflow:auto;padding:16px}.primitive pre{background:#0b1118;color:#dbeafe}.primitive code{color:#bfdbfe}</style></head><body><main><section class="hero"><p class="eyebrow">Pre-production proof</p><h1>${escapeHtml(title)}</h1><p>One report for session quality, scenario evals, fixture simulations, tool contracts, and outcome contracts.</p><p class="badge ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><section class="grid">${renderSection('Sessions', report.summary.sessions)}${renderSection('Scenarios', report.summary.scenarios)}${renderSection('Fixtures', report.summary.fixtures)}${renderSection('Tools', report.summary.tools)}${renderSection('Outcomes', report.summary.outcomes)}</section></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceSimulationSuiteRoutes(...)</code> builds this pre-production proof surface</h2><p>Run session quality checks, scenario evals, fixture-backed simulations, tool contracts, and outcome contracts from one route group before live traffic sees a regression.</p><pre><code>${snippet}</code></pre></section><h2>Actions</h2><section class="actions">${report.actions.length > 0 ? report.actions.map(renderAction).join('') : '<article class="action"><strong>No action required</strong><p>All enabled simulation sections are passing.</p></article>'}</section><pre>${escapeHtml(JSON.stringify({ summary: report.summary, actions: report.actions }, null, 2))}</pre></main></body></html>`;
 };
 
 export const createVoiceSimulationSuiteRoutes = <

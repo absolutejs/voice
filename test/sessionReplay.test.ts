@@ -161,6 +161,7 @@ test('createVoiceSessionReplayRoutes exposes json and html replay endpoints', as
 test('summarizeVoiceSessions lists searchable sessions with replay links', async () => {
 	const sessions = await summarizeVoiceSessions({
 		events: createReplayEvents(),
+		operationsRecordHref: '/voice-operations/:sessionId',
 		q: 'replay'
 	});
 
@@ -171,6 +172,7 @@ test('summarizeVoiceSessions lists searchable sessions with replay links', async
 			providerErrors: {
 				openai: 1
 			},
+			operationsRecordHref: '/voice-operations/session-replay',
 			providers: ['openai'],
 			replayHref: '/api/voice-sessions/session-replay/replay/htmx',
 			sessionId: 'session-replay',
@@ -199,12 +201,64 @@ test('summarizeVoiceSessions lists searchable sessions with replay links', async
 	]);
 });
 
+test('summarizeVoiceSessions treats recovered provider fallback as healthy', async () => {
+	const events = [
+		createVoiceTraceEvent({
+			at: 1_000,
+			payload: {
+				error: 'OpenAI voice assistant model failed: HTTP 400',
+				provider: 'openai',
+				providerStatus: 'error'
+			},
+			sessionId: 'session-recovered-fallback',
+			turnId: 'turn-1',
+			type: 'session.error'
+		}),
+		createVoiceTraceEvent({
+			at: 1_050,
+			payload: {
+				fallbackProvider: 'anthropic',
+				provider: 'anthropic',
+				providerStatus: 'fallback',
+				recovered: true,
+				selectedProvider: 'openai',
+				status: 'fallback'
+			},
+			sessionId: 'session-recovered-fallback',
+			turnId: 'turn-1',
+			type: 'session.error'
+		}),
+		createVoiceTraceEvent({
+			at: 1_100,
+			payload: {
+				text: 'fallback answer'
+			},
+			sessionId: 'session-recovered-fallback',
+			turnId: 'turn-1',
+			type: 'turn.assistant'
+		})
+	];
+	const sessions = await summarizeVoiceSessions({ events });
+
+	expect(sessions).toMatchObject([
+		{
+			errorCount: 0,
+			providerErrors: {},
+			providers: ['anthropic', 'openai'],
+			sessionId: 'session-recovered-fallback',
+			status: 'healthy'
+		}
+	]);
+});
+
 test('renderVoiceSessionsHTML renders replay links', async () => {
 	const sessions = await summarizeVoiceSessions({
-		events: createReplayEvents()
+		events: createReplayEvents(),
+		operationsRecordHref: '/voice-operations/:sessionId'
 	});
 
 	expect(renderVoiceSessionsHTML(sessions)).toContain('Open replay');
+	expect(renderVoiceSessionsHTML(sessions)).toContain('Open operations record');
 });
 
 test('createVoiceSessionListRoutes exposes json and html session list endpoints', async () => {
@@ -213,6 +267,7 @@ test('createVoiceSessionListRoutes exposes json and html session list endpoints'
 		await store.append(event);
 	}
 	const routes = createVoiceSessionListRoutes({
+		operationsRecordHref: '/voice-operations/:sessionId',
 		store
 	});
 	const json = await routes.handle(
@@ -224,9 +279,12 @@ test('createVoiceSessionListRoutes exposes json and html session list endpoints'
 
 	expect(await json.json()).toMatchObject([
 		{
+			operationsRecordHref: '/voice-operations/session-replay',
 			sessionId: 'session-replay',
 			status: 'failed'
 		}
 	]);
-	expect(await html.text()).toContain('session-replay');
+	const htmlText = await html.text();
+	expect(htmlText).toContain('session-replay');
+	expect(htmlText).toContain('/voice-operations/session-replay');
 });

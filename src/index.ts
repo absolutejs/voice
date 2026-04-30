@@ -1,6 +1,7 @@
 export { voice } from './plugin';
 export {
 	applyVoiceCampaignTelephonyOutcome,
+	assertVoiceCampaignReadinessEvidence,
 	buildVoiceCampaignObservabilityReport,
 	createVoiceCampaignTelephonyOutcomeHandler,
 	createVoiceCampaign,
@@ -8,15 +9,20 @@ export {
 	createVoiceCampaignWorker,
 	createVoiceCampaignWorkerLoop,
 	createVoiceMemoryCampaignStore,
+	evaluateVoiceCampaignReadinessEvidence,
+	importVoiceCampaignRecipients,
 	renderVoiceCampaignObservabilityHTML,
 	renderVoiceCampaignsHTML,
 	runVoiceCampaignProof,
+	runVoiceCampaignReadinessProof,
 	summarizeVoiceCampaigns
 } from './campaign';
 export {
+	assertVoiceCampaignDialerProofEvidence,
 	createVoicePlivoCampaignDialer,
 	createVoiceTelnyxCampaignDialer,
 	createVoiceTwilioCampaignDialer,
+	evaluateVoiceCampaignDialerProofEvidence,
 	getVoiceCampaignDialerProofStatus,
 	runVoiceCampaignDialerProof
 } from './campaignDialers';
@@ -61,6 +67,7 @@ export {
 } from './auditExport';
 export {
 	createVoiceAuditHTTPSink,
+	createVoiceAuditS3Sink,
 	createVoiceAuditSinkDeliveryId,
 	createVoiceAuditSinkDeliveryRecord,
 	createVoiceAuditSinkDeliveryWorker,
@@ -84,6 +91,12 @@ export {
 	summarizeVoiceBargeIn
 } from './bargeInRoutes';
 export {
+	createVoiceReconnectContractRoutes,
+	renderVoiceReconnectContractHTML,
+	summarizeVoiceReconnectContractSnapshots,
+	runVoiceReconnectContract
+} from './reconnectContract';
+export {
 	buildVoiceDiagnosticsMarkdown,
 	createVoiceDiagnosticsRoutes,
 	resolveVoiceDiagnosticsTraceFilter
@@ -94,10 +107,179 @@ export {
 	renderVoiceDemoReadyHTML
 } from './demoReadyRoutes';
 export {
+	buildVoiceDeliverySinkReport,
+	createVoiceDeliverySinkDescriptor,
+	createVoiceDeliverySinkPair,
+	createVoiceDeliverySinkRoutes,
+	createVoiceFileDeliverySink,
+	createVoicePostgresDeliverySink,
+	createVoiceS3DeliverySink,
+	createVoiceSQLiteDeliverySink,
+	createVoiceWebhookDeliverySink,
+	renderVoiceDeliverySinkHTML
+} from './deliverySinkRoutes';
+export {
+	buildVoiceOpsActionHistoryReport,
+	createVoiceOpsActionAuditRoutes,
+	recordVoiceOpsActionAudit,
+	renderVoiceOpsActionHistoryHTML
+} from './opsActionAuditRoutes';
+export {
+	assertVoicePlatformCoverage,
+	buildVoicePlatformCoverageSummary,
+	createVoicePlatformCoverageRoutes,
+	evaluateVoicePlatformCoverage
+} from './platformCoverage';
+export {
+	assertVoiceCompetitiveCoverage,
+	buildVoiceCompetitiveCoverageReport,
+	createVoiceCompetitiveCoverageRoutes,
+	evaluateVoiceCompetitiveCoverage,
+	renderVoiceCompetitiveCoverageHTML,
+	renderVoiceCompetitiveCoverageMarkdown
+} from './competitiveCoverage';
+export type {
+	VoiceCompetitiveCoverageAssertionInput,
+	VoiceCompetitiveCoverageAssertionReport,
+	VoiceCompetitiveCoverageIssue,
+	VoiceCompetitiveCoverageLevel,
+	VoiceCompetitiveCoverageReport,
+	VoiceCompetitiveCoverageReportInput,
+	VoiceCompetitiveCoverageRoutesOptions,
+	VoiceCompetitiveCoverageStatus,
+	VoiceCompetitiveCoverageSummary,
+	VoiceCompetitiveDepthLevel,
+	VoiceCompetitiveEvidence,
+	VoiceCompetitiveSurface
+} from './competitiveCoverage';
+export type {
+	VoicePlatformCoverageAssertionInput,
+	VoicePlatformCoverageAssertionReport,
+	VoicePlatformCoverageEvidence,
+	VoicePlatformCoverageRoutesOptions,
+	VoicePlatformCoverageStatus,
+	VoicePlatformCoverageSummary,
+	VoicePlatformCoverageSummaryInput,
+	VoicePlatformCoverageSurface
+} from './platformCoverage';
+export {
+	assertVoiceProofTrendEvidence,
+	buildEmptyVoiceProofTrendReport,
+	buildVoiceProofTrendReport,
+	createVoiceProofTrendRoutes,
+	DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS,
+	evaluateVoiceProofTrendEvidence,
+	formatVoiceProofTrendAge,
+	normalizeVoiceProofTrendReport,
+	readVoiceProofTrendReportFile
+} from './proofTrends';
+export {
+	buildVoiceProviderDecisionTraceReport,
+	createVoiceProviderDecisionTraceEvent,
+	createVoiceProviderDecisionTraceRoutes,
+	listVoiceProviderDecisionTraces,
+	renderVoiceProviderDecisionTraceHTML,
+	renderVoiceProviderDecisionTraceMarkdown
+} from './providerDecisionTraces';
+export type {
+	VoiceProviderDecisionStatus,
+	VoiceProviderDecisionSurfaceReport,
+	VoiceProviderDecisionTrace,
+	VoiceProviderDecisionTraceInput,
+	VoiceProviderDecisionTraceIssue,
+	VoiceProviderDecisionTraceReport,
+	VoiceProviderDecisionTraceReportOptions,
+	VoiceProviderDecisionTraceRoutesOptions
+} from './providerDecisionTraces';
+export type {
+	VoiceProofTrendAssertionInput,
+	VoiceProofTrendAssertionReport,
+	VoiceProofTrendCycle,
+	VoiceProofTrendReport,
+	VoiceProofTrendReportInput,
+	VoiceProofTrendRoutesOptions,
+	VoiceProofTrendStatus,
+	VoiceProofTrendSummary
+} from './proofTrends';
+export {
+	assertVoiceSloCalibration,
+	buildVoiceSloCalibrationReport,
+	buildVoiceSloReadinessThresholdReport,
+	createVoiceSloReadinessThresholdOptions,
+	createVoiceSloReadinessThresholdRoutes,
+	createVoiceSloThresholdProfile,
+	createVoiceSloCalibrationRoutes,
+	renderVoiceSloCalibrationMarkdown,
+	renderVoiceSloReadinessThresholdHTML,
+	renderVoiceSloReadinessThresholdMarkdown
+} from './sloCalibration';
+export type {
+	VoiceSloCalibrationMetricKey,
+	VoiceSloCalibrationOptions,
+	VoiceSloCalibrationReport,
+	VoiceSloCalibrationRoutesOptions,
+	VoiceSloCalibrationSample,
+	VoiceSloCalibrationStatus,
+	VoiceSloCalibrationThreshold,
+	VoiceSloCalibrationThresholds,
+	VoiceSloReadinessThresholdReport,
+	VoiceSloReadinessThresholdReportOptions,
+	VoiceSloReadinessThresholdOptions,
+	VoiceSloReadinessThresholdRoutesOptions,
+	VoiceSloThresholdProfile
+} from './sloCalibration';
+export {
+	assertVoiceLiveOpsControlEvidence,
+	assertVoiceLiveOpsEvidence,
+	buildVoiceLiveOpsControlState,
+	createVoiceLiveOpsController,
+	createVoiceLiveOpsRoutes,
+	createVoiceMemoryLiveOpsControlStore,
+	evaluateVoiceLiveOpsControlEvidence,
+	evaluateVoiceLiveOpsEvidence,
+	getVoiceLiveOpsControlStatus,
+	VOICE_LIVE_OPS_ACTIONS
+} from './liveOps';
+export type {
+	VoiceLiveOpsAction,
+	VoiceLiveOpsActionInput,
+	VoiceLiveOpsActionResult,
+	VoiceLiveOpsControllerOptions,
+	VoiceLiveOpsControlState,
+	VoiceLiveOpsControlStatus,
+	VoiceLiveOpsControlStore,
+	VoiceLiveOpsControlEvidenceInput,
+	VoiceLiveOpsControlEvidenceReport,
+	VoiceLiveOpsEvidenceInput,
+	VoiceLiveOpsEvidenceReport,
+	VoiceLiveOpsRoutesOptions
+} from './liveOps';
+export {
+	buildVoiceDeliveryRuntimeReport,
+	createVoiceDeliveryRuntime,
+	createVoiceDeliveryRuntimePresetConfig,
+	createVoiceDeliveryRuntimeRoutes,
+	renderVoiceDeliveryRuntimeHTML
+} from './deliveryRuntime';
+export {
 	applyVoiceDataRetentionPolicy,
-	buildVoiceDataRetentionPlan
+	assertVoiceDataControlEvidence,
+	buildVoiceDataControlReport,
+	buildVoiceDataRetentionPlan,
+	createVoiceDataControlRoutes,
+	createVoiceZeroRetentionPolicy,
+	evaluateVoiceDataControlEvidence,
+	renderVoiceDataControlHTML,
+	renderVoiceDataControlMarkdown,
+	voiceComplianceRedactionDefaults
 } from './dataControl';
 export type {
+	VoiceDataControlAssertionInput,
+	VoiceDataControlAssertionReport,
+	VoiceDataControlProviderKeySurface,
+	VoiceDataControlReport,
+	VoiceDataControlRoutesOptions,
+	VoiceDataControlStorageSurface,
 	VoiceDataRetentionPolicy,
 	VoiceDataRetentionReport,
 	VoiceDataRetentionScope,
@@ -110,6 +292,37 @@ export type {
 	VoiceDemoReadySection,
 	VoiceDemoReadyStatus
 } from './demoReadyRoutes';
+export type {
+	VoiceDeliverySinkDescriptor,
+	VoiceDeliverySinkDescriptorInput,
+	VoiceDeliverySinkKind,
+	VoiceDeliverySinkPairOptions,
+	VoiceDeliverySinkReport,
+	VoiceDeliverySinkRoutesOptions,
+	VoiceTraceDeliverySinkSurface
+} from './deliverySinkRoutes';
+export type {
+	VoiceOpsActionAuditRecord,
+	VoiceOpsActionAuditRoutesOptions,
+	VoiceOpsActionHistoryEntry,
+	VoiceOpsActionHistoryReport
+} from './opsActionAuditRoutes';
+export type {
+	VoiceDeliveryRuntime,
+	VoiceDeliveryRuntimeAuditConfig,
+	VoiceDeliveryRuntimeConfig,
+	VoiceDeliveryRuntimeFilePresetOptions,
+	VoiceDeliveryRuntimePresetLeaseConfig,
+	VoiceDeliveryRuntimePresetMode,
+	VoiceDeliveryRuntimePresetOptions,
+	VoiceDeliveryRuntimeReport,
+	VoiceDeliveryRuntimeRoutesOptions,
+	VoiceDeliveryRuntimeS3PresetOptions,
+	VoiceDeliveryRuntimeSummary,
+	VoiceDeliveryRuntimeTickResult,
+	VoiceDeliveryRuntimeTraceConfig,
+	VoiceDeliveryRuntimeWebhookPresetOptions
+} from './deliveryRuntime';
 export {
 	compareVoiceEvalBaseline,
 	createVoiceFileEvalBaselineStore,
@@ -124,7 +337,9 @@ export {
 	runVoiceSessionEvals
 } from './evalRoutes';
 export {
+	assertVoiceSimulationSuiteEvidence,
 	createVoiceSimulationSuiteRoutes,
+	evaluateVoiceSimulationSuiteEvidence,
 	renderVoiceSimulationSuiteHTML,
 	runVoiceSimulationSuite
 } from './simulationSuite';
@@ -144,6 +359,7 @@ export {
 	createVoiceSessionsHTMLHandler,
 	createVoiceSessionsJSONHandler,
 	renderVoiceSessionsHTML,
+	summarizeVoiceProviderFallbackRecovery,
 	summarizeVoiceSessions,
 	summarizeVoiceSessionReplay
 } from './sessionReplay';
@@ -153,7 +369,9 @@ export {
 	createVoiceAgentTool
 } from './agent';
 export {
+	assertVoiceAgentSquadContractEvidence,
 	assertVoiceAgentSquadContract,
+	evaluateVoiceAgentSquadContractEvidence,
 	runVoiceAgentSquadContract
 } from './agentSquadContract';
 export {
@@ -161,11 +379,13 @@ export {
 	createVoiceToolRuntime
 } from './toolRuntime';
 export {
+	assertVoiceToolContractEvidence,
 	createVoiceToolContract,
 	createVoiceToolContractHTMLHandler,
 	createVoiceToolContractJSONHandler,
 	createVoiceToolContractRoutes,
 	createVoiceToolRuntimeContractDefaults,
+	evaluateVoiceToolContractEvidence,
 	renderVoiceToolContractHTML,
 	runVoiceToolContractSuite,
 	runVoiceToolContract
@@ -183,6 +403,11 @@ export {
 	summarizeVoiceLiveLatency
 } from './liveLatency';
 export {
+	assertVoiceLatencySLOGate,
+	buildVoiceLatencySLOGate,
+	renderVoiceLatencySLOMarkdown
+} from './latencySlo';
+export {
 	createVoiceTurnQualityHTMLHandler,
 	createVoiceTurnQualityJSONHandler,
 	createVoiceTurnQualityRoutes,
@@ -190,30 +415,41 @@ export {
 	summarizeVoiceTurnQuality
 } from './turnQuality';
 export {
+	assertVoiceOutcomeContractEvidence,
 	createVoiceOutcomeContractHTMLHandler,
 	createVoiceOutcomeContractJSONHandler,
 	createVoiceOutcomeContractRoutes,
+	evaluateVoiceOutcomeContractEvidence,
 	renderVoiceOutcomeContractHTML,
 	runVoiceOutcomeContractSuite
 } from './outcomeContract';
 export {
 	applyVoiceTelephonyOutcome,
+	assertVoiceTelephonyWebhookNormalizationEvidence,
 	createMemoryVoiceTelephonyWebhookIdempotencyStore,
 	createVoiceTelephonyOutcomePolicy,
 	createVoiceTelephonyWebhookHandler,
 	createVoiceTelephonyWebhookRoutes,
+	evaluateVoiceTelephonyWebhookNormalizationEvidence,
 	parseVoiceTelephonyWebhookEvent,
 	resolveVoiceTelephonyOutcome,
 	signVoiceTwilioWebhook,
 	verifyVoiceTwilioWebhookSignature,
 	voiceTelephonyOutcomeToRouteResult
 } from './telephonyOutcome';
-export { createVoicePhoneAgent } from './phoneAgent';
+export {
+	assertVoicePhoneCallControlEvidence,
+	assertVoicePhoneAssistantEvidence,
+	createVoicePhoneAgent,
+	evaluateVoicePhoneCallControlEvidence,
+	evaluateVoicePhoneAssistantEvidence
+} from './phoneAgent';
 export {
 	createStoredVoiceCallReviewArtifact,
 	createStoredVoiceExternalObjectMap,
 	createStoredVoiceIntegrationEvent,
 	createStoredVoiceOpsTask,
+	createVoiceFileIncidentBundleStore,
 	createVoiceFileExternalObjectMapStore,
 	createVoiceFileAssistantMemoryStore,
 	createVoiceFileAuditEventStore,
@@ -238,9 +474,11 @@ export {
 	createGeminiVoiceAssistantModel,
 	createJSONVoiceAssistantModel,
 	createOpenAIVoiceAssistantModel,
+	createVoiceProviderOrchestrationProfile,
 	resolveVoiceProviderRoutingPolicyPreset,
 	createVoiceProviderRouter
 } from './modelAdapters';
+export { createOpenAIRealtimeAdapter } from './openaiRealtime';
 export { createOpenAIVoiceTTS } from './openaiTTS';
 export {
 	createVoiceProviderHealthHTMLHandler,
@@ -257,9 +495,25 @@ export {
 	summarizeVoiceProviderCapabilities
 } from './providerCapabilities';
 export {
+	buildVoiceProviderOrchestrationReport,
+	createVoiceProviderOrchestrationRoutes,
+	renderVoiceProviderOrchestrationHTML,
+	renderVoiceProviderOrchestrationMarkdown
+} from './providerOrchestration';
+export {
+	assertVoiceProviderRoutingContractEvidence,
 	assertVoiceProviderRoutingContract,
+	evaluateVoiceProviderRoutingContractEvidence,
 	runVoiceProviderRoutingContract
 } from './providerRoutingContract';
+export {
+	assertVoiceProviderSloEvidence,
+	buildVoiceProviderSloReport,
+	createVoiceProviderSloRoutes,
+	evaluateVoiceProviderSloEvidence,
+	renderVoiceProviderSloHTML,
+	renderVoiceProviderSloMarkdown
+} from './providerSlo';
 export {
 	createVoicePhoneAgentProductionSmokeHTMLHandler,
 	createVoicePhoneAgentProductionSmokeJSONHandler,
@@ -268,15 +522,103 @@ export {
 	runVoicePhoneAgentProductionSmokeContract
 } from './phoneAgentProductionSmoke';
 export {
+	assertVoiceProductionReadinessEvidence,
+	buildVoiceProductionReadinessGate,
 	buildVoiceProductionReadinessReport,
 	createVoiceProductionReadinessRoutes,
-	renderVoiceProductionReadinessHTML
+	evaluateVoiceProductionReadinessEvidence,
+	renderVoiceProductionReadinessHTML,
+	summarizeVoiceProductionReadinessGate
 } from './productionReadiness';
+export {
+	acknowledgeVoiceMonitorIssue,
+	buildVoiceMonitorRunReport,
+	createVoiceMemoryMonitorIssueStore,
+	createVoiceMemoryMonitorNotifierDeliveryReceiptStore,
+	createVoiceMonitorRoutes,
+	createVoiceMonitorRunner,
+	createVoiceMonitorRunnerRoutes,
+	createVoiceMonitorWebhookNotifier,
+	deliverVoiceMonitorIssueNotifications,
+	muteVoiceMonitorIssue,
+	renderVoiceMonitorHTML,
+	renderVoiceMonitorMarkdown,
+	resolveVoiceMonitorIssue
+} from './voiceMonitoring';
+export {
+	createVoiceReadinessProfile,
+	recommendVoiceReadinessProfile
+} from './readinessProfiles';
+export {
+	assertVoiceProviderContractMatrixEvidence,
+	assertVoiceProviderStackEvidence,
+	buildVoiceProviderContractMatrix,
+	createVoiceProviderContractMatrixHTMLHandler,
+	createVoiceProviderContractMatrixJSONHandler,
+	createVoiceProviderContractMatrixPreset,
+	createVoiceProviderContractMatrixRoutes,
+	evaluateVoiceProviderContractMatrixEvidence,
+	evaluateVoiceProviderStackEvidence,
+	evaluateVoiceProviderStackGaps,
+	renderVoiceProviderContractMatrixHTML,
+	recommendVoiceProviderStack
+} from './providerStackRecommendations';
 export {
 	buildVoiceOpsConsoleReport,
 	createVoiceOpsConsoleRoutes,
 	renderVoiceOpsConsoleHTML
 } from './opsConsoleRoutes';
+export {
+	assertVoiceOperationsRecordGuardrails,
+	assertVoiceOperationsRecordProviderRecovery,
+	buildVoiceOperationsRecord,
+	createVoiceOperationsRecordRoutes,
+	evaluateVoiceOperationsRecordGuardrails,
+	evaluateVoiceOperationsRecordProviderRecovery,
+	renderVoiceOperationsRecordGuardrailMarkdown,
+	renderVoiceOperationsRecordHTML,
+	renderVoiceOperationsRecordIncidentMarkdown
+} from './operationsRecord';
+export {
+	assertVoiceObservabilityExportDeliveryEvidence,
+	assertVoiceObservabilityExportRecord,
+	assertVoiceObservabilityExportReplayEvidence,
+	buildVoiceObservabilityArtifactIndex,
+	buildVoiceObservabilityExportDeliveryHistory,
+	buildVoiceObservabilityExportReplayReport,
+	buildVoiceObservabilityExport,
+	assertVoiceObservabilityExportSchema,
+	createVoiceObservabilityExportSchema,
+	createVoiceFileObservabilityExportDeliveryReceiptStore,
+	createVoiceMemoryObservabilityExportDeliveryReceiptStore,
+	createVoiceObservabilityExportRoutes,
+	createVoiceObservabilityExportReplayRoutes,
+	deliverVoiceObservabilityExport,
+	evaluateVoiceObservabilityExportDeliveryEvidence,
+	evaluateVoiceObservabilityExportReplayEvidence,
+	loadVoiceObservabilityExportReplaySource,
+	replayVoiceObservabilityExport,
+	renderVoiceObservabilityExportReplayHTML,
+	renderVoiceObservabilityExportMarkdown,
+	validateVoiceObservabilityExportRecord,
+	voiceObservabilityExportSchemaId,
+	voiceObservabilityExportSchemaVersion
+} from './observabilityExport';
+export {
+	buildVoiceOpsRecoveryReadinessCheck,
+	buildVoiceOpsRecoveryReport,
+	createVoiceOpsRecoveryRoutes,
+	renderVoiceOpsRecoveryHTML,
+	renderVoiceOpsRecoveryMarkdown
+} from './opsRecovery';
+export {
+	buildVoiceIncidentBundle,
+	createStoredVoiceIncidentBundleArtifact,
+	createVoiceIncidentBundleRoutes,
+	createVoiceMemoryIncidentBundleStore,
+	pruneVoiceIncidentBundleArtifacts,
+	saveVoiceIncidentBundleArtifact
+} from './incidentBundle';
 export { summarizeVoiceOpsStatus } from './opsStatus';
 export {
 	createVoiceOpsStatusRoutes,
@@ -303,6 +645,7 @@ export {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceTraceHTTPSink,
+	createVoiceTraceS3Sink,
 	createVoiceMemoryTraceEventStore,
 	createVoiceTraceSinkDeliveryId,
 	createVoiceTraceSinkDeliveryRecord,
@@ -468,6 +811,20 @@ export {
 export { createVoiceOpsRuntime } from './opsRuntime';
 export { resolveVoiceOpsPreset } from './opsPresets';
 export { resolveVoiceOutcomeRecipe } from './outcomeRecipes';
+export {
+	buildVoicePostCallAnalysisReport,
+	createVoicePostCallAnalysisRoutes,
+	renderVoicePostCallAnalysisMarkdown
+} from './postCallAnalysis';
+export {
+	buildVoiceGuardrailReport,
+	createVoiceGuardrailPolicy,
+	createVoiceGuardrailRuntime,
+	createVoiceGuardrailRoutes,
+	evaluateVoiceGuardrailPolicy,
+	renderVoiceGuardrailMarkdown,
+	voiceGuardrailPolicyPresets
+} from './guardrails';
 export { createId, createVoiceSessionRecord } from './store';
 export {
 	createVoiceSTTRoutingCorrectionHandler,
@@ -501,19 +858,35 @@ export type {
 	VoiceCampaignDialerResult,
 	VoiceCampaignProofOptions,
 	VoiceCampaignProofReport,
+	VoiceCampaignReadinessAssertionInput,
+	VoiceCampaignReadinessAssertionReport,
+	VoiceCampaignReadinessCheck,
+	VoiceCampaignReadinessProofOptions,
+	VoiceCampaignReadinessProofReport,
 	VoiceCampaignRecipient,
+	VoiceCampaignRecipientImportIssue,
+	VoiceCampaignRecipientImportIssueCode,
+	VoiceCampaignRecipientImportOptions,
+	VoiceCampaignRecipientImportResult,
+	VoiceCampaignRecipientImportRow,
 	VoiceCampaignRecipientInput,
 	VoiceCampaignRecipientStatus,
 	VoiceCampaignRecord,
 	VoiceCampaignRoutesOptions,
 	VoiceCampaignRuntime,
 	VoiceCampaignRuntimeOptions,
+	VoiceCampaignRateLimit,
+	VoiceCampaignRetryPolicy,
+	VoiceCampaignSchedule,
 	VoiceCampaignStatus,
 	VoiceCampaignStore,
 	VoiceCampaignSummary,
+	VoiceCampaignTimeWindow,
 	VoiceCampaignTickResult
 } from './campaign';
 export type {
+	VoiceCampaignDialerProofAssertionInput,
+	VoiceCampaignDialerProofAssertionReport,
 	VoiceCampaignDialerProofCarrierRequest,
 	VoiceCampaignDialerProofOptions,
 	VoiceCampaignDialerProofProvider,
@@ -580,10 +953,13 @@ export type {
 	VoiceScenarioFixtureStore
 } from './evalRoutes';
 export type {
+	VoiceSimulationSuiteAssertionInput,
+	VoiceSimulationSuiteAssertionReport,
 	VoiceSimulationSuiteEvalRoutesOptions,
 	VoiceSimulationSuiteOptions,
 	VoiceSimulationSuiteReport,
 	VoiceSimulationSuiteRoutesOptions,
+	VoiceSimulationSuiteSection,
 	VoiceSimulationSuiteSectionSummary,
 	VoiceSimulationSuiteStatus
 } from './simulationSuite';
@@ -605,6 +981,7 @@ export type {
 	VoiceSessionListOptions,
 	VoiceSessionListRoutesOptions,
 	VoiceSessionListStatus,
+	VoiceProviderFallbackRecoverySummary,
 	VoiceSessionReplay,
 	VoiceSessionReplayHTMLHandlerOptions,
 	VoiceSessionReplayOptions,
@@ -619,6 +996,10 @@ export type {
 	VoiceProviderRouterFallbackMode,
 	VoiceProviderRouterHealthOptions,
 	VoiceProviderRouterOptions,
+	VoiceProviderOrchestrationProfile,
+	VoiceProviderOrchestrationProfileOptions,
+	VoiceProviderOrchestrationResolvedSurface,
+	VoiceProviderOrchestrationSurface,
 	VoiceProviderRouterPolicy,
 	VoiceProviderRouterPolicyPreset,
 	VoiceProviderRouterPolicyWeights,
@@ -629,6 +1010,14 @@ export type {
 	VoiceJSONAssistantModelOptions
 } from './modelAdapters';
 export type { OpenAIVoiceTTSOptions, OpenAIVoiceTTSVoice } from './openaiTTS';
+export type {
+	OpenAIRealtimeAdapterOptions,
+	OpenAIRealtimeModel,
+	OpenAIRealtimeNoiseReduction,
+	OpenAIRealtimeResponseMode,
+	OpenAIRealtimeTranscriptionModel,
+	OpenAIRealtimeVoice
+} from './openaiRealtime';
 export type {
 	VoiceProviderHealthStatus,
 	VoiceProviderHealthSummary,
@@ -645,6 +1034,17 @@ export type {
 	VoiceProviderCapabilitySummary
 } from './providerCapabilities';
 export type {
+	VoiceProviderOrchestrationIssue,
+	VoiceProviderOrchestrationReport,
+	VoiceProviderOrchestrationReportOptions,
+	VoiceProviderOrchestrationRequirement,
+	VoiceProviderOrchestrationRoutesOptions,
+	VoiceProviderOrchestrationStatus,
+	VoiceProviderOrchestrationSurfaceReport
+} from './providerOrchestration';
+export type {
+	VoiceProviderRoutingContractAssertionInput,
+	VoiceProviderRoutingContractAssertionReport,
 	VoiceProviderRoutingContractDefinition,
 	VoiceProviderRoutingContractIssue,
 	VoiceProviderRoutingContractReport,
@@ -652,6 +1052,20 @@ export type {
 	VoiceProviderRoutingExpectation,
 	VoiceProviderRoutingStatus
 } from './providerRoutingContract';
+export type {
+	VoiceProviderSloAssertionInput,
+	VoiceProviderSloAssertionReport,
+	VoiceProviderSloIssue,
+	VoiceProviderSloKindReport,
+	VoiceProviderSloMetric,
+	VoiceProviderSloReport,
+	VoiceProviderSloReportOptions,
+	VoiceProviderSloRoutesOptions,
+	VoiceProviderSloSessionReport,
+	VoiceProviderSloStatus,
+	VoiceProviderSloThresholdConfig,
+	VoiceProviderSloThresholds
+} from './providerSlo';
 export type {
 	VoiceTurnLatencyHTMLHandlerOptions,
 	VoiceTurnLatencyItem,
@@ -669,6 +1083,16 @@ export type {
 	VoiceLiveLatencyStatus
 } from './liveLatency';
 export type {
+	VoiceLatencySLOBudget,
+	VoiceLatencySLOGateError,
+	VoiceLatencySLOGateOptions,
+	VoiceLatencySLOGateReport,
+	VoiceLatencySLOMeasurement,
+	VoiceLatencySLOStage,
+	VoiceLatencySLOStageSummary,
+	VoiceLatencySLOStatus
+} from './latencySlo';
+export type {
 	VoiceTurnQualityHTMLHandlerOptions,
 	VoiceTurnQualityItem,
 	VoiceTurnQualityOptions,
@@ -677,6 +1101,8 @@ export type {
 	VoiceTurnQualityStatus
 } from './turnQuality';
 export type {
+	VoiceOutcomeContractAssertionInput,
+	VoiceOutcomeContractAssertionReport,
 	VoiceOutcomeContractDefinition,
 	VoiceOutcomeContractHTMLHandlerOptions,
 	VoiceOutcomeContractIssue,
@@ -696,15 +1122,23 @@ export type {
 	VoiceTelephonyWebhookDecision,
 	VoiceTelephonyWebhookHandlerOptions,
 	VoiceTelephonyWebhookIdempotencyStore,
+	VoiceTelephonyWebhookNormalizationEvidenceDecision,
+	VoiceTelephonyWebhookNormalizationEvidenceInput,
+	VoiceTelephonyWebhookNormalizationEvidenceReport,
 	VoiceTelephonyWebhookParseInput,
 	VoiceTelephonyWebhookProvider,
 	VoiceTelephonyWebhookRoutesOptions,
+	VoiceTelephonyWebhookVerificationEvidenceAttempt,
 	VoiceTelephonyWebhookVerificationResult,
 	StoredVoiceTelephonyWebhookDecision
 } from './telephonyOutcome';
 export type {
 	VoicePhoneAgentCarrier,
 	VoicePhoneAgentCarrierSummary,
+	VoicePhoneAssistantEvidenceInput,
+	VoicePhoneAssistantEvidenceReport,
+	VoicePhoneCallControlEvidenceInput,
+	VoicePhoneCallControlEvidenceReport,
 	VoicePhoneAgentLifecycleStage,
 	VoicePhoneAgentPlivoCarrier,
 	VoicePhoneAgentRoutes,
@@ -739,8 +1173,24 @@ export type {
 	VoiceProductionReadinessAuditOptions,
 	VoiceProductionReadinessAuditRequirement,
 	VoiceProductionReadinessAuditSummary,
+	VoiceProductionReadinessAssertionInput,
+	VoiceProductionReadinessAssertionReport,
 	VoiceProductionReadinessCheck,
+	VoiceProductionReadinessGateExplanation,
+	VoiceProductionReadinessGateIssue,
+	VoiceProductionReadinessGateOptions,
+	VoiceProductionReadinessGateProfile,
+	VoiceProductionReadinessGateProfileSurface,
+	VoiceProductionReadinessGateReport,
+	VoiceProductionReadinessOpsActionHistoryOptions,
+	VoiceProductionReadinessOpsActionHistorySummary,
+	VoiceProductionReadinessOperationsRecordLink,
+	VoiceProductionReadinessOperationsRecordLinks,
+	VoiceProductionReadinessProfileExplanation,
+	VoiceProductionReadinessProfileSurface,
+	VoiceProductionReadinessProofSource,
 	VoiceProductionReadinessReport,
+	VoiceProductionReadinessRouteInput,
 	VoiceProductionReadinessRoutesOptions,
 	VoiceProductionReadinessTraceDeliverySummary,
 	VoiceProductionReadinessAuditDeliveryOptions,
@@ -748,6 +1198,151 @@ export type {
 	VoiceProductionReadinessTraceDeliveryOptions,
 	VoiceProductionReadinessStatus
 } from './productionReadiness';
+export type {
+	VoiceMonitorDefinition,
+	VoiceMonitorEvaluation,
+	VoiceMonitorEvaluationInput,
+	VoiceMonitorIssue,
+	VoiceMonitorIssueStatus,
+	VoiceMonitorIssueStore,
+	VoiceMonitorNotifier,
+	VoiceMonitorNotifierDeliveryInput,
+	VoiceMonitorNotifierDeliveryOptions,
+	VoiceMonitorNotifierDeliveryReceipt,
+	VoiceMonitorNotifierDeliveryReceiptStore,
+	VoiceMonitorNotifierDeliveryReport,
+	VoiceMonitorNotifierDeliveryResult,
+	VoiceMonitorRoutesOptions,
+	VoiceMonitorRun,
+	VoiceMonitorRunOptions,
+	VoiceMonitorRunReport,
+	VoiceMonitorRunner,
+	VoiceMonitorRunnerOptions,
+	VoiceMonitorRunnerRoutesOptions,
+	VoiceMonitorRunnerTickResult,
+	VoiceMonitorSeverity,
+	VoiceMonitorStatus,
+	VoiceMonitorWebhookNotifierOptions
+} from './voiceMonitoring';
+export type {
+	VoiceReadinessProfileName,
+	VoiceReadinessProfileOptions,
+	VoiceReadinessProfileRecommendation,
+	VoiceReadinessProfileRecommendationScore,
+	VoiceReadinessProfileRoutesOptions
+} from './readinessProfiles';
+export type {
+	VoiceProviderStackChoice,
+	VoiceProviderStackCapabilities,
+	VoiceProviderStackCapabilityGap,
+	VoiceProviderStackCapabilityGapInput,
+	VoiceProviderStackCapabilityGapReport,
+	VoiceProviderContractCheck,
+	VoiceProviderContractCheckStatus,
+	VoiceProviderContractDefinition,
+	VoiceProviderContractMatrixAssertionInput,
+	VoiceProviderContractMatrixAssertionReport,
+	VoiceProviderContractMatrixHandlerOptions,
+	VoiceProviderContractMatrixHTMLHandlerOptions,
+	VoiceProviderContractMatrixInput,
+	VoiceProviderContractMatrixPresetOptions,
+	VoiceProviderContractMatrixReport,
+	VoiceProviderContractMatrixRoutesOptions,
+	VoiceProviderContractMatrixRow,
+	VoiceProviderStackAssertionInput,
+	VoiceProviderStackAssertionReport,
+	VoiceProviderStackInput,
+	VoiceProviderStackKind,
+	VoiceProviderStackRecommendation
+} from './providerStackRecommendations';
+export type {
+	VoiceOperationsRecord,
+	VoiceOperationsRecordAgentHandoff,
+	VoiceOperationsRecordAuditSummary,
+	VoiceOperationsRecordGuardrailAssertionInput,
+	VoiceOperationsRecordGuardrailAssertionReport,
+	VoiceOperationsRecordGuardrailDecision,
+	VoiceOperationsRecordGuardrailFinding,
+	VoiceOperationsRecordGuardrailSummary,
+	VoiceOperationsRecordIntegrationEventSummary,
+	VoiceOperationsRecordOptions,
+	VoiceOperationsRecordOutcome,
+	VoiceOperationsRecordProviderDecision,
+	VoiceOperationsRecordProviderDecisionRecoveryStatus,
+	VoiceOperationsRecordProviderDecisionSummary,
+	VoiceOperationsRecordProviderRecoveryAssertionInput,
+	VoiceOperationsRecordProviderRecoveryAssertionReport,
+	VoiceOperationsRecordReviewSummary,
+	VoiceOperationsRecordRoutesOptions,
+	VoiceOperationsRecordStatus,
+	VoiceOperationsRecordTaskSummary,
+	VoiceOperationsRecordTranscriptTurn,
+	VoiceOperationsRecordTool
+} from './operationsRecord';
+export type {
+	VoiceObservabilityExportArtifact,
+	VoiceObservabilityExportArtifactChecksum,
+	VoiceObservabilityExportArtifactFreshness,
+	VoiceObservabilityExportArtifactIndex,
+	VoiceObservabilityExportArtifactIndexItem,
+	VoiceObservabilityExportArtifactKind,
+	VoiceObservabilityExportDeliveryAssertionInput,
+	VoiceObservabilityExportDeliveryAssertionReport,
+	VoiceObservabilityExportDeliverySummary,
+	VoiceObservabilityExportDeliveryDestination,
+	VoiceObservabilityExportDeliveryDestinationResult,
+	VoiceObservabilityExportDeliveryHistory,
+	VoiceObservabilityExportDeliveryOptions,
+	VoiceObservabilityExportDeliveryReceipt,
+	VoiceObservabilityExportDeliveryReceiptStore,
+	VoiceObservabilityExportDeliveryReport,
+	VoiceObservabilityExportEnvelope,
+	VoiceObservabilityExportIssue,
+	VoiceObservabilityExportIssueCode,
+	VoiceObservabilityExportOptions,
+	VoiceObservabilityExportIngestedRecordKind,
+	VoiceObservabilityExportRedactionSummary,
+	VoiceObservabilityExportRecordValidationOptions,
+	VoiceObservabilityExportReplayIssue,
+	VoiceObservabilityExportReplayIssueCode,
+	VoiceObservabilityExportReplayAssertionInput,
+	VoiceObservabilityExportReplayAssertionReport,
+	VoiceObservabilityExportReplayRecords,
+	VoiceObservabilityExportReplayReport,
+	VoiceObservabilityExportReplayRoutesOptions,
+	VoiceObservabilityExportReplaySource,
+	VoiceObservabilityExportReport,
+	VoiceObservabilityExportRoutesOptions,
+	VoiceObservabilityExportSchema,
+	VoiceObservabilityExportStatus,
+	VoiceObservabilityExportValidationIssue,
+	VoiceObservabilityExportValidationResult
+} from './observabilityExport';
+export type {
+	VoiceOpsRecoveryFailedSession,
+	VoiceOpsRecoveryInterventionSummary,
+	VoiceOpsRecoveryIssue,
+	VoiceOpsRecoveryIssueCode,
+	VoiceOpsRecoveryLinks,
+	VoiceOpsRecoveryProviderSummary,
+	VoiceOpsRecoveryReport,
+	VoiceOpsRecoveryReportOptions,
+	VoiceOpsRecoveryRoutesOptions,
+	VoiceOpsRecoveryStatus
+} from './opsRecovery';
+export type {
+	StoredVoiceIncidentBundleArtifact,
+	VoiceIncidentBundle,
+	VoiceIncidentBundleArtifactOptions,
+	VoiceIncidentBundleFormat,
+	VoiceIncidentBundleOptions,
+	VoiceIncidentBundleRetentionOptions,
+	VoiceIncidentBundleRetentionReport,
+	VoiceIncidentBundleRoutesOptions,
+	VoiceIncidentBundleStore,
+	VoiceIncidentBundleStoreFilter,
+	VoiceIncidentBundleSummary
+} from './incidentBundle';
 export type {
 	VoiceQualityLink,
 	VoiceQualityMetric,
@@ -787,13 +1382,19 @@ export type {
 	VoiceAgentModelOutput,
 	VoiceAgentOptions,
 	VoiceAgentRunResult,
+	VoiceAgentSquadContextPolicyResult,
 	VoiceAgentSquadHandoffPolicyResult,
+	VoiceAgentSquadHandoffStatus,
 	VoiceAgentSquadOptions,
+	VoiceAgentSquadState,
+	VoiceAgentSquadStateHandoff,
 	VoiceAgentTool,
 	VoiceAgentToolCall,
 	VoiceAgentToolResult
 } from './agent';
 export type {
+	VoiceAgentSquadContractAssertionInput,
+	VoiceAgentSquadContractAssertionReport,
 	VoiceAgentSquadContractDefinition,
 	VoiceAgentSquadContractIssue,
 	VoiceAgentSquadContractOutcome,
@@ -812,6 +1413,8 @@ export type {
 	VoiceToolRuntimeResult
 } from './toolRuntime';
 export type {
+	VoiceToolContractAssertionInput,
+	VoiceToolContractAssertionReport,
 	VoiceToolContractCase,
 	VoiceToolContractCaseReport,
 	VoiceToolContractDefinition,
@@ -842,6 +1445,31 @@ export type {
 	VoiceOutcomeRecipeName,
 	VoiceOutcomeRecipeOptions
 } from './outcomeRecipes';
+export type {
+	VoicePostCallAnalysisFieldRequirement,
+	VoicePostCallAnalysisFieldResult,
+	VoicePostCallAnalysisIssue,
+	VoicePostCallAnalysisIssueCode,
+	VoicePostCallAnalysisOptions,
+	VoicePostCallAnalysisReport,
+	VoicePostCallAnalysisRoutesOptions,
+	VoicePostCallAnalysisStatus
+} from './postCallAnalysis';
+export type {
+	VoiceGuardrailDecision,
+	VoiceGuardrailEvaluationInput,
+	VoiceGuardrailFinding,
+	VoiceGuardrailPolicy,
+	VoiceGuardrailReport,
+	VoiceGuardrailRuntime,
+	VoiceGuardrailRuntimeBlockInput,
+	VoiceGuardrailRuntimeOptions,
+	VoiceGuardrailRoutesOptions,
+	VoiceGuardrailRule,
+	VoiceGuardrailSeverity,
+	VoiceGuardrailStage,
+	VoiceGuardrailStatus
+} from './guardrails';
 export type {
 	VoiceCRMActivitySinkOptions,
 	VoiceHubSpotTaskSinkOptions,
@@ -917,6 +1545,9 @@ export type {
 export type { VoiceAuditExport } from './auditExport';
 export type {
 	VoiceAuditHTTPSinkOptions,
+	VoiceAuditS3SinkOptions,
+	VoiceS3AuditSinkClient,
+	VoiceS3AuditSinkFile,
 	VoiceAuditSink,
 	VoiceAuditSinkDeliveryQueueStatus,
 	VoiceAuditSinkDeliveryQueueSummary,
@@ -950,6 +1581,7 @@ export type {
 	VoiceTraceIssue,
 	VoiceTraceIssueSeverity,
 	VoiceTraceHTTPSinkOptions,
+	VoiceTraceS3SinkOptions,
 	VoiceTracePruneFilter,
 	VoiceTracePruneOptions,
 	VoiceTracePruneResult,
@@ -965,7 +1597,9 @@ export type {
 	VoiceTraceSinkDeliveryStore,
 	VoiceTraceSinkFanoutResult,
 	VoiceTraceSinkStoreOptions,
-	VoiceTraceSummary
+	VoiceTraceSummary,
+	VoiceS3TraceSinkClient,
+	VoiceS3TraceSinkFile
 } from './trace';
 export type {
 	VoiceTraceDeliveryDrainReport,
@@ -1073,17 +1707,34 @@ export {
 	transcodePCMToTwilioOutboundPayload,
 	transcodeTwilioInboundPayloadToPCM16
 } from './telephony/twilio';
+export {
+	assertVoiceTelephonyWebhookSecurityEvidence,
+	buildVoiceTelephonyWebhookSecurityReport,
+	createVoiceTelephonyWebhookSecurityPreset,
+	createVoiceTelephonyWebhookSecurityRoutes,
+	evaluateVoiceTelephonyWebhookSecurityEvidence
+} from './telephony/security';
 export { evaluateVoiceTelephonyContract } from './telephony/contract';
 export {
+	createMemoryVoiceTelnyxWebhookEventStore,
 	createTelnyxMediaStreamBridge,
 	createTelnyxVoiceResponse,
 	createTelnyxVoiceRoutes,
+	createVoicePostgresTelnyxWebhookEventStore,
+	createVoiceRedisTelnyxWebhookEventStore,
+	createVoiceSQLiteTelnyxWebhookEventStore,
+	createVoiceTelnyxWebhookVerifier,
 	verifyVoiceTelnyxWebhookSignature
 } from './telephony/telnyx';
 export {
+	createMemoryVoicePlivoWebhookNonceStore,
 	createPlivoMediaStreamBridge,
 	createPlivoVoiceResponse,
 	createPlivoVoiceRoutes,
+	createVoicePostgresPlivoWebhookNonceStore,
+	createVoicePlivoWebhookVerifier,
+	createVoiceRedisPlivoWebhookNonceStore,
+	createVoiceSQLitePlivoWebhookNonceStore,
 	signVoicePlivoWebhook,
 	verifyVoicePlivoWebhookSignature
 } from './telephony/plivo';
@@ -1111,6 +1762,16 @@ export type {
 	TwilioVoiceRoutesOptions
 } from './telephony/twilio';
 export type {
+	VoiceTelephonyWebhookSecurityOptions,
+	VoiceTelephonyWebhookSecurityPreset,
+	VoiceTelephonyWebhookSecurityAssertionInput,
+	VoiceTelephonyWebhookSecurityAssertionReport,
+	VoiceTelephonyWebhookSecurityProviderStatus,
+	VoiceTelephonyWebhookSecurityReport,
+	VoiceTelephonyWebhookSecurityRoutesOptions,
+	VoiceTelephonyWebhookSecurityStorePreset
+} from './telephony/security';
+export type {
 	VoiceTelephonyContractIssue,
 	VoiceTelephonyContractOptions,
 	VoiceTelephonyContractReport,
@@ -1136,7 +1797,14 @@ export type {
 	TelnyxVoiceSetupStatus,
 	TelnyxVoiceSmokeCheck,
 	TelnyxVoiceSmokeOptions,
-	TelnyxVoiceSmokeReport
+	TelnyxVoiceSmokeReport,
+	VoicePostgresTelnyxWebhookEventStoreOptions,
+	VoiceRedisTelnyxWebhookEventClient,
+	VoiceRedisTelnyxWebhookEventStoreOptions,
+	VoiceSQLiteTelnyxWebhookEventStoreOptions,
+	VoiceTelnyxWebhookEventStore,
+	VoiceTelnyxWebhookEventStoreOptions,
+	VoiceTelnyxWebhookVerifierOptions
 } from './telephony/telnyx';
 export type {
 	PlivoInboundMessage,
@@ -1153,7 +1821,14 @@ export type {
 	PlivoVoiceSetupStatus,
 	PlivoVoiceSmokeCheck,
 	PlivoVoiceSmokeOptions,
-	PlivoVoiceSmokeReport
+	PlivoVoiceSmokeReport,
+	VoicePostgresPlivoWebhookNonceStoreOptions,
+	VoicePlivoWebhookNonceStore,
+	VoicePlivoWebhookNonceStoreOptions,
+	VoicePlivoWebhookVerifierOptions,
+	VoiceRedisPlivoWebhookNonceClient,
+	VoiceRedisPlivoWebhookNonceStoreOptions,
+	VoiceSQLitePlivoWebhookNonceStoreOptions
 } from './telephony/plivo';
 export type {
 	VoiceTelephonyCarrierMatrix,

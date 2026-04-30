@@ -3,6 +3,7 @@ import {
 	createVoiceMemoryStore,
 	createVoiceOutcomeContractRoutes,
 	createVoiceSessionRecord,
+	evaluateVoiceOutcomeContractEvidence,
 	runVoiceOutcomeContractSuite
 } from '../src';
 
@@ -66,6 +67,7 @@ test('runVoiceOutcomeContractSuite verifies persisted business artifacts', async
 				updatedAt: 3
 			}
 		],
+		operationsRecordHref: '/voice-operations/:sessionId',
 		reviews: [
 			{
 				errors: [],
@@ -108,6 +110,10 @@ test('runVoiceOutcomeContractSuite verifies persisted business artifacts', async
 		sessions: 1,
 		tasks: 1
 	});
+	expect(report.contracts[0]?.sessionIds).toEqual(['session-outcome']);
+	expect(report.contracts[0]?.operationsRecordHrefs).toEqual([
+		'/voice-operations/session-outcome'
+	]);
 });
 
 test('createVoiceOutcomeContractRoutes reports missing artifacts', async () => {
@@ -124,6 +130,7 @@ test('createVoiceOutcomeContractRoutes reports missing artifacts', async () => {
 			}
 		],
 		htmlPath: '/outcome-contracts',
+		operationsRecordHref: (sessionId) => `/ops/records/${sessionId}`,
 		path: '/api/outcome-contracts',
 		sessions: store
 	});
@@ -136,8 +143,115 @@ test('createVoiceOutcomeContractRoutes reports missing artifacts', async () => {
 
 	expect(json.status).toBe(200);
 	await expect(json.json()).resolves.toMatchObject({
+		contracts: [
+			{
+				operationsRecordHrefs: ['/ops/records/session-completed'],
+				sessionIds: ['session-completed']
+			}
+		],
 		failed: 1,
 		status: 'fail'
 	});
-	expect(await html.text()).toContain('Expected at least one matching review');
+	const htmlText = await html.text();
+	expect(htmlText).toContain('Expected at least one matching review');
+	expect(htmlText).toContain('/ops/records/session-completed');
+});
+
+test('evaluateVoiceOutcomeContractEvidence accepts complete outcome proof', () => {
+	const report = evaluateVoiceOutcomeContractEvidence(
+		{
+			checkedAt: 1,
+			contracts: [
+				{
+					contractId: 'transfer-outcome',
+					issues: [],
+					matched: {
+						handoffs: 1,
+						integrationEvents: 3,
+						reviews: 1,
+						sessions: 1,
+						tasks: 1
+					},
+					operationsRecordHrefs: ['/voice-operations/session-outcome'],
+					pass: true,
+					sessionIds: ['session-outcome']
+				}
+			],
+			failed: 0,
+			passed: 1,
+			status: 'pass',
+			total: 1
+		},
+		{
+			maxFailed: 0,
+			maxIssues: 0,
+			minContracts: 1,
+			minHandoffs: 1,
+			minIntegrationEvents: 3,
+			minOperationsRecordHrefs: 1,
+			minReviews: 1,
+			minSessions: 1,
+			minTasks: 1,
+			requiredContractIds: ['transfer-outcome'],
+			requireOperationRecordHrefs: true
+		}
+	);
+
+	expect(report.ok).toBe(true);
+	expect(report.sessions).toBe(1);
+	expect(report.integrationEvents).toBe(3);
+});
+
+test('evaluateVoiceOutcomeContractEvidence reports missing outcome proof', () => {
+	const report = evaluateVoiceOutcomeContractEvidence(
+		{
+			checkedAt: 1,
+			contracts: [
+				{
+					contractId: 'completed-review',
+					issues: [{ code: 'outcome.review_missing', message: 'missing review' }],
+					matched: {
+						handoffs: 0,
+						integrationEvents: 0,
+						reviews: 0,
+						sessions: 1,
+						tasks: 0
+					},
+					operationsRecordHrefs: [],
+					pass: false,
+					sessionIds: ['session-completed']
+				}
+			],
+			failed: 1,
+			passed: 0,
+			status: 'fail',
+			total: 1
+		},
+		{
+			maxFailed: 0,
+			maxIssues: 0,
+			minHandoffs: 1,
+			minIntegrationEvents: 1,
+			minOperationsRecordHrefs: 1,
+			minReviews: 1,
+			minTasks: 1,
+			requiredContractIds: ['transfer-outcome'],
+			requireOperationRecordHrefs: true
+		}
+	);
+
+	expect(report.ok).toBe(false);
+	expect(report.issues).toEqual(
+		expect.arrayContaining([
+			'Expected at most 0 failing outcome contract(s), found 1.',
+			'Expected at most 0 outcome contract issue(s), found 1.',
+			'Expected at least 1 matched outcome review(s), found 0.',
+			'Expected at least 1 matched outcome task(s), found 0.',
+			'Expected at least 1 matched outcome handoff(s), found 0.',
+			'Expected at least 1 matched outcome integration event(s), found 0.',
+			'Expected at least 1 outcome operations record href(s), found 0.',
+			'Expected every outcome contract to include operations record hrefs; 1 contract(s) missing.',
+			'Missing outcome contract: transfer-outcome.'
+		])
+	);
 });

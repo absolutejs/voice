@@ -1,7 +1,10 @@
+import type { S3Client, S3Options } from 'bun';
+
 export type VoiceTraceEventType =
 	| 'assistant.guardrail'
 	| 'assistant.memory'
 	| 'assistant.run'
+	| 'agent.context'
 	| 'agent.handoff'
 	| 'agent.model'
 	| 'agent.result'
@@ -10,6 +13,9 @@ export type VoiceTraceEventType =
 	| 'call.lifecycle'
 	| 'client.barge_in'
 	| 'client.live_latency'
+	| 'client.reconnect'
+	| 'operator.action'
+	| 'provider.decision'
 	| 'session.error'
 	| 'turn.assistant'
 	| 'turn.committed'
@@ -144,6 +150,27 @@ export type VoiceTraceHTTPSinkOptions<
 	signingSecret?: string;
 	timeoutMs?: number;
 	url: string;
+};
+
+export type VoiceS3TraceSinkFile = {
+	write: (data: string, options?: BlobPropertyBag) => Promise<number> | number;
+};
+
+export type VoiceS3TraceSinkClient = Pick<S3Client, 'file'>;
+
+export type VoiceTraceS3SinkOptions<
+	TBody extends Record<string, unknown> = Record<string, unknown>
+> = S3Options & {
+	body?: (input: {
+		events: StoredVoiceTraceEvent[];
+		key: string;
+	}) => Promise<TBody> | TBody;
+	client?: VoiceS3TraceSinkClient;
+	contentType?: string;
+	eventTypes?: VoiceTraceEventType[];
+	id: string;
+	keyPrefix?: string;
+	kind?: string;
 };
 
 export type VoiceTraceSinkStoreOptions<
@@ -458,6 +485,24 @@ const createVoiceTraceSinkDeliveryError = (input: {
 	return `Attempt ${input.attempt} failed: ${String(input.error)}`;
 };
 
+const normalizeVoiceTraceS3KeyPrefix = (prefix?: string) =>
+	prefix?.trim().replace(/^\/+|\/+$/g, '') ?? 'voice/trace-deliveries';
+
+const createVoiceTraceS3ObjectKey = (
+	prefix: string,
+	events: StoredVoiceTraceEvent[]
+) => {
+	const firstEvent = events[0];
+	const safeSessionId = encodeURIComponent(firstEvent?.sessionId ?? 'trace');
+	const safeEventId = encodeURIComponent(firstEvent?.id ?? crypto.randomUUID());
+	return `${prefix}/${safeSessionId}/${Date.now()}-${safeEventId}.json`;
+};
+
+const resolveVoiceS3DeliveredTo = (options: S3Options, key: string) => {
+	const bucket = (options as { bucket?: string }).bucket;
+	return bucket ? `s3://${bucket}/${key}` : `s3://${key}`;
+};
+
 const aggregateVoiceTraceSinkDeliveryStatus = (
 	deliveries: Record<string, VoiceTraceSinkDeliveryResult>
 ): VoiceTraceSinkDeliveryStatus => {
@@ -584,6 +629,56 @@ export const createVoiceTraceHTTPSink = <
 	id: options.id,
 	kind: options.kind ?? 'http'
 });
+
+export const createVoiceTraceS3Sink = <
+	TBody extends Record<string, unknown> = Record<string, unknown>
+>(
+	options: VoiceTraceS3SinkOptions<TBody>
+): VoiceTraceSink => {
+	const client = options.client ?? new Bun.S3Client(options);
+	const keyPrefix = normalizeVoiceTraceS3KeyPrefix(options.keyPrefix);
+
+	return {
+		deliver: async ({ events }) => {
+			const key = createVoiceTraceS3ObjectKey(keyPrefix, events);
+			const payload = options.body
+				? await options.body({ events, key })
+				: {
+						eventCount: events.length,
+						events,
+						key,
+						source: 'absolutejs-voice'
+					};
+
+			try {
+				const file = client.file(key, options) as VoiceS3TraceSinkFile;
+				await file.write(JSON.stringify(payload), {
+					type: options.contentType ?? 'application/json'
+				});
+
+				return {
+					attempts: 1,
+					deliveredAt: Date.now(),
+					deliveredTo: resolveVoiceS3DeliveredTo(options, key),
+					eventCount: events.length,
+					responseBody: { key },
+					status: 'delivered'
+				};
+			} catch (error) {
+				return {
+					attempts: 1,
+					deliveredTo: resolveVoiceS3DeliveredTo(options, key),
+					error: error instanceof Error ? error.message : String(error),
+					eventCount: events.length,
+					status: 'failed'
+				};
+			}
+		},
+		eventTypes: options.eventTypes,
+		id: options.id,
+		kind: options.kind ?? 's3'
+	};
+};
 
 export const deliverVoiceTraceEventsToSinks = async (input: {
 	events: StoredVoiceTraceEvent[];
@@ -1092,6 +1187,8 @@ const renderTraceEventMarkdown = (
 				: `${label} ${formatTraceValue(event.payload.status)}`;
 		case 'agent.tool':
 			return `${label} ${formatTraceValue(event.payload.toolName)} ${formatTraceValue(event.payload.status)}`;
+		case 'agent.context':
+			return `${label} ${formatTraceValue(event.payload.fromAgentId)} -> ${formatTraceValue(event.payload.targetAgentId)} ${formatTraceValue(event.payload.status)}`;
 		case 'agent.handoff':
 			return `${label} ${formatTraceValue(event.payload.fromAgentId)} -> ${formatTraceValue(event.payload.targetAgentId)}`;
 		case 'session.error':

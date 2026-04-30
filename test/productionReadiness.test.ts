@@ -1,17 +1,34 @@
 import { expect, test } from 'bun:test';
 import {
+	assertVoiceProductionReadinessEvidence,
+	buildVoiceProductionReadinessGate,
 	buildVoiceProductionReadinessReport,
+	buildVoiceProviderOrchestrationReport,
+	buildVoiceObservabilityArtifactIndex,
+	buildVoiceOpsRecoveryReport,
+	buildVoiceObservabilityExport,
+	buildVoiceObservabilityExportReplayReport,
+	buildVoiceMonitorRunReport,
+	createVoiceMemoryObservabilityExportDeliveryReceiptStore,
+	createVoiceMemoryMonitorIssueStore,
+	deliverVoiceMonitorIssueNotifications,
+	buildVoiceProviderContractMatrix,
 	createVoiceAuditEvent,
 	createVoiceAuditSinkDeliveryRecord,
 	createVoiceMemoryAuditEventStore,
 	createVoiceMemoryAuditSinkDeliveryStore,
 	createVoiceMemoryTraceEventStore,
 	createVoiceMemoryTraceSinkDeliveryStore,
+	createVoiceProviderOrchestrationProfile,
 	createVoiceProductionReadinessRoutes,
 	createVoiceTelephonyCarrierMatrix,
 	createVoiceTraceEvent,
 	createVoiceTraceSinkDeliveryRecord,
-	renderVoiceProductionReadinessHTML
+	recordVoiceOpsActionAudit,
+	renderVoiceProductionReadinessHTML,
+	runVoiceCampaignReadinessProof,
+	evaluateVoiceProductionReadinessEvidence,
+	summarizeVoiceProductionReadinessGate
 } from '../src';
 
 test('buildVoiceProductionReadinessReport warns when deployment has no runtime proof', async () => {
@@ -49,6 +66,704 @@ test('buildVoiceProductionReadinessReport warns when deployment has no runtime p
 			})
 		])
 	);
+});
+
+test('evaluateVoiceProductionReadinessEvidence verifies gate status and required checks', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		llmProviders: ['openai'],
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	const warningReport = evaluateVoiceProductionReadinessEvidence(report, {
+		maxFailures: 0,
+		requireGateOk: true,
+		requireStatus: 'warn',
+		requiredChecks: ['Quality gates', 'Session health']
+	});
+
+	expect(warningReport).toMatchObject({
+		failures: 0,
+		gateOk: true,
+		ok: true,
+		status: 'warn'
+	});
+	expect(
+		assertVoiceProductionReadinessEvidence(report, {
+			requireStatus: 'warn',
+			requiredChecks: ['Session health']
+		}).ok
+	).toBe(true);
+
+	const failed = evaluateVoiceProductionReadinessEvidence(report, {
+		requireStatus: 'pass',
+		requiredChecks: ['Missing check']
+	});
+	expect(failed.ok).toBe(false);
+	expect(failed.issues).toContain(
+		'Expected production readiness status pass, found warn.'
+	);
+	expect(failed.issues).toContain(
+		'Missing production readiness check: Missing check.'
+	);
+	expect(() =>
+		assertVoiceProductionReadinessEvidence(report, { requireStatus: 'pass' })
+	).toThrow('Voice production readiness assertion failed');
+});
+
+test('buildVoiceProductionReadinessReport includes campaign readiness proof', async () => {
+	const campaignReadiness = await runVoiceCampaignReadinessProof();
+	const report = await buildVoiceProductionReadinessReport({
+		campaignReadiness,
+		links: {
+			campaignReadiness: '/campaign-proof'
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.summary.campaignReadiness).toMatchObject({
+		failed: 0,
+		passed: campaignReadiness.checks.length,
+		status: 'pass',
+		total: campaignReadiness.checks.length
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/campaign-proof',
+				label: 'Campaign readiness proof',
+				status: 'pass',
+				value: `${campaignReadiness.checks.length}/${campaignReadiness.checks.length}`
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates carrier webhook security', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			telephonyWebhookSecurity: '/webhook-security'
+		},
+		store: createVoiceMemoryTraceEventStore(),
+		telephonyWebhookSecurity: {
+			plivo: {
+				authToken: 'plivo-secret'
+			},
+			store: {
+				kind: 'sqlite',
+				path: ':memory:'
+			},
+			telnyx: {
+				publicKey: 'telnyx-public-key'
+			},
+			twilio: {
+				authToken: 'twilio-secret'
+			}
+		}
+	});
+
+	expect(report.summary.telephonyWebhookSecurity).toMatchObject({
+		enabled: 3,
+		failed: 0,
+		passed: 3,
+		status: 'pass'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/webhook-security',
+				label: 'Carrier webhook security',
+				status: 'pass',
+				value: '3/3'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport fails insecure carrier webhook security', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		store: createVoiceMemoryTraceEventStore(),
+		telephonyWebhookSecurity: {
+			plivo: {},
+			twilio: {
+				authToken: 'twilio-secret'
+			}
+		}
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.telephonyWebhookSecurity).toMatchObject({
+		enabled: 2,
+		failed: 2,
+		status: 'fail'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Carrier webhook security',
+				status: 'fail',
+				value: '0/2'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport fails open critical monitor issues', async () => {
+	const monitoring = await buildVoiceMonitorRunReport({
+		evidence: {
+			errorRate: 0.06
+		},
+		issueStore: createVoiceMemoryMonitorIssueStore(),
+		monitors: [
+			{
+				evaluate: ({ evidence }) => ({
+					detail: `Error rate is ${evidence.errorRate}.`,
+					status: evidence.errorRate > 0.02 ? 'fail' : 'pass',
+					threshold: 0.02,
+					value: evidence.errorRate
+				}),
+				id: 'error-rate',
+				label: 'Error rate',
+				severity: 'critical'
+			}
+		],
+		now: 100
+	});
+
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			monitoring: '/voice/monitors'
+		},
+		monitoring,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.monitoring).toMatchObject({
+		criticalOpen: 1,
+		open: 1,
+		status: 'fail',
+		total: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice/monitors',
+				label: 'Monitoring issues',
+				status: 'fail',
+				value: '0/1'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates monitor notifier delivery', async () => {
+	const issueStore = createVoiceMemoryMonitorIssueStore();
+	await buildVoiceMonitorRunReport({
+		evidence: {
+			errorRate: 0.06
+		},
+		issueStore,
+		monitors: [
+			{
+				evaluate: ({ evidence }) => ({
+					status: evidence.errorRate > 0.02 ? 'fail' : 'pass',
+					threshold: 0.02,
+					value: evidence.errorRate
+				}),
+				id: 'error-rate',
+				label: 'Error rate',
+				severity: 'critical'
+			}
+		],
+		now: 100
+	});
+	const monitoringNotifierDelivery =
+		await deliverVoiceMonitorIssueNotifications({
+			issueStore,
+			notifiers: [
+				{
+					deliver: () => ({
+						detail: 'webhook down',
+						status: 'failed'
+					}),
+					id: 'ops-webhook',
+					label: 'Ops webhook'
+				}
+			],
+			now: 150
+		});
+
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			monitoringNotifierDelivery: '/monitor-notifications'
+		},
+		monitoringNotifierDelivery,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.monitoringNotifierDelivery).toMatchObject({
+		failed: 1,
+		sent: 0,
+		status: 'fail',
+		total: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/monitor-notifications',
+				label: 'Monitor notifier delivery',
+				status: 'fail',
+				value: '0/1'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates observability export proof', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	const event = await store.append(
+		createVoiceTraceEvent({
+			at: 1_000,
+			payload: { type: 'start' },
+			sessionId: 'session-1',
+			type: 'call.lifecycle'
+		})
+	);
+	const observabilityExport = await buildVoiceObservabilityExport({
+		artifacts: [
+			{
+				id: 'latest-proof-pack',
+				kind: 'proof-pack',
+				label: 'Latest proof pack',
+				path: '.voice-runtime/proof-pack/latest.md'
+			}
+		],
+		links: {
+			operationsRecord: (sessionId) => `/voice-operations/${sessionId}`
+		},
+		store,
+		traceDeliveries: [
+			createVoiceTraceSinkDeliveryRecord({
+				deliveredAt: 1_100,
+				deliveryStatus: 'delivered',
+				events: [event],
+				id: 'trace-delivery-1'
+			})
+		]
+	});
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			observabilityExport: '/voice/observability-export'
+		},
+		observabilityExport,
+		store
+	});
+
+	expect(report.summary.observabilityExport).toMatchObject({
+		artifacts: 1,
+		issues: 0,
+		status: 'pass',
+		traceEvents: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice/observability-export',
+				label: 'Observability export',
+				status: 'pass'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates observability export delivery history', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	const receipts = createVoiceMemoryObservabilityExportDeliveryReceiptStore();
+	await receipts.set('receipt-1', {
+		checkedAt: Date.now() - 1_000,
+		destinations: [],
+		exportStatus: 'pass',
+		id: 'receipt-1',
+		runId: 'run-1',
+		status: 'pass',
+		summary: {
+			delivered: 2,
+			failed: 0,
+			total: 2
+		}
+	});
+
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			observabilityExportDeliveries:
+				'/api/voice/observability-export/deliveries'
+		},
+		observabilityExportDeliveryHistory: {
+			failOnMissing: true,
+			failOnStale: true,
+			maxAgeMs: 60_000,
+			store: receipts
+		},
+		store
+	});
+
+	expect(report.summary.observabilityExportDeliveryHistory).toMatchObject({
+		delivered: 2,
+		failed: 0,
+		receipts: 1,
+		status: 'pass',
+		totalDestinations: 2
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/api/voice/observability-export/deliveries',
+				label: 'Observability export delivery',
+				status: 'pass',
+				value: '2/2'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates calibrated monitoring runtime ceilings', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		monitoring: {
+			checkedAt: 100,
+			elapsedMs: 1_200,
+			issues: [],
+			runs: [],
+			status: 'pass',
+			summary: {
+				acknowledged: 0,
+				criticalOpen: 0,
+				failed: 0,
+				muted: 0,
+				open: 0,
+				passed: 1,
+				resolved: 0,
+				total: 1,
+				warned: 0
+			}
+		},
+		monitoringNotifierDelivery: {
+			checkedAt: 100,
+			elapsedMs: 900,
+			receipts: [],
+			status: 'pass',
+			summary: {
+				failed: 0,
+				notifiers: 1,
+				sent: 1,
+				skipped: 0,
+				total: 1
+			}
+		},
+		monitoringNotifierDeliveryFailAfterMs: 800,
+		monitoringRunFailAfterMs: 1_000,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.monitoring).toMatchObject({
+		elapsedMs: 1_200,
+		status: 'fail'
+	});
+	expect(report.summary.monitoringNotifierDelivery).toMatchObject({
+		elapsedMs: 900,
+		status: 'fail'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				detail: expect.stringContaining('Monitor run took 1200ms'),
+				label: 'Monitoring issues',
+				status: 'fail'
+			}),
+			expect.objectContaining({
+				detail: expect.stringContaining(
+					'Monitor notification delivery took 900ms'
+				),
+				label: 'Monitor notifier delivery',
+				status: 'fail'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessGate fails missing observability export delivery history when required', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		observabilityExportDeliveryHistory: {
+			failOnMissing: true,
+			store: createVoiceMemoryObservabilityExportDeliveryReceiptStore()
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+	const gate = summarizeVoiceProductionReadinessGate(report);
+
+	expect(report.summary.observabilityExportDeliveryHistory).toMatchObject({
+		receipts: 0,
+		status: 'fail'
+	});
+	expect(gate.ok).toBe(false);
+	expect(gate.failures).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				code: 'voice.readiness.observability_export_delivery',
+				label: 'Observability export delivery'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates observability export replay proof', async () => {
+	const observabilityExport = await buildVoiceObservabilityExport({
+		artifacts: [
+			{
+				id: 'proof-pack',
+				kind: 'proof-pack',
+				label: 'Proof pack',
+				status: 'pass'
+			}
+		]
+	});
+	const replay = buildVoiceObservabilityExportReplayReport({
+		artifactIndex: buildVoiceObservabilityArtifactIndex(observabilityExport),
+		manifest: observabilityExport
+	});
+
+	const report = await buildVoiceProductionReadinessReport({
+		observabilityExportReplay: replay,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.summary.observabilityExportReplay).toMatchObject({
+		artifacts: 1,
+		failedArtifacts: 0,
+		status: 'pass',
+		validationIssues: 0
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Observability export replay',
+				status: 'pass'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessGate fails failed observability export replay', async () => {
+	const observabilityExport = await buildVoiceObservabilityExport({
+		artifacts: [
+			{
+				id: 'proof-pack',
+				kind: 'proof-pack',
+				label: 'Proof pack',
+				status: 'pass'
+			}
+		]
+	});
+	const replay = buildVoiceObservabilityExportReplayReport({
+		artifactIndex: buildVoiceObservabilityArtifactIndex(observabilityExport),
+		manifest: {
+			...observabilityExport,
+			schema: {
+				id: 'com.absolutejs.voice.observability-export',
+				version: '0.9.0'
+			}
+		}
+	});
+
+	const report = await buildVoiceProductionReadinessReport({
+		observabilityExportReplay: replay,
+		store: createVoiceMemoryTraceEventStore()
+	});
+	const gate = summarizeVoiceProductionReadinessGate(report);
+
+	expect(report.summary.observabilityExportReplay).toMatchObject({
+		status: 'fail',
+		validationIssues: 1
+	});
+	expect(gate.ok).toBe(false);
+	expect(gate.failures).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				code: 'voice.readiness.observability_export_replay',
+				label: 'Observability export replay'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessGate fails failed observability export proof', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	const event = await store.append(
+		createVoiceTraceEvent({
+			at: 1_000,
+			payload: { type: 'start' },
+			sessionId: 'session-1',
+			type: 'call.lifecycle'
+		})
+	);
+	const observabilityExport = await buildVoiceObservabilityExport({
+		store,
+		traceDeliveries: [
+			createVoiceTraceSinkDeliveryRecord({
+				deliveryAttempts: 1,
+				deliveryError: 'warehouse unavailable',
+				deliveryStatus: 'failed',
+				events: [event],
+				id: 'trace-delivery-failed'
+			})
+		]
+	});
+	const report = await buildVoiceProductionReadinessReport({
+		observabilityExport,
+		store
+	});
+	const gate = summarizeVoiceProductionReadinessGate(report);
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.observabilityExport).toMatchObject({
+		issues: 1,
+		status: 'fail'
+	});
+	expect(gate.ok).toBe(false);
+	expect(gate.failures).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				code: 'voice.readiness.observability_export',
+				label: 'Observability export'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessGate fails failed campaign readiness proof', async () => {
+	const campaignReadiness = await runVoiceCampaignReadinessProof();
+	const report = await buildVoiceProductionReadinessReport({
+		campaignReadiness: {
+			...campaignReadiness,
+			checks: [
+				...campaignReadiness.checks,
+				{
+					name: 'forced-campaign-failure',
+					status: 'fail'
+				}
+			],
+			ok: false
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+	const gate = summarizeVoiceProductionReadinessGate(report);
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.campaignReadiness).toMatchObject({
+		failed: 1,
+		status: 'fail'
+	});
+	expect(gate.ok).toBe(false);
+	expect(gate.failures).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				code: 'voice.readiness.campaign_readiness',
+				label: 'Campaign readiness proof'
+			})
+		])
+	);
+});
+
+test('summarizeVoiceProductionReadinessGate exposes stable deploy failure codes', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		llmProviders: ['openai'],
+		store: createVoiceMemoryTraceEventStore()
+	});
+	const gate = summarizeVoiceProductionReadinessGate(report);
+
+	expect(gate.ok).toBe(true);
+	expect(gate.status).toBe('warn');
+	expect(gate.failures).toEqual([]);
+	expect(gate.warnings).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				code: 'voice.readiness.routing_evidence',
+				label: 'Routing evidence',
+				status: 'warn'
+			}),
+			expect.objectContaining({
+				code: 'voice.readiness.session_health',
+				label: 'Session health',
+				status: 'warn'
+			})
+		])
+	);
+});
+
+test('summarizeVoiceProductionReadinessGate groups issues by profile surface', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		gate: {
+			failOnWarnings: true
+		},
+		profile: {
+			description: 'Phone-agent readiness.',
+			name: 'phone-agent',
+			purpose: 'Certifies phone-agent proof surfaces.',
+			surfaces: [
+				{
+					configured: true,
+					href: '/sessions',
+					key: 'sessions',
+					label: 'Session health'
+				},
+				{
+					configured: true,
+					href: '/delivery-runtime',
+					key: 'deliveryRuntime',
+					label: 'Delivery runtime'
+				}
+			]
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+	const gate = summarizeVoiceProductionReadinessGate(report, {
+		failOnWarnings: true
+	});
+
+	expect(gate.profile).toMatchObject({
+		name: 'phone-agent',
+		surfaces: expect.arrayContaining([
+			expect.objectContaining({
+				key: 'sessions',
+				status: 'warn',
+				issues: expect.arrayContaining([
+					expect.objectContaining({
+						code: 'voice.readiness.session_health'
+					})
+				])
+			}),
+			expect.objectContaining({
+				key: 'deliveryRuntime',
+				status: 'pass',
+				issues: []
+			})
+		])
+	});
+});
+
+test('buildVoiceProductionReadinessGate can close deploy gate on warnings', async () => {
+	const gate = await buildVoiceProductionReadinessGate({
+		gate: {
+			failOnWarnings: true
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(gate.ok).toBe(false);
+	expect(gate.status).toBe('fail');
+	expect(gate.failures).toEqual([]);
+	expect(gate.warnings.length).toBeGreaterThan(0);
 });
 
 test('buildVoiceProductionReadinessReport fails missing audit evidence', async () => {
@@ -135,6 +850,83 @@ test('buildVoiceProductionReadinessReport accepts complete audit evidence', asyn
 				label: 'Audit evidence',
 				status: 'pass',
 				value: '3/3'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport fails failed operator action history', async () => {
+	const audit = createVoiceMemoryAuditEventStore();
+	await recordVoiceOpsActionAudit(
+		{
+			actionId: 'delivery-runtime.tick',
+			error: 'worker unavailable',
+			ok: false,
+			ranAt: Date.now(),
+			status: 503
+		},
+		{ audit }
+	);
+
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			opsActions: '/ops/actions'
+		},
+		opsActionHistory: audit,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.opsActionHistory).toMatchObject({
+		failed: 1,
+		passed: 0,
+		status: 'fail',
+		total: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/ops/actions',
+				label: 'Operator action history',
+				status: 'fail',
+				value: '0/1'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport can warn on failed operator action history', async () => {
+	const audit = createVoiceMemoryAuditEventStore();
+	await recordVoiceOpsActionAudit(
+		{
+			actionId: 'delivery-runtime.requeue-dead-letters',
+			error: 'no lease',
+			ok: false,
+			ranAt: Date.now(),
+			status: 409
+		},
+		{ audit }
+	);
+
+	const report = await buildVoiceProductionReadinessReport({
+		opsActionHistory: {
+			failOnFailedActions: false,
+			store: audit
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.summary.opsActionHistory).toMatchObject({
+		failed: 1,
+		status: 'warn',
+		total: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Operator action history',
+				status: 'warn',
+				value: '0/1'
 			})
 		])
 	);
@@ -472,9 +1264,23 @@ test('buildVoiceProductionReadinessReport fails provider and carrier blockers', 
 		status: 'fail'
 	});
 	expect(report.summary.sessions.failed).toBe(1);
+	expect(report.summary.providerRecovery).toEqual({
+		recovered: 0,
+		recoveredSessions: 0,
+		recoveredTurns: 0,
+		status: 'fail',
+		total: 1,
+		unresolvedErrors: 1,
+		unresolvedSessions: 1
+	});
 	expect(report.summary.routing.events).toBe(2);
 	expect(report.checks).toEqual(
 		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Provider fallback recovery',
+				status: 'fail',
+				value: '0/1'
+			}),
 			expect.objectContaining({
 				actions: expect.arrayContaining([
 					expect.objectContaining({
@@ -490,6 +1296,181 @@ test('buildVoiceProductionReadinessReport fails provider and carrier blockers', 
 					})
 				]),
 				label: 'Carrier readiness'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport links failures to operations records', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await Promise.all([
+		store.append(
+			createVoiceTraceEvent({
+				at: 100,
+				payload: {
+					type: 'start'
+				},
+				sessionId: 'call-ops-fail',
+				type: 'call.lifecycle'
+			})
+		),
+		store.append(
+			createVoiceTraceEvent({
+				at: 120,
+				payload: {
+					error: 'OpenAI realtime failed',
+					provider: 'openai',
+					providerStatus: 'error'
+				},
+				sessionId: 'call-ops-fail',
+				type: 'session.error'
+			})
+		),
+		store.append(
+			createVoiceTraceEvent({
+				at: 140,
+				payload: {
+					latencyMs: 3400
+				},
+				sessionId: 'call-ops-fail',
+				turnId: 'turn-1',
+				type: 'client.live_latency'
+			})
+		)
+	]);
+
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			operationsRecords: '/ops/records/:sessionId',
+			sessions: '/sessions',
+			liveLatency: '/latency',
+			resilience: '/resilience'
+		},
+		store
+	});
+
+	expect(report.operationsRecords).toMatchObject({
+		failedSessions: [
+			{
+				href: '/ops/records/call-ops-fail',
+				sessionId: 'call-ops-fail',
+				status: 'fail'
+			}
+		],
+		failingLatency: [
+			{
+				href: '/ops/records/call-ops-fail',
+				sessionId: 'call-ops-fail',
+				status: 'fail'
+			}
+		],
+		providerErrors: [
+			{
+				href: '/ops/records/call-ops-fail',
+				sessionId: 'call-ops-fail',
+				status: 'fail'
+			}
+		]
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/ops/records/call-ops-fail',
+				label: 'Session health',
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						href: '/ops/records/call-ops-fail',
+						label: 'Open failed operations record'
+					}),
+					expect.objectContaining({
+						href: '/sessions?status=failed',
+						label: 'Replay failed sessions'
+					})
+				])
+			}),
+			expect.objectContaining({
+				href: '/ops/records/call-ops-fail',
+				label: 'Provider fallback recovery',
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						href: '/ops/records/call-ops-fail',
+						label: 'Open failing operations record'
+					})
+				])
+			}),
+			expect.objectContaining({
+				href: '/ops/records/call-ops-fail',
+				label: 'Live latency proof',
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						href: '/ops/records/call-ops-fail',
+						label: 'Open latency operations record'
+					})
+				])
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates ops recovery with operations record links', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append(
+		createVoiceTraceEvent({
+			at: 100,
+			payload: {
+				error: 'provider outage',
+				provider: 'openai',
+				providerStatus: 'error',
+				rateLimited: true
+			},
+			sessionId: 'ops-recovery-fail',
+			type: 'session.error'
+		})
+	);
+	const opsRecovery = await buildVoiceOpsRecoveryReport({
+		links: {
+			operationsRecords: '/voice-operations/:sessionId',
+			providers: '/provider-status'
+		},
+		providers: ['openai'],
+		traces: store
+	});
+
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			operationsRecords: '/voice-operations/:sessionId',
+			opsRecovery: '/ops-recovery'
+		},
+		opsRecovery,
+		store
+	});
+	const gate = summarizeVoiceProductionReadinessGate(report);
+
+	expect(report.summary.opsRecovery).toMatchObject({
+		issues: 1,
+		status: 'fail',
+		unresolvedProviderFailures: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/ops-recovery',
+				label: 'Ops recovery',
+				status: 'fail',
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						href: '/voice-operations/ops-recovery-fail',
+						label: 'Open impacted operations record'
+					})
+				])
+			})
+		])
+	);
+	expect(gate.failures).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				code: 'voice.readiness.ops_recovery',
+				label: 'Ops recovery'
 			})
 		])
 	);
@@ -626,6 +1607,115 @@ test('buildVoiceProductionReadinessReport fails failing provider routing contrac
 	);
 });
 
+test('buildVoiceProductionReadinessReport gates provider SLO reports', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append(
+		createVoiceTraceEvent({
+			at: 1_000,
+			payload: {
+				elapsedMs: 4_200,
+				kind: 'llm',
+				provider: 'openai',
+				providerStatus: 'success'
+			},
+			sessionId: 'provider-slo-session',
+			type: 'session.error'
+		})
+	);
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			providerSlo: '/voice/provider-slos'
+		},
+		providerSlo: {
+			requiredKinds: ['llm'],
+			thresholds: {
+				llm: {
+					maxAverageElapsedMs: 1_000,
+					maxP95ElapsedMs: 1_000
+				}
+			}
+		},
+		store
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.providerSlo).toMatchObject({
+		events: 1,
+		eventsWithLatency: 1,
+		status: 'fail'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Provider SLO gates',
+				status: 'fail',
+				href: '/voice/provider-slos',
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						label: 'Open provider SLO report'
+					})
+				])
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates provider orchestration profiles', async () => {
+	const profile = createVoiceProviderOrchestrationProfile({
+		id: 'readiness-provider-policy',
+		surfaces: {
+			'live-call': {
+				policy: 'latency-first',
+				providerProfiles: {
+					openai: { latencyMs: 650, quality: 0.92 }
+				}
+			}
+		}
+	});
+	const providerOrchestration = buildVoiceProviderOrchestrationReport({
+		profile,
+		requirements: {
+			'live-call': {
+				minProviders: 2,
+				requireBudgetPolicy: true,
+				requireCircuitBreaker: true,
+				requireFallback: true,
+				requireTimeoutBudget: true
+			}
+		}
+	});
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			providerOrchestration: '/voice/provider-orchestration'
+		},
+		providerOrchestration,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.providerOrchestration).toMatchObject({
+		failed: 1,
+		issues: 5,
+		status: 'fail',
+		surfaces: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				actions: expect.arrayContaining([
+					expect.objectContaining({
+						label: 'Open provider orchestration proof'
+					})
+				]),
+				href: '/voice/provider-orchestration',
+				label: 'Provider orchestration profiles',
+				status: 'fail',
+				value: '0/1'
+			})
+		])
+	);
+});
+
 test('buildVoiceProductionReadinessReport fails failing phone-agent production smoke contracts', async () => {
 	const report = await buildVoiceProductionReadinessReport({
 		links: {
@@ -707,12 +1797,477 @@ test('buildVoiceProductionReadinessReport fails failing phone-agent production s
 	);
 });
 
+test('buildVoiceProductionReadinessReport fails failing reconnect contracts', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			reconnectContracts: '/voice/reconnect-contract'
+		},
+		reconnectContracts: [
+			{
+				checkedAt: 100,
+				issues: [],
+				pass: true,
+				snapshotCount: 2,
+				statuses: ['reconnecting', 'resumed'],
+				summary: {
+					attempts: 1,
+					duplicateTurnIds: [],
+					exhausted: false,
+					maxAttempts: 10,
+					reconnected: true,
+					resumed: true
+				}
+			},
+			{
+				checkedAt: 100,
+				issues: [
+					{
+						code: 'reconnect.resume_not_observed',
+						message: 'Reconnect started but no resumed state was observed.',
+						severity: 'error'
+					}
+				],
+				pass: false,
+				snapshotCount: 1,
+				statuses: ['reconnecting'],
+				summary: {
+					attempts: 1,
+					duplicateTurnIds: [],
+					exhausted: false,
+					maxAttempts: 10,
+					reconnected: true,
+					resumed: false
+				}
+			}
+		],
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.reconnectContracts).toEqual({
+		failed: 1,
+		passed: 1,
+		status: 'fail',
+		total: 2
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice/reconnect-contract',
+				label: 'Reconnect recovery contracts',
+				status: 'fail',
+				value: '1/2'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates calibrated reconnect resume latency', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			reconnectContracts: '/voice/reconnect-contract'
+		},
+		reconnectContracts: [
+			{
+				checkedAt: 100,
+				issues: [],
+				pass: true,
+				resumeLatencyP95Ms: 1_800,
+				snapshotCount: 2,
+				statuses: ['reconnecting', 'resumed'],
+				summary: {
+					attempts: 1,
+					duplicateTurnIds: [],
+					exhausted: false,
+					maxAttempts: 10,
+					reconnected: true,
+					resumed: true
+				}
+			}
+		],
+		reconnectResumeFailAfterMs: 1_500,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.reconnectContracts).toMatchObject({
+		failed: 1,
+		passed: 0,
+		resumeLatencyP95Ms: 1_800,
+		status: 'fail'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				detail: expect.stringContaining('Reconnect resume p95 1800ms'),
+				href: '/voice/reconnect-contract',
+				label: 'Reconnect recovery contracts',
+				status: 'fail'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport fails failing barge-in proof reports', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		bargeInReports: [
+			{
+				averageLatencyMs: 94,
+				checkedAt: 100,
+				events: [],
+				failed: 0,
+				lastEvent: undefined,
+				passed: 1,
+				sessions: [],
+				status: 'pass',
+				thresholdMs: 250,
+				total: 1
+			},
+			{
+				averageLatencyMs: 390,
+				checkedAt: 100,
+				events: [],
+				failed: 1,
+				lastEvent: undefined,
+				passed: 0,
+				sessions: [],
+				status: 'fail',
+				thresholdMs: 250,
+				total: 1
+			}
+		],
+		links: {
+			bargeIn: '/barge-in'
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.bargeIn).toEqual({
+		failed: 1,
+		passed: 1,
+		status: 'fail',
+		total: 2,
+		warnings: 0
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/barge-in',
+				label: 'Barge-in interruption proof',
+				status: 'fail',
+				value: '1/2'
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport attaches proof sources to readiness checks', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		bargeInReports: [
+			{
+				averageLatencyMs: 94,
+				checkedAt: 100,
+				events: [],
+				failed: 0,
+				lastEvent: undefined,
+				passed: 1,
+				sessions: [],
+				status: 'pass',
+				thresholdMs: 250,
+				total: 1
+			}
+		],
+		proofSources: {
+			bargeIn: {
+				detail: 'Captured from browser interruption traces.',
+				href: '/barge-in',
+				source: 'live',
+				sourceLabel: 'Live browser barge-in traces'
+			},
+			reconnectContracts: {
+				href: '/voice/reconnect-contract',
+				source: 'live',
+				sourceLabel: 'Live reconnect traces'
+			}
+		},
+		reconnectContracts: [
+			{
+				checkedAt: 100,
+				issues: [],
+				pass: true,
+				snapshotCount: 2,
+				statuses: ['reconnecting', 'resumed'],
+				summary: {
+					attempts: 1,
+					duplicateTurnIds: [],
+					exhausted: false,
+					maxAttempts: 10,
+					reconnected: true,
+					resumed: true
+				}
+			}
+		],
+		store: createVoiceMemoryTraceEventStore()
+	});
+	const html = renderVoiceProductionReadinessHTML(report);
+
+	expect(report.proofSources?.bargeIn?.source).toBe('live');
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Barge-in interruption proof',
+				proofSource: expect.objectContaining({
+					sourceLabel: 'Live browser barge-in traces'
+				})
+			}),
+			expect.objectContaining({
+				label: 'Reconnect recovery contracts',
+				proofSource: expect.objectContaining({
+					sourceLabel: 'Live reconnect traces'
+				})
+			})
+		])
+	);
+	expect(html).toContain('Proof source:');
+	expect(html).toContain('Live browser barge-in traces');
+	expect(html).toContain('Live reconnect traces');
+});
+
+test('buildVoiceProductionReadinessReport attaches proof sources to evidence checks', async () => {
+	const auditStore = createVoiceMemoryAuditSinkDeliveryStore();
+	const traceStore = createVoiceMemoryTraceSinkDeliveryStore();
+	const auditEvent = createVoiceAuditEvent({
+		action: 'provider.call',
+		type: 'provider.call'
+	});
+	const traceEvent = createVoiceTraceEvent({
+		at: 100,
+		payload: {
+			provider: 'openai'
+		},
+		sessionId: 'routing-proof',
+		type: 'provider.selected'
+	});
+	await auditStore.set(
+		'audit-delivery-proof',
+		createVoiceAuditSinkDeliveryRecord({
+			deliveredAt: Date.now(),
+			deliveryStatus: 'delivered',
+			events: [auditEvent],
+			id: 'audit-delivery-proof'
+		})
+	);
+	await traceStore.set(
+		'trace-delivery-proof',
+		createVoiceTraceSinkDeliveryRecord({
+			deliveredAt: Date.now(),
+			deliveryStatus: 'delivered',
+			events: [traceEvent],
+			id: 'trace-delivery-proof'
+		})
+	);
+	const traceEventStore = createVoiceMemoryTraceEventStore();
+	await traceEventStore.append(
+		createVoiceTraceEvent({
+			payload: {
+				elapsedMs: 120,
+				latencyMs: 120
+			},
+			sessionId: 'latency-proof',
+			type: 'client.live_latency'
+		})
+	);
+	const report = await buildVoiceProductionReadinessReport({
+		auditDeliveries: auditStore,
+		proofSources: {
+			auditDeliveries: {
+				source: 'sink',
+				sourceLabel: 'Audit sink delivery store'
+			},
+			liveLatency: {
+				source: 'browser',
+				sourceLabel: 'Browser latency traces'
+			},
+			providerRoutingContracts: {
+				source: 'contract',
+				sourceLabel: 'Provider routing contract reports'
+			},
+			traceDeliveries: {
+				source: 'sink',
+				sourceLabel: 'Trace sink delivery store'
+			}
+		},
+		providerRoutingContracts: [
+			{
+				checkedAt: 100,
+				failures: [],
+				pass: true,
+				results: [
+					{
+						decision: {
+							at: 100,
+							metadata: {},
+							primary: 'openai',
+							provider: 'openai',
+							reason: 'healthy-primary',
+							status: 'selected'
+						},
+						expectedProvider: 'openai',
+						pass: true,
+						scenario: 'healthy-primary'
+					}
+				],
+				summary: {
+					failed: 0,
+					passed: 1,
+					total: 1
+				}
+			}
+		],
+		store: traceEventStore,
+		traceDeliveries: traceStore
+	});
+
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Live latency proof',
+				proofSource: expect.objectContaining({
+					sourceLabel: 'Browser latency traces'
+				})
+			}),
+			expect.objectContaining({
+				label: 'Provider routing contracts',
+				proofSource: expect.objectContaining({
+					sourceLabel: 'Provider routing contract reports'
+				})
+			}),
+			expect.objectContaining({
+				label: 'Audit sink delivery',
+				proofSource: expect.objectContaining({
+					sourceLabel: 'Audit sink delivery store'
+				})
+			}),
+			expect.objectContaining({
+				label: 'Trace sink delivery',
+				proofSource: expect.objectContaining({
+					sourceLabel: 'Trace sink delivery store'
+				})
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport links provider contract matrix to provider contracts surface', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			providerContracts: '/provider-contracts'
+		},
+		proofSources: {
+			providerContractMatrix: {
+				href: '/provider-contracts',
+				source: 'preset',
+				sourceLabel: 'Provider contract matrix preset'
+			}
+		},
+		providerContractMatrix: buildVoiceProviderContractMatrix({
+			contracts: [
+				{
+					capabilities: ['tool calling'],
+					kind: 'llm',
+					provider: 'openai',
+					requiredCapabilities: ['tool calling'],
+					streaming: true
+				}
+			]
+		}),
+		store: createVoiceMemoryTraceEventStore()
+	});
+	const check = report.checks.find(
+		(item) => item.label === 'Provider contract matrix'
+	);
+
+	expect(check).toMatchObject({
+		href: '/provider-contracts',
+		proofSource: {
+			href: '/provider-contracts',
+			sourceLabel: 'Provider contract matrix preset'
+		}
+	});
+	expect(renderVoiceProductionReadinessHTML(report)).toContain(
+		'href="/provider-contracts"'
+	);
+});
+
+test('buildVoiceProductionReadinessReport includes delivery runtime health', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		deliveryRuntime: {
+			audit: {
+				deadLettered: 0,
+				delivered: 1,
+				failed: 0,
+				pending: 0,
+				retryEligible: 0,
+				skipped: 0,
+				total: 1
+			},
+			trace: {
+				deadLettered: 0,
+				delivered: 0,
+				failed: 0,
+				pending: 1,
+				retryEligible: 0,
+				skipped: 0,
+				total: 1
+			}
+		},
+		links: {
+			deliveryRuntime: '/ops/delivery-runtime'
+		},
+		proofSources: {
+			deliveryRuntime: {
+				source: 'runtime',
+				sourceLabel: 'Delivery runtime control plane'
+			}
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('warn');
+	expect(report.summary.deliveryRuntime).toMatchObject({
+		delivered: 1,
+		pending: 1,
+		status: 'warn',
+		total: 2
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/ops/delivery-runtime',
+				label: 'Delivery runtime',
+				proofSource: expect.objectContaining({
+					sourceLabel: 'Delivery runtime control plane'
+				}),
+				status: 'warn',
+				value: '1/2'
+			})
+		])
+	);
+});
+
 test('production readiness routes expose json and html reports', async () => {
 	const app = createVoiceProductionReadinessRoutes({
+		links: {
+			sloReadinessThresholds: '/voice/slo-readiness-thresholds'
+		},
 		store: createVoiceMemoryTraceEventStore()
 	});
 	const json = await app.handle(
 		new Request('http://localhost/api/production-readiness')
+	);
+	const gate = await app.handle(
+		new Request('http://localhost/api/production-readiness/gate')
 	);
 	const html = await app.handle(new Request('http://localhost/production-readiness'));
 
@@ -720,8 +2275,166 @@ test('production readiness routes expose json and html reports', async () => {
 	await expect(json.json()).resolves.toMatchObject({
 		status: 'warn'
 	});
+	expect(gate.status).toBe(200);
+	await expect(gate.json()).resolves.toMatchObject({
+		ok: true,
+		status: 'warn'
+	});
 	expect(html.status).toBe(200);
-	expect(await html.text()).toContain('Production Readiness');
+	const htmlBody = await html.text();
+	expect(htmlBody).toContain('Production Readiness');
+	expect(htmlBody).toContain('/voice/slo-readiness-thresholds');
+	expect(htmlBody).toContain('Active Readiness Gate');
+});
+
+test('production readiness routes resolve dynamic threshold options per request', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append(
+		createVoiceTraceEvent({
+			payload: {
+				latencyMs: 700
+			},
+			sessionId: 'calibrated-live-latency',
+			type: 'client.live_latency'
+		})
+	);
+
+	const app = createVoiceProductionReadinessRoutes({
+		liveLatencyFailAfterMs: 600,
+		resolveOptions: () => ({
+			liveLatencyFailAfterMs: 900,
+			liveLatencyWarnAfterMs: 800
+		}),
+		store
+	});
+	const response = await app.handle(
+		new Request('http://localhost/api/production-readiness')
+	);
+	const report = await response.json();
+
+	expect(report.summary.liveLatency).toMatchObject({
+		failed: 0,
+		status: 'pass',
+		warnings: 0
+	});
+});
+
+test('production readiness links calibrated threshold source from warned gates', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append(
+		createVoiceTraceEvent({
+			payload: {
+				latencyMs: 700
+			},
+			sessionId: 'warned-live-latency',
+			type: 'client.live_latency'
+		})
+	);
+
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			sloReadinessThresholds: '/voice/slo-readiness-thresholds'
+		},
+		liveLatencyFailAfterMs: 900,
+		liveLatencyWarnAfterMs: 600,
+		store
+	});
+	const liveLatency = report.checks.find(
+		(check) => check.label === 'Live latency proof'
+	);
+
+	expect(report.links.sloReadinessThresholds).toBe(
+		'/voice/slo-readiness-thresholds'
+	);
+	expect(liveLatency?.status).toBe('warn');
+	expect(liveLatency?.gateExplanation).toMatchObject({
+		evidenceHref: '/voice-operations/warned-live-latency',
+		observed: 700,
+		sourceHref: '/voice/slo-readiness-thresholds',
+		threshold: 600,
+		thresholdLabel: 'Live latency warn after',
+		unit: 'ms'
+	});
+	expect(liveLatency?.actions).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice/slo-readiness-thresholds',
+				label: 'Open calibrated gate source'
+			})
+		])
+	);
+	expect(renderVoiceProductionReadinessHTML(report)).toContain(
+		'/voice/slo-readiness-thresholds'
+	);
+	expect(renderVoiceProductionReadinessHTML(report)).toContain(
+		'Why this gate is warn'
+	);
+});
+
+test('buildVoiceProductionReadinessReport can bound live latency to recent samples', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	const now = Date.now();
+	await Promise.all([
+		store.append(
+			createVoiceTraceEvent({
+				at: now - 60_000,
+				payload: {
+					latencyMs: 500
+				},
+				sessionId: 'recent-live-latency',
+				type: 'client.live_latency'
+			})
+		),
+		store.append(
+			createVoiceTraceEvent({
+				at: now - 60 * 60 * 1000,
+				payload: {
+					latencyMs: 2_000
+				},
+				sessionId: 'stale-live-latency',
+				type: 'client.live_latency'
+			})
+		)
+	]);
+
+	const report = await buildVoiceProductionReadinessReport({
+		liveLatencyFailAfterMs: 630,
+		liveLatencyMaxAgeMs: 5 * 60 * 1000,
+		liveLatencyWarnAfterMs: 600,
+		store
+	});
+
+	expect(report.summary.liveLatency).toMatchObject({
+		failed: 0,
+		status: 'pass',
+		total: 1,
+		warnings: 0
+	});
+	expect(report.operationsRecords?.failingLatency).toEqual([]);
+});
+
+test('production readiness gate route returns 503 when closed', async () => {
+	const app = createVoiceProductionReadinessRoutes({
+		gate: {
+			failOnWarnings: true
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	const response = await app.handle(
+		new Request('http://localhost/api/production-readiness/gate')
+	);
+
+	expect(response.status).toBe(503);
+	await expect(response.json()).resolves.toMatchObject({
+		ok: false,
+		status: 'fail',
+		warnings: expect.arrayContaining([
+			expect.objectContaining({
+				code: 'voice.readiness.routing_evidence'
+			})
+		])
+	});
 });
 
 test('renderVoiceProductionReadinessHTML renders check statuses', () => {
@@ -763,6 +2476,19 @@ test('renderVoiceProductionReadinessHTML renders check statuses', () => {
 			}
 		],
 		links: {},
+		profile: {
+			description: 'Phone-agent readiness.',
+			name: 'phone-agent',
+			purpose: 'Certifies phone-agent proof surfaces.',
+			surfaces: [
+				{
+					configured: true,
+					href: '/carriers',
+					key: 'carriers',
+					label: 'Carrier readiness'
+				}
+			]
+		},
 		status: 'pass',
 		summary: {
 			carriers: {
@@ -796,6 +2522,11 @@ test('renderVoiceProductionReadinessHTML renders check statuses', () => {
 
 	expect(html).toContain('Carrier readiness');
 	expect(html).toContain('Overall: PASS');
+	expect(html).toContain('Readiness profile');
+	expect(html).toContain('phone-agent');
 	expect(html).toContain('Retry handoff deliveries');
 	expect(html).toContain('data-readiness-action');
+	expect(html).toContain('Copy into your app');
+	expect(html).toContain('createVoiceProductionReadinessRoutes');
+	expect(html).toContain('providerContractMatrix');
 });

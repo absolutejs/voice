@@ -8,7 +8,9 @@ import {
 export type VoiceTraceTimelineSessionView = VoiceTraceTimelineSession & {
 	detailHref: string;
 	durationLabel: string;
+	incidentBundleHref?: string;
 	label: string;
+	operationsRecordHref?: string;
 	providerLabel: string;
 };
 
@@ -26,7 +28,9 @@ export type VoiceTraceTimelineViewModel = {
 export type VoiceTraceTimelineWidgetOptions = VoiceTraceTimelineClientOptions & {
 	description?: string;
 	detailBasePath?: string;
+	incidentBundleBasePath?: false | string;
 	limit?: number;
+	operationsRecordBasePath?: false | string;
 	title?: string;
 };
 
@@ -60,7 +64,15 @@ export const createVoiceTraceTimelineViewModel = (
 			...session,
 			detailHref: `${options.detailBasePath ?? '/traces'}/${encodeURIComponent(session.sessionId)}`,
 			durationLabel: formatMs(session.summary.callDurationMs),
+			incidentBundleHref:
+				options.incidentBundleBasePath === false
+					? undefined
+					: `${options.incidentBundleBasePath ?? '/voice-incidents'}/${encodeURIComponent(session.sessionId)}/markdown`,
 			label: `${session.summary.eventCount} events / ${session.summary.turnCount} turns`,
+			operationsRecordHref:
+				options.operationsRecordBasePath === false
+					? undefined
+					: `${options.operationsRecordBasePath ?? '/voice-operations'}/${encodeURIComponent(session.sessionId)}`,
 			providerLabel: formatProviders(session)
 		}));
 	const failed = sessions.filter((session) => session.status === 'failed').length;
@@ -108,14 +120,27 @@ export const renderVoiceTraceTimelineWidgetHTML = (
 	const sessions = model.sessions.length
 		? `<div class="absolute-voice-trace-timeline__sessions">${model.sessions
 				.map(
-					(session) => `<article class="absolute-voice-trace-timeline__session absolute-voice-trace-timeline__session--${escapeHtml(session.status)}">
+					(session) => {
+						const supportLinks = [
+							`<a href="${escapeHtml(session.detailHref)}">Open timeline</a>`,
+							session.operationsRecordHref
+								? `<a href="${escapeHtml(session.operationsRecordHref)}">Open operations record</a>`
+								: undefined,
+							session.incidentBundleHref
+								? `<a href="${escapeHtml(session.incidentBundleHref)}">Export incident bundle</a>`
+								: undefined
+						]
+							.filter(Boolean)
+							.join('');
+						return `<article class="absolute-voice-trace-timeline__session absolute-voice-trace-timeline__session--${escapeHtml(session.status)}">
   <header>
     <strong>${escapeHtml(session.sessionId)}</strong>
     <span>${escapeHtml(session.status)}</span>
   </header>
   <p>${escapeHtml(session.label)} · ${escapeHtml(session.durationLabel)} · ${escapeHtml(session.providerLabel)}</p>
-  <a href="${escapeHtml(session.detailHref)}">Open timeline</a>
-</article>`
+  <p class="absolute-voice-trace-timeline__actions">${supportLinks}</p>
+</article>`;
+					}
 				)
 				.join('')}</div>`
 		: '<p class="absolute-voice-trace-timeline__empty">Run a voice session to see call timelines.</p>';
@@ -132,7 +157,7 @@ export const renderVoiceTraceTimelineWidgetHTML = (
 };
 
 export const getVoiceTraceTimelineCSS = () =>
-	`.absolute-voice-trace-timeline{border:1px solid #bad7d3;border-radius:20px;background:#f3fffb;color:#09201c;padding:18px;box-shadow:0 18px 40px rgba(9,32,28,.12);font-family:inherit}.absolute-voice-trace-timeline--error,.absolute-voice-trace-timeline--failed{border-color:#f2a7a7;background:#fff5f3}.absolute-voice-trace-timeline--warning{border-color:#fbbf24;background:#fffaf0}.absolute-voice-trace-timeline__header,.absolute-voice-trace-timeline__session header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-trace-timeline__eyebrow{color:#17665b;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-trace-timeline__label{font-size:24px;line-height:1}.absolute-voice-trace-timeline__description,.absolute-voice-trace-timeline__session p,.absolute-voice-trace-timeline__empty{color:#35544f}.absolute-voice-trace-timeline__sessions{display:grid;gap:12px;margin-top:14px}.absolute-voice-trace-timeline__session{background:#fff;border:1px solid #cfe7e2;border-radius:16px;padding:14px}.absolute-voice-trace-timeline__session--failed{border-color:#f2a7a7}.absolute-voice-trace-timeline__session--warning{border-color:#fbbf24}.absolute-voice-trace-timeline__session p{margin:10px 0}.absolute-voice-trace-timeline__session a{color:#0f766e;font-weight:800}.absolute-voice-trace-timeline__empty{margin:14px 0 0}.absolute-voice-trace-timeline__error{color:#9f1239;font-weight:700}`;
+	`.absolute-voice-trace-timeline{border:1px solid #bad7d3;border-radius:20px;background:#f3fffb;color:#09201c;padding:18px;box-shadow:0 18px 40px rgba(9,32,28,.12);font-family:inherit}.absolute-voice-trace-timeline--error,.absolute-voice-trace-timeline--failed{border-color:#f2a7a7;background:#fff5f3}.absolute-voice-trace-timeline--warning{border-color:#fbbf24;background:#fffaf0}.absolute-voice-trace-timeline__header,.absolute-voice-trace-timeline__session header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-trace-timeline__eyebrow{color:#17665b;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-trace-timeline__label{font-size:24px;line-height:1}.absolute-voice-trace-timeline__description,.absolute-voice-trace-timeline__session p,.absolute-voice-trace-timeline__empty{color:#35544f}.absolute-voice-trace-timeline__sessions{display:grid;gap:12px;margin-top:14px}.absolute-voice-trace-timeline__session{background:#fff;border:1px solid #cfe7e2;border-radius:16px;padding:14px}.absolute-voice-trace-timeline__session--failed{border-color:#f2a7a7}.absolute-voice-trace-timeline__session--warning{border-color:#fbbf24}.absolute-voice-trace-timeline__session p{margin:10px 0}.absolute-voice-trace-timeline__actions{display:flex;flex-wrap:wrap;gap:10px}.absolute-voice-trace-timeline__session a{color:#0f766e;font-weight:800}.absolute-voice-trace-timeline__empty{margin:14px 0 0}.absolute-voice-trace-timeline__error{color:#9f1239;font-weight:700}`;
 
 export const mountVoiceTraceTimeline = (
 	element: Element,
@@ -185,8 +210,12 @@ export const defineVoiceTraceTimelineElement = (
 						description: this.getAttribute('description') ?? undefined,
 						detailBasePath:
 							this.getAttribute('detail-base-path') ?? undefined,
+						incidentBundleBasePath:
+							this.getAttribute('incident-bundle-base-path') ?? undefined,
 						intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
 						limit: Number.isFinite(limit) ? limit : 3,
+						operationsRecordBasePath:
+							this.getAttribute('operations-record-base-path') ?? undefined,
 						title: this.getAttribute('title') ?? undefined
 					}
 				);

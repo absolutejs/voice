@@ -16,6 +16,7 @@ export function useVoiceStream<TResult = unknown>(
 	const error = ref<string | null>(null);
 	const isConnected = ref(false);
 	const partial = ref('');
+	const reconnect = shallowRef(stream.reconnect);
 	const sessionId = ref(stream.sessionId);
 	const status = ref(stream.status);
 	const turns = shallowRef<VoiceTurnRecord<TResult>[]>([]);
@@ -27,6 +28,7 @@ export function useVoiceStream<TResult = unknown>(
 		error.value = stream.error;
 		isConnected.value = stream.isConnected;
 		partial.value = stream.partial;
+		reconnect.value = stream.reconnect;
 		sessionId.value = stream.sessionId;
 		status.value = stream.status;
 		turns.value = [...stream.turns];
@@ -53,6 +55,7 @@ export function useVoiceStream<TResult = unknown>(
 		error,
 		isConnected,
 		partial,
+		reconnect,
 		sendAudio: (audio: Uint8Array | ArrayBuffer) => stream.sendAudio(audio),
 		sessionId,
 		status,

@@ -18,6 +18,7 @@ import type {
 	VoiceCallReviewStore
 } from './testing/review';
 import type { VoiceTraceEventStore } from './trace';
+import type { VoiceLiveOpsControlState } from './liveOps';
 
 export type AudioFormat = {
 	container: 'raw';
@@ -270,6 +271,21 @@ export type VoiceSessionStatus =
 	| 'reconnecting'
 	| 'completed'
 	| 'failed';
+
+export type VoiceReconnectClientStatus =
+	| 'idle'
+	| 'reconnecting'
+	| 'resumed'
+	| 'exhausted';
+
+export type VoiceReconnectClientState = {
+	attempts: number;
+	lastDisconnectAt?: number;
+	lastResumedAt?: number;
+	maxAttempts: number;
+	nextAttemptAt?: number;
+	status: VoiceReconnectClientStatus;
+};
 
 export type VoiceTurnRecord<TResult = unknown> = {
 	id: string;
@@ -672,6 +688,10 @@ export type VoiceOnTurnObjectHandler<
 	TResult = unknown
 > = (input: {
 	context: TContext;
+	liveOps?: {
+		control: VoiceLiveOpsControlState;
+		injectedInstruction?: string;
+	};
 	session: TSession;
 	turn: VoiceTurnRecord;
 	api: VoiceSessionHandle<TContext, TSession, TResult>;
@@ -842,6 +862,16 @@ export type VoiceRuntimeOpsConfig<
 	webhook?: VoiceIntegrationWebhookConfig;
 };
 
+export type VoiceLiveOpsRuntimeConfig = {
+	getControl: (
+		sessionId: string
+	) =>
+		| Promise<VoiceLiveOpsControlState | null | undefined>
+		| VoiceLiveOpsControlState
+		| null
+		| undefined;
+};
+
 export type VoiceNormalizedRouteConfig<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -873,9 +903,11 @@ export type VoicePluginConfig<
 	lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
 	phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
 	preset?: VoiceRuntimePreset;
-	stt: STTAdapter;
+	stt?: STTAdapter;
 	sttFallback?: VoiceSTTFallbackConfig;
 	sttLifecycle?: VoiceSTTLifecycle;
+	realtime?: RealtimeAdapter;
+	realtimeInputFormat?: AudioFormat;
 	tts?: TTSAdapter;
 	session: VoiceSessionStore<NoInfer<TSession>>;
 	reconnect?: VoiceReconnectConfig;
@@ -885,6 +917,7 @@ export type VoicePluginConfig<
 	htmx?: boolean | VoiceHTMXConfig<TSession, NoInfer<TResult>>;
 	handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
 	ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
+	liveOps?: VoiceLiveOpsRuntimeConfig;
 	trace?: VoiceTraceEventStore;
 } & VoiceRouteConfig<TContext, TSession, TResult>;
 
@@ -897,7 +930,9 @@ export type CreateVoiceSessionOptions<
 	id: string;
 	context: TContext;
 	socket: VoiceSocket;
-	stt: STTAdapter;
+	stt?: STTAdapter;
+	realtime?: RealtimeAdapter;
+	realtimeInputFormat?: AudioFormat;
 	tts?: TTSAdapter;
 	languageStrategy?: VoiceLanguageStrategy;
 	lexicon?: VoiceLexiconEntry[];
@@ -911,6 +946,7 @@ export type CreateVoiceSessionOptions<
 	turnDetection: VoiceResolvedTurnDetectionConfig;
 	audioConditioning?: VoiceResolvedAudioConditioningConfig;
 	handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
+	liveOps?: VoiceLiveOpsRuntimeConfig;
 	route: VoiceNormalizedRouteConfig<TContext, TSession, TResult>;
 	logger?: VoiceLogger;
 };
@@ -969,6 +1005,17 @@ export type VoiceServerSessionMessage = {
 	scenarioId?: string;
 };
 
+export type VoiceServerReplayMessage<TResult = unknown> = {
+	type: 'replay';
+	assistantTexts: string[];
+	call?: VoiceCallLifecycleState;
+	partial: string;
+	scenarioId?: string;
+	sessionId: string;
+	status: VoiceSessionStatus;
+	turns: VoiceTurnRecord<TResult>[];
+};
+
 export type VoiceServerPartialMessage = {
 	type: 'partial';
 	transcript: Transcript;
@@ -1019,8 +1066,14 @@ export type VoiceServerPongMessage = {
 	type: 'pong';
 };
 
+export type VoiceServerConnectionMessage = {
+	type: 'connection';
+	reconnect: VoiceReconnectClientState;
+};
+
 export type VoiceServerMessage<TResult = unknown> =
 	| VoiceServerSessionMessage
+	| VoiceServerReplayMessage<TResult>
 	| VoiceServerPartialMessage
 	| VoiceServerFinalMessage
 	| VoiceServerTurnMessage<TResult>
@@ -1029,12 +1082,14 @@ export type VoiceServerMessage<TResult = unknown> =
 	| VoiceServerCallLifecycleMessage
 	| VoiceServerCompleteMessage
 	| VoiceServerErrorMessage
-	| VoiceServerPongMessage;
+	| VoiceServerPongMessage
+	| VoiceServerConnectionMessage;
 
 export type VoiceConnectionOptions = {
 	protocols?: string[];
 	scenarioId?: string;
 	reconnect?: boolean;
+	reconnectReportPath?: string;
 	maxReconnectAttempts?: number;
 	pingInterval?: number;
 	sessionId?: string;
@@ -1209,6 +1264,7 @@ export type VoiceStreamState<TResult = unknown> = {
 	sessionId: string | null;
 	scenarioId: string | null;
 	status: VoiceSessionStatus | 'idle';
+	reconnect: VoiceReconnectClientState;
 	partial: string;
 	turns: VoiceTurnRecord<TResult>[];
 	assistantTexts: string[];
@@ -1236,6 +1292,7 @@ export type VoiceStream<TResult = unknown> = {
 	getSnapshot: () => VoiceStreamState<TResult>;
 	isConnected: boolean;
 	partial: string;
+	reconnect: VoiceReconnectClientState;
 	sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
 	sessionId: string | null;
 	scenarioId: string | null;
@@ -1311,6 +1368,7 @@ export type VoiceController<TResult = unknown> = {
 	isConnected: boolean;
 	isRecording: boolean;
 	partial: string;
+	reconnect: VoiceReconnectClientState;
 	recordingError: string | null;
 	sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
 	sessionId: string | null;
@@ -1350,6 +1408,16 @@ export type VoiceStoreAction<TResult = unknown> =
 			status: VoiceSessionStatus;
 	  }
 	| {
+			type: 'replay';
+			assistantTexts: string[];
+			call?: VoiceCallLifecycleState;
+			partial: string;
+			scenarioId?: string;
+			sessionId: string;
+			status: VoiceSessionStatus;
+			turns: VoiceTurnRecord<TResult>[];
+	  }
+	| {
 			type: 'call_lifecycle';
 			event: VoiceCallLifecycleEvent;
 			sessionId: string;
@@ -1387,6 +1455,10 @@ export type VoiceStoreAction<TResult = unknown> =
 	  }
 	| {
 			type: 'connected';
+	  }
+	| {
+			type: 'connection';
+			reconnect: VoiceReconnectClientState;
 	  }
 	| {
 			type: 'disconnected';

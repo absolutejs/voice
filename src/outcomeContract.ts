@@ -48,7 +48,9 @@ export type VoiceOutcomeContractReport = {
 		sessions: number;
 		tasks: number;
 	};
+	operationsRecordHrefs: string[];
 	pass: boolean;
+	sessionIds: string[];
 };
 
 export type VoiceOutcomeContractSuiteReport = {
@@ -57,6 +59,37 @@ export type VoiceOutcomeContractSuiteReport = {
 	failed: number;
 	passed: number;
 	status: VoiceOutcomeContractStatus;
+	total: number;
+};
+
+export type VoiceOutcomeContractAssertionInput = {
+	maxFailed?: number;
+	maxIssues?: number;
+	minContracts?: number;
+	minHandoffs?: number;
+	minIntegrationEvents?: number;
+	minOperationsRecordHrefs?: number;
+	minReviews?: number;
+	minSessions?: number;
+	minTasks?: number;
+	requiredContractIds?: string[];
+	requireOperationRecordHrefs?: boolean;
+};
+
+export type VoiceOutcomeContractAssertionReport = {
+	contractIds: string[];
+	failed: number;
+	handoffs: number;
+	integrationEvents: number;
+	issues: string[];
+	issueCount: number;
+	ok: boolean;
+	operationsRecordHrefs: number;
+	passed: number;
+	reviews: number;
+	sessions: number;
+	status: VoiceOutcomeContractStatus;
+	tasks: number;
 	total: number;
 };
 
@@ -70,6 +103,7 @@ export type VoiceOutcomeContractOptions<
 	contracts: VoiceOutcomeContractDefinition[];
 	events?: StoredVoiceIntegrationEvent[] | ListStore<StoredVoiceIntegrationEvent>;
 	handoffs?: StoredVoiceHandoffDelivery[] | VoiceHandoffDeliveryStore;
+	operationsRecordHref?: false | string | ((sessionId: string) => string);
 	reviews?: StoredVoiceCallReviewArtifact[] | ListStore<StoredVoiceCallReviewArtifact>;
 	sessions?: TSession[] | VoiceSessionStore<TSession>;
 	tasks?: StoredVoiceOpsTask[] | ListStore<StoredVoiceOpsTask>;
@@ -98,6 +132,23 @@ const escapeHtml = (value: string) =>
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;')
 		.replaceAll("'", '&#39;');
+
+const resolveSessionHref = (
+	value: false | string | ((sessionId: string) => string) | undefined,
+	sessionId: string
+) => {
+	if (value === false) {
+		return undefined;
+	}
+	const href = value ?? '/voice-operations/:sessionId';
+	if (typeof href === 'function') {
+		return href(sessionId);
+	}
+	const encoded = encodeURIComponent(sessionId);
+	return href.includes(':sessionId')
+		? href.replace(':sessionId', encoded)
+		: `${href.replace(/\/$/, '')}/${encoded}`;
+};
 
 const getPayloadString = (
 	event: StoredVoiceIntegrationEvent,
@@ -139,6 +190,7 @@ const reportContract = (input: {
 	contract: VoiceOutcomeContractDefinition;
 	events: StoredVoiceIntegrationEvent[];
 	handoffs: StoredVoiceHandoffDelivery[];
+	operationsRecordHref?: false | string | ((sessionId: string) => string);
 	reviews: StoredVoiceCallReviewArtifact[];
 	sessions: VoiceSessionRecord[];
 	tasks: StoredVoiceOpsTask[];
@@ -150,6 +202,9 @@ const reportContract = (input: {
 			matchesDisposition(dispositionForSession(session), contract.expectedDisposition)
 	);
 	const sessionIds = new Set(sessions.map((session) => session.id));
+	const operationsRecordHrefs = [...sessionIds]
+		.map((sessionId) => resolveSessionHref(input.operationsRecordHref, sessionId))
+		.filter((href): href is string => Boolean(href));
 	const reviews = input.reviews.filter((review) =>
 		matchesDisposition(review.summary.outcome, contract.expectedDisposition)
 	);
@@ -225,7 +280,9 @@ const reportContract = (input: {
 			sessions: sessions.length,
 			tasks: tasks.length
 		},
-		pass: issues.length === 0
+		operationsRecordHrefs,
+		pass: issues.length === 0,
+		sessionIds: [...sessionIds]
 	};
 };
 
@@ -242,7 +299,15 @@ export const runVoiceOutcomeContractSuite = async <
 		toList(options.handoffs)
 	]);
 	const contracts = options.contracts.map((contract) =>
-		reportContract({ contract, events, handoffs, reviews, sessions, tasks })
+		reportContract({
+			contract,
+			events,
+			handoffs,
+			operationsRecordHref: options.operationsRecordHref,
+			reviews,
+			sessions,
+			tasks
+		})
 	);
 	const passed = contracts.filter((contract) => contract.pass).length;
 	const failed = contracts.length - passed;
@@ -256,6 +321,140 @@ export const runVoiceOutcomeContractSuite = async <
 	};
 };
 
+export const evaluateVoiceOutcomeContractEvidence = (
+	report: VoiceOutcomeContractSuiteReport,
+	input: VoiceOutcomeContractAssertionInput = {}
+): VoiceOutcomeContractAssertionReport => {
+	const issues: string[] = [];
+	const maxFailed = input.maxFailed ?? 0;
+	const maxIssues = input.maxIssues ?? 0;
+	const contractIds = [
+		...new Set(report.contracts.map((contract) => contract.contractId))
+	].sort();
+	const issueCount = report.contracts.reduce(
+		(total, contract) => total + contract.issues.length,
+		0
+	);
+	const totals = report.contracts.reduce(
+		(result, contract) => ({
+			handoffs: result.handoffs + contract.matched.handoffs,
+			integrationEvents:
+				result.integrationEvents + contract.matched.integrationEvents,
+			operationsRecordHrefs:
+				result.operationsRecordHrefs + contract.operationsRecordHrefs.length,
+			reviews: result.reviews + contract.matched.reviews,
+			sessions: result.sessions + contract.matched.sessions,
+			tasks: result.tasks + contract.matched.tasks
+		}),
+		{
+			handoffs: 0,
+			integrationEvents: 0,
+			operationsRecordHrefs: 0,
+			reviews: 0,
+			sessions: 0,
+			tasks: 0
+		}
+	);
+	const contractsMissingOperationRecordHrefs = report.contracts.filter(
+		(contract) => contract.operationsRecordHrefs.length === 0
+	).length;
+
+	if (input.minContracts !== undefined && report.total < input.minContracts) {
+		issues.push(
+			`Expected at least ${String(input.minContracts)} outcome contract(s), found ${String(report.total)}.`
+		);
+	}
+	if (report.failed > maxFailed) {
+		issues.push(
+			`Expected at most ${String(maxFailed)} failing outcome contract(s), found ${String(report.failed)}.`
+		);
+	}
+	if (issueCount > maxIssues) {
+		issues.push(
+			`Expected at most ${String(maxIssues)} outcome contract issue(s), found ${String(issueCount)}.`
+		);
+	}
+	if (input.minSessions !== undefined && totals.sessions < input.minSessions) {
+		issues.push(
+			`Expected at least ${String(input.minSessions)} matched outcome session(s), found ${String(totals.sessions)}.`
+		);
+	}
+	if (input.minReviews !== undefined && totals.reviews < input.minReviews) {
+		issues.push(
+			`Expected at least ${String(input.minReviews)} matched outcome review(s), found ${String(totals.reviews)}.`
+		);
+	}
+	if (input.minTasks !== undefined && totals.tasks < input.minTasks) {
+		issues.push(
+			`Expected at least ${String(input.minTasks)} matched outcome task(s), found ${String(totals.tasks)}.`
+		);
+	}
+	if (input.minHandoffs !== undefined && totals.handoffs < input.minHandoffs) {
+		issues.push(
+			`Expected at least ${String(input.minHandoffs)} matched outcome handoff(s), found ${String(totals.handoffs)}.`
+		);
+	}
+	if (
+		input.minIntegrationEvents !== undefined &&
+		totals.integrationEvents < input.minIntegrationEvents
+	) {
+		issues.push(
+			`Expected at least ${String(input.minIntegrationEvents)} matched outcome integration event(s), found ${String(totals.integrationEvents)}.`
+		);
+	}
+	if (
+		input.minOperationsRecordHrefs !== undefined &&
+		totals.operationsRecordHrefs < input.minOperationsRecordHrefs
+	) {
+		issues.push(
+			`Expected at least ${String(input.minOperationsRecordHrefs)} outcome operations record href(s), found ${String(totals.operationsRecordHrefs)}.`
+		);
+	}
+	if (
+		(input.requireOperationRecordHrefs ?? false) &&
+		contractsMissingOperationRecordHrefs > 0
+	) {
+		issues.push(
+			`Expected every outcome contract to include operations record hrefs; ${String(contractsMissingOperationRecordHrefs)} contract(s) missing.`
+		);
+	}
+	for (const contractId of input.requiredContractIds ?? []) {
+		if (!contractIds.includes(contractId)) {
+			issues.push(`Missing outcome contract: ${contractId}.`);
+		}
+	}
+
+	return {
+		contractIds,
+		failed: report.failed,
+		handoffs: totals.handoffs,
+		integrationEvents: totals.integrationEvents,
+		issues,
+		issueCount,
+		ok: issues.length === 0,
+		operationsRecordHrefs: totals.operationsRecordHrefs,
+		passed: report.passed,
+		reviews: totals.reviews,
+		sessions: totals.sessions,
+		status: report.status,
+		tasks: totals.tasks,
+		total: report.total
+	};
+};
+
+export const assertVoiceOutcomeContractEvidence = (
+	report: VoiceOutcomeContractSuiteReport,
+	input: VoiceOutcomeContractAssertionInput = {}
+): VoiceOutcomeContractAssertionReport => {
+	const assertion = evaluateVoiceOutcomeContractEvidence(report, input);
+	if (!assertion.ok) {
+		throw new Error(
+			`Voice outcome contract evidence assertion failed: ${assertion.issues.join(' ')}`
+		);
+	}
+	return assertion;
+};
+
 export const renderVoiceOutcomeContractHTML = (
 	report: VoiceOutcomeContractSuiteReport,
 	options: { title?: string } = {}
@@ -263,12 +462,17 @@ export const renderVoiceOutcomeContractHTML = (
 	const title = options.title ?? 'Voice Outcome Contracts';
 	const contracts = report.contracts
 		.map(
-			(contract) => `<section class="contract ${contract.pass ? 'pass' : 'fail'}">
+			(contract) => {
+				const sessionLinks = contract.operationsRecordHrefs.length
+					? `<p>${contract.operationsRecordHrefs.map((href, index) => `<a href="${escapeHtml(href)}">${escapeHtml(contract.sessionIds[index] ?? href)}</a>`).join(' · ')}</p>`
+					: '';
+				return `<section class="contract ${contract.pass ? 'pass' : 'fail'}">
   <div class="contract-header">
     <div>
       <p class="eyebrow">${escapeHtml(contract.contractId)}</p>
       <h2>${escapeHtml(contract.label ?? contract.contractId)}</h2>
       ${contract.description ? `<p>${escapeHtml(contract.description)}</p>` : ''}
+      ${sessionLinks}
     </div>
     <strong>${contract.pass ? 'pass' : 'fail'}</strong>
   </div>
@@ -280,7 +484,8 @@ export const renderVoiceOutcomeContractHTML = (
     <span>events ${String(contract.matched.integrationEvents)}</span>
   </div>
   ${contract.issues.length ? `<ul>${contract.issues.map((issue) => `<li>${escapeHtml(issue.message)}</li>`).join('')}</ul>` : ''}
-</section>`
+</section>`;
+			}
 		)
 		.join('');
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.contract{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(14,165,233,.12))}.eyebrow{color:#7dd3fc;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0}.summary,.grid{display:flex;flex-wrap:wrap;gap:10px}.pill,.grid span{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.contract-header{display:flex;gap:16px;justify-content:space-between}.pass{color:#86efac}.fail{color:#fca5a5}.contract.fail{border-color:rgba(248,113,113,.45)}li{margin:8px 0}@media(max-width:800px){main{padding:18px}.contract-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Business Outcome Verification</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill ${report.status}">${report.status}</span><span class="pill">${String(report.passed)} passing</span><span class="pill">${String(report.failed)} failing</span><span class="pill">${String(report.total)} contracts</span></div></section>${contracts || '<section class="contract"><p>No outcome contracts configured.</p></section>'}</main></body></html>`;

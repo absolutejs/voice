@@ -287,6 +287,10 @@ test('renderVoiceResilienceHTML renders provider health and simulation controls'
 	expect(html).toContain('Simulate deepgram STT failure');
 	expect(html).toContain('fallback: assemblyai');
 	expect(html).toContain('deepgram');
+	expect(html).toContain('Copy into your app');
+	expect(html).toContain('createVoiceResilienceRoutes');
+	expect(html).toContain('createVoiceIOProviderFailureSimulator');
+	expect(html).toContain('createVoiceProductionReadinessRoutes');
 });
 
 test('createVoiceResilienceRoutes exposes dashboard and simulator endpoints', async () => {

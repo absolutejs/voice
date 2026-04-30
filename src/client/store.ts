@@ -1,8 +1,15 @@
 import type {
+	VoiceReconnectClientState,
 	VoiceStreamState,
 	VoiceStoreAction,
 	VoiceTurnRecord
 } from '../types';
+
+const createInitialReconnectState = (): VoiceReconnectClientState => ({
+	attempts: 0,
+	maxAttempts: 0,
+	status: 'idle'
+});
 
 const createInitialState = (): VoiceStreamState => ({
 	assistantAudio: [],
@@ -12,6 +19,7 @@ const createInitialState = (): VoiceStreamState => ({
 	isConnected: false,
 	scenarioId: null,
 	partial: '',
+	reconnect: createInitialReconnectState(),
 	sessionId: null,
 	status: 'idle',
 	turns: []
@@ -77,7 +85,22 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
 			case 'connected':
 				state = {
 					...state,
-					isConnected: true
+					isConnected: true,
+					reconnect:
+						state.reconnect.status === 'reconnecting'
+							? {
+									...state.reconnect,
+									lastResumedAt: Date.now(),
+									nextAttemptAt: undefined,
+									status: 'resumed'
+								}
+							: state.reconnect
+				};
+				break;
+			case 'connection':
+				state = {
+					...state,
+					reconnect: action.reconnect
 				};
 				break;
 			case 'disconnected':
@@ -103,6 +126,29 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
 				state = {
 					...state,
 					partial: action.transcript.text
+				};
+				break;
+			case 'replay':
+				state = {
+					...state,
+					assistantTexts: [...action.assistantTexts],
+					call: action.call ?? null,
+					error: null,
+					isConnected: action.status === 'active',
+					partial: action.partial,
+					reconnect:
+						state.reconnect.status === 'reconnecting'
+							? {
+									...state.reconnect,
+									lastResumedAt: Date.now(),
+									nextAttemptAt: undefined,
+									status: 'resumed'
+								}
+							: state.reconnect,
+					scenarioId: action.scenarioId ?? state.scenarioId,
+					sessionId: action.sessionId,
+					status: action.status,
+					turns: [...action.turns]
 				};
 				break;
 			case 'session':

@@ -99,10 +99,37 @@ export type VoiceAgentModel<
 		| VoiceAgentModelOutput<TResult>;
 };
 
+export type VoiceAgentSquadHandoffStatus =
+	| 'allowed'
+	| 'blocked'
+	| 'max-exceeded'
+	| 'unknown-target';
+
+export type VoiceAgentSquadStateHandoff = {
+	at: number;
+	fromAgentId: string;
+	metadata?: Record<string, unknown>;
+	originalTargetAgentId?: string;
+	reason?: string;
+	status: VoiceAgentSquadHandoffStatus;
+	summary?: string;
+	targetAgentId: string;
+	turnId: string;
+};
+
+export type VoiceAgentSquadState = {
+	agentId: string;
+	handoffCount: number;
+	handoffs: VoiceAgentSquadStateHandoff[];
+	lastHandoff?: VoiceAgentSquadStateHandoff;
+	previousAgentId?: string;
+};
+
 export type VoiceAgentRunResult<TResult = unknown> = VoiceRouteResult<TResult> & {
 	agentId: string;
 	handoff?: VoiceAgentModelOutput<TResult>['handoff'];
 	messages: VoiceAgentMessage[];
+	squad?: VoiceAgentSquadState;
 	toolResults: VoiceAgentToolResult[];
 };
 
@@ -113,6 +140,12 @@ export type VoiceAgentSquadHandoffPolicyResult<TResult = unknown> = {
 	reason?: string;
 	summary?: string;
 	targetAgentId?: string;
+};
+
+export type VoiceAgentSquadContextPolicyResult = {
+	messages?: VoiceAgentMessage[];
+	metadata?: Record<string, unknown>;
+	system?: string;
 };
 
 export type VoiceAgent<
@@ -127,6 +160,7 @@ export type VoiceAgent<
 		context: TContext;
 		messages?: VoiceAgentMessage[];
 		session: TSession;
+		system?: string;
 		turn: VoiceTurnRecord;
 	}) => Promise<VoiceAgentRunResult<TResult>>;
 };
@@ -172,13 +206,28 @@ export type VoiceAgentSquadOptions<
 		| Promise<VoiceAgentSquadHandoffPolicyResult<TResult> | void>
 		| VoiceAgentSquadHandoffPolicyResult<TResult>
 		| void;
+	contextPolicy?: (input: {
+		context: TContext;
+		fromAgentId: string;
+		handoff: VoiceAgentSquadStateHandoff;
+		messages: VoiceAgentMessage[];
+		session: TSession;
+		summaryMessage: VoiceAgentMessage;
+		targetAgent: VoiceAgent<TContext, TSession, TResult>;
+		turn: VoiceTurnRecord;
+	}) =>
+		| Promise<VoiceAgentSquadContextPolicyResult | void>
+		| VoiceAgentSquadContextPolicyResult
+		| void;
 	id: string;
 	maxHandoffsPerTurn?: number;
 	onHandoff?: (input: {
 		context: TContext;
 		fromAgentId: string;
+		metadata?: Record<string, unknown>;
 		reason?: string;
 		session: TSession;
+		summary?: string;
 		targetAgentId: string;
 		turn: VoiceTurnRecord;
 	}) => Promise<void> | void;
@@ -251,7 +300,12 @@ const appendVoiceAgentTrace = async (input: {
 	session: VoiceSessionRecord;
 	trace?: VoiceTraceEventStore;
 	turn: VoiceTurnRecord;
-	type: 'agent.handoff' | 'agent.model' | 'agent.result' | 'agent.tool';
+	type:
+		| 'agent.context'
+		| 'agent.handoff'
+		| 'agent.model'
+		| 'agent.result'
+		| 'agent.tool';
 }) => {
 	await input.trace?.append({
 		at: Date.now(),
@@ -279,6 +333,66 @@ const resolveVoiceAgentAuditLogger = (
 const toAuditOutcome = (status: string): VoiceAuditOutcome =>
 	status === 'allowed' ? 'success' : status === 'blocked' ? 'skipped' : 'error';
 
+const createVoiceAgentSquadState = (input: {
+	agentId: string;
+	handoffs: VoiceAgentSquadStateHandoff[];
+}): VoiceAgentSquadState => {
+	const lastHandoff = input.handoffs.at(-1);
+	return {
+		agentId: input.agentId,
+		handoffCount: input.handoffs.length,
+		handoffs: [...input.handoffs],
+		lastHandoff,
+		previousAgentId:
+			lastHandoff?.status === 'allowed' ? lastHandoff.fromAgentId : undefined
+	};
+};
+
+const appendVoiceAgentSquadHandoff = async (input: {
+	agentId: string;
+	fromAgentId: string;
+	handoffs: VoiceAgentSquadStateHandoff[];
+	metadata?: Record<string, unknown>;
+	originalTargetAgentId?: string;
+	reason?: string;
+	session: VoiceSessionRecord;
+	status: VoiceAgentSquadHandoffStatus;
+	summary?: string;
+	targetAgentId: string;
+	trace?: VoiceTraceEventStore;
+	turn: VoiceTurnRecord;
+}) => {
+	const handoff: VoiceAgentSquadStateHandoff = {
+		at: Date.now(),
+		fromAgentId: input.fromAgentId,
+		metadata: input.metadata,
+		originalTargetAgentId: input.originalTargetAgentId,
+		reason: input.reason,
+		status: input.status,
+		summary: input.summary,
+		targetAgentId: input.targetAgentId,
+		turnId: input.turn.id
+	};
+	input.handoffs.push(handoff);
+	await appendVoiceAgentTrace({
+		agentId: input.agentId,
+		event: {
+			fromAgentId: handoff.fromAgentId,
+			metadata: handoff.metadata,
+			originalTargetAgentId: handoff.originalTargetAgentId,
+			reason: handoff.reason,
+			status: handoff.status,
+			summary: handoff.summary,
+			targetAgentId: handoff.targetAgentId
+		},
+		session: input.session,
+		trace: input.trace,
+		turn: input.turn,
+		type: 'agent.handoff'
+	});
+	return handoff;
+};
+
 export const createVoiceAgentTool = <
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -304,14 +418,17 @@ export const createVoiceAgent = <
 		const messages =
 			input.messages ?? createHistoryMessages(input.session, input.turn);
 		const toolResults: VoiceAgentToolResult[] = [];
-		const system =
+		const baseSystem =
 			typeof options.system === 'function'
 				? await options.system({
 						context: input.context,
 						session: input.session,
 						turn: input.turn
-					})
+				  })
 				: options.system;
+		const system = [baseSystem, input.system]
+			.filter((value): value is string => Boolean(value?.trim()))
+			.join('\n\n') || undefined;
 		let output: VoiceAgentModelOutput<TResult> = {};
 
 		for (let round = 0; round <= maxToolRounds; round += 1) {
@@ -633,6 +750,7 @@ export const createVoiceAgentSquad = <
 		let agent = agents.get(agentId) ?? defaultAgent;
 		const messages = input.messages ?? createHistoryMessages(input.session, input.turn);
 		const toolResults: VoiceAgentToolResult[] = [];
+		const handoffs: VoiceAgentSquadStateHandoff[] = [];
 		const maxHandoffs = Math.max(0, options.maxHandoffsPerTurn ?? 2);
 		let result = await agent.run({
 			...input,
@@ -657,6 +775,8 @@ export const createVoiceAgentSquad = <
 			const nextAgent = agents.get(targetAgentId);
 			const handoffReason =
 				policy?.summary ?? policy?.reason ?? result.handoff.reason;
+			const handoffSummary =
+				policy?.summary ?? result.handoff.reason ?? policy?.reason;
 			const handoffMetadata = {
 				...result.handoff.metadata,
 				...policy?.metadata
@@ -665,20 +785,22 @@ export const createVoiceAgentSquad = <
 				Object.keys(handoffMetadata).length > 0 ? handoffMetadata : undefined;
 
 			if (policy?.allow === false) {
-				await appendVoiceAgentTrace({
+				await appendVoiceAgentSquadHandoff({
 					agentId: options.id,
-					event: {
-						fromAgentId: agent.id,
-						metadata,
-						originalTargetAgentId,
-						reason: handoffReason,
-						status: 'blocked',
-						targetAgentId
-					},
+					fromAgentId: agent.id,
+					handoffs,
+					metadata,
+					originalTargetAgentId:
+						originalTargetAgentId === targetAgentId
+							? undefined
+							: originalTargetAgentId,
+					reason: handoffReason,
 					session: input.session,
+					status: 'blocked',
+					summary: handoffSummary,
+					targetAgentId,
 					trace: options.trace,
-					turn: input.turn,
-					type: 'agent.handoff'
+					turn: input.turn
 				});
 				await audit?.handoff({
 					actor: {
@@ -696,29 +818,35 @@ export const createVoiceAgentSquad = <
 					...result,
 					escalate: result.escalate ??
 						policy.escalate ?? {
-							metadata,
-							reason: handoffReason ?? `Blocked handoff to ${targetAgentId}`
-						},
-					handoff: undefined,
-					toolResults
-				};
-			}
+					metadata,
+					reason: handoffReason ?? `Blocked handoff to ${targetAgentId}`
+				},
+				handoff: undefined,
+				squad: createVoiceAgentSquadState({
+					agentId: agent.id,
+					handoffs
+				}),
+				toolResults
+			};
+		}
 
 			if (!nextAgent) {
-				await appendVoiceAgentTrace({
+				await appendVoiceAgentSquadHandoff({
 					agentId: options.id,
-					event: {
-						fromAgentId: agent.id,
-						metadata,
-						originalTargetAgentId,
-						reason: handoffReason,
-						status: 'unknown-target',
-						targetAgentId
-					},
+					fromAgentId: agent.id,
+					handoffs,
+					metadata,
+					originalTargetAgentId:
+						originalTargetAgentId === targetAgentId
+							? undefined
+							: originalTargetAgentId,
+					reason: handoffReason,
 					session: input.session,
+					status: 'unknown-target',
+					summary: handoffSummary,
+					targetAgentId,
 					trace: options.trace,
-					turn: input.turn,
-					type: 'agent.handoff'
+					turn: input.turn
 				});
 				await audit?.handoff({
 					actor: {
@@ -739,6 +867,10 @@ export const createVoiceAgentSquad = <
 						reason: `Unknown handoff target: ${targetAgentId}`
 					},
 					handoff: undefined,
+					squad: createVoiceAgentSquadState({
+						agentId: agent.id,
+						handoffs
+					}),
 					toolResults
 				};
 			}
@@ -746,28 +878,29 @@ export const createVoiceAgentSquad = <
 			await options.onHandoff?.({
 				context: input.context,
 				fromAgentId: agent.id,
+				metadata,
 				reason: handoffReason,
 				session: input.session,
+				summary: handoffSummary,
 				targetAgentId: nextAgent.id,
 				turn: input.turn
 			});
-			await appendVoiceAgentTrace({
+			const handoff = await appendVoiceAgentSquadHandoff({
 				agentId: options.id,
-				event: {
-					fromAgentId: agent.id,
-					metadata,
-					originalTargetAgentId:
-						originalTargetAgentId === nextAgent.id
-							? undefined
-							: originalTargetAgentId,
-					reason: handoffReason,
-					status: 'allowed',
-					targetAgentId: nextAgent.id
-				},
+				fromAgentId: agent.id,
+				handoffs,
+				metadata,
+				originalTargetAgentId:
+					originalTargetAgentId === nextAgent.id
+						? undefined
+						: originalTargetAgentId,
+				reason: handoffReason,
 				session: input.session,
+				status: 'allowed',
+				summary: handoffSummary,
+				targetAgentId: nextAgent.id,
 				trace: options.trace,
-				turn: input.turn,
-				type: 'agent.handoff'
+				turn: input.turn
 			});
 			await audit?.handoff({
 				actor: {
@@ -781,35 +914,73 @@ export const createVoiceAgentSquad = <
 				sessionId: input.session.id,
 				toAgentId: nextAgent.id
 			});
-			messages.push({
-				content: handoffReason ?? `Handoff to ${nextAgent.id}`,
+			const summaryMessage: VoiceAgentMessage = {
+				content: handoffSummary ?? handoffReason ?? `Handoff to ${nextAgent.id}`,
 				metadata,
 				name: nextAgent.id,
 				role: 'system'
+			};
+			messages.push(summaryMessage);
+			const contextPolicy = await options.contextPolicy?.({
+				context: input.context,
+				fromAgentId: agent.id,
+				handoff,
+				messages,
+				session: input.session,
+				summaryMessage,
+				targetAgent: nextAgent,
+				turn: input.turn
+			});
+			if (contextPolicy?.metadata && Object.keys(contextPolicy.metadata).length > 0) {
+				handoff.metadata = {
+					...handoff.metadata,
+					...contextPolicy.metadata
+				};
+				const latest = handoffs.at(-1);
+				if (latest === handoff) {
+					latest.metadata = handoff.metadata;
+				}
+			}
+			await appendVoiceAgentTrace({
+				agentId: options.id,
+				event: {
+					fromAgentId: handoff.fromAgentId,
+					messageCount: messages.length,
+					nextMessageCount: contextPolicy?.messages?.length ?? messages.length,
+					status: contextPolicy ? 'applied' : 'default',
+					summaryIncluded: (contextPolicy?.messages ?? messages).some(
+						(message) => message === summaryMessage
+					),
+					targetAgentId: nextAgent.id
+				},
+				session: input.session,
+				trace: options.trace,
+				turn: input.turn,
+				type: 'agent.context'
 			});
 			agent = nextAgent;
 			agentId = nextAgent.id;
 			result = await agent.run({
 				...input,
-				messages
+				messages: contextPolicy?.messages ?? messages,
+				system: contextPolicy?.system ?? input.system
 			});
 			toolResults.push(...result.toolResults);
 		}
 
 		if (result.handoff) {
-			await appendVoiceAgentTrace({
+			await appendVoiceAgentSquadHandoff({
 				agentId: options.id,
-				event: {
-					fromAgentId: agent.id,
-					metadata: result.handoff.metadata,
-					reason: result.handoff.reason,
-					status: 'max-exceeded',
-					targetAgentId: result.handoff.targetAgentId
-				},
+				fromAgentId: agent.id,
+				handoffs,
+				metadata: result.handoff.metadata,
+				reason: result.handoff.reason,
 				session: input.session,
+				status: 'max-exceeded',
+				summary: result.handoff.reason,
+				targetAgentId: result.handoff.targetAgentId,
 				trace: options.trace,
-				turn: input.turn,
-				type: 'agent.handoff'
+				turn: input.turn
 			});
 			await audit?.handoff({
 				actor: {
@@ -830,6 +1001,10 @@ export const createVoiceAgentSquad = <
 					reason: `Max handoffs exceeded: ${maxHandoffs}`
 				},
 				handoff: undefined,
+				squad: createVoiceAgentSquadState({
+					agentId: agent.id,
+					handoffs
+				}),
 				toolResults
 			};
 		}
@@ -837,6 +1012,10 @@ export const createVoiceAgentSquad = <
 		return {
 			...result,
 			agentId,
+			squad: createVoiceAgentSquadState({
+				agentId,
+				handoffs
+			}),
 			toolResults
 		};
 	};

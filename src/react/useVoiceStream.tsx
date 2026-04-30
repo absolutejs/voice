@@ -9,6 +9,11 @@ const EMPTY_SNAPSHOT = {
 	error: null,
 	isConnected: false,
 	partial: '',
+	reconnect: {
+		attempts: 0,
+		maxAttempts: 0,
+		status: 'idle' as const
+	},
 	sessionId: '',
 	status: 'idle' as const,
 	turns: []

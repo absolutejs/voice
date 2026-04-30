@@ -1,16 +1,36 @@
 import { expect, test } from 'bun:test';
 import { serverMessageToAction } from '../src/client/actions';
 import { createVoiceOpsStatusStore } from '../src/client/opsStatus';
+import { createVoicePlatformCoverageStore } from '../src/client/platformCoverage';
+import { createVoiceProofTrendsStore } from '../src/client/proofTrends';
+import { createVoiceReadinessFailuresStore } from '../src/client/readinessFailures';
+import {
+	createVoicePlatformCoverageViewModel,
+	renderVoicePlatformCoverageHTML
+} from '../src/client/platformCoverageWidget';
+import {
+	createVoiceProofTrendsViewModel,
+	renderVoiceProofTrendsHTML
+} from '../src/client/proofTrendsWidget';
+import {
+	createVoiceReadinessFailuresViewModel,
+	renderVoiceReadinessFailuresHTML
+} from '../src/client/readinessFailuresWidget';
 import {
 	createVoiceOpsStatusViewModel,
 	renderVoiceOpsStatusHTML
 } from '../src/client/opsStatusWidget';
 import { createVoiceProviderStatusStore } from '../src/client/providerStatus';
 import { createVoiceProviderCapabilitiesStore } from '../src/client/providerCapabilities';
+import { createVoiceProviderContractsStore } from '../src/client/providerContracts';
 import {
 	createVoiceProviderCapabilitiesViewModel,
 	renderVoiceProviderCapabilitiesHTML
 } from '../src/client/providerCapabilitiesWidget';
+import {
+	createVoiceProviderContractsViewModel,
+	renderVoiceProviderContractsHTML
+} from '../src/client/providerContractsWidget';
 import {
 	createVoiceProviderStatusViewModel,
 	renderVoiceProviderStatusHTML
@@ -85,6 +105,77 @@ test('voice client store tracks call lifecycle server messages', () => {
 		'transfer',
 		'end'
 	]);
+});
+
+test('voice client store replaces local state from replay messages', () => {
+	const store = createVoiceStreamStore();
+	const firstTurn = {
+		committedAt: 100,
+		id: 'turn-1',
+		text: 'old local turn',
+		transcripts: []
+	};
+	const replayTurn = {
+		committedAt: 200,
+		id: 'turn-2',
+		text: 'server replay turn',
+		transcripts: []
+	};
+
+	store.dispatch({
+		turn: firstTurn,
+		type: 'turn'
+	});
+	store.dispatch({
+		assistantTexts: ['server assistant'],
+		call: {
+			events: [{ at: 150, type: 'start' }],
+			lastEventAt: 150,
+			startedAt: 150
+		},
+		partial: 'server partial',
+		scenarioId: 'guided',
+		sessionId: 'session-replay',
+		status: 'active',
+		turns: [replayTurn],
+		type: 'replay'
+	});
+
+	expect(store.getSnapshot()).toMatchObject({
+		assistantTexts: ['server assistant'],
+		partial: 'server partial',
+		scenarioId: 'guided',
+		sessionId: 'session-replay',
+		status: 'active'
+	});
+	expect(store.getSnapshot().turns).toEqual([replayTurn]);
+	expect(store.getSnapshot().call?.events.map((event) => event.type)).toEqual([
+		'start'
+	]);
+});
+
+test('voice client store tracks reconnect observability messages', () => {
+	const store = createVoiceStreamStore();
+	const action = serverMessageToAction({
+		reconnect: {
+			attempts: 2,
+			lastDisconnectAt: 100,
+			maxAttempts: 10,
+			nextAttemptAt: 600,
+			status: 'reconnecting'
+		},
+		type: 'connection'
+	});
+
+	store.dispatch(action);
+
+	expect(store.getSnapshot().reconnect).toEqual({
+		attempts: 2,
+		lastDisconnectAt: 100,
+		maxAttempts: 10,
+		nextAttemptAt: 600,
+		status: 'reconnecting'
+	});
 });
 
 test('voice workflow status store fetches scenario eval reports', async () => {
@@ -404,6 +495,98 @@ test('voice provider capabilities store and widget render selected provider cove
 	expect(html).toContain('tool calling, fallback routing');
 });
 
+test('voice provider contracts store and widget render production contract coverage', async () => {
+	const store = createVoiceProviderContractsStore('/api/provider-contracts', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					failed: 0,
+					passed: 1,
+					rows: [
+						{
+							checks: [
+								{
+									detail: 'Required environment is present.',
+									key: 'env',
+									label: 'Required env',
+									status: 'pass'
+								}
+							],
+							configured: true,
+							kind: 'llm',
+							provider: 'openai',
+							selected: true,
+							status: 'pass'
+						}
+					],
+					status: 'pass',
+					total: 1,
+					warned: 0
+				})
+			)
+	});
+
+	await store.refresh();
+	const snapshot = store.getSnapshot();
+	const model = createVoiceProviderContractsViewModel(snapshot);
+	const html = renderVoiceProviderContractsHTML(snapshot);
+
+	expect(model.label).toBe('1 passing');
+	expect(model.rows[0]?.label).toBe('Openai LLM');
+	expect(model.rows[0]?.detail).toBe('Provider contract is production-ready.');
+	expect(html).toContain('Provider Contracts');
+	expect(html).toContain('Required env: Pass');
+});
+
+test('voice provider contracts widget renders remediation actions', async () => {
+	const store = createVoiceProviderContractsStore('/api/provider-contracts', {
+		fetch: async () =>
+			new Response(
+				JSON.stringify({
+					failed: 1,
+					passed: 0,
+					rows: [
+						{
+							checks: [
+								{
+									detail: 'Missing env: OPENAI_API_KEY.',
+									key: 'env',
+									label: 'Required env',
+									remediation: {
+										code: 'provider.env',
+										detail: 'Set OPENAI_API_KEY before deploying this provider.',
+										href: '/provider-contracts',
+										label: 'Add missing env'
+									},
+									status: 'fail'
+								}
+							],
+							configured: true,
+							kind: 'llm',
+							provider: 'openai',
+							selected: true,
+							status: 'fail'
+						}
+					],
+					status: 'fail',
+					total: 1,
+					warned: 0
+				})
+			)
+	});
+
+	await store.refresh();
+	const snapshot = store.getSnapshot();
+	const model = createVoiceProviderContractsViewModel(snapshot);
+	const html = renderVoiceProviderContractsHTML(snapshot);
+
+	expect(model.rows[0]?.remediations[0]).toMatchObject({
+		label: 'Add missing env'
+	});
+	expect(html).toContain('Set OPENAI_API_KEY');
+	expect(html).toContain('/provider-contracts');
+});
+
 test('voice turn quality store and widget render fallback diagnostics', async () => {
 	const store = createVoiceTurnQualityStore('/api/turn-quality', {
 		fetch: async () =>
@@ -499,11 +682,15 @@ test('voice trace timeline store and widget render recent call timelines', async
 	expect(model.label).toBe('1 failed');
 	expect(model.sessions[0]).toMatchObject({
 		detailHref: '/traces/session-trace',
+		incidentBundleHref: '/voice-incidents/session-trace/markdown',
+		operationsRecordHref: '/voice-operations/session-trace',
 		durationLabel: '1200ms',
 		providerLabel: 'openai'
 	});
 	expect(html).toContain('Voice Traces');
 	expect(html).toContain('Open timeline');
+	expect(html).toContain('/voice-operations/session-trace');
+	expect(html).toContain('/voice-incidents/session-trace/markdown');
 	store.close();
 });
 
@@ -576,4 +763,245 @@ test('voice provider simulation controls widget renders configured actions', () 
 	expect(model.label).toBe('2 configured');
 	expect(html).toContain('Simulate deepgram STT failure');
 	expect(html).toContain('Mark assemblyai recovered');
+});
+
+test('voice platform coverage store fetches coverage reports', async () => {
+	const store = createVoicePlatformCoverageStore('/api/voice/vapi-coverage', {
+		fetch: async (input) => {
+			expect(String(input)).toBe('/api/voice/vapi-coverage');
+			return new Response(
+				JSON.stringify({
+					coverage: [
+						{
+							evidence: [
+								{
+									method: 'GET',
+									name: 'switchingFromVapi',
+									ok: true,
+									path: '/switching-from-vapi',
+									status: 200
+								}
+							],
+							replacement: 'Self-hosted voice primitives.',
+							status: 'pass',
+							surface: 'Web voice assistant'
+						}
+					],
+					ok: true,
+					source: '.voice-runtime/proof-pack/latest.json',
+					status: 'pass',
+					total: 1
+				})
+			);
+		}
+	});
+
+	await store.refresh();
+
+	expect(store.getSnapshot()).toMatchObject({
+		error: null,
+		isLoading: false,
+		report: {
+			ok: true,
+			status: 'pass',
+			total: 1
+		}
+	});
+	expect(store.getSnapshot().report?.coverage[0]?.surface).toBe(
+		'Web voice assistant'
+	);
+	store.close();
+});
+
+test('voice platform coverage widget renders hosted platform replacement evidence', () => {
+	const snapshot = {
+		error: null,
+		isLoading: false,
+		report: {
+			coverage: [
+				{
+					evidence: [
+						{
+							name: 'switchingFromVapi',
+							ok: true,
+							path: '/switching-from-vapi',
+							status: 200
+						}
+					],
+					replacement: 'Self-hosted browser voice route and proof.',
+					status: 'pass',
+					surface: 'Web voice assistant'
+				},
+				{
+					evidence: [],
+					gap: 'Add a carrier setup proof.',
+					replacement: 'Phone setup route.',
+					status: 'missing',
+					surface: 'Phone assistant'
+				}
+			],
+			ok: false,
+			status: 'missing' as const,
+			total: 2
+		}
+	};
+
+	const model = createVoicePlatformCoverageViewModel(snapshot, { limit: 1 });
+	const html = renderVoicePlatformCoverageHTML(snapshot, { limit: 1 });
+
+	expect(model.label).toBe('1 gaps');
+	expect(model.status).toBe('warning');
+	expect(model.surfaces).toHaveLength(1);
+	expect(html).toContain('Web voice assistant');
+	expect(html).toContain('1/1 evidence checks passing');
+});
+
+test('voice proof trends store fetches sustained proof reports', async () => {
+	const store = createVoiceProofTrendsStore('/api/voice/proof-trends', {
+		fetch: async (input) => {
+			expect(String(input)).toBe('/api/voice/proof-trends');
+			return new Response(
+				JSON.stringify({
+					ageMs: 30_000,
+					cycles: [{ cycle: 1, ok: true }],
+					generatedAt: '2026-04-29T12:00:00.000Z',
+					maxAgeMs: 60_000,
+					ok: true,
+					source: '.voice-runtime/proof-trends/latest.json',
+					status: 'pass',
+					summary: {
+						cycles: 1,
+						maxLiveP95Ms: 420,
+						maxProviderP95Ms: 320,
+						maxTurnP95Ms: 140
+					}
+				})
+			);
+		}
+	});
+
+	await store.refresh();
+
+	expect(store.getSnapshot()).toMatchObject({
+		error: null,
+		isLoading: false,
+		report: {
+			ok: true,
+			status: 'pass'
+		}
+	});
+	expect(store.getSnapshot().report?.summary.maxLiveP95Ms).toBe(420);
+	store.close();
+});
+
+test('voice proof trends widget renders freshness and latency evidence', () => {
+	const snapshot = {
+		error: null,
+		isLoading: false,
+		report: {
+			ageMs: 30_000,
+			cycles: [{ cycle: 1, ok: true }],
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			ok: true,
+			source: '.voice-runtime/proof-trends/latest.json',
+			status: 'pass' as const,
+			summary: {
+				cycles: 1,
+				maxLiveP95Ms: 420,
+				maxProviderP95Ms: 320,
+				maxTurnP95Ms: 140
+			}
+		}
+	};
+
+	const model = createVoiceProofTrendsViewModel(snapshot);
+	const html = renderVoiceProofTrendsHTML(snapshot);
+
+	expect(model.label).toBe('1 cycles passing');
+	expect(model.status).toBe('ready');
+	expect(model.metrics.map((metric) => metric.label)).toContain('Artifact age');
+	expect(html).toContain('Provider p95');
+	expect(html).toContain('420ms');
+});
+
+test('voice readiness failures store fetches production readiness reports', async () => {
+	const store = createVoiceReadinessFailuresStore('/api/production-readiness', {
+		fetch: async (input) => {
+			expect(String(input)).toBe('/api/production-readiness');
+			return new Response(
+				JSON.stringify({
+					checkedAt: 100,
+					checks: [],
+					links: {},
+					status: 'pass',
+					summary: {}
+				})
+			);
+		}
+	});
+
+	await store.refresh();
+
+	expect(store.getSnapshot()).toMatchObject({
+		error: null,
+		isLoading: false,
+		report: {
+			status: 'pass'
+		}
+	});
+	store.close();
+});
+
+test('voice readiness failures widget renders gate explanations', () => {
+	const snapshot = {
+		error: null,
+		isLoading: false,
+		report: {
+			checkedAt: 100,
+			checks: [
+				{
+					detail: 'Live latency exceeded threshold.',
+					gateExplanation: {
+						evidenceHref: '/voice-operations/slow-session',
+						observed: 700,
+						remediation: 'Inspect the slow turn and rerun proof.',
+						sourceHref: '/voice/slo-readiness-thresholds',
+						threshold: 600,
+						thresholdLabel: 'Live latency warn after',
+						unit: 'ms' as const
+					},
+					href: '/traces',
+					label: 'Live latency proof',
+					status: 'warn' as const,
+					value: '700ms avg'
+				},
+				{
+					label: 'Provider health',
+					status: 'pass' as const
+				}
+			],
+			links: {
+				sloReadinessThresholds: '/voice/slo-readiness-thresholds'
+			},
+			status: 'warn' as const,
+			summary: {}
+		},
+		updatedAt: 110
+	};
+
+	const model = createVoiceReadinessFailuresViewModel(snapshot);
+	const html = renderVoiceReadinessFailuresHTML(snapshot);
+
+	expect(model.label).toBe('1 calibrated gate issue(s)');
+	expect(model.failures).toEqual([
+		expect.objectContaining({
+			label: 'Live latency proof',
+			observed: '700 ms',
+			threshold: '600 ms'
+		})
+	]);
+	expect(html).toContain('Live latency proof');
+	expect(html).toContain('/voice/slo-readiness-thresholds');
+	expect(html).toContain('Inspect the slow turn');
 });

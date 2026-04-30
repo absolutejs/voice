@@ -18,6 +18,7 @@ export type VoiceEvalStatus = 'pass' | 'fail';
 export type VoiceEvalSessionReport = {
 	endedAt?: number;
 	eventCount: number;
+	operationsRecordHref?: string;
 	quality: VoiceQualityReport;
 	scenarioId?: string;
 	sessionId: string;
@@ -102,6 +103,7 @@ export type VoiceScenarioEvalDefinition = {
 export type VoiceScenarioEvalSessionResult = {
 	eventCount: number;
 	issues: string[];
+	operationsRecordHref?: string;
 	sessionId: string;
 	status: VoiceEvalStatus;
 };
@@ -171,6 +173,7 @@ export type VoiceEvalRoutesOptions = {
 	links?: VoiceEvalLink[];
 	limit?: number;
 	name?: string;
+	operationsRecordHref?: false | string | ((sessionId: string) => string);
 	path?: string;
 	scenarios?: VoiceScenarioEvalDefinition[];
 	store?: VoiceTraceEventStore;
@@ -192,6 +195,23 @@ const normalizeSearchText = (value: string) => value.trim().toLowerCase();
 
 const getString = (value: unknown) =>
 	typeof value === 'string' ? value : undefined;
+
+const resolveSessionHref = (
+	value: false | string | ((sessionId: string) => string) | undefined,
+	sessionId: string
+) => {
+	if (value === false) {
+		return undefined;
+	}
+	const href = value ?? '/voice-operations/:sessionId';
+	if (typeof href === 'function') {
+		return href(sessionId);
+	}
+	const encoded = encodeURIComponent(sessionId);
+	return href.includes(':sessionId')
+		? href.replace(':sessionId', encoded)
+		: `${href.replace(/\/$/, '')}/${encoded}`;
+};
 
 const getObject = (value: unknown): Record<string, unknown> | undefined =>
 	value && typeof value === 'object' && !Array.isArray(value)
@@ -260,6 +280,7 @@ export const runVoiceSessionEvals = async (
 	options: {
 		events?: StoredVoiceTraceEvent[];
 		limit?: number;
+		operationsRecordHref?: false | string | ((sessionId: string) => string);
 		store?: VoiceTraceEventStore;
 		thresholds?: VoiceQualityThresholds;
 	} = {}
@@ -285,6 +306,10 @@ export const runVoiceSessionEvals = async (
 			return {
 				endedAt,
 				eventCount: sorted.length,
+				operationsRecordHref: resolveSessionHref(
+					options.operationsRecordHref,
+					sessionId
+				),
 				quality,
 				scenarioId,
 				sessionId,
@@ -336,7 +361,8 @@ const countProviderErrors = (events: StoredVoiceTraceEvent[]) =>
 const evaluateScenarioSession = (
 	scenario: VoiceScenarioEvalDefinition,
 	sessionId: string,
-	events: StoredVoiceTraceEvent[]
+	events: StoredVoiceTraceEvent[],
+	operationsRecordHref?: string
 ): VoiceScenarioEvalSessionResult => {
 	const issues: string[] = [];
 	const committedText = getSessionText(events, 'turn.committed');
@@ -440,6 +466,7 @@ const evaluateScenarioSession = (
 	return {
 		eventCount: events.length,
 		issues,
+		operationsRecordHref,
 		sessionId,
 		status: issues.length > 0 ? 'fail' : 'pass'
 	};
@@ -448,6 +475,7 @@ const evaluateScenarioSession = (
 export const runVoiceScenarioEvals = async (
 	options: {
 		events?: StoredVoiceTraceEvent[];
+		operationsRecordHref?: false | string | ((sessionId: string) => string);
 		scenarios?: VoiceScenarioEvalDefinition[];
 		store?: VoiceTraceEventStore;
 	} = {}
@@ -471,7 +499,8 @@ export const runVoiceScenarioEvals = async (
 				evaluateScenarioSession(
 					scenario,
 					sessionId,
-					filterVoiceTraceEvents(sessionEvents)
+					filterVoiceTraceEvents(sessionEvents),
+					resolveSessionHref(options.operationsRecordHref, sessionId)
 				)
 			)
 			.sort((left, right) => left.sessionId.localeCompare(right.sessionId));
@@ -519,6 +548,7 @@ export const runVoiceScenarioFixtureEvals = async (
 	options: {
 		fixtures?: VoiceScenarioFixture[];
 		fixtureStore?: VoiceScenarioFixtureStore;
+		operationsRecordHref?: false | string | ((sessionId: string) => string);
 		scenarios?: VoiceScenarioEvalDefinition[];
 	} = {}
 ): Promise<VoiceScenarioFixtureEvalReport> => {
@@ -527,6 +557,7 @@ export const runVoiceScenarioFixtureEvals = async (
 		fixtures.map(async (fixture) => {
 			const report = await runVoiceScenarioEvals({
 				events: fixture.events,
+				operationsRecordHref: options.operationsRecordHref,
 				scenarios: options.scenarios
 			});
 
@@ -664,6 +695,28 @@ const formatTime = (value: number | undefined) =>
 
 const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`;
 
+const renderVoiceEvalPrimitiveCopy = () => {
+	const snippet = escapeHtml(`app.use(
+	createVoiceEvalRoutes({
+		path: '/evals',
+		store: traceStore,
+		thresholds: {
+			maxErrorRate: 0,
+			minCompletedSessions: 1
+		},
+		scenarios: workflowScenarios,
+		fixtureStore,
+		baselineStore,
+		links: [
+			{ href: '/voice/simulations', label: 'Simulation Suite' },
+			{ href: '/production-readiness', label: 'Production Readiness' }
+		]
+	})
+);`);
+
+	return `<section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceEvalRoutes(...)</code> replays real sessions before regressions ship</h2><p>Mount one route group for session quality evals, workflow scenario checks, fixture-backed simulations, and baseline comparison against known-good runs.</p><pre><code>${snippet}</code></pre></section>`;
+};
+
 export const renderVoiceEvalHTML = (
 	report: VoiceEvalReport,
 	options: { links?: VoiceEvalLink[]; title?: string } = {}
@@ -692,12 +745,15 @@ export const renderVoiceEvalHTML = (
 						.filter(([, metric]) => !metric.pass)
 						.map(([, metric]) => metric.label)
 						.join(', ');
-					return `<tr class="${session.status}"><td>${escapeHtml(session.sessionId)}</td><td>${escapeHtml(session.status)}</td><td>${session.eventCount}</td><td>${session.summary.turnCount}</td><td>${session.summary.errorCount}</td><td>${escapeHtml(formatTime(session.endedAt))}</td><td>${escapeHtml(failedMetrics || 'none')}</td></tr>`;
+					const sessionLabel = session.operationsRecordHref
+						? `<a href="${escapeHtml(session.operationsRecordHref)}">${escapeHtml(session.sessionId)}</a>`
+						: escapeHtml(session.sessionId);
+					return `<tr class="${session.status}"><td>${sessionLabel}</td><td>${escapeHtml(session.status)}</td><td>${session.eventCount}</td><td>${session.summary.turnCount}</td><td>${session.summary.errorCount}</td><td>${escapeHtml(formatTime(session.endedAt))}</td><td>${escapeHtml(failedMetrics || 'none')}</td></tr>`;
 				})
 				.join('')
 		: '<tr><td colspan="7">No sessions found.</td></tr>';
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.pass{color:#166534}.fail{color:#991b1b}.status.pass{background:#dcfce7}.status.fail{background:#fee2e2}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}table{border-collapse:collapse;background:white;width:100%;margin:1rem 0 2rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div><h2>Trend</h2><table><thead><tr><th>Day</th><th>Total</th><th>Passed</th><th>Failed</th></tr></thead><tbody>${trend}</tbody></table><h2>Session Eval Results</h2><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Last event</th><th>Failed metrics</th></tr></thead><tbody>${sessions}</tbody></table></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.pass{color:#166534}.fail{color:#991b1b}.status.pass{background:#dcfce7}.status.fail{background:#fee2e2}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,.primitive{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.primitive{background:#fffdf7;border-color:#d6c7a3;margin:1rem 0}.primitive p{line-height:1.55}.primitive pre{background:#181713;border-radius:.85rem;color:#fef3c7;overflow:auto;padding:1rem}.primitive code{color:#fef3c7}.card strong{display:block;font-size:2rem}table{border-collapse:collapse;background:white;width:100%;margin:1rem 0 2rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${renderVoiceEvalPrimitiveCopy()}<h2>Trend</h2><table><thead><tr><th>Day</th><th>Total</th><th>Passed</th><th>Failed</th></tr></thead><tbody>${trend}</tbody></table><h2>Session Eval Results</h2><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Last event</th><th>Failed metrics</th></tr></thead><tbody>${sessions}</tbody></table></main></body></html>`;
 };
 
 export const renderVoiceEvalBaselineHTML = (
@@ -750,8 +806,12 @@ export const renderVoiceScenarioEvalHTML = (
 					const sessions = scenario.sessions.length
 						? scenario.sessions
 								.map(
-									(session) =>
-										`<tr class="${session.status}"><td>${escapeHtml(session.sessionId)}</td><td>${escapeHtml(session.status)}</td><td>${session.eventCount}</td><td>${escapeHtml(session.issues.join(', ') || 'none')}</td></tr>`
+									(session) => {
+										const sessionLabel = session.operationsRecordHref
+											? `<a href="${escapeHtml(session.operationsRecordHref)}">${escapeHtml(session.sessionId)}</a>`
+											: escapeHtml(session.sessionId);
+										return `<tr class="${session.status}"><td>${sessionLabel}</td><td>${escapeHtml(session.status)}</td><td>${session.eventCount}</td><td>${escapeHtml(session.issues.join(', ') || 'none')}</td></tr>`;
+									}
 								)
 								.join('')
 						: '<tr><td colspan="4">No matching sessions.</td></tr>';
@@ -760,7 +820,7 @@ export const renderVoiceScenarioEvalHTML = (
 				.join('')
 		: '<section><p>No scenarios configured.</p></section>';
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${scenarios}</main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.primitive{background:#fffdf7;border-color:#d6c7a3}.primitive p{line-height:1.55}.primitive pre{background:#181713;border-radius:.85rem;color:#fef3c7;overflow:auto;padding:1rem}.primitive code{color:#fef3c7}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${renderVoiceEvalPrimitiveCopy()}${scenarios}</main></body></html>`;
 };
 
 export const renderVoiceScenarioFixtureEvalHTML = (
@@ -790,7 +850,7 @@ export const renderVoiceScenarioFixtureEvalHTML = (
 				.join('')
 		: '<section><p>No scenario fixtures configured.</p></section>';
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${fixtures}</main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.primitive{background:#fffdf7;border-color:#d6c7a3}.primitive p{line-height:1.55}.primitive pre{background:#181713;border-radius:.85rem;color:#fef3c7;overflow:auto;padding:1rem}.primitive code{color:#fef3c7}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${renderVoiceEvalPrimitiveCopy()}${fixtures}</main></body></html>`;
 };
 
 export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
@@ -802,6 +862,7 @@ export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 		runVoiceSessionEvals({
 			events: options.events,
 			limit: options.limit,
+			operationsRecordHref: options.operationsRecordHref,
 			store: options.store,
 			thresholds: options.thresholds
 		});
@@ -818,6 +879,7 @@ export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 	const getScenarioReport = () =>
 		runVoiceScenarioEvals({
 			events: options.events,
+			operationsRecordHref: options.operationsRecordHref,
 			scenarios: options.scenarios,
 			store: options.store
 		});
@@ -825,6 +887,7 @@ export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
 		runVoiceScenarioFixtureEvals({
 			fixtures: options.fixtures,
 			fixtureStore: options.fixtureStore,
+			operationsRecordHref: options.operationsRecordHref,
 			scenarios: options.scenarios
 		});
 

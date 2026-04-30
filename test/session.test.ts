@@ -4,6 +4,10 @@ import { createVoiceSession } from '../src/session';
 import { createVoiceMemoryTraceEventStore } from '../src/trace';
 import type {
 	AudioChunk,
+	RealtimeAdapter,
+	RealtimeAdapterOpenOptions,
+	RealtimeAdapterSession,
+	RealtimeSessionEventMap,
 	STTAdapter,
 	STTAdapterOpenOptions,
 	STTAdapterSession,
@@ -156,6 +160,122 @@ type TTSListenerMap = {
 	[K in keyof TTSSessionEventMap]: Array<
 		(payload: TTSSessionEventMap[K]) => void | Promise<void>
 	>;
+};
+
+type RealtimeListenerMap = {
+	[K in keyof RealtimeSessionEventMap]: Array<
+		(payload: RealtimeSessionEventMap[K]) => void | Promise<void>
+	>;
+};
+
+const createFakeRealtimeAdapter = () => {
+	let closeCalls = 0;
+	let openCalls = 0;
+	const openOptions: RealtimeAdapterOpenOptions[] = [];
+	const sentAudio: Uint8Array[] = [];
+	const sentTexts: string[] = [];
+	const sessions: Array<
+		RealtimeAdapterSession & {
+			emit: <K extends keyof RealtimeSessionEventMap>(
+				event: K,
+				payload: RealtimeSessionEventMap[K]
+			) => Promise<void>;
+		}
+	> = [];
+
+	const adapter: RealtimeAdapter = {
+		kind: 'realtime',
+		open: (options) => {
+			openCalls += 1;
+			openOptions.push(options);
+
+			const listeners: RealtimeListenerMap = {
+				audio: [],
+				close: [],
+				endOfTurn: [],
+				error: [],
+				final: [],
+				partial: []
+			};
+			const session: RealtimeAdapterSession & {
+				emit: <K extends keyof RealtimeSessionEventMap>(
+					event: K,
+					payload: RealtimeSessionEventMap[K]
+				) => Promise<void>;
+			} = {
+				close: async () => {
+					closeCalls += 1;
+				},
+				emit: async (event, payload) => {
+					for (const listener of listeners[event]) {
+						await listener(payload as never);
+					}
+				},
+				on: (event, handler) => {
+					listeners[event].push(handler as never);
+
+					return () => {
+						const index = listeners[event].indexOf(handler as never);
+						if (index >= 0) {
+							listeners[event].splice(index, 1);
+						}
+					};
+				},
+				send: async (input) => {
+					if (typeof input === 'string') {
+						sentTexts.push(input);
+						await session.emit('audio', {
+							chunk: new Uint8Array([9, 8, 7, 6]),
+							format: {
+								channels: 1,
+								container: 'raw',
+								encoding: 'pcm_s16le',
+								sampleRateHz: 24_000
+							},
+							receivedAt: Date.now(),
+							type: 'audio'
+						});
+						return;
+					}
+
+					const bytes =
+						input instanceof ArrayBuffer
+							? new Uint8Array(input.slice(0))
+							: new Uint8Array(
+									input.buffer.slice(
+										input.byteOffset,
+										input.byteOffset + input.byteLength
+									)
+								);
+					sentAudio.push(bytes);
+				}
+			};
+
+			sessions.push(session);
+			return session;
+		}
+	};
+
+	return {
+		adapter,
+		emitCurrent: async <K extends keyof RealtimeSessionEventMap>(
+			event: K,
+			payload: RealtimeSessionEventMap[K]
+		) => {
+			const session = sessions.at(-1);
+			if (!session) {
+				throw new Error('No active fake realtime session');
+			}
+
+			await session.emit(event, payload);
+		},
+		getCloseCalls: () => closeCalls,
+		getOpenCalls: () => openCalls,
+		getOpenOptions: () => openOptions,
+		getSentAudio: () => sentAudio,
+		getSentTexts: () => sentTexts,
+		getSessionCount: () => sessions.length
+	};
 };
 
 const createFakeTTSAdapter = () => {
@@ -547,6 +667,79 @@ test('voice session streams assistant audio chunks when a tts adapter is configu
 	});
 });
 
+test('voice session can use a realtime adapter for input transcripts and assistant audio', async () => {
+	const store = createVoiceMemoryStore();
+	const realtime = createFakeRealtimeAdapter();
+	const socket = createMockSocket();
+
+	const session = createVoiceSession({
+		context: {},
+		id: 'session-realtime-stream',
+		logger: {},
+		realtime: realtime.adapter,
+		reconnect: {
+			maxAttempts: 1,
+			strategy: 'resume-last-turn',
+			timeout: 5_000
+		},
+		route: {
+			onComplete: async () => {},
+			onTurn: async ({ turn }) => ({
+				assistantText: `Realtime reply: ${turn.text}`
+			})
+		},
+		socket: socket.socket,
+		store,
+		sttLifecycle: 'session',
+		turnDetection: {
+			silenceMs: 20,
+			speechThreshold: 0.01,
+			transcriptStabilityMs: 5
+		}
+	});
+
+	await session.connect(socket.socket);
+	await session.receiveAudio(new Int16Array(160).fill(1000));
+	await realtime.emitCurrent('final', {
+		receivedAt: Date.now(),
+		transcript: {
+			id: 'final-realtime',
+			isFinal: true,
+			text: 'Use realtime speech'
+		},
+		type: 'final'
+	});
+	await realtime.emitCurrent('endOfTurn', {
+		reason: 'vendor',
+		receivedAt: Date.now(),
+		type: 'endOfTurn'
+	});
+	await Bun.sleep(40);
+
+	const messages = socket.messages.map((message) => JSON.parse(message));
+	const assistantMessage = messages.find(
+		(message) => message.type === 'assistant'
+	);
+	const audioMessage = messages.find((message) => message.type === 'audio');
+
+	expect(realtime.getOpenCalls()).toBe(1);
+	expect(realtime.getSessionCount()).toBe(1);
+	expect(realtime.getOpenOptions()[0]?.format.sampleRateHz).toBe(24_000);
+	expect(realtime.getSentAudio()).toHaveLength(1);
+	expect(realtime.getSentTexts()).toEqual([
+		'Realtime reply: Use realtime speech'
+	]);
+	expect(assistantMessage).toMatchObject({
+		text: 'Realtime reply: Use realtime speech',
+		type: 'assistant'
+	});
+	expect(audioMessage).toMatchObject({
+		chunkBase64: 'CQgHBg==',
+		turnId: expect.any(String),
+		type: 'audio'
+	});
+});
+
 test('voice session prewarms the tts adapter on connect', async () => {
 	const store = createVoiceMemoryStore();
 	const adapter = createFakeAdapter();
@@ -650,6 +843,19 @@ test('voice session reconnect resume does not replay committed turns', async () 
 				message.includes('"status":"active"')
 		)
 	).toBe(true);
+	const replay = secondSocket.messages
+		.map((message) => JSON.parse(message))
+		.find((message) => message.type === 'replay');
+	expect(replay).toMatchObject({
+		partial: '',
+		sessionId: 'session-reconnect',
+		status: 'active',
+		turns: [
+			{
+				text: 'Reconnect should not duplicate prior turns'
+			}
+		]
+	});
 });
 
 test('voice session dedupes committed turns across handler instances', async () => {

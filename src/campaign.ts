@@ -27,6 +27,30 @@ export type VoiceCampaignAttemptStatus =
 	| 'running'
 	| 'succeeded';
 
+export type VoiceCampaignTimeWindow = {
+	daysOfWeek?: number[];
+	endHour: number;
+	startHour: number;
+	timeZoneOffsetMinutes?: number;
+};
+
+export type VoiceCampaignRateLimit = {
+	maxAttempts: number;
+	windowMs: number;
+};
+
+export type VoiceCampaignRetryPolicy = {
+	backoffMs?: number | number[];
+	maxBackoffMs?: number;
+};
+
+export type VoiceCampaignSchedule = {
+	attemptWindow?: VoiceCampaignTimeWindow;
+	quietHours?: VoiceCampaignTimeWindow;
+	rateLimit?: VoiceCampaignRateLimit;
+	retryPolicy?: VoiceCampaignRetryPolicy;
+};
+
 export type VoiceCampaignRecipient = {
 	attempts: number;
 	completedAt?: number;
@@ -63,6 +87,7 @@ export type VoiceCampaign = {
 	maxConcurrentAttempts: number;
 	metadata?: Record<string, unknown>;
 	name: string;
+	schedule?: VoiceCampaignSchedule;
 	status: VoiceCampaignStatus;
 	updatedAt: number;
 };
@@ -103,6 +128,7 @@ export type VoiceCampaignCreateInput = {
 	maxConcurrentAttempts?: number;
 	metadata?: Record<string, unknown>;
 	name: string;
+	schedule?: VoiceCampaignSchedule;
 };
 
 export type VoiceCampaignRecipientInput = {
@@ -111,6 +137,41 @@ export type VoiceCampaignRecipientInput = {
 	name?: string;
 	phone: string;
 	variables?: VoiceCampaignRecipient['variables'];
+};
+
+export type VoiceCampaignRecipientImportRow = Record<string, unknown>;
+
+export type VoiceCampaignRecipientImportIssueCode =
+	| 'duplicate'
+	| 'missing-consent'
+	| 'missing-phone'
+	| 'invalid-phone';
+
+export type VoiceCampaignRecipientImportIssue = {
+	code: VoiceCampaignRecipientImportIssueCode;
+	message: string;
+	row: number;
+	value?: unknown;
+};
+
+export type VoiceCampaignRecipientImportOptions = {
+	consentColumn?: string;
+	csv?: string;
+	dedupe?: boolean;
+	idColumn?: string;
+	metadataColumns?: string[];
+	nameColumn?: string;
+	phoneColumn?: string;
+	requireConsent?: boolean;
+	rows?: VoiceCampaignRecipientImportRow[];
+	variableColumns?: string[];
+};
+
+export type VoiceCampaignRecipientImportResult = {
+	accepted: VoiceCampaignRecipientInput[];
+	duplicates: number;
+	rejected: VoiceCampaignRecipientImportIssue[];
+	total: number;
 };
 
 export type VoiceCampaignAttemptResultInput = {
@@ -122,6 +183,15 @@ export type VoiceCampaignAttemptResultInput = {
 
 export type VoiceCampaignTickResult = {
 	attempted: number;
+	blocked: Array<{
+		reason:
+			| 'outside-attempt-window'
+			| 'quiet-hours'
+			| 'rate-limit'
+			| 'retry-backoff';
+		recipientId?: string;
+		until?: number;
+	}>;
 	campaignId: string;
 	errors: Array<{ error: string; recipientId: string }>;
 	started: VoiceCampaignAttempt[];
@@ -143,6 +213,59 @@ export type VoiceCampaignProofReport = {
 	recipients: VoiceCampaignRecord;
 	summary: VoiceCampaignSummary;
 	tick: VoiceCampaignTickResult;
+};
+
+export type VoiceCampaignReadinessCheck = {
+	details?: Record<string, unknown>;
+	name: string;
+	status: 'fail' | 'pass';
+};
+
+export type VoiceCampaignReadinessProofOptions = {
+	store?: VoiceCampaignStore;
+};
+
+export type VoiceCampaignReadinessProofReport = {
+	campaigns: {
+		retry: VoiceCampaignRecord;
+		scheduled: VoiceCampaignRecord;
+	};
+	checks: VoiceCampaignReadinessCheck[];
+	generatedAt: number;
+	import: VoiceCampaignRecipientImportResult;
+	ok: boolean;
+	proof: 'voice-campaign-readiness';
+	ticks: {
+		allowed: VoiceCampaignTickResult;
+		quietHours: VoiceCampaignTickResult;
+		rateLimited: VoiceCampaignTickResult;
+		retryAllowed: VoiceCampaignTickResult;
+		retryBackoff: VoiceCampaignTickResult;
+		retryInitial: VoiceCampaignTickResult;
+		windowBlocked: VoiceCampaignTickResult;
+	};
+};
+
+export type VoiceCampaignReadinessAssertionInput = {
+	maxFailedChecks?: number;
+	minAcceptedImports?: number;
+	minRejectedImports?: number;
+	minTotalImports?: number;
+	requiredBlockedReasons?: VoiceCampaignTickResult['blocked'][number]['reason'][];
+	requiredChecks?: string[];
+	requireOk?: boolean;
+};
+
+export type VoiceCampaignReadinessAssertionReport = {
+	acceptedImports: number;
+	blockedReasons: VoiceCampaignTickResult['blocked'][number]['reason'][];
+	failed: number;
+	issues: string[];
+	ok: boolean;
+	passed: number;
+	rejectedImports: number;
+	total: number;
+	totalImports: number;
 };
 
 export type VoiceCampaignSummary = {
@@ -173,6 +296,7 @@ export type VoiceCampaignSummary = {
 
 export type VoiceCampaignRuntimeOptions = {
 	dialer?: VoiceCampaignDialer;
+	now?: () => number;
 	store: VoiceCampaignStore;
 };
 
@@ -190,6 +314,10 @@ export type VoiceCampaignRuntime = {
 	create: (input: VoiceCampaignCreateInput) => Promise<VoiceCampaignRecord>;
 	enqueue: (campaignId: string) => Promise<VoiceCampaignRecord>;
 	get: (campaignId: string) => Promise<VoiceCampaignRecord | undefined>;
+	importRecipients: (
+		campaignId: string,
+		input: VoiceCampaignRecipientImportOptions
+	) => Promise<VoiceCampaignRecord & { import: VoiceCampaignRecipientImportResult }>;
 	list: () => Promise<VoiceCampaignRecord[]>;
 	pause: (campaignId: string) => Promise<VoiceCampaignRecord>;
 	remove: (campaignId: string) => Promise<void>;
@@ -202,6 +330,15 @@ export type VoiceCampaignRoutesOptions = VoiceCampaignRuntimeOptions & {
 	headers?: HeadersInit;
 	htmlPath?: false | string;
 	observability?: VoiceCampaignObservabilityOptions;
+	operationsRecordHref?:
+		| false
+		| string
+		| ((input: {
+				attempt: VoiceCampaignAttempt;
+				campaign: VoiceCampaign;
+				recipient?: VoiceCampaignRecipient;
+				sessionId?: string;
+		  }) => string | undefined);
 	name?: string;
 	path?: string;
 	title?: string;
@@ -387,6 +524,242 @@ const maybeCompleteCampaign = (record: VoiceCampaignRecord) => {
 	if (!unfinished && !active && record.campaign.status === 'running') {
 		record.campaign.status = 'completed';
 	}
+};
+
+const normalizeHour = (hour: number) => {
+	if (!Number.isFinite(hour)) {
+		return 0;
+	}
+	return Math.min(24, Math.max(0, hour));
+};
+
+const getCampaignWindowMinute = (at: number, offsetMinutes = 0) => {
+	const date = new Date(at + offsetMinutes * 60_000);
+	return {
+		dayOfWeek: date.getUTCDay(),
+		minuteOfDay: date.getUTCHours() * 60 + date.getUTCMinutes()
+	};
+};
+
+const isWithinCampaignTimeWindow = (window: VoiceCampaignTimeWindow, at: number) => {
+	const { dayOfWeek, minuteOfDay } = getCampaignWindowMinute(
+		at,
+		window.timeZoneOffsetMinutes ?? 0
+	);
+	if (window.daysOfWeek && !window.daysOfWeek.includes(dayOfWeek)) {
+		return false;
+	}
+	const start = normalizeHour(window.startHour) * 60;
+	const end = normalizeHour(window.endHour) * 60;
+	if (start === end) {
+		return true;
+	}
+	if (start < end) {
+		return minuteOfDay >= start && minuteOfDay < end;
+	}
+	return minuteOfDay >= start || minuteOfDay < end;
+};
+
+const getCampaignRetryBackoffMs = (
+	policy: VoiceCampaignRetryPolicy | undefined,
+	attemptNumber: number
+) => {
+	const backoff = policy?.backoffMs;
+	if (Array.isArray(backoff)) {
+		return Math.max(0, backoff[Math.min(backoff.length - 1, attemptNumber - 1)] ?? 0);
+	}
+	const value = Math.max(0, backoff ?? 0);
+	if (policy?.maxBackoffMs === undefined) {
+		return value;
+	}
+	return Math.min(value, Math.max(0, policy.maxBackoffMs));
+};
+
+const getLastCampaignAttempt = (
+	record: VoiceCampaignRecord,
+	recipientId: string
+) =>
+	record.attempts
+		.filter((attempt) => attempt.recipientId === recipientId)
+		.sort((left, right) => right.createdAt - left.createdAt)[0];
+
+const parseCsvLine = (line: string) => {
+	const values: string[] = [];
+	let current = '';
+	let quoted = false;
+
+	for (let index = 0; index < line.length; index += 1) {
+		const character = line[index];
+		const next = line[index + 1];
+		if (character === '"' && quoted && next === '"') {
+			current += '"';
+			index += 1;
+			continue;
+		}
+		if (character === '"') {
+			quoted = !quoted;
+			continue;
+		}
+		if (character === ',' && !quoted) {
+			values.push(current.trim());
+			current = '';
+			continue;
+		}
+		current += character;
+	}
+	values.push(current.trim());
+	return values;
+};
+
+const parseVoiceCampaignCSVRows = (csv: string): VoiceCampaignRecipientImportRow[] => {
+	const lines = csv
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean);
+	if (lines.length === 0) {
+		return [];
+	}
+	const headers = parseCsvLine(lines[0] ?? '');
+	return lines.slice(1).map((line) => {
+		const values = parseCsvLine(line);
+		const row: VoiceCampaignRecipientImportRow = {};
+		headers.forEach((header, index) => {
+			row[header] = values[index] ?? '';
+		});
+		return row;
+	});
+};
+
+const normalizeCampaignPhone = (value: unknown) => {
+	if (typeof value !== 'string' && typeof value !== 'number') {
+		return undefined;
+	}
+	const raw = String(value).trim();
+	if (!raw) {
+		return undefined;
+	}
+	const hasPlus = raw.startsWith('+');
+	const digits = raw.replace(/\D/g, '');
+	if (digits.length < 8 || digits.length > 15) {
+		return undefined;
+	}
+	return hasPlus ? `+${digits}` : `+${digits}`;
+};
+
+const toCampaignScalar = (value: unknown) => {
+	if (
+		typeof value === 'string' ||
+		typeof value === 'number' ||
+		typeof value === 'boolean'
+	) {
+		return value;
+	}
+	return undefined;
+};
+
+const truthyConsent = (value: unknown) => {
+	if (value === true) {
+		return true;
+	}
+	if (typeof value === 'number') {
+		return value > 0;
+	}
+	if (typeof value !== 'string') {
+		return false;
+	}
+	return ['1', 'true', 'yes', 'y', 'consented', 'opt-in', 'opted-in'].includes(
+		value.trim().toLowerCase()
+	);
+};
+
+export const importVoiceCampaignRecipients = (
+	options: VoiceCampaignRecipientImportOptions
+): VoiceCampaignRecipientImportResult => {
+	const rows = options.rows ?? (options.csv ? parseVoiceCampaignCSVRows(options.csv) : []);
+	const phoneColumn = options.phoneColumn ?? 'phone';
+	const nameColumn = options.nameColumn ?? 'name';
+	const idColumn = options.idColumn ?? 'id';
+	const consentColumn = options.consentColumn ?? 'consent';
+	const dedupe = options.dedupe ?? true;
+	const seenPhones = new Set<string>();
+	const accepted: VoiceCampaignRecipientInput[] = [];
+	const rejected: VoiceCampaignRecipientImportIssue[] = [];
+	let duplicates = 0;
+
+	rows.forEach((row, index) => {
+		const rowNumber = index + 1;
+		const phoneValue = row[phoneColumn];
+		if (phoneValue === undefined || phoneValue === null || phoneValue === '') {
+			rejected.push({
+				code: 'missing-phone',
+				message: `Campaign recipient row ${rowNumber} is missing a phone number.`,
+				row: rowNumber,
+				value: phoneValue
+			});
+			return;
+		}
+		const phone = normalizeCampaignPhone(phoneValue);
+		if (!phone) {
+			rejected.push({
+				code: 'invalid-phone',
+				message: `Campaign recipient row ${rowNumber} has an invalid phone number.`,
+				row: rowNumber,
+				value: phoneValue
+			});
+			return;
+		}
+		if (options.requireConsent && !truthyConsent(row[consentColumn])) {
+			rejected.push({
+				code: 'missing-consent',
+				message: `Campaign recipient row ${rowNumber} is missing required consent.`,
+				row: rowNumber,
+				value: row[consentColumn]
+			});
+			return;
+		}
+		if (dedupe && seenPhones.has(phone)) {
+			duplicates += 1;
+			rejected.push({
+				code: 'duplicate',
+				message: `Campaign recipient row ${rowNumber} duplicates ${phone}.`,
+				row: rowNumber,
+				value: phone
+			});
+			return;
+		}
+		seenPhones.add(phone);
+
+		const variables = Object.fromEntries(
+			(options.variableColumns ?? [])
+				.map((column) => [column, toCampaignScalar(row[column])] as const)
+				.filter(([, value]) => value !== undefined)
+		);
+		const metadata = Object.fromEntries(
+			(options.metadataColumns ?? [])
+				.map((column) => [column, row[column]] as const)
+				.filter(([, value]) => value !== undefined)
+		);
+		const id = toCampaignScalar(row[idColumn]);
+		const name = toCampaignScalar(row[nameColumn]);
+
+		accepted.push({
+			id: typeof id === 'string' ? id : undefined,
+			metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+			name: typeof name === 'string' ? name : undefined,
+			phone,
+			variables:
+				Object.keys(variables).length > 0
+					? (variables as VoiceCampaignRecipient['variables'])
+					: undefined
+		});
+	});
+
+	return {
+		accepted,
+		duplicates,
+		rejected,
+		total: rows.length
+	};
 };
 
 export const createVoiceMemoryCampaignStore = (): VoiceCampaignStore => {
@@ -592,29 +965,38 @@ export const buildVoiceCampaignObservabilityReport = async (
 	return report;
 };
 
+const runtimeAddRecipients = async (
+	store: VoiceCampaignStore,
+	record: VoiceCampaignRecord,
+	recipients: VoiceCampaignRecipientInput[]
+) => {
+	const at = Date.now();
+	record.recipients.push(
+		...recipients.map((recipient) => ({
+			attempts: 0,
+			createdAt: at,
+			id: recipient.id ?? createId(),
+			metadata: recipient.metadata,
+			name: recipient.name,
+			phone: recipient.phone,
+			status: 'pending' as const,
+			updatedAt: at,
+			variables: recipient.variables
+		}))
+	);
+	return saveRecord(store, record);
+};
+
 export const createVoiceCampaign = (
 	options: VoiceCampaignRuntimeOptions
 ): VoiceCampaignRuntime => {
 	const { store } = options;
+	const now = options.now ?? Date.now;
 
 	return {
 		addRecipients: async (campaignId, recipients) => {
 			const record = await ensureRecord(store, campaignId);
-			const at = Date.now();
-			record.recipients.push(
-				...recipients.map((recipient) => ({
-					attempts: 0,
-					createdAt: at,
-					id: recipient.id ?? createId(),
-					metadata: recipient.metadata,
-					name: recipient.name,
-					phone: recipient.phone,
-					status: 'pending' as const,
-					updatedAt: at,
-					variables: recipient.variables
-				}))
-			);
-			return saveRecord(store, record);
+			return runtimeAddRecipients(store, record, recipients);
 		},
 		cancel: async (campaignId) => {
 			const record = await ensureRecord(store, campaignId);
@@ -666,7 +1048,7 @@ export const createVoiceCampaign = (
 			return saveRecord(store, record);
 		},
 		create: async (input) => {
-			const at = Date.now();
+			const at = now();
 			const campaign: VoiceCampaign = {
 				createdAt: at,
 				description: input.description,
@@ -675,6 +1057,7 @@ export const createVoiceCampaign = (
 				maxConcurrentAttempts: input.maxConcurrentAttempts ?? 1,
 				metadata: input.metadata,
 				name: input.name,
+				schedule: input.schedule,
 				status: 'draft',
 				updatedAt: at
 			};
@@ -695,6 +1078,18 @@ export const createVoiceCampaign = (
 			return saveRecord(store, record);
 		},
 		get: async (campaignId) => await store.get(campaignId),
+		importRecipients: async (campaignId, input) => {
+			const result = importVoiceCampaignRecipients(input);
+			const record = await ensureRecord(store, campaignId);
+			const updated =
+				result.accepted.length > 0
+					? await runtimeAddRecipients(store, record, result.accepted)
+					: record;
+			return {
+				...updated,
+				import: result
+			};
+		},
 		list: async () => await store.list(),
 		pause: async (campaignId) => {
 			const record = await ensureRecord(store, campaignId);
@@ -714,6 +1109,7 @@ export const createVoiceCampaign = (
 			const record = await ensureRecord(store, campaignId);
 			const result: VoiceCampaignTickResult = {
 				attempted: 0,
+				blocked: [],
 				campaignId,
 				errors: [],
 				started: []
@@ -721,18 +1117,78 @@ export const createVoiceCampaign = (
 			if (record.campaign.status !== 'running') {
 				return result;
 			}
+			const at = now();
+			const schedule = record.campaign.schedule;
+			if (
+				schedule?.attemptWindow &&
+				!isWithinCampaignTimeWindow(schedule.attemptWindow, at)
+			) {
+				result.blocked.push({
+					reason: 'outside-attempt-window'
+				});
+				return result;
+			}
+			if (schedule?.quietHours && isWithinCampaignTimeWindow(schedule.quietHours, at)) {
+				result.blocked.push({
+					reason: 'quiet-hours'
+				});
+				return result;
+			}
 			const capacity = Math.max(
 				0,
 				record.campaign.maxConcurrentAttempts - activeAttemptCount(record)
 			);
-			const candidates = record.recipients
-				.filter(
-					(recipient) =>
-						recipient.status === 'queued' &&
-						recipient.attempts < record.campaign.maxAttempts
-				)
-				.slice(0, capacity);
-			const at = Date.now();
+			const rateLimit = schedule?.rateLimit;
+			const rateRemaining = rateLimit
+				? Math.max(
+						0,
+						rateLimit.maxAttempts -
+							record.attempts.filter(
+								(attempt) =>
+									(attempt.startedAt ?? attempt.createdAt) >=
+									at - rateLimit.windowMs
+							).length
+					)
+				: Number.MAX_SAFE_INTEGER;
+			const availableCapacity = Math.min(capacity, rateRemaining);
+			if (capacity > 0 && rateLimit && rateRemaining === 0) {
+				result.blocked.push({
+					reason: 'rate-limit'
+				});
+			}
+			const candidates: VoiceCampaignRecipient[] = [];
+			for (const recipient of record.recipients) {
+				if (candidates.length >= availableCapacity) {
+					break;
+				}
+				if (
+					recipient.status !== 'queued' &&
+					recipient.status !== 'pending'
+				) {
+					continue;
+				}
+				if (recipient.attempts >= record.campaign.maxAttempts) {
+					continue;
+				}
+				const backoffMs = getCampaignRetryBackoffMs(
+					schedule?.retryPolicy,
+					recipient.attempts
+				);
+				const lastAttempt = getLastCampaignAttempt(record, recipient.id);
+				const retryAt =
+					lastAttempt && recipient.attempts > 0
+						? (lastAttempt.completedAt ?? lastAttempt.updatedAt) + backoffMs
+						: undefined;
+				if (retryAt !== undefined && retryAt > at) {
+					result.blocked.push({
+						reason: 'retry-backoff',
+						recipientId: recipient.id,
+						until: retryAt
+					});
+					continue;
+				}
+				candidates.push(recipient);
+			}
 			for (const recipient of candidates) {
 				const attempt: VoiceCampaignAttempt = {
 					campaignId,
@@ -758,12 +1214,13 @@ export const createVoiceCampaign = (
 						attempt.externalCallId = dialerResult.externalCallId;
 						attempt.metadata = dialerResult.metadata;
 						attempt.status = dialerResult.status ?? 'running';
-						attempt.updatedAt = Date.now();
+						attempt.updatedAt = now();
 					} catch (error) {
-						attempt.completedAt = Date.now();
+						const failedAt = now();
+						attempt.completedAt = failedAt;
 						attempt.error = error instanceof Error ? error.message : String(error);
 						attempt.status = 'failed';
-						attempt.updatedAt = Date.now();
+						attempt.updatedAt = failedAt;
 						recipient.error = attempt.error;
 						recipient.status =
 							recipient.attempts >= record.campaign.maxAttempts
@@ -1179,6 +1636,242 @@ export const runVoiceCampaignProof = async (
 	};
 };
 
+const pushCampaignReadinessCheck = (
+	checks: VoiceCampaignReadinessCheck[],
+	name: string,
+	condition: boolean,
+	details?: Record<string, unknown>
+) => {
+	checks.push({
+		details,
+		name,
+		status: condition ? 'pass' : 'fail'
+	});
+};
+
+export const runVoiceCampaignReadinessProof = async (
+	options: VoiceCampaignReadinessProofOptions = {}
+): Promise<VoiceCampaignReadinessProofReport> => {
+	const checks: VoiceCampaignReadinessCheck[] = [];
+	const store = options.store ?? createVoiceMemoryCampaignStore();
+	let now = Date.UTC(2026, 0, 5, 8, 0, 0);
+	const runtime = createVoiceCampaign({
+		dialer: ({ attempt }) => ({
+			externalCallId: `campaign-readiness-${attempt.id}`,
+			metadata: {
+				mode: 'readiness-proof'
+			},
+			status: 'running'
+		}),
+		now: () => now,
+		store
+	});
+	const scheduled = await runtime.create({
+		id: `campaign-readiness-schedule-${crypto.randomUUID()}`,
+		maxConcurrentAttempts: 3,
+		name: 'Campaign Readiness Schedule Proof',
+		schedule: {
+			attemptWindow: {
+				endHour: 17,
+				startHour: 9
+			},
+			quietHours: {
+				endHour: 13,
+				startHour: 12
+			},
+			rateLimit: {
+				maxAttempts: 1,
+				windowMs: 60_000
+			}
+		}
+	});
+	const imported = await runtime.importRecipients(scheduled.campaign.id, {
+		csv: `id,name,phone,consent,segment
+recipient-1,Ada,+15550001001,yes,alpha
+recipient-duplicate,Grace,+15550001001,yes,beta
+recipient-bad,Linus,not-a-phone,yes,gamma
+recipient-no-consent,Barbara,+15550001004,no,delta`,
+		requireConsent: true,
+		variableColumns: ['segment']
+	});
+	await runtime.enqueue(scheduled.campaign.id);
+	const windowBlocked = await runtime.tick(scheduled.campaign.id);
+	now = Date.UTC(2026, 0, 5, 12, 30, 0);
+	const quietHours = await runtime.tick(scheduled.campaign.id);
+	now = Date.UTC(2026, 0, 5, 14, 0, 0);
+	const allowed = await runtime.tick(scheduled.campaign.id);
+	const rateLimited = await runtime.tick(scheduled.campaign.id);
+
+	let retryNow = 1_000;
+	const retryRuntime = createVoiceCampaign({
+		dialer: () => {
+			throw new Error('carrier busy');
+		},
+		now: () => retryNow,
+		store
+	});
+	const retry = await retryRuntime.create({
+		id: `campaign-readiness-retry-${crypto.randomUUID()}`,
+		maxAttempts: 2,
+		name: 'Campaign Readiness Retry Proof',
+		schedule: {
+			retryPolicy: {
+				backoffMs: 5_000
+			}
+		}
+	});
+	await retryRuntime.addRecipients(retry.campaign.id, [
+		{
+			id: 'readiness-retry-recipient',
+			phone: '+15550002001'
+		}
+	]);
+	await retryRuntime.enqueue(retry.campaign.id);
+	const retryInitial = await retryRuntime.tick(retry.campaign.id);
+	retryNow = 3_000;
+	const retryBackoff = await retryRuntime.tick(retry.campaign.id);
+	retryNow = 6_000;
+	const retryAllowed = await retryRuntime.tick(retry.campaign.id);
+
+	const finalScheduled = await runtime.get(scheduled.campaign.id);
+	const finalRetry = await retryRuntime.get(retry.campaign.id);
+	if (!finalScheduled || !finalRetry) {
+		throw new Error('Campaign readiness proof did not persist campaign records.');
+	}
+
+	pushCampaignReadinessCheck(checks, 'recipient-import-validation', imported.import.accepted.length === 1 && imported.import.rejected.length === 3, {
+		accepted: imported.import.accepted.length,
+		rejected: imported.import.rejected.length
+	});
+	pushCampaignReadinessCheck(checks, 'attempt-window-block', windowBlocked.blocked.some((block) => block.reason === 'outside-attempt-window'), {
+		blocked: windowBlocked.blocked
+	});
+	pushCampaignReadinessCheck(checks, 'quiet-hours-block', quietHours.blocked.some((block) => block.reason === 'quiet-hours'), {
+		blocked: quietHours.blocked
+	});
+	pushCampaignReadinessCheck(checks, 'allowed-attempt', allowed.attempted === 1, {
+		attempted: allowed.attempted
+	});
+	pushCampaignReadinessCheck(checks, 'rate-limit-block', rateLimited.blocked.some((block) => block.reason === 'rate-limit'), {
+		blocked: rateLimited.blocked
+	});
+	pushCampaignReadinessCheck(checks, 'retry-backoff-block', retryInitial.attempted === 1 && retryBackoff.blocked.some((block) => block.reason === 'retry-backoff'), {
+		blocked: retryBackoff.blocked
+	});
+	pushCampaignReadinessCheck(checks, 'retry-to-max-attempts', retryAllowed.attempted === 1 && finalRetry.recipients[0]?.status === 'failed', {
+		attempted: retryAllowed.attempted,
+		recipientStatus: finalRetry.recipients[0]?.status
+	});
+
+	return {
+		campaigns: {
+			retry: finalRetry,
+			scheduled: finalScheduled
+		},
+		checks,
+		generatedAt: Date.now(),
+		import: imported.import,
+		ok: checks.every((check) => check.status === 'pass'),
+		proof: 'voice-campaign-readiness',
+		ticks: {
+			allowed,
+			quietHours,
+			rateLimited,
+			retryAllowed,
+			retryBackoff,
+			retryInitial,
+			windowBlocked
+		}
+	};
+};
+
+export const evaluateVoiceCampaignReadinessEvidence = (
+	report: VoiceCampaignReadinessProofReport,
+	input: VoiceCampaignReadinessAssertionInput = {}
+): VoiceCampaignReadinessAssertionReport => {
+	const issues: string[] = [];
+	const maxFailedChecks = input.maxFailedChecks ?? 0;
+	const requireOk = input.requireOk ?? true;
+	const failed = report.checks.filter((check) => check.status === 'fail').length;
+	const passed = report.checks.length - failed;
+	const checkNames = new Set(report.checks.map((check) => check.name));
+	const blockedReasons = [
+		...new Set(
+			Object.values(report.ticks).flatMap((tick) =>
+				tick.blocked.map((block) => block.reason)
+			)
+		)
+	].sort();
+
+	if (requireOk && !report.ok) {
+		issues.push('Expected campaign readiness proof to pass.');
+	}
+	if (failed > maxFailedChecks) {
+		issues.push(
+			`Expected at most ${String(maxFailedChecks)} failing campaign readiness check(s), found ${String(failed)}.`
+		);
+	}
+	if (
+		input.minTotalImports !== undefined &&
+		report.import.total < input.minTotalImports
+	) {
+		issues.push(
+			`Expected at least ${String(input.minTotalImports)} campaign import row(s), found ${String(report.import.total)}.`
+		);
+	}
+	if (
+		input.minAcceptedImports !== undefined &&
+		report.import.accepted.length < input.minAcceptedImports
+	) {
+		issues.push(
+			`Expected at least ${String(input.minAcceptedImports)} accepted campaign import(s), found ${String(report.import.accepted.length)}.`
+		);
+	}
+	if (
+		input.minRejectedImports !== undefined &&
+		report.import.rejected.length < input.minRejectedImports
+	) {
+		issues.push(
+			`Expected at least ${String(input.minRejectedImports)} rejected campaign import(s), found ${String(report.import.rejected.length)}.`
+		);
+	}
+	for (const check of input.requiredChecks ?? []) {
+		if (!checkNames.has(check)) {
+			issues.push(`Missing campaign readiness check: ${check}.`);
+		}
+	}
+	for (const reason of input.requiredBlockedReasons ?? []) {
+		if (!blockedReasons.includes(reason)) {
+			issues.push(`Missing campaign readiness blocked reason: ${reason}.`);
+		}
+	}
+
+	return {
+		acceptedImports: report.import.accepted.length,
+		blockedReasons,
+		failed,
+		issues,
+		ok: issues.length === 0,
+		passed,
+		rejectedImports: report.import.rejected.length,
+		total: report.checks.length,
+		totalImports: report.import.total
+	};
+};
+
+export const assertVoiceCampaignReadinessEvidence = (
+	report: VoiceCampaignReadinessProofReport,
+	input: VoiceCampaignReadinessAssertionInput = {}
+): VoiceCampaignReadinessAssertionReport => {
+	const assertion = evaluateVoiceCampaignReadinessEvidence(report, input);
+	if (!assertion.ok) {
+		throw new Error(
+			`Voice campaign readiness evidence assertion failed: ${assertion.issues.join(' ')}`
+		);
+	}
+	return assertion;
+};
+
 const escapeHtml = (value: string) =>
 	value
 		.replaceAll('&', '&amp;')
@@ -1187,9 +1880,39 @@ const escapeHtml = (value: string) =>
 		.replaceAll('"', '&quot;')
 		.replaceAll("'", '&#39;');
 
+const getString = (value: unknown) =>
+	typeof value === 'string' && value.length > 0 ? value : undefined;
+
+const campaignAttemptSessionId = (attempt: VoiceCampaignAttempt) =>
+	getString(attempt.metadata?.sessionId) ??
+	getString(attempt.metadata?.voiceSessionId) ??
+	getString(attempt.metadata?.callSessionId);
+
+const resolveCampaignOperationsRecordHref = (
+	value: VoiceCampaignRoutesOptions['operationsRecordHref'],
+	input: {
+		attempt: VoiceCampaignAttempt;
+		campaign: VoiceCampaign;
+		recipient?: VoiceCampaignRecipient;
+		sessionId?: string;
+	}
+) => {
+	if (value === false || !input.sessionId) {
+		return undefined;
+	}
+	if (typeof value === 'function') {
+		return value(input);
+	}
+	if (typeof value === 'string') {
+		const encoded = encodeURIComponent(input.sessionId);
+		return value.includes(':sessionId') ? value.replace(':sessionId', encoded) : `${value.replace(/\/$/, '')}/${encoded}`;
+	}
+	return undefined;
+};
+
 export const renderVoiceCampaignsHTML = (
 	records: VoiceCampaignRecord[],
-	options: { title?: string } = {}
+	options: Pick<VoiceCampaignRoutesOptions, 'operationsRecordHref' | 'title'> = {}
 ) => {
 	const title = options.title ?? 'Voice Campaigns';
 	const rows = records
@@ -1198,7 +1921,31 @@ export const renderVoiceCampaignsHTML = (
 		)
 		.join('');
 	const summary = summarizeVoiceCampaigns(records);
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#f9fafb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero{background:linear-gradient(135deg,rgba(251,146,60,.18),rgba(45,212,191,.12));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#fdba74;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:18px 0}.grid article,table{background:#172033;border:1px solid #334155;border-radius:18px}.grid article{padding:16px}.grid span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted outbound</p><h1>${escapeHtml(title)}</h1><p>Campaign orchestration, recipients, attempts, retries, and outcomes without a hosted dialer dashboard.</p><section class="grid"><article><span>Campaigns</span><strong>${String(summary.campaigns.total)}</strong></article><article><span>Recipients</span><strong>${String(summary.recipients.total)}</strong></article><article><span>Attempts</span><strong>${String(summary.attempts.total)}</strong></article><article><span>Running</span><strong>${String(summary.campaigns.running)}</strong></article></section></section><table><thead><tr><th>Name</th><th>Status</th><th>Recipients</th><th>Attempts</th><th>Updated</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No campaigns yet.</td></tr>'}</tbody></table></main></body></html>`;
+	const attemptRows = records
+		.flatMap((record) =>
+			record.attempts
+				.slice(-8)
+				.reverse()
+				.map((attempt) => {
+					const recipient = record.recipients.find(
+						(item) => item.id === attempt.recipientId
+					);
+					const sessionId = campaignAttemptSessionId(attempt);
+					const href = resolveCampaignOperationsRecordHref(
+						options.operationsRecordHref,
+						{
+							attempt,
+							campaign: record.campaign,
+							recipient,
+							sessionId
+						}
+					);
+					return `<tr><td>${escapeHtml(record.campaign.name)}</td><td>${escapeHtml(attempt.status)}</td><td>${escapeHtml(recipient?.phone ?? attempt.recipientId)}</td><td>${escapeHtml(sessionId ?? '')}</td><td>${href ? `<a href="${escapeHtml(href)}">Open operations record</a>` : ''}</td></tr>`;
+				})
+		)
+		.slice(0, 20)
+		.join('');
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#f9fafb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero{background:linear-gradient(135deg,rgba(251,146,60,.18),rgba(45,212,191,.12));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#fdba74;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:18px 0}.grid article,table{background:#172033;border:1px solid #334155;border-radius:18px}.grid article{padding:16px}.grid span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;margin-top:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}a{color:#fdba74}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted outbound</p><h1>${escapeHtml(title)}</h1><p>Campaign orchestration, recipients, attempts, retries, and outcomes without a hosted dialer dashboard.</p><section class="grid"><article><span>Campaigns</span><strong>${String(summary.campaigns.total)}</strong></article><article><span>Recipients</span><strong>${String(summary.recipients.total)}</strong></article><article><span>Attempts</span><strong>${String(summary.attempts.total)}</strong></article><article><span>Running</span><strong>${String(summary.campaigns.running)}</strong></article></section></section><table><thead><tr><th>Name</th><th>Status</th><th>Recipients</th><th>Attempts</th><th>Updated</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No campaigns yet.</td></tr>'}</tbody></table><h2>Recent attempts</h2><table><thead><tr><th>Campaign</th><th>Status</th><th>Recipient</th><th>Session</th><th>Debug</th></tr></thead><tbody>${attemptRows || '<tr><td colspan="5">No attempts yet.</td></tr>'}</tbody></table></main></body></html>`;
 };
 
 export const renderVoiceCampaignObservabilityHTML = (
@@ -1242,6 +1989,7 @@ export const createVoiceCampaignRoutes = (options: VoiceCampaignRoutesOptions) =
 				options.observability
 			)
 		)
+		.get(`${path}/readiness-proof`, () => runVoiceCampaignReadinessProof())
 		.post(path, async ({ request }) =>
 			runtime.create(await readJsonBody<VoiceCampaignCreateInput>(request))
 		)
@@ -1256,6 +2004,12 @@ export const createVoiceCampaignRoutes = (options: VoiceCampaignRoutesOptions) =
 			);
 			return runtime.addRecipients(params.campaignId, body.recipients ?? []);
 		})
+		.post(`${path}/:campaignId/recipients/import`, async ({ params, request }) =>
+			runtime.importRecipients(
+				params.campaignId,
+				await readJsonBody<VoiceCampaignRecipientImportOptions>(request)
+			)
+		)
 		.post(`${path}/:campaignId/enqueue`, ({ params }) =>
 			runtime.enqueue(params.campaignId)
 		)

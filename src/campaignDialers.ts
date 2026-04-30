@@ -119,6 +119,27 @@ export type VoiceCampaignDialerProofOptions = {
 	store?: VoiceCampaignStore;
 };
 
+export type VoiceCampaignDialerProofAssertionInput = {
+	maxFailedProviders?: number;
+	minCarrierRequests?: number;
+	minProviders?: number;
+	minSuccessfulOutcomes?: number;
+	requiredProviders?: VoiceCampaignDialerProofProvider[];
+	requireDryRun?: boolean;
+	requireOk?: boolean;
+};
+
+export type VoiceCampaignDialerProofAssertionReport = {
+	carrierRequests: number;
+	failedProviders: number;
+	issues: string[];
+	mode: VoiceCampaignDialerProofReport['mode'];
+	ok: boolean;
+	providers: VoiceCampaignDialerProofProvider[];
+	successfulOutcomes: number;
+	totalProviders: number;
+};
+
 const resolveFetch = (fetcher?: VoiceCampaignDialerFetch) => {
 	const activeFetch = fetcher ?? globalThis.fetch;
 	if (!activeFetch) {
@@ -562,4 +583,91 @@ export const runVoiceCampaignDialerProof = async (
 		),
 		providers: results
 	};
+};
+
+export const evaluateVoiceCampaignDialerProofEvidence = (
+	report: VoiceCampaignDialerProofReport,
+	input: VoiceCampaignDialerProofAssertionInput = {}
+): VoiceCampaignDialerProofAssertionReport => {
+	const issues: string[] = [];
+	const maxFailedProviders = input.maxFailedProviders ?? 0;
+	const requireOk = input.requireOk ?? true;
+	const requireDryRun = input.requireDryRun ?? true;
+	const providers = report.providers.map((provider) => provider.provider).sort();
+	const carrierRequests = report.providers.reduce(
+		(total, provider) => total + provider.carrierRequests.length,
+		0
+	);
+	const successfulOutcomes = report.providers.reduce(
+		(total, provider) =>
+			total + provider.outcomes.filter((outcome) => outcome.applied).length,
+		0
+	);
+	const failedProviders = report.providers.filter(
+		(provider) =>
+			provider.carrierRequests.length === 0 ||
+			provider.outcomes.some((outcome) => !outcome.applied)
+	).length;
+
+	if (requireOk && !report.ok) {
+		issues.push('Expected campaign dialer proof to pass.');
+	}
+	if (requireDryRun && report.mode !== 'dry-run') {
+		issues.push(`Expected campaign dialer proof mode dry-run, found ${report.mode}.`);
+	}
+	if (failedProviders > maxFailedProviders) {
+		issues.push(
+			`Expected at most ${String(maxFailedProviders)} failing campaign dialer provider(s), found ${String(failedProviders)}.`
+		);
+	}
+	if (input.minProviders !== undefined && report.providers.length < input.minProviders) {
+		issues.push(
+			`Expected at least ${String(input.minProviders)} campaign dialer provider(s), found ${String(report.providers.length)}.`
+		);
+	}
+	if (
+		input.minCarrierRequests !== undefined &&
+		carrierRequests < input.minCarrierRequests
+	) {
+		issues.push(
+			`Expected at least ${String(input.minCarrierRequests)} campaign dialer carrier request(s), found ${String(carrierRequests)}.`
+		);
+	}
+	if (
+		input.minSuccessfulOutcomes !== undefined &&
+		successfulOutcomes < input.minSuccessfulOutcomes
+	) {
+		issues.push(
+			`Expected at least ${String(input.minSuccessfulOutcomes)} applied campaign dialer outcome(s), found ${String(successfulOutcomes)}.`
+		);
+	}
+	for (const provider of input.requiredProviders ?? []) {
+		if (!providers.includes(provider)) {
+			issues.push(`Missing campaign dialer provider: ${provider}.`);
+		}
+	}
+
+	return {
+		carrierRequests,
+		failedProviders,
+		issues,
+		mode: report.mode,
+		ok: issues.length === 0,
+		providers,
+		successfulOutcomes,
+		totalProviders: report.providers.length
+	};
+};
+
+export const assertVoiceCampaignDialerProofEvidence = (
+	report: VoiceCampaignDialerProofReport,
+	input: VoiceCampaignDialerProofAssertionInput = {}
+): VoiceCampaignDialerProofAssertionReport => {
+	const assertion = evaluateVoiceCampaignDialerProofEvidence(report, input);
+	if (!assertion.ok) {
+		throw new Error(
+			`Voice campaign dialer proof evidence assertion failed: ${assertion.issues.join(' ')}`
+		);
+	}
+	return assertion;
 };

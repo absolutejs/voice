@@ -85,10 +85,12 @@ const isVoiceServerMessage = (value: unknown): value is VoiceServerMessage => {
 		case 'assistant':
 		case 'call_lifecycle':
 		case 'complete':
+		case 'connection':
 		case 'error':
 		case 'final':
 		case 'partial':
 		case 'pong':
+		case 'replay':
 		case 'session':
 		case 'turn':
 			return true;
@@ -136,6 +138,12 @@ export const createVoiceConnection = (
 		ws: null
 	};
 
+	const emitConnection = (
+		reconnect: VoiceServerMessage & { type: 'connection' }
+	) => {
+		listeners.forEach((listener) => listener(reconnect));
+	};
+
 	const clearTimers = () => {
 		if (state.pingInterval) {
 			clearInterval(state.pingInterval);
@@ -163,9 +171,28 @@ export const createVoiceConnection = (
 	};
 
 	const scheduleReconnect = () => {
+		const nextAttemptAt = Date.now() + RECONNECT_DELAY_MS;
 		state.reconnectAttempts += 1;
+		emitConnection({
+			reconnect: {
+				attempts: state.reconnectAttempts,
+				lastDisconnectAt: Date.now(),
+				maxAttempts: maxReconnectAttempts,
+				nextAttemptAt,
+				status: 'reconnecting'
+			},
+			type: 'connection'
+		});
 		state.reconnectTimeout = setTimeout(() => {
 			if (state.reconnectAttempts > maxReconnectAttempts) {
+				emitConnection({
+					reconnect: {
+						attempts: state.reconnectAttempts,
+						maxAttempts: maxReconnectAttempts,
+						status: 'exhausted'
+					},
+					type: 'connection'
+				});
 				return;
 			}
 
@@ -180,9 +207,22 @@ export const createVoiceConnection = (
 		ws.binaryType = 'arraybuffer';
 
 		ws.onopen = () => {
+			const wasReconnecting = state.reconnectAttempts > 0;
 			state.isConnected = true;
-			state.reconnectAttempts = 0;
 			flushPendingMessages();
+
+			if (wasReconnecting) {
+				emitConnection({
+					reconnect: {
+						attempts: state.reconnectAttempts,
+						lastResumedAt: Date.now(),
+						maxAttempts: maxReconnectAttempts,
+						status: 'resumed'
+					},
+					type: 'connection'
+				});
+				state.reconnectAttempts = 0;
+			}
 
 			listeners.forEach((listener) =>
 				listener({
@@ -225,6 +265,16 @@ export const createVoiceConnection = (
 
 			if (reconnectable) {
 				scheduleReconnect();
+			} else if (shouldReconnect && event.code !== WS_NORMAL_CLOSURE) {
+				emitConnection({
+					reconnect: {
+						attempts: state.reconnectAttempts,
+						lastDisconnectAt: Date.now(),
+						maxAttempts: maxReconnectAttempts,
+						status: 'exhausted'
+					},
+					type: 'connection'
+				});
 			}
 		};
 

@@ -18,6 +18,7 @@ export class VoiceControllerService {
 		const isConnectedSignal = signal(false);
 		const isRecordingSignal = signal(false);
 		const partialSignal = signal('');
+		const reconnectSignal = signal(controller.reconnect);
 		const recordingErrorSignal = signal<string | null>(null);
 		const sessionIdSignal = signal(controller.sessionId);
 		const statusSignal = signal(controller.status);
@@ -30,6 +31,7 @@ export class VoiceControllerService {
 			isConnectedSignal.set(controller.isConnected);
 			isRecordingSignal.set(controller.isRecording);
 			partialSignal.set(controller.partial);
+			reconnectSignal.set(controller.reconnect);
 			recordingErrorSignal.set(controller.recordingError);
 			sessionIdSignal.set(controller.sessionId);
 			statusSignal.set(controller.status);
@@ -52,6 +54,7 @@ export class VoiceControllerService {
 			isConnected: computed(() => isConnectedSignal()),
 			isRecording: computed(() => isRecordingSignal()),
 			partial: computed(() => partialSignal()),
+			reconnect: computed(() => reconnectSignal()),
 			recordingError: computed(() => recordingErrorSignal()),
 			sendAudio: (audio: Uint8Array | ArrayBuffer) =>
 				controller.sendAudio(audio),

@@ -3,6 +3,7 @@ import {
 	createVoicePlivoCampaignDialer,
 	createVoiceTelnyxCampaignDialer,
 	createVoiceTwilioCampaignDialer,
+	evaluateVoiceCampaignDialerProofEvidence,
 	getVoiceCampaignDialerProofStatus,
 	parseVoiceTelephonyWebhookEvent,
 	runVoiceCampaignDialerProof
@@ -212,5 +213,66 @@ test('runVoiceCampaignDialerProof dry-runs provider dialers and applies campaign
 	}
 	expect(JSON.stringify(report.providers[0]?.carrierRequests[0]?.body)).toContain(
 		'campaignId'
+	);
+});
+
+test('evaluateVoiceCampaignDialerProofEvidence accepts complete dry-run proof', async () => {
+	const proof = await runVoiceCampaignDialerProof({
+		baseUrl: 'https://voice.example.com',
+		providers: ['twilio', 'telnyx', 'plivo']
+	});
+	const report = evaluateVoiceCampaignDialerProofEvidence(proof, {
+		maxFailedProviders: 0,
+		minCarrierRequests: 3,
+		minProviders: 3,
+		minSuccessfulOutcomes: 3,
+		requiredProviders: ['twilio', 'telnyx', 'plivo']
+	});
+
+	expect(report.ok).toBe(true);
+	expect(report.carrierRequests).toBe(3);
+	expect(report.successfulOutcomes).toBe(3);
+});
+
+test('evaluateVoiceCampaignDialerProofEvidence reports missing dry-run proof', async () => {
+	const proof = await runVoiceCampaignDialerProof({
+		baseUrl: 'https://voice.example.com',
+		providers: ['twilio']
+	});
+	const report = evaluateVoiceCampaignDialerProofEvidence(
+		{
+			...proof,
+			ok: false,
+			providers: [
+				{
+					...proof.providers[0]!,
+					carrierRequests: [],
+					outcomes: proof.providers[0]!.outcomes.map((outcome) => ({
+						...outcome,
+						applied: false
+					}))
+				}
+			]
+		},
+		{
+			maxFailedProviders: 0,
+			minCarrierRequests: 3,
+			minProviders: 3,
+			minSuccessfulOutcomes: 3,
+			requiredProviders: ['twilio', 'telnyx', 'plivo']
+		}
+	);
+
+	expect(report.ok).toBe(false);
+	expect(report.issues).toEqual(
+		expect.arrayContaining([
+			'Expected campaign dialer proof to pass.',
+			'Expected at most 0 failing campaign dialer provider(s), found 1.',
+			'Expected at least 3 campaign dialer provider(s), found 1.',
+			'Expected at least 3 campaign dialer carrier request(s), found 0.',
+			'Expected at least 3 applied campaign dialer outcome(s), found 0.',
+			'Missing campaign dialer provider: telnyx.',
+			'Missing campaign dialer provider: plivo.'
+		])
 	);
 });

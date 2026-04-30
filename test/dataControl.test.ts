@@ -1,14 +1,21 @@
 import { expect, test } from 'bun:test';
 import {
 	applyVoiceDataRetentionPolicy,
+	assertVoiceDataControlEvidence,
+	buildVoiceDataControlReport,
 	buildVoiceDataRetentionPlan,
+	createVoiceDataControlRoutes,
 	createVoiceAuditEvent,
 	createVoiceAuditSinkDeliveryRecord,
+	createVoiceMemoryAuditEventStore,
 	createVoiceMemoryAuditSinkDeliveryStore,
 	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceMemoryTraceEventStore,
+	createVoiceZeroRetentionPolicy,
+	evaluateVoiceDataControlEvidence,
 	createVoiceTraceEvent,
 	createVoiceTraceSinkDeliveryRecord,
+	voiceComplianceRedactionDefaults,
 	type StoredVoiceIntegrationEvent,
 	type StoredVoiceOpsTask,
 	type StoredVoiceTraceEvent,
@@ -334,4 +341,208 @@ test('applyVoiceDataRetentionPolicy skips scopes without explicit selectors', as
 		}
 	]);
 	expect((await traces.list()).map((event) => event.id)).toEqual(['trace-100']);
+});
+
+test('buildVoiceDataControlReport proves redaction storage audit export and retention plan', async () => {
+	const audit = createVoiceMemoryAuditEventStore();
+	const traces = createVoiceMemoryTraceEventStore();
+	await audit.append(
+		createVoiceAuditEvent({
+			action: 'provider.call',
+			at: 100,
+			payload: {
+				apiKey: 'sk-live',
+				text: 'Contact ada@example.com at +15550001000'
+			},
+			type: 'provider.call'
+		})
+	);
+	await traces.append(
+		createVoiceTraceEvent({
+			at: 100,
+			id: 'trace-old',
+			payload: {
+				text: 'Contact ada@example.com at +15550001000'
+			},
+			sessionId: 'session-a',
+			type: 'turn.transcript'
+		})
+	);
+
+	const report = await buildVoiceDataControlReport({
+		audit,
+		redact: voiceComplianceRedactionDefaults,
+		retention: {
+			beforeOrAt: 200,
+			scopes: ['traces']
+		},
+		traces
+	});
+
+	expect(report.redaction.enabled).toBe(true);
+	expect(report.retentionPlan.deletedCount).toBe(1);
+	expect(report.storage).toContainEqual(
+		expect.objectContaining({
+			configured: true,
+			name: 'Trace events'
+		})
+	);
+	expect(JSON.stringify(report.auditExport?.events)).not.toContain(
+		'ada@example.com'
+	);
+	expect(JSON.stringify(report.auditExport?.events)).not.toContain('sk-live');
+});
+
+test('evaluateVoiceDataControlEvidence gates compliance data-control surfaces', async () => {
+	const audit = createVoiceMemoryAuditEventStore();
+	const traces = createVoiceMemoryTraceEventStore();
+	await audit.append(
+		createVoiceAuditEvent({
+			action: 'provider.call',
+			at: 100,
+			payload: {
+				apiKey: 'sk-live',
+				email: 'ada@example.com'
+			},
+			type: 'provider.call'
+		})
+	);
+	await traces.append(
+		createVoiceTraceEvent({
+			at: 100,
+			id: 'trace-old',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.transcript'
+		})
+	);
+
+	const report = await buildVoiceDataControlReport({
+		audit,
+		providerKeys: [
+			{
+				env: 'OPENAI_API_KEY',
+				name: 'OpenAI',
+				recommendation: 'Keep provider keys server-side.',
+				required: false
+			}
+		],
+		retention: {
+			beforeOrAt: 200,
+			scopes: ['traces']
+		},
+		traces
+	});
+
+	const assertion = evaluateVoiceDataControlEvidence(report, {
+		maxRetentionDeleted: 1,
+		minAuditExportEvents: 1,
+		minConfiguredStorage: 2,
+		requiredControls: ['audit'],
+		requiredProviderKeys: ['OpenAI'],
+		requiredRetentionScopes: ['traces'],
+		requiredStorage: ['Trace events', 'Audit events']
+	});
+
+	expect(assertion.ok).toBe(true);
+	expect(assertion.retentionScopes).toEqual(['traces']);
+	expect(assertion.configuredStorage).toEqual(['Audit events', 'Trace events']);
+	expect(() =>
+		assertVoiceDataControlEvidence(
+			{
+				...report,
+				redaction: {
+					...report.redaction,
+					enabled: false
+				}
+			},
+			{
+				requiredRetentionScopes: ['traces']
+			}
+		)
+	).toThrow('Voice data-control evidence assertion failed');
+});
+
+test('createVoiceZeroRetentionPolicy defaults to dry run across all scopes', () => {
+	const policy = createVoiceZeroRetentionPolicy({
+		traces: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(policy.dryRun).toBe(true);
+	expect(policy.scopes).toContain('traces');
+	expect(typeof policy.beforeOrAt).toBe('number');
+});
+
+test('createVoiceDataControlRoutes exposes report audit export and guarded retention apply', async () => {
+	const audit = createVoiceMemoryAuditEventStore();
+	const traces = createVoiceMemoryTraceEventStore();
+	await audit.append(
+		createVoiceAuditEvent({
+			action: 'operator.action',
+			at: 100,
+			payload: {
+				email: 'ops@example.com',
+				token: 'secret-token'
+			},
+			type: 'operator.action'
+		})
+	);
+	await traces.append(
+		createVoiceTraceEvent({
+			at: 100,
+			id: 'trace-delete',
+			payload: {},
+			sessionId: 'session-a',
+			type: 'turn.assistant'
+		})
+	);
+
+	const routes = createVoiceDataControlRoutes({
+		audit,
+		path: '/data-control',
+		traces
+	});
+
+	const reportResponse = await routes.handle(
+		new Request('http://voice.test/data-control.json?beforeOrAt=200&scopes=traces')
+	);
+	const report = await reportResponse.json();
+	expect(report.retentionPlan.deletedCount).toBe(1);
+
+	const auditResponse = await routes.handle(
+		new Request('http://voice.test/data-control/audit.md')
+	);
+	const auditMarkdown = await auditResponse.text();
+	expect(auditMarkdown).not.toContain('ops@example.com');
+	expect(auditMarkdown).not.toContain('secret-token');
+
+	const blocked = await routes.handle(
+		new Request('http://voice.test/data-control/retention/apply', {
+			body: JSON.stringify({
+				beforeOrAt: 200,
+				scopes: 'traces'
+			}),
+			headers: { 'content-type': 'application/json' },
+			method: 'POST'
+		})
+	);
+	expect(blocked.status).toBe(400);
+	expect((await traces.list()).map((event) => event.id)).toEqual([
+		'trace-delete'
+	]);
+
+	const applied = await routes.handle(
+		new Request('http://voice.test/data-control/retention/apply', {
+			body: JSON.stringify({
+				beforeOrAt: 200,
+				confirm: 'apply-retention-policy',
+				scopes: 'traces'
+			}),
+			headers: { 'content-type': 'application/json' },
+			method: 'POST'
+		})
+	);
+	expect(applied.status).toBe(200);
+	expect((await applied.json()).deletedCount).toBe(1);
+	expect(await traces.list()).toEqual([]);
 });

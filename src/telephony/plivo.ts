@@ -1,4 +1,6 @@
 import { Buffer } from 'node:buffer';
+import { Database } from 'bun:sqlite';
+import type { RedisClient } from 'bun';
 import { Elysia } from 'elysia';
 import {
 	evaluateVoiceTelephonyContract,
@@ -15,6 +17,7 @@ import {
 	type VoiceTelephonyWebhookVerificationResult
 } from '../telephonyOutcome';
 import type { VoiceServerMessage, VoiceSessionRecord } from '../types';
+import type { VoicePostgresClient } from '../postgresStore';
 import {
 	createTwilioMediaStreamBridge,
 	type TwilioInboundMessage,
@@ -181,6 +184,53 @@ export type PlivoVoiceSmokeOptions = {
 	title?: string;
 };
 
+export type VoicePlivoWebhookNonceStore = {
+	claim?: (nonce: string) => Promise<boolean> | boolean;
+	has: (nonce: string) => Promise<boolean> | boolean;
+	set: (nonce: string) => Promise<void> | void;
+};
+
+export type VoicePlivoWebhookNonceStoreOptions = {
+	ttlSeconds?: number;
+};
+
+export type VoiceSQLitePlivoWebhookNonceStoreOptions =
+	VoicePlivoWebhookNonceStoreOptions & {
+		database?: Database;
+		path?: string;
+		tableName?: string;
+		tablePrefix?: string;
+	};
+
+export type VoicePostgresPlivoWebhookNonceStoreOptions =
+	VoicePlivoWebhookNonceStoreOptions & {
+		connectionString?: string;
+		schemaName?: string;
+		sql?: VoicePostgresClient;
+		tableName?: string;
+		tablePrefix?: string;
+	};
+
+export type VoiceRedisPlivoWebhookNonceClient = Pick<
+	RedisClient,
+	'exists' | 'set'
+>;
+
+export type VoiceRedisPlivoWebhookNonceStoreOptions =
+	VoicePlivoWebhookNonceStoreOptions & {
+		client?: VoiceRedisPlivoWebhookNonceClient;
+		keyPrefix?: string;
+		url?: string;
+	};
+
+export type VoicePlivoWebhookVerifierOptions = {
+	authToken?: string;
+	nonceStore?: VoicePlivoWebhookNonceStore;
+	verificationUrl?:
+		| string
+		| ((input: { query: Record<string, unknown>; request: Request }) => string);
+};
+
 export type PlivoVoiceRoutesOptions<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -209,6 +259,7 @@ export type PlivoVoiceRoutesOptions<
 		'context' | 'path' | 'policy' | 'provider'
 	> & {
 		authToken?: string;
+		nonceStore?: VoicePlivoWebhookNonceStore;
 		path?: string;
 		policy?: VoiceTelephonyOutcomePolicy;
 		verificationUrl?:
@@ -599,6 +650,286 @@ export const verifyVoicePlivoWebhookSignature = async (input: {
 		: { ok: false, reason: 'invalid-signature' };
 };
 
+export const createMemoryVoicePlivoWebhookNonceStore =
+	(): VoicePlivoWebhookNonceStore => {
+		const nonces = new Set<string>();
+
+		return {
+			claim: (nonce) => {
+				if (nonces.has(nonce)) {
+					return false;
+				}
+				nonces.add(nonce);
+				return true;
+			},
+			has: (nonce) => nonces.has(nonce),
+			set: (nonce) => {
+				nonces.add(nonce);
+			}
+		};
+	};
+
+const normalizePlivoStoreIdentifierSegment = (value: string) =>
+	value
+		.trim()
+		.replace(/[^a-zA-Z0-9_]+/g, '_')
+		.replace(/^_+|_+$/g, '') || 'voice';
+
+const quotePlivoStoreIdentifier = (value: string) =>
+	`"${value.replace(/"/g, '""')}"`;
+
+const resolvePlivoNonceTableName = (input: {
+	fallback: string;
+	tableName?: string;
+	tablePrefix?: string;
+}) => {
+	if (input.tableName) {
+		return normalizePlivoStoreIdentifierSegment(input.tableName);
+	}
+
+	return `${normalizePlivoStoreIdentifierSegment(input.tablePrefix ?? 'voice')}_${normalizePlivoStoreIdentifierSegment(input.fallback)}`;
+};
+
+const getPlivoNonceExpiresAt = (ttlSeconds?: number) =>
+	typeof ttlSeconds === 'number' && ttlSeconds > 0
+		? Date.now() + Math.ceil(ttlSeconds * 1000)
+		: null;
+
+export const createVoiceSQLitePlivoWebhookNonceStore = (
+	options: VoiceSQLitePlivoWebhookNonceStoreOptions
+): VoicePlivoWebhookNonceStore => {
+	const database =
+		options.database ??
+		new Database(options.path ?? ':memory:', {
+			create: true
+		});
+	const tableName = resolvePlivoNonceTableName({
+		fallback: 'plivo_webhook_nonces',
+		tableName: options.tableName,
+		tablePrefix: options.tablePrefix
+	});
+
+	database.exec(
+		`CREATE TABLE IF NOT EXISTS "${tableName}" (
+			nonce TEXT PRIMARY KEY,
+			created_at INTEGER NOT NULL,
+			expires_at INTEGER
+		)`
+	);
+	const pruneExpired = database.query(
+		`DELETE FROM "${tableName}" WHERE expires_at IS NOT NULL AND expires_at <= ?1`
+	);
+	const select = database.query(
+		`SELECT nonce FROM "${tableName}" WHERE nonce = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1`
+	);
+	const insert = database.query(
+		`INSERT OR IGNORE INTO "${tableName}" (nonce, created_at, expires_at) VALUES (?1, ?2, ?3)`
+	);
+	const upsert = database.query(
+		`INSERT INTO "${tableName}" (nonce, created_at, expires_at) VALUES (?1, ?2, ?3)
+		 ON CONFLICT(nonce) DO UPDATE SET expires_at = excluded.expires_at`
+	);
+
+	return {
+		claim: (nonce) => {
+			const now = Date.now();
+			pruneExpired.run(now);
+			const result = insert.run(nonce, now, getPlivoNonceExpiresAt(options.ttlSeconds));
+			return result.changes > 0;
+		},
+		has: (nonce) => Boolean(select.get(nonce, Date.now())),
+		set: (nonce) => {
+			upsert.run(nonce, Date.now(), getPlivoNonceExpiresAt(options.ttlSeconds));
+		}
+	};
+};
+
+const createVoicePlivoPostgresClient = async (
+	options: VoicePostgresPlivoWebhookNonceStoreOptions
+): Promise<VoicePostgresClient> => {
+	if (options.sql) {
+		return options.sql;
+	}
+
+	if (!options.connectionString) {
+		throw new Error(
+			'createVoicePostgresPlivoWebhookNonceStore requires either options.sql or options.connectionString.'
+		);
+	}
+
+	const sql = new Bun.SQL(options.connectionString);
+	return {
+		unsafe: sql.unsafe.bind(sql)
+	};
+};
+
+const resolvePlivoNonceQualifiedTableName = (
+	options: VoicePostgresPlivoWebhookNonceStoreOptions
+) => {
+	const schema = normalizePlivoStoreIdentifierSegment(
+		options.schemaName ?? 'public'
+	);
+	const table = resolvePlivoNonceTableName({
+		fallback: 'plivo_webhook_nonces',
+		tableName: options.tableName,
+		tablePrefix: options.tablePrefix
+	});
+	return `${quotePlivoStoreIdentifier(schema)}.${quotePlivoStoreIdentifier(table)}`;
+};
+
+export const createVoicePostgresPlivoWebhookNonceStore = (
+	options: VoicePostgresPlivoWebhookNonceStoreOptions = {}
+): VoicePlivoWebhookNonceStore => {
+	const qualifiedTableName = resolvePlivoNonceQualifiedTableName(options);
+	const schemaMatch = qualifiedTableName.match(/^"([^"]+)"\./);
+	const client = createVoicePlivoPostgresClient(options);
+	const initialized = (async () => {
+		const sql = await client;
+		if (schemaMatch?.[1]) {
+			await sql.unsafe(
+				`CREATE SCHEMA IF NOT EXISTS ${quotePlivoStoreIdentifier(schemaMatch[1])}`
+			);
+		}
+		await sql.unsafe(
+			`CREATE TABLE IF NOT EXISTS ${qualifiedTableName} (
+				nonce TEXT PRIMARY KEY,
+				created_at BIGINT NOT NULL,
+				expires_at BIGINT
+			)`
+		);
+	})();
+
+	const pruneExpired = async () => {
+		await initialized;
+		const sql = await client;
+		await sql.unsafe(
+			`DELETE FROM ${qualifiedTableName} WHERE expires_at IS NOT NULL AND expires_at <= $1`,
+			[Date.now()]
+		);
+	};
+
+	return {
+		claim: async (nonce) => {
+			await pruneExpired();
+			const sql = await client;
+			const rows = await sql.unsafe(
+				`INSERT INTO ${qualifiedTableName} (nonce, created_at, expires_at)
+				 VALUES ($1, $2, $3)
+				 ON CONFLICT (nonce) DO NOTHING
+				 RETURNING nonce`,
+				[nonce, Date.now(), getPlivoNonceExpiresAt(options.ttlSeconds)]
+			);
+			return rows.length > 0;
+		},
+		has: async (nonce) => {
+			await initialized;
+			const sql = await client;
+			const rows = await sql.unsafe(
+				`SELECT nonce FROM ${qualifiedTableName}
+				 WHERE nonce = $1 AND (expires_at IS NULL OR expires_at > $2)
+				 LIMIT 1`,
+				[nonce, Date.now()]
+			);
+			return rows.length > 0;
+		},
+		set: async (nonce) => {
+			await initialized;
+			const sql = await client;
+			await sql.unsafe(
+				`INSERT INTO ${qualifiedTableName} (nonce, created_at, expires_at)
+				 VALUES ($1, $2, $3)
+				 ON CONFLICT (nonce) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+				[nonce, Date.now(), getPlivoNonceExpiresAt(options.ttlSeconds)]
+			);
+		}
+	};
+};
+
+const getPlivoRedisNonceKey = (keyPrefix: string, nonce: string) =>
+	`${keyPrefix}:${nonce}`;
+
+export const createVoiceRedisPlivoWebhookNonceStore = (
+	options: VoiceRedisPlivoWebhookNonceStoreOptions = {}
+): VoicePlivoWebhookNonceStore => {
+	const client = options.client ?? new Bun.RedisClient(options.url);
+	const keyPrefix = options.keyPrefix?.trim() || 'voice:plivo-webhook-nonce';
+	const ttlSeconds = options.ttlSeconds;
+
+	const setNonce = async (nonce: string, nx: boolean) => {
+		const key = getPlivoRedisNonceKey(keyPrefix, nonce);
+		if (typeof ttlSeconds === 'number' && ttlSeconds > 0) {
+			return client.set(
+				key,
+				'1',
+				'EX',
+				String(Math.ceil(ttlSeconds)),
+				...(nx ? (['NX'] as const) : [])
+			);
+		}
+
+		return client.set(key, '1', ...(nx ? (['NX'] as const) : []));
+	};
+
+	return {
+		claim: async (nonce) => (await setNonce(nonce, true)) === 'OK',
+		has: async (nonce) =>
+			Boolean(await client.exists(getPlivoRedisNonceKey(keyPrefix, nonce))),
+		set: async (nonce) => {
+			await setNonce(nonce, false);
+		}
+	};
+};
+
+export const createVoicePlivoWebhookVerifier =
+	(options: VoicePlivoWebhookVerifierOptions) =>
+	async (input: {
+		body: unknown;
+		headers: Headers;
+		query: Record<string, unknown>;
+		request: Request;
+	}): Promise<VoiceTelephonyWebhookVerificationResult> => {
+		const verificationUrl = options.verificationUrl;
+		const verification = await verifyVoicePlivoWebhookSignature({
+			authToken: options.authToken,
+			body: input.body,
+			headers: input.headers,
+			url:
+				typeof verificationUrl === 'function'
+					? verificationUrl({
+							query: input.query,
+							request: input.request
+						})
+					: verificationUrl ?? input.request.url
+		});
+		if (!verification.ok) {
+			return verification;
+		}
+
+		const nonceStore = options.nonceStore;
+		if (!nonceStore) {
+			return verification;
+		}
+
+		const nonce = input.headers.get('x-plivo-signature-v3-nonce');
+		if (!nonce) {
+			return { ok: false, reason: 'invalid-signature' };
+		}
+
+		if (nonceStore.claim) {
+			if (!(await nonceStore.claim(nonce))) {
+				return { ok: false, reason: 'invalid-signature' };
+			}
+			return verification;
+		}
+
+		if (await nonceStore.has(nonce)) {
+			return { ok: false, reason: 'invalid-signature' };
+		}
+
+		await nonceStore.set(nonce);
+		return verification;
+	};
+
 const buildPlivoVoiceSetupStatus = async <
 	TContext,
 	TSession extends VoiceSessionRecord,
@@ -827,28 +1158,14 @@ export const createPlivoVoiceRoutes = <
 		options.webhook?.policy ??
 		options.outcomePolicy ??
 		createVoiceTelephonyOutcomePolicy();
-	const verificationUrl = options.webhook?.verificationUrl;
 	const verify =
 		options.webhook?.verify ??
 		(options.webhook?.authToken
-			? ((input: {
-					body: unknown;
-					query: Record<string, unknown>;
-					rawBody: string;
-					request: Request;
-			  }) =>
-					verifyVoicePlivoWebhookSignature({
-						authToken: options.webhook?.authToken,
-						body: input.body,
-						headers: input.request.headers,
-						url:
-							typeof verificationUrl === 'function'
-								? verificationUrl({
-										query: input.query,
-										request: input.request
-									})
-								: verificationUrl ?? input.request.url
-					}))
+			? createVoicePlivoWebhookVerifier({
+					authToken: options.webhook.authToken,
+					nonceStore: options.webhook.nonceStore,
+					verificationUrl: options.webhook.verificationUrl
+				})
 			: undefined);
 	const app = new Elysia({
 		name: options.name ?? 'absolutejs-voice-plivo'

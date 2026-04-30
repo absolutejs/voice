@@ -1,6 +1,7 @@
 import type {
 	VoiceAgent,
-	VoiceAgentRunResult
+	VoiceAgentRunResult,
+	VoiceAgentSquadHandoffStatus
 } from './agent';
 import { createVoiceSessionRecord } from './store';
 import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from './trace';
@@ -21,7 +22,12 @@ export type VoiceAgentSquadContractOutcome =
 
 export type VoiceAgentSquadHandoffExpectation = {
 	fromAgentId?: string;
-	status?: 'allowed' | 'blocked' | 'max-exceeded' | 'unknown-target';
+	metadata?: Record<string, unknown>;
+	reason?: string;
+	reasonIncludes?: string[];
+	status?: VoiceAgentSquadHandoffStatus;
+	summary?: string;
+	summaryIncludes?: string[];
 	targetAgentId?: string;
 };
 
@@ -89,6 +95,35 @@ export type VoiceAgentSquadContractRunOptions<
 	trace?: VoiceTraceEventStore;
 };
 
+export type VoiceAgentSquadContractAssertionInput = {
+	maxBlockedHandoffs?: number;
+	maxFailed?: number;
+	maxIssues?: number;
+	minContracts?: number;
+	minHandoffs?: number;
+	requiredContractIds?: string[];
+	requiredFinalAgentIds?: string[];
+	requiredHandoffStatuses?: VoiceAgentSquadHandoffStatus[];
+	requiredHandoffTargets?: string[];
+	requiredScenarioIds?: string[];
+};
+
+export type VoiceAgentSquadContractAssertionReport = {
+	blockedHandoffs: number;
+	contractIds: string[];
+	failed: number;
+	finalAgentIds: string[];
+	handoffStatuses: VoiceAgentSquadHandoffStatus[];
+	handoffTargets: string[];
+	handoffs: number;
+	issues: string[];
+	issueCount: number;
+	ok: boolean;
+	passed: number;
+	scenarioIds: string[];
+	total: number;
+};
+
 const normalizeIncludes = (value: string) => value.trim().toLowerCase();
 
 const resolveOutcome = <TResult>(
@@ -111,13 +146,24 @@ const getPayloadString = (
 	return typeof value === 'string' ? value : undefined;
 };
 
+const getPayloadRecord = (
+	event: StoredVoiceTraceEvent,
+	key: string
+): Record<string, unknown> | undefined => {
+	const value = event.payload[key];
+	return value && typeof value === 'object' && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+};
+
 const toHandoffExpectation = (
 	event: StoredVoiceTraceEvent
 ): VoiceAgentSquadHandoffExpectation => ({
 	fromAgentId: getPayloadString(event, 'fromAgentId'),
-	status: getPayloadString(event, 'status') as
-		| VoiceAgentSquadHandoffExpectation['status']
-		| undefined,
+	metadata: getPayloadRecord(event, 'metadata'),
+	reason: getPayloadString(event, 'reason'),
+	status: getPayloadString(event, 'status') as VoiceAgentSquadHandoffStatus | undefined,
+	summary: getPayloadString(event, 'summary'),
 	targetAgentId: getPayloadString(event, 'targetAgentId')
 });
 
@@ -163,6 +209,52 @@ const appendIssue = (
 		...issue,
 		turnId: issue.turnId ?? turnId
 	});
+};
+
+const assertIncludes = (input: {
+	actual?: string[];
+	code: string;
+	expected?: string[];
+	handoffIndex: number;
+	issues: VoiceAgentSquadContractIssue[];
+	label: string;
+	turnId: string;
+}) => {
+	const actual = normalizeIncludes(input.actual?.join(' ') ?? '');
+	for (const expected of input.expected ?? []) {
+		if (!actual.includes(normalizeIncludes(expected))) {
+			appendIssue(
+				input.issues,
+				{
+					code: input.code,
+					message: `Expected handoff ${input.handoffIndex + 1} ${input.label} to include: ${expected}`
+				},
+				input.turnId
+			);
+		}
+	}
+};
+
+const assertMetadata = (input: {
+	actual?: Record<string, unknown>;
+	expected?: Record<string, unknown>;
+	handoffIndex: number;
+	issues: VoiceAgentSquadContractIssue[];
+	turnId: string;
+}) => {
+	for (const [key, expectedValue] of Object.entries(input.expected ?? {})) {
+		const actualValue = input.actual?.[key];
+		if (actualValue !== expectedValue) {
+			appendIssue(
+				input.issues,
+				{
+					code: 'agent_squad.handoff_metadata_mismatch',
+					message: `Expected handoff ${input.handoffIndex + 1} metadata ${key} ${String(expectedValue)}, saw ${String(actualValue ?? 'none')}.`
+				},
+				input.turnId
+			);
+		}
+	}
 };
 
 export const runVoiceAgentSquadContract = async <
@@ -279,6 +371,43 @@ export const runVoiceAgentSquadContract = async <
 					);
 				}
 			}
+			for (const key of ['reason', 'summary'] as const) {
+				if (expectedHandoff[key] && actual[key] !== expectedHandoff[key]) {
+					appendIssue(
+						turnIssues,
+						{
+							code: `agent_squad.handoff_${key}_mismatch`,
+							message: `Expected handoff ${handoffIndex + 1} ${key} ${expectedHandoff[key]}, saw ${actual[key] ?? 'none'}.`
+						},
+						turn.id
+					);
+				}
+			}
+			assertIncludes({
+				actual: actual.reason ? [actual.reason] : undefined,
+				code: 'agent_squad.handoff_reason_missing',
+				expected: expectedHandoff.reasonIncludes,
+				handoffIndex,
+				issues: turnIssues,
+				label: 'reason',
+				turnId: turn.id
+			});
+			assertIncludes({
+				actual: actual.summary ? [actual.summary] : undefined,
+				code: 'agent_squad.handoff_summary_missing',
+				expected: expectedHandoff.summaryIncludes,
+				handoffIndex,
+				issues: turnIssues,
+				label: 'summary',
+				turnId: turn.id
+			});
+			assertMetadata({
+				actual: actual.metadata,
+				expected: expectedHandoff.metadata,
+				handoffIndex,
+				issues: turnIssues,
+				turnId: turn.id
+			});
 		}
 
 		for (const issue of
@@ -329,6 +458,134 @@ export const assertVoiceAgentSquadContract = async <
 			`Voice agent squad contract ${report.contractId} failed: ${report.issues
 				.map((issue) => issue.message)
 				.join(' ')}`
+		);
+	}
+	return report;
+};
+
+export const evaluateVoiceAgentSquadContractEvidence = (
+	reports: readonly VoiceAgentSquadContractReport[],
+	input: VoiceAgentSquadContractAssertionInput = {}
+): VoiceAgentSquadContractAssertionReport => {
+	const issues: string[] = [];
+	const maxFailed = input.maxFailed ?? 0;
+	const maxIssues = input.maxIssues ?? 0;
+	const maxBlockedHandoffs = input.maxBlockedHandoffs ?? Infinity;
+	const allHandoffs = reports.flatMap((report) =>
+		report.turns.flatMap((turn) => turn.handoffs)
+	);
+	const contractIds = [...new Set(reports.map((report) => report.contractId))].sort();
+	const scenarioIds = [
+		...new Set(
+			reports
+				.map((report) => report.scenarioId)
+				.filter((scenarioId): scenarioId is string => Boolean(scenarioId))
+		)
+	].sort();
+	const finalAgentIds = [
+		...new Set(reports.flatMap((report) => report.turns.map((turn) => turn.agentId)))
+	].sort();
+	const handoffTargets = [
+		...new Set(
+			allHandoffs
+				.map((handoff) => handoff.targetAgentId)
+				.filter((target): target is string => Boolean(target))
+		)
+	].sort();
+	const handoffStatuses = [
+		...new Set(
+			allHandoffs
+				.map((handoff) => handoff.status)
+				.filter(
+					(status): status is VoiceAgentSquadHandoffStatus => status !== undefined
+				)
+		)
+	].sort();
+	const failed = reports.filter((report) => !report.pass).length;
+	const issueCount = reports.reduce(
+		(total, report) => total + report.issues.length,
+		0
+	);
+	const blockedHandoffs = allHandoffs.filter(
+		(handoff) => handoff.status === 'blocked'
+	).length;
+
+	if (input.minContracts !== undefined && reports.length < input.minContracts) {
+		issues.push(
+			`Expected at least ${String(input.minContracts)} agent squad contract(s), found ${String(reports.length)}.`
+		);
+	}
+	if (failed > maxFailed) {
+		issues.push(
+			`Expected at most ${String(maxFailed)} failing agent squad contract(s), found ${String(failed)}.`
+		);
+	}
+	if (issueCount > maxIssues) {
+		issues.push(
+			`Expected at most ${String(maxIssues)} agent squad contract issue(s), found ${String(issueCount)}.`
+		);
+	}
+	if (input.minHandoffs !== undefined && allHandoffs.length < input.minHandoffs) {
+		issues.push(
+			`Expected at least ${String(input.minHandoffs)} agent squad handoff(s), found ${String(allHandoffs.length)}.`
+		);
+	}
+	if (blockedHandoffs > maxBlockedHandoffs) {
+		issues.push(
+			`Expected at most ${String(maxBlockedHandoffs)} blocked agent squad handoff(s), found ${String(blockedHandoffs)}.`
+		);
+	}
+	for (const contractId of input.requiredContractIds ?? []) {
+		if (!contractIds.includes(contractId)) {
+			issues.push(`Missing agent squad contract: ${contractId}.`);
+		}
+	}
+	for (const scenarioId of input.requiredScenarioIds ?? []) {
+		if (!scenarioIds.includes(scenarioId)) {
+			issues.push(`Missing agent squad scenario: ${scenarioId}.`);
+		}
+	}
+	for (const agentId of input.requiredFinalAgentIds ?? []) {
+		if (!finalAgentIds.includes(agentId)) {
+			issues.push(`Missing final agent: ${agentId}.`);
+		}
+	}
+	for (const target of input.requiredHandoffTargets ?? []) {
+		if (!handoffTargets.includes(target)) {
+			issues.push(`Missing agent squad handoff target: ${target}.`);
+		}
+	}
+	for (const status of input.requiredHandoffStatuses ?? []) {
+		if (!handoffStatuses.includes(status)) {
+			issues.push(`Missing agent squad handoff status: ${status}.`);
+		}
+	}
+
+	return {
+		blockedHandoffs,
+		contractIds,
+		failed,
+		finalAgentIds,
+		handoffStatuses,
+		handoffTargets,
+		handoffs: allHandoffs.length,
+		issues,
+		issueCount,
+		ok: issues.length === 0,
+		passed: reports.length - failed,
+		scenarioIds,
+		total: reports.length
+	};
+};
+
+export const assertVoiceAgentSquadContractEvidence = (
+	reports: readonly VoiceAgentSquadContractReport[],
+	input: VoiceAgentSquadContractAssertionInput = {}
+): VoiceAgentSquadContractAssertionReport => {
+	const report = evaluateVoiceAgentSquadContractEvidence(reports, input);
+	if (!report.ok) {
+		throw new Error(
+			`Voice agent squad contract evidence assertion failed: ${report.issues.join(' ')}`
 		);
 	}
 	return report;

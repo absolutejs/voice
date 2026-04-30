@@ -23,6 +23,10 @@ import {
 	type VoiceAssistantMemoryRecord,
 	type VoiceAssistantMemoryStore
 } from './assistantMemory';
+import type {
+	StoredVoiceIncidentBundleArtifact,
+	VoiceIncidentBundleStore
+} from './incidentBundle';
 import { withVoiceCallReviewId } from './testing/review';
 import {
 	createVoiceTraceEvent,
@@ -66,6 +70,7 @@ export type VoiceFileRuntimeStorage<
 	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
 	TAudit extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
 	TAuditDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
+	TIncident extends StoredVoiceIncidentBundleArtifact = StoredVoiceIncidentBundleArtifact,
 	TMemory extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord
 > = {
 	audit: VoiceAuditEventStore<TAudit>;
@@ -73,6 +78,7 @@ export type VoiceFileRuntimeStorage<
 	campaigns: VoiceCampaignStore;
 	events: VoiceIntegrationEventStore<TEvent>;
 	externalObjects: VoiceExternalObjectMapStore<TMapping>;
+	incidentBundles: VoiceIncidentBundleStore<TIncident>;
 	memories: VoiceAssistantMemoryStore<TMemory>;
 	reviews: VoiceCallReviewStore<TReview>;
 	session: VoiceSessionStore<TSession>;
@@ -666,6 +672,67 @@ export const createVoiceFileAssistantMemoryStore = <
 	return { delete: remove, get, list, set };
 };
 
+export const createVoiceFileIncidentBundleStore = <
+	TArtifact extends StoredVoiceIncidentBundleArtifact = StoredVoiceIncidentBundleArtifact
+>(
+	options: VoiceFileStoreOptions
+): VoiceIncidentBundleStore<TArtifact> => {
+	const get = async (id: string) => {
+		const path = resolveFilePath(options.directory, id);
+
+		try {
+			return await readJsonFile<TArtifact>(path);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return undefined;
+			}
+
+			throw error;
+		}
+	};
+
+	const list: VoiceIncidentBundleStore<TArtifact>['list'] = async (filter = {}) => {
+		const files = await listJsonFiles(options.directory);
+		const artifacts = await Promise.all(
+			files.map((file) => readJsonFile<TArtifact>(file))
+		);
+
+		return artifacts
+			.filter((artifact) => {
+				if (filter.sessionId && artifact.sessionId !== filter.sessionId) {
+					return false;
+				}
+				if (
+					typeof filter.expiredAt === 'number' &&
+					(artifact.expiresAt === undefined ||
+						artifact.expiresAt > filter.expiredAt)
+				) {
+					return false;
+				}
+				return true;
+			})
+			.sort(
+				(left, right) =>
+					right.createdAt - left.createdAt || left.id.localeCompare(right.id)
+			);
+	};
+
+	const set = async (id: string, artifact: TArtifact) => {
+		await writeJsonFile(resolveFilePath(options.directory, id), {
+			...artifact,
+			id
+		}, options);
+	};
+
+	const remove = async (id: string) => {
+		await rm(resolveFilePath(options.directory, id), {
+			force: true
+		});
+	};
+
+	return { get, list, remove, set };
+};
+
 export const createVoiceFileRuntimeStorage = <
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
 	TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
@@ -676,6 +743,7 @@ export const createVoiceFileRuntimeStorage = <
 	TTraceDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
 	TAudit extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
 	TAuditDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
+	TIncident extends StoredVoiceIncidentBundleArtifact = StoredVoiceIncidentBundleArtifact,
 	TMemory extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord
 >(
 	options: VoiceFileStoreOptions
@@ -689,6 +757,7 @@ export const createVoiceFileRuntimeStorage = <
 	TTraceDelivery,
 	TAudit,
 	TAuditDelivery,
+	TIncident,
 	TMemory
 > => ({
 	audit: createVoiceFileAuditEventStore<TAudit>({
@@ -710,6 +779,10 @@ export const createVoiceFileRuntimeStorage = <
 	externalObjects: createVoiceFileExternalObjectMapStore<TMapping>({
 		...options,
 		directory: join(options.directory, 'external-objects')
+	}),
+	incidentBundles: createVoiceFileIncidentBundleStore<TIncident>({
+		...options,
+		directory: join(options.directory, 'incident-bundles')
 	}),
 	memories: createVoiceFileAssistantMemoryStore<TMemory>({
 		...options,

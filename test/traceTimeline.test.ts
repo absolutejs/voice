@@ -47,7 +47,9 @@ const createTimelineEvents = () => [
 ];
 
 test('summarizeVoiceTraceTimeline groups sessions with provider latency', () => {
-	const report = summarizeVoiceTraceTimeline(createTimelineEvents());
+	const report = summarizeVoiceTraceTimeline(createTimelineEvents(), {
+		operationsRecordHref: '/voice-operations/:sessionId'
+	});
 
 	expect(report).toMatchObject({
 		failed: 0,
@@ -55,6 +57,7 @@ test('summarizeVoiceTraceTimeline groups sessions with provider latency', () => 
 	});
 	expect(report.sessions[0]).toMatchObject({
 		sessionId: 'session-timeline',
+		operationsRecordHref: '/voice-operations/session-timeline',
 		status: 'warning',
 		summary: {
 			callDurationMs: 100,
@@ -87,13 +90,17 @@ test('createVoiceTraceTimelineRoutes exposes list and session views', async () =
 		await store.append(event);
 	}
 
-	const app = createVoiceTraceTimelineRoutes({ store });
+	const app = createVoiceTraceTimelineRoutes({
+		operationsRecordHref: '/voice-operations/:sessionId',
+		store
+	});
 
 	const json = await app.handle(new Request('http://localhost/api/voice-traces'));
 	expect(json.status).toBe(200);
 	await expect(json.json()).resolves.toMatchObject({
 		sessions: [
 			{
+				operationsRecordHref: '/voice-operations/session-timeline',
 				sessionId: 'session-timeline'
 			}
 		]
@@ -112,10 +119,17 @@ test('createVoiceTraceTimelineRoutes exposes list and session views', async () =
 	});
 
 	const html = await app.handle(new Request('http://localhost/traces'));
-	expect(await html.text()).toContain('Voice Trace Timelines');
+	const htmlText = await html.text();
+	expect(htmlText).toContain('Voice Trace Timelines');
+	expect(htmlText).toContain('Copy into your app');
+	expect(htmlText).toContain('createVoiceTraceTimelineRoutes');
+	expect(htmlText).toContain('createVoiceProductionReadinessRoutes');
+	expect(htmlText).toContain('/voice-operations/session-timeline');
 
 	const sessionHtml = await app.handle(
 		new Request('http://localhost/traces/session-timeline')
 	);
-	expect(await sessionHtml.text()).toContain('Call timeline');
+	const sessionHtmlText = await sessionHtml.text();
+	expect(sessionHtmlText).toContain('Call timeline');
+	expect(sessionHtmlText).toContain('Open operations record');
 });

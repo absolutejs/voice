@@ -21,6 +21,8 @@ import {
 import type {
 	CreateVoiceSessionOptions,
 	AudioChunk,
+	AudioFormat,
+	RealtimeAdapterSession,
 	STTAdapterSession,
 	TTSAdapterSession,
 	Transcript,
@@ -62,6 +64,13 @@ const DEFAULT_FORMAT = {
 	container: 'raw',
 	encoding: 'pcm_s16le',
 	sampleRateHz: 16_000
+} as const;
+
+const DEFAULT_REALTIME_FORMAT = {
+	channels: 1,
+	container: 'raw',
+	encoding: 'pcm_s16le',
+	sampleRateHz: 24_000
 } as const;
 
 type BufferedAudioChunk = {
@@ -421,6 +430,7 @@ export const createVoiceSession = <
 		type:
 			| 'call.handoff'
 			| 'call.lifecycle'
+			| 'operator.action'
 			| 'session.error'
 			| 'turn.assistant'
 			| 'turn.committed'
@@ -455,7 +465,7 @@ export const createVoiceSession = <
 	const lexicon = options.lexicon ?? [];
 
 	let socket = options.socket;
-	let sttSession: STTAdapterSession | null = null;
+	let sttSession: STTAdapterSession | RealtimeAdapterSession | null = null;
 	let ttsSession: TTSAdapterSession | null = null;
 	let ttsSessionPromise: Promise<TTSAdapterSession | null> | null = null;
 	let silenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -560,6 +570,21 @@ export const createVoiceSession = <
 			event,
 			sessionId: options.id,
 			type: 'call_lifecycle'
+		});
+	};
+
+	const sendReplay = async (session: TSession) => {
+		await send({
+			assistantTexts: session.turns.flatMap((turn) =>
+				turn.assistantText ? [turn.assistantText] : []
+			),
+			call: session.call,
+			partial: session.currentTurn.partialText,
+			scenarioId: session.scenarioId,
+			sessionId: options.id,
+			status: session.status,
+			turns: session.turns,
+			type: 'replay'
 		});
 	};
 
@@ -698,6 +723,41 @@ export const createVoiceSession = <
 				error: toError(error).message,
 				reason,
 				sessionId: options.id
+			});
+		}
+	};
+
+	const sendAssistantAudio = async (
+		chunk: AudioChunk,
+		input: {
+			format: AudioFormat;
+			receivedAt: number;
+		}
+	) => {
+		const normalizedChunk =
+			chunk instanceof Uint8Array
+				? new Uint8Array(chunk)
+				: chunk instanceof ArrayBuffer
+					? new Uint8Array(chunk.slice(0))
+					: new Uint8Array(
+							chunk.buffer.slice(
+								chunk.byteOffset,
+								chunk.byteOffset + chunk.byteLength
+							)
+						);
+
+		await send({
+			chunkBase64: encodeBase64(normalizedChunk),
+			format: input.format,
+			receivedAt: input.receivedAt,
+			turnId: activeTTSTurnId,
+			type: 'audio'
+		});
+		if (activeTTSTurnId) {
+			await appendTurnLatencyStage({
+				at: input.receivedAt,
+				stage: 'assistant_audio_received',
+				turnId: activeTTSTurnId
 			});
 		}
 	};
@@ -1633,8 +1693,15 @@ export const createVoiceSession = <
 			return sttSession;
 		}
 
-		const openedSession = await options.stt.open({
-			format: DEFAULT_FORMAT,
+		const inputAdapter = options.realtime ?? options.stt;
+		if (!inputAdapter) {
+			throw new Error('Voice session requires either an stt or realtime adapter.');
+		}
+
+		const openedSession = await inputAdapter.open({
+			format: options.realtime
+				? (options.realtimeInputFormat ?? DEFAULT_REALTIME_FORMAT)
+				: DEFAULT_FORMAT,
 			languageStrategy: options.languageStrategy,
 			lexicon,
 			phraseHints,
@@ -1675,6 +1742,19 @@ export const createVoiceSession = <
 		openedSession.on('close', (event) => {
 			runAdapterEvent('adapter.close', () => handleClose(event));
 		});
+		if (options.realtime) {
+			(openedSession as RealtimeAdapterSession).on(
+				'audio',
+				({ chunk, format, receivedAt }) => {
+					runAdapterEvent('adapter.audio', async () => {
+						await sendAssistantAudio(chunk, {
+							format,
+							receivedAt
+						});
+					});
+				}
+			);
+		}
 
 		return openedSession;
 	};
@@ -1706,32 +1786,10 @@ export const createVoiceSession = <
 						return;
 					}
 
-					const normalizedChunk =
-						chunk instanceof Uint8Array
-							? new Uint8Array(chunk)
-							: chunk instanceof ArrayBuffer
-								? new Uint8Array(chunk.slice(0))
-								: new Uint8Array(
-										chunk.buffer.slice(
-											chunk.byteOffset,
-											chunk.byteOffset + chunk.byteLength
-										)
-					);
-
-					await send({
-						chunkBase64: encodeBase64(normalizedChunk),
+					await sendAssistantAudio(chunk, {
 						format,
-						receivedAt,
-						turnId: activeTTSTurnId,
-						type: 'audio'
+						receivedAt
 					});
-					if (activeTTSTurnId) {
-						await appendTurnLatencyStage({
-							at: receivedAt,
-							stage: 'assistant_audio_received',
-							turnId: activeTTSTurnId
-						});
-					}
 				});
 			});
 			openedSession.on('error', (event) => {
@@ -1783,9 +1841,39 @@ export const createVoiceSession = <
 		session: TSession,
 		turn: VoiceTurnRecord<TResult>
 	) => {
+		const liveOpsControl = await options.liveOps?.getControl(options.id);
+		if (
+			liveOpsControl?.assistantPaused ||
+			liveOpsControl?.operatorTakeover
+		) {
+			await appendTrace({
+				metadata: {
+					source: 'voice-live-ops'
+				},
+				payload: {
+					action: 'turn.skipped',
+					control: liveOpsControl,
+					reason: liveOpsControl.operatorTakeover
+						? 'operator-takeover'
+						: 'assistant-paused',
+					status: 'skipped'
+				},
+				session,
+				turnId: turn.id,
+				type: 'operator.action'
+			});
+			return;
+		}
+		const injectedInstruction = liveOpsControl?.injectedInstruction?.trim();
 		const committedOutput = await options.route.onTurn({
 			api: api,
 			context: options.context,
+			liveOps: liveOpsControl
+				? {
+						control: liveOpsControl,
+						injectedInstruction
+					}
+				: undefined,
 			session,
 			turn
 		});
@@ -1820,7 +1908,8 @@ export const createVoiceSession = <
 			await appendTrace({
 				payload: {
 					text: output.assistantText,
-					ttsConfigured: Boolean(options.tts)
+					ttsConfigured: Boolean(options.tts),
+					realtimeConfigured: Boolean(options.realtime)
 				},
 				session,
 				turnId: turn.id,
@@ -1853,9 +1942,36 @@ export const createVoiceSession = <
 						turnId: turn.id,
 						type: 'turn.assistant'
 					});
+				} else if (options.realtime) {
+					const activeRealtimeSession =
+						(await ensureAdapter()) as RealtimeAdapterSession;
+					const realtimeStartedAt = Date.now();
+					activeTTSTurnId = turn.id;
+					await appendTurnLatencyStage({
+						at: realtimeStartedAt,
+						session,
+						stage: 'tts_send_started',
+						turnId: turn.id
+					});
+					await activeRealtimeSession.send(output.assistantText);
+					await appendTurnLatencyStage({
+						session,
+						stage: 'tts_send_completed',
+						turnId: turn.id
+					});
+					await appendTrace({
+						payload: {
+							elapsedMs: Date.now() - realtimeStartedAt,
+							mode: 'realtime',
+							status: 'sent'
+						},
+						session,
+						turnId: turn.id,
+						type: 'turn.assistant'
+					});
 				}
 			} catch (error) {
-				logger.warn('voice tts send failed', {
+				logger.warn('voice assistant audio send failed', {
 					error: toError(error).message,
 					sessionId: options.id,
 					turnId: turn.id
@@ -1863,7 +1979,7 @@ export const createVoiceSession = <
 				await appendTrace({
 					payload: {
 						error: toError(error).message,
-						status: 'tts-send-failed'
+						status: options.realtime ? 'realtime-send-failed' : 'tts-send-failed'
 					},
 					session,
 					turnId: turn.id,
@@ -2135,7 +2251,7 @@ export const createVoiceSession = <
 			turn,
 			type: 'turn'
 		});
-		if (options.sttLifecycle === 'turn-scoped') {
+		if (options.stt && options.sttLifecycle === 'turn-scoped') {
 			await closeAdapter('turn-commit');
 		}
 		await completeTurn(updatedSession, turn);
@@ -2243,6 +2359,7 @@ export const createVoiceSession = <
 			scenarioId: session.scenarioId,
 			type: 'session'
 		});
+		await sendReplay(session);
 
 		if (shouldFireOnSession) {
 			await options.route.onCallStart?.({

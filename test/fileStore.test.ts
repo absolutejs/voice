@@ -10,6 +10,7 @@ import {
 	createVoiceAuditEvent,
 	createVoiceFileExternalObjectMapStore,
 	createVoiceFileAssistantMemoryStore,
+	createVoiceFileIncidentBundleStore,
 	createVoiceFileIntegrationEventStore,
 	createVoiceFileAuditSinkDeliveryStore,
 	createVoiceFileReviewStore,
@@ -214,6 +215,130 @@ test('createVoiceFileIntegrationEventStore persists and sorts events', async () 
 	const events = await store.list();
 
 	expect(events.map((event) => event.id)).toEqual(['event-2', 'event-1']);
+});
+
+test('createVoiceFileIncidentBundleStore persists and filters incident artifacts', async () => {
+	const directory = await createTempDirectory();
+	const store = createVoiceFileIncidentBundleStore({
+		directory
+	});
+	const artifact = {
+		bundle: {
+			exportedAt: 100,
+			formatVersion: 1 as const,
+			markdown: '# Incident',
+			record: {
+				checkedAt: 100,
+				handoffs: [],
+				outcome: {
+					assistantReplies: 0,
+					complete: false,
+					escalated: false,
+					noAnswer: false,
+					transferred: false,
+					voicemail: false
+				},
+				providers: [],
+				replay: {
+					evaluation: {
+						issues: [],
+						pass: true,
+						summary: {
+							assistantReplyCount: 0,
+							cost: {
+								estimatedRelativeCostUnits: 0,
+								totalBillableAudioMs: 0
+							},
+							errorCount: 0,
+							eventCount: 0,
+							failed: false,
+							handoffCount: 0,
+							modelCallCount: 0,
+							toolCallCount: 0,
+							toolErrorCount: 0,
+							transcriptCount: 0,
+							turnCount: 0
+						}
+					},
+					events: [],
+					html: '',
+					markdown: '',
+					sessionId: 'incident-session',
+					summary: {
+						assistantReplyCount: 0,
+						cost: {
+							estimatedRelativeCostUnits: 0,
+							totalBillableAudioMs: 0
+						},
+						errorCount: 0,
+						eventCount: 0,
+						failed: false,
+						handoffCount: 0,
+						modelCallCount: 0,
+						toolCallCount: 0,
+						toolErrorCount: 0,
+						transcriptCount: 0,
+						turnCount: 0
+					},
+					timeline: [],
+					turns: []
+				},
+				sessionId: 'incident-session',
+				status: 'healthy' as const,
+				summary: {
+					assistantReplyCount: 0,
+					cost: {
+						estimatedRelativeCostUnits: 0,
+						totalBillableAudioMs: 0
+					},
+					errorCount: 0,
+					eventCount: 0,
+					failed: false,
+					handoffCount: 0,
+					modelCallCount: 0,
+					toolCallCount: 0,
+					toolErrorCount: 0,
+					transcriptCount: 0,
+					turnCount: 0
+				},
+				timeline: [],
+				tools: [],
+				traceEvents: []
+			},
+			redacted: true,
+			sessionId: 'incident-session',
+			summary: {
+				auditEvents: 0,
+				errors: 0,
+				handoffs: 0,
+				providers: [],
+				sessionId: 'incident-session',
+				status: 'healthy' as const,
+				tools: 0,
+				traceEvents: 0,
+				turns: 0
+			},
+			traceMarkdown: ''
+		},
+		createdAt: 100,
+		expiresAt: 150,
+		id: 'incident-file',
+		redacted: true,
+		sessionId: 'incident-session'
+	};
+	await store.set('incident-file', artifact);
+
+	const secondStore = createVoiceFileIncidentBundleStore({
+		directory
+	});
+	expect((await secondStore.get('incident-file'))?.sessionId).toBe(
+		'incident-session'
+	);
+	expect((await secondStore.list({ expiredAt: 160 })).map((item) => item.id)).toEqual([
+		'incident-file'
+	]);
+	await secondStore.remove('incident-file');
+	expect(await secondStore.get('incident-file')).toBeUndefined();
 });
 
 test('createVoiceFileExternalObjectMapStore persists and finds vendor object mappings', async () => {

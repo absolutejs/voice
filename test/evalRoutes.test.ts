@@ -109,6 +109,9 @@ test('runVoiceSessionEvals replays stored sessions against quality gates', async
 	expect(report.passed).toBe(1);
 	expect(report.trend).toHaveLength(2);
 	expect(report.sessions[0]?.sessionId).toBe('session-bad');
+	expect(report.sessions[0]?.operationsRecordHref).toBe(
+		'/voice-operations/session-bad'
+	);
 	expect(report.sessions[0]?.quality.metrics.duplicateTurnRate.pass).toBe(false);
 });
 
@@ -123,6 +126,9 @@ test('renderVoiceEvalHTML renders session eval results and nav links', async () 
 	expect(html).toContain('AbsoluteJS Voice Evals');
 	expect(html).toContain('/ops-console');
 	expect(html).toContain('session-bad');
+	expect(html).toContain('/voice-operations/session-bad');
+	expect(html).toContain('Copy into your app');
+	expect(html).toContain('createVoiceEvalRoutes');
 });
 
 test('createVoiceEvalRoutes exposes html json and failing status endpoint', async () => {
@@ -131,6 +137,7 @@ test('createVoiceEvalRoutes exposes html json and failing status endpoint', asyn
 		await store.append(event);
 	}
 	const routes = createVoiceEvalRoutes({
+		operationsRecordHref: '/ops/records/:sessionId',
 		store
 	});
 
@@ -139,9 +146,14 @@ test('createVoiceEvalRoutes exposes html json and failing status endpoint', asyn
 	await expect(html.text()).resolves.toContain('Session Eval Results');
 
 	const json = await routes.handle(new Request('http://localhost/evals/json'));
-	await expect(json.json()).resolves.toMatchObject({
+	const jsonReport = await json.json();
+	expect(jsonReport).toMatchObject({
 		failed: 1,
 		status: 'fail'
+	});
+	expect(jsonReport.sessions[0]).toMatchObject({
+		operationsRecordHref: '/ops/records/session-bad',
+		sessionId: 'session-bad'
 	});
 
 	const status = await routes.handle(new Request('http://localhost/evals/status'));
@@ -249,8 +261,14 @@ test('runVoiceScenarioEvals evaluates workflow scenario packs', async () => {
 	expect(report.passed).toBe(1);
 	expect(report.failed).toBe(1);
 	expect(report.scenarios[0]?.status).toBe('pass');
+	expect(report.scenarios[1]?.sessions[0]?.operationsRecordHref).toBe(
+		'/voice-operations/session-bad'
+	);
 	expect(report.scenarios[1]?.sessions[0]?.issues.join(' ')).toContain(
 		'provider error'
+	);
+	expect(renderVoiceScenarioEvalHTML(report)).toContain(
+		'/voice-operations/session-bad'
 	);
 	expect(renderVoiceScenarioEvalHTML(report)).toContain('Happy path completes');
 });
@@ -261,6 +279,7 @@ test('createVoiceEvalRoutes exposes scenario html json and status endpoints', as
 		await store.append(event);
 	}
 	const routes = createVoiceEvalRoutes({
+		operationsRecordHref: (sessionId) => `/support/calls/${sessionId}`,
 		scenarios: [
 			{
 				id: 'happy-path-completes',
@@ -273,7 +292,10 @@ test('createVoiceEvalRoutes exposes scenario html json and status endpoints', as
 
 	const html = await routes.handle(new Request('http://localhost/evals/scenarios'));
 	expect(html.status).toBe(200);
-	await expect(html.text()).resolves.toContain('happy-path-completes');
+	const htmlText = await html.text();
+	expect(htmlText).toContain('happy-path-completes');
+	expect(htmlText).toContain('/support/calls/session-good');
+	expect(htmlText).toContain('createVoiceEvalRoutes');
 
 	const json = await routes.handle(
 		new Request('http://localhost/evals/scenarios/json')
@@ -337,7 +359,9 @@ test('createVoiceEvalRoutes exposes fixture html json and status endpoints', asy
 
 	const html = await routes.handle(new Request('http://localhost/evals/fixtures'));
 	expect(html.status).toBe(200);
-	await expect(html.text()).resolves.toContain('fixture-good');
+	const htmlText = await html.text();
+	expect(htmlText).toContain('fixture-good');
+	expect(htmlText).toContain('createVoiceEvalRoutes');
 
 	const json = await routes.handle(
 		new Request('http://localhost/evals/fixtures/json')
