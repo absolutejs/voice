@@ -22,6 +22,10 @@ export {
 	fetchVoiceProofTrends
 } from './proofTrends';
 export {
+	createVoiceProfileComparisonStore,
+	fetchVoiceProfileComparison
+} from './profileComparison';
+export {
 	createVoiceReadinessFailuresStore,
 	fetchVoiceReadinessFailures
 } from './readinessFailures';
@@ -66,6 +70,13 @@ export {
 	mountVoiceProofTrends,
 	renderVoiceProofTrendsHTML
 } from './proofTrendsWidget';
+export {
+	createVoiceProfileComparisonViewModel,
+	defineVoiceProfileComparisonElement,
+	getVoiceProfileComparisonCSS,
+	mountVoiceProfileComparison,
+	renderVoiceProfileComparisonHTML
+} from './profileComparisonWidget';
 export {
 	createVoiceReadinessFailuresViewModel,
 	defineVoiceReadinessFailuresElement,
@@ -213,10 +224,19 @@ export type {
 	VoiceReadinessFailuresSnapshot
 } from './readinessFailures';
 export type {
+	VoiceProfileComparisonClientOptions,
+	VoiceProfileComparisonSnapshot
+} from './profileComparison';
+export type {
 	VoiceReadinessFailureView,
 	VoiceReadinessFailuresViewModel,
 	VoiceReadinessFailuresWidgetOptions
 } from './readinessFailuresWidget';
+export type {
+	VoiceProfileComparisonProfileView,
+	VoiceProfileComparisonViewModel,
+	VoiceProfileComparisonWidgetOptions
+} from './profileComparisonWidget';
 export type {
 	VoiceOpsActionCenterClientOptions,
 	VoiceOpsActionCenterPresetOptions,

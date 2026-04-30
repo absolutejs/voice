@@ -5,6 +5,7 @@ export { createVoiceLiveOps } from './createVoiceLiveOps';
 export { createVoiceOpsStatus } from './createVoiceOpsStatus';
 export { createVoicePlatformCoverage } from './createVoicePlatformCoverage';
 export { createVoiceProofTrends } from './createVoiceProofTrends';
+export { createVoiceProfileComparison } from './createVoiceProfileComparison';
 export { createVoiceReadinessFailures } from './createVoiceReadinessFailures';
 export { createVoiceProviderSimulationControls } from './createVoiceProviderSimulationControls';
 export { createVoiceProviderCapabilities } from './createVoiceProviderCapabilities';
