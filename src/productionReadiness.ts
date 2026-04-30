@@ -25,7 +25,12 @@ import type {
 	VoiceMonitorNotifierDeliveryReport,
 	VoiceMonitorRunReport
 } from './voiceMonitoring';
-import type { VoiceTraceEventStore } from './trace';
+import {
+	createVoiceMemoryTraceEventStore,
+	createVoiceTraceEvent,
+	type StoredVoiceTraceEvent,
+	type VoiceTraceEventStore
+} from './trace';
 import type { VoiceTraceSinkDeliveryStore } from './trace';
 import { summarizeVoiceTraceSinkDeliveries } from './queue';
 import type { VoiceAgentSquadContractReport } from './agentSquadContract';
@@ -178,6 +183,62 @@ export type VoiceProductionReadinessProfileExplanation = {
 	name: string;
 	purpose: string;
 	surfaces: VoiceProductionReadinessProfileSurface[];
+};
+
+export type VoiceProductionReadinessProofMetadata = {
+	generatedAt: string;
+	refreshedAt: number;
+	runId: string;
+	source: string;
+};
+
+export type VoiceProductionReadinessProofRuntimeSeedOptions = {
+	liveLatencyMs?: number;
+	llmElapsedMs?: number;
+	llmProvider?: string;
+	scenarioId?: string;
+	sessionId?: string;
+	sttElapsedMs?: number;
+	sttProvider?: string;
+	ttsElapsedMs?: number;
+	ttsProvider?: string;
+};
+
+export type VoiceProductionReadinessProofRuntimeOptions = {
+	cacheMs?: number;
+	freshnessHref?: string;
+	freshnessLabel?: string;
+	freshnessMaxAgeMs?: number;
+	proofSource?: string;
+	proofSourceLabel?: string;
+	readinessHref?: string;
+	runId?: () => string;
+	traceMaxAgeMs?: number;
+	trendsHref?: string;
+};
+
+export type VoiceProductionReadinessProofRuntime = {
+	buildFreshnessCheck: () => Promise<VoiceProductionReadinessCheck>;
+	cache: <TValue>(
+		key: string,
+		loader: () => Promise<TValue> | TValue,
+		cacheMs?: number
+	) => Promise<TValue>;
+	getMetadata: () => VoiceProductionReadinessProofMetadata | undefined;
+	options: Pick<
+		VoiceProductionReadinessRoutesOptions,
+		'cacheMs' | 'traceMaxAgeMs'
+	>;
+	refresh: (
+		onRefresh?: (
+			metadata: VoiceProductionReadinessProofMetadata
+		) => Promise<void> | void
+	) => Promise<VoiceProductionReadinessProofMetadata>;
+	resetTraceProof: () => Promise<void>;
+	seedTraceProof: (
+		options?: VoiceProductionReadinessProofRuntimeSeedOptions
+	) => Promise<StoredVoiceTraceEvent[]>;
+	store: VoiceTraceEventStore;
 };
 
 export type VoiceProductionReadinessGateProfileSurface =
@@ -839,6 +900,224 @@ const escapeHtml = (value: string) =>
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;')
 		.replaceAll("'", '&#39;');
+
+const formatVoiceProofFreshnessDuration = (valueMs: number) => {
+	if (valueMs < 1_000) {
+		return `${Math.max(0, Math.round(valueMs))}ms`;
+	}
+
+	if (valueMs < 60_000) {
+		return `${Math.round(valueMs / 1_000)}s`;
+	}
+
+	return `${Math.round(valueMs / 60_000)}m`;
+};
+
+export const createVoiceProductionReadinessProofRuntime = (
+	options: VoiceProductionReadinessProofRuntimeOptions = {}
+): VoiceProductionReadinessProofRuntime => {
+	const store = createVoiceMemoryTraceEventStore();
+	const cacheMs = options.cacheMs ?? 10_000;
+	const traceMaxAgeMs = options.traceMaxAgeMs ?? 30 * 60 * 1000;
+	const freshnessMaxAgeMs = options.freshnessMaxAgeMs ?? traceMaxAgeMs;
+	const proofSource = options.proofSource ?? 'production-readiness';
+	const readinessHref = options.readinessHref ?? '/api/production-readiness';
+	const trendsHref = options.trendsHref ?? '/voice/proof-trends';
+	const runId =
+		options.runId ??
+		(() => `production-readiness-${Date.now()}-${crypto.randomUUID()}`);
+	let metadata: VoiceProductionReadinessProofMetadata | undefined;
+	let refreshPromise: Promise<VoiceProductionReadinessProofMetadata> | undefined;
+	let refreshedAt = 0;
+	const cachedValues = new Map<
+		string,
+		{
+			loadedAt: number;
+			value: Promise<unknown>;
+		}
+	>();
+
+	const resetTraceProof = async () => {
+		await Promise.all(
+			(await store.list()).map((event) => store.remove(event.id))
+		);
+	};
+
+	const seedTraceProof = async (
+		seed: VoiceProductionReadinessProofRuntimeSeedOptions = {}
+	) => {
+		await resetTraceProof();
+
+		const now = Date.now();
+		const sessionId =
+			seed.sessionId ?? `production-readiness-trace-${now}`;
+		const scenarioId = seed.scenarioId ?? 'production-readiness-proof';
+		const events = [
+			createVoiceTraceEvent({
+				at: now,
+				payload: {
+					elapsedMs: seed.llmElapsedMs ?? 320,
+					kind: 'llm',
+					provider: seed.llmProvider ?? 'llm',
+					providerStatus: 'success',
+					selectedProvider: seed.llmProvider ?? 'llm',
+					status: 'success'
+				},
+				scenarioId,
+				sessionId,
+				type: 'session.error'
+			}),
+			createVoiceTraceEvent({
+				at: now + 1,
+				payload: {
+					elapsedMs: seed.sttElapsedMs ?? 82,
+					kind: 'stt',
+					provider: seed.sttProvider ?? 'stt',
+					providerStatus: 'success',
+					selectedProvider: seed.sttProvider ?? 'stt',
+					status: 'success'
+				},
+				scenarioId,
+				sessionId,
+				type: 'session.error'
+			}),
+			createVoiceTraceEvent({
+				at: now + 2,
+				payload: {
+					elapsedMs: seed.ttsElapsedMs ?? 45,
+					kind: 'tts',
+					provider: seed.ttsProvider ?? 'tts',
+					providerStatus: 'success',
+					selectedProvider: seed.ttsProvider ?? 'tts',
+					status: 'success'
+				},
+				scenarioId,
+				sessionId,
+				type: 'session.error'
+			}),
+			createVoiceTraceEvent({
+				at: now + 3,
+				metadata: {
+					source: 'browser',
+					surface: 'live-latency-proof'
+				},
+				payload: {
+					completedAt: now + 3,
+					elapsedMs: seed.liveLatencyMs ?? 420,
+					latencyMs: seed.liveLatencyMs ?? 420,
+					startedAt: now + 3 - (seed.liveLatencyMs ?? 420),
+					status: 'assistant_audio_started',
+					thresholdMs: 1_800
+				},
+				scenarioId,
+				sessionId,
+				traceId: `production-readiness-live-latency-${now}`,
+				type: 'client.live_latency'
+			})
+		];
+
+		return Promise.all(events.map((event) => store.append(event)));
+	};
+
+	const refresh: VoiceProductionReadinessProofRuntime['refresh'] = (
+		onRefresh
+	) => {
+		if (refreshPromise && Date.now() - refreshedAt < cacheMs) {
+			return refreshPromise;
+		}
+
+		refreshPromise = (async () => {
+			const generatedAt = new Date().toISOString();
+			const nextMetadata = {
+				generatedAt,
+				refreshedAt: Date.now(),
+				runId: runId(),
+				source: proofSource
+			};
+			metadata = nextMetadata;
+			await onRefresh?.(nextMetadata);
+			return nextMetadata;
+		})().finally(() => {
+			refreshedAt = Date.now();
+		});
+
+		return refreshPromise;
+	};
+
+	const cache: VoiceProductionReadinessProofRuntime['cache'] = async (
+		key,
+		loader,
+		valueCacheMs = cacheMs
+	) => {
+		const cached = cachedValues.get(key);
+		if (cached && Date.now() - cached.loadedAt < valueCacheMs) {
+			return cached.value as Promise<Awaited<ReturnType<typeof loader>>>;
+		}
+
+		const value = Promise.resolve(loader());
+		cachedValues.set(key, {
+			loadedAt: Date.now(),
+			value
+		});
+		return value;
+	};
+
+	const buildFreshnessCheck = async (): Promise<VoiceProductionReadinessCheck> => {
+		await refresh();
+
+		const now = Date.now();
+		const proofAgeMs = metadata ? now - metadata.refreshedAt : undefined;
+		const cacheAgeMs = refreshedAt ? now - refreshedAt : undefined;
+		const status: VoiceProductionReadinessStatus =
+			metadata && (proofAgeMs ?? Infinity) <= freshnessMaxAgeMs
+				? 'pass'
+				: 'fail';
+
+		return {
+			detail: metadata
+				? `Proof ${metadata.runId} refreshed ${formatVoiceProofFreshnessDuration(proofAgeMs ?? 0)} ago; route cache age is ${formatVoiceProofFreshnessDuration(cacheAgeMs ?? 0)}.`
+				: 'Production readiness proof has not been refreshed yet.',
+			gateExplanation: {
+				evidenceHref: readinessHref,
+				observed: proofAgeMs ?? 0,
+				remediation:
+					'Reload production readiness to refresh provider SLO, live latency, proof-pack, trend, and observability export proof.',
+				sourceHref: trendsHref,
+				threshold: freshnessMaxAgeMs,
+				thresholdLabel: 'Maximum proof age',
+				unit: 'ms'
+			},
+			href: options.freshnessHref ?? trendsHref,
+			label: options.freshnessLabel ?? 'Proof freshness',
+			proofSource: {
+				detail:
+					'Generated by the production readiness refresh path before the deploy gate evaluates cached route results.',
+				href: readinessHref,
+				source: metadata?.source ?? proofSource,
+				sourceLabel:
+					options.proofSourceLabel ?? 'Production readiness proof refresh'
+			},
+			status,
+			value: metadata
+				? `${formatVoiceProofFreshnessDuration(proofAgeMs ?? 0)} old`
+				: 'missing'
+		};
+	};
+
+	return {
+		buildFreshnessCheck,
+		cache,
+		getMetadata: () => metadata,
+		options: {
+			cacheMs,
+			traceMaxAgeMs
+		},
+		refresh,
+		resetTraceProof,
+		seedTraceProof,
+		store
+	};
+};
 
 const rollupStatus = (
 	checks: VoiceProductionReadinessCheck[]

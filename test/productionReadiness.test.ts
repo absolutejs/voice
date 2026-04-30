@@ -21,6 +21,7 @@ import {
 	createVoiceMemoryTraceEventStore,
 	createVoiceMemoryTraceSinkDeliveryStore,
 	createVoiceProviderOrchestrationProfile,
+	createVoiceProductionReadinessProofRuntime,
 	createVoiceProductionReadinessRoutes,
 	createVoiceTelephonyCarrierMatrix,
 	createVoiceTraceEvent,
@@ -117,6 +118,52 @@ test('evaluateVoiceProductionReadinessEvidence verifies gate status and required
 	expect(() =>
 		assertVoiceProductionReadinessEvidence(report, { requireStatus: 'pass' })
 	).toThrow('Voice production readiness assertion failed');
+});
+
+test('createVoiceProductionReadinessProofRuntime seeds bounded proof and freshness checks', async () => {
+	const runtime = createVoiceProductionReadinessProofRuntime({
+		cacheMs: 1_000,
+		runId: () => 'proof-runtime-test'
+	});
+	let refreshes = 0;
+	await runtime.refresh(async () => {
+		refreshes += 1;
+		await runtime.seedTraceProof({
+			llmProvider: 'openai',
+			sttProvider: 'deepgram',
+			ttsProvider: 'openai'
+		});
+	});
+
+	const report = await buildVoiceProductionReadinessReport({
+		additionalChecks: async () => [await runtime.buildFreshnessCheck()],
+		llmProviders: ['openai'],
+		providerSlo: {
+			events: await runtime.store.list(),
+			requiredKinds: ['llm', 'stt', 'tts']
+		},
+		store: runtime.store,
+		...runtime.options
+	});
+
+	expect(refreshes).toBe(1);
+	expect(report.summary.providerSlo).toMatchObject({
+		eventsWithLatency: 3,
+		status: 'pass'
+	});
+	expect(report.summary.liveLatency).toMatchObject({
+		status: 'pass',
+		total: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Proof freshness',
+				status: 'pass',
+				value: expect.stringContaining('old')
+			})
+		])
+	);
 });
 
 test('buildVoiceProductionReadinessReport includes profile switch readiness checks', async () => {
