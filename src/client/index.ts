@@ -1,6 +1,8 @@
 export { createVoiceConnection } from './connection';
 export { createVoiceAudioPlayer, decodeVoiceAudioChunk } from './audioPlayer';
 export { createVoiceStream } from './createVoiceStream';
+export { createVoiceBrowserMediaReporter } from './browserMedia';
+export type { VoiceBrowserMediaReporter } from './browserMedia';
 export { createVoiceController } from './controller';
 export { bindVoiceBargeIn, createVoiceDuplexController } from './duplex';
 export { bindVoiceHTMX } from './htmx';

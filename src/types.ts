@@ -1,5 +1,10 @@
 import type { SessionStore } from '@absolutejs/absolute';
 import type {
+	MediaWebRTCStatsCollector,
+	MediaWebRTCStatsReport,
+	MediaWebRTCStatsReportInput
+} from '@absolutejs/media';
+import type {
 	VoiceOpsDispositionTaskPolicies,
 	VoiceOpsTaskAssignmentRule,
 	VoiceOpsTaskAssignmentRules,
@@ -1086,6 +1091,7 @@ export type VoiceServerMessage<TResult = unknown> =
 	| VoiceServerConnectionMessage;
 
 export type VoiceConnectionOptions = {
+	browserMedia?: false | VoiceBrowserMediaReporterOptions;
 	protocols?: string[];
 	scenarioId?: string;
 	reconnect?: boolean;
@@ -1093,6 +1099,30 @@ export type VoiceConnectionOptions = {
 	maxReconnectAttempts?: number;
 	pingInterval?: number;
 	sessionId?: string;
+};
+
+export type VoiceBrowserMediaReportPayload = {
+	at: number;
+	report: MediaWebRTCStatsReport;
+	scenarioId?: string | null;
+	sessionId?: string | null;
+};
+
+export type VoiceBrowserMediaReporterOptions = Omit<
+	MediaWebRTCStatsReportInput,
+	'peerConnection'
+> & {
+	fetch?: typeof fetch;
+	getPeerConnection?:
+		| (() => MediaWebRTCStatsCollector | null | undefined)
+		| (() => Promise<MediaWebRTCStatsCollector | null | undefined>);
+	getScenarioId?: () => string | null | undefined;
+	getSessionId?: () => string | null | undefined;
+	intervalMs?: number;
+	onError?: (error: unknown) => void;
+	onReport?: (payload: VoiceBrowserMediaReportPayload) => void;
+	path?: string;
+	peerConnection?: MediaWebRTCStatsCollector;
 };
 
 export type VoiceCaptureOptions = {

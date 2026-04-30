@@ -151,6 +151,12 @@ export {
 	renderVoiceMediaPipelineHTML,
 	renderVoiceMediaPipelineMarkdown
 } from './mediaPipelineRoutes';
+export {
+	createVoiceBrowserMediaRoutes,
+	getLatestVoiceBrowserMediaReport,
+	renderVoiceBrowserMediaHTML,
+	summarizeVoiceBrowserMedia
+} from './browserMediaRoutes';
 export type {
 	VoiceMediaPipelineAssertionInput,
 	VoiceMediaPipelineAssertionReport,
@@ -158,6 +164,12 @@ export type {
 	VoiceMediaPipelineReportOptions,
 	VoiceMediaPipelineRoutesOptions
 } from './mediaPipelineRoutes';
+export type {
+	VoiceBrowserMediaReport,
+	VoiceBrowserMediaRoutesOptions,
+	VoiceBrowserMediaSample,
+	VoiceBrowserMediaStatus
+} from './browserMediaRoutes';
 export {
 	buildVoiceDemoReadyReport,
 	createVoiceDemoReadyRoutes,

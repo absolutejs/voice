@@ -1,4 +1,5 @@
 import { serverMessageToAction } from './actions';
+import { createVoiceBrowserMediaReporter } from './browserMedia';
 import { createVoiceConnection } from './connection';
 import { createVoiceStreamStore } from './store';
 import type { VoiceConnectionOptions, VoiceStream } from '../types';
@@ -9,6 +10,20 @@ export const createVoiceStream = <TResult = unknown>(
 ): VoiceStream<TResult> => {
 	const connection = createVoiceConnection(path, options);
 	const store = createVoiceStreamStore<TResult>();
+	const browserMediaReporter =
+		options.browserMedia && typeof window !== 'undefined'
+			? createVoiceBrowserMediaReporter({
+					...options.browserMedia,
+					getScenarioId: () =>
+						options.browserMedia
+							? (options.browserMedia.getScenarioId?.() ?? connection.getScenarioId())
+							: connection.getScenarioId(),
+					getSessionId: () =>
+						options.browserMedia
+							? (options.browserMedia.getSessionId?.() ?? connection.getSessionId())
+							: connection.getSessionId()
+				})
+			: null;
 	const subscribers = new Set<() => void>();
 	const start = (input?: { scenarioId?: string; sessionId?: string }) =>
 		Promise.resolve().then(() => {
@@ -17,6 +32,7 @@ export const createVoiceStream = <TResult = unknown>(
 			}
 
 			connection.start(input);
+			browserMediaReporter?.start();
 		});
 
 	const notify = () => {
@@ -62,6 +78,7 @@ export const createVoiceStream = <TResult = unknown>(
 		},
 		close() {
 			unsubscribeConnection();
+			browserMediaReporter?.close();
 			connection.close();
 			store.dispatch({ type: 'disconnected' });
 			notify();
