@@ -274,6 +274,7 @@ export {
 	buildVoiceRealCallProfileEvidenceFromTraceEvents,
 	buildVoiceRealCallProfileDefaults,
 	buildVoiceRealCallProfileHistoryReport,
+	buildVoiceRealCallProfileReadinessCheck,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
@@ -376,6 +377,7 @@ export type {
 	VoiceRealCallProfileHistoryReport,
 	VoiceRealCallProfileHistoryRoutesOptions,
 	VoiceRealCallProfileProviderRouteOptions,
+	VoiceRealCallProfileReadinessCheckOptions,
 	VoiceRealCallProfileTraceEvidenceOptions,
 	VoiceRealCallProfileTraceStoreEvidenceOptions
 } from './proofTrends';

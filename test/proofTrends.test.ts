@@ -11,6 +11,7 @@ import {
 	buildVoiceRealCallProfileDefaults,
 	buildVoiceRealCallProfileEvidenceFromTraceEvents,
 	buildVoiceRealCallProfileHistoryReport,
+	buildVoiceRealCallProfileReadinessCheck,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
@@ -1038,6 +1039,72 @@ describe('proof trends', () => {
 				tts: 'tts:openai'
 			},
 			status: 'warn'
+		});
+	});
+
+	test('buildVoiceRealCallProfileReadinessCheck gates required real-call profile evidence', async () => {
+		const store = createVoiceMemoryTraceEventStore();
+		for (const [sessionId, profileId, role, provider] of [
+			['meeting-session', 'meeting-recorder', 'llm', 'openai'],
+			['meeting-session', 'meeting-recorder', 'stt', 'deepgram'],
+			['meeting-session', 'meeting-recorder', 'tts', 'openai'],
+			['support-session', 'support-agent', 'llm', 'anthropic'],
+			['support-session', 'support-agent', 'stt', 'deepgram'],
+			['support-session', 'support-agent', 'tts', 'openai']
+		] as const) {
+			await store.append(
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 13, 0, 0),
+					metadata: { profileId },
+					payload: {
+						elapsedMs: role === 'llm' ? 480 : 90,
+						kind: role,
+						provider,
+						status: 'success'
+					},
+					sessionId,
+					type: 'session.error'
+				})
+			);
+			await store.append(
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 13, 0, 1),
+					payload: { latencyMs: 530 },
+					sessionId,
+					type: 'client.live_latency'
+				})
+			);
+		}
+
+		const history = buildVoiceRealCallProfileHistoryReport({
+			evidence: await loadVoiceRealCallProfileEvidenceFromTraceStore({
+				store
+			}),
+			generatedAt: '2026-04-29T13:01:00.000Z',
+			now: '2026-04-29T13:01:30.000Z',
+			requiredProviderRoles: ['llm'],
+			source: 'trace-store'
+		});
+
+		expect(
+			buildVoiceRealCallProfileReadinessCheck(history, {
+				minActionableProfiles: 2,
+				minCycles: 2,
+				requiredProfileIds: ['meeting-recorder', 'support-agent'],
+				requiredProviderRoles: ['llm', 'stt', 'tts']
+			})
+		).toMatchObject({
+			label: 'Real-call profile history',
+			status: 'pass',
+			value: '4/4 actionable'
+		});
+		expect(
+			buildVoiceRealCallProfileReadinessCheck(history, {
+				failOnWarnings: true,
+				requiredProfileIds: ['custom-profile']
+			})
+		).toMatchObject({
+			status: 'fail'
 		});
 	});
 

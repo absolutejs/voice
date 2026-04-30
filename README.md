@@ -1486,6 +1486,22 @@ app.use(
 
 The point is not to benchmark a fake demo once. The point is to let every real call add profile evidence so `/api/voice/real-call-profile-history`, provider recommendations, profile-switch readiness, and operations records can explain which provider/runtime path is winning for each call shape.
 
+Use `buildVoiceRealCallProfileReadinessCheck(...)` to make that history deploy-blocking through `createVoiceProductionReadinessRoutes(...)`:
+
+```ts
+createVoiceProductionReadinessRoutes({
+	additionalChecks: async () => [
+		buildVoiceRealCallProfileReadinessCheck(await buildRealCallHistory(), {
+			minActionableProfiles: 2,
+			minCycles: 10,
+			requiredProfileIds: ['meeting-recorder', 'support-agent'],
+			requiredProviderRoles: ['llm', 'stt', 'tts']
+		})
+	],
+	store: runtime.traces
+});
+```
+
 Use `createVoiceProfileTraceTagger(...)` when the app already has a trace store and needs every appended trace to carry a benchmark profile label. It wraps any `VoiceTraceEventStore`, preserves the underlying store behavior, and adds `profileId`/`benchmarkProfileId` metadata and payload fields that real-call profile history can ingest later.
 
 ```ts

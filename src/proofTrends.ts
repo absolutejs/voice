@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import type { VoiceProductionReadinessCheck } from './productionReadiness';
 import type {
 	StoredVoiceTraceEvent,
 	VoiceTraceEventStore
@@ -419,6 +420,19 @@ export type VoiceRealCallProfileHistoryRoutesOptions =
 			| VoiceRealCallProfileHistoryOptions;
 		title?: string;
 	};
+
+export type VoiceRealCallProfileReadinessCheckOptions = {
+	failOnWarnings?: boolean;
+	href?: string;
+	label?: string;
+	maxAgeMs?: number;
+	minActionableProfiles?: number;
+	minCycles?: number;
+	minProfiles?: number;
+	requiredProfileIds?: readonly string[];
+	requiredProviderRoles?: readonly string[];
+	sourceHref?: string;
+};
 
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -1592,6 +1606,120 @@ const expandProviderRouteCandidates = (
 const readRealCallProfileDefaultsReport = (
 	input: VoiceRealCallProfileDefaultsReport | VoiceRealCallProfileHistoryReport
 ) => ('defaults' in input ? input.defaults : input);
+
+const buildRealCallProfileReadinessIssues = (
+	report: VoiceRealCallProfileHistoryReport,
+	options: VoiceRealCallProfileReadinessCheckOptions
+) => {
+	const minProfiles = options.minProfiles ?? 1;
+	const minActionableProfiles = options.minActionableProfiles ?? 1;
+	const minCycles = options.minCycles ?? 1;
+	const requiredProviderRoles = options.requiredProviderRoles ?? [];
+	const defaultsByProfile = new Map(
+		report.defaults.profiles.map((profile) => [profile.profileId, profile])
+	);
+	const issues: string[] = [];
+	const warnings: string[] = [];
+
+	if (report.status === 'fail' || report.ok !== true) {
+		issues.push(`Real-call profile history is ${report.status}.`);
+	}
+	if ((report.summary.profileCount ?? 0) < minProfiles) {
+		issues.push(
+			`Expected at least ${String(minProfiles)} real-call profile(s), found ${String(report.summary.profileCount ?? 0)}.`
+		);
+	}
+	if (report.defaults.summary.actionableProfiles < minActionableProfiles) {
+		issues.push(
+			`Expected at least ${String(minActionableProfiles)} actionable profile default(s), found ${String(report.defaults.summary.actionableProfiles)}.`
+		);
+	}
+	if ((report.summary.cycles ?? 0) < minCycles) {
+		issues.push(
+			`Expected at least ${String(minCycles)} real-call cycle(s), found ${String(report.summary.cycles ?? 0)}.`
+		);
+	}
+	const ageMs =
+		report.trend.ageMs ??
+		(report.generatedAt ? Date.now() - new Date(report.generatedAt).getTime() : undefined);
+	if (
+		options.maxAgeMs !== undefined &&
+		(ageMs === undefined || ageMs > options.maxAgeMs)
+	) {
+		issues.push(
+			`Expected real-call profile history age <= ${String(options.maxAgeMs)}ms, found ${String(ageMs ?? 'missing')}ms.`
+		);
+	}
+	for (const profileId of options.requiredProfileIds ?? []) {
+		const profile = defaultsByProfile.get(profileId);
+		if (!profile) {
+			issues.push(`Missing required real-call profile: ${profileId}.`);
+			continue;
+		}
+		if (profile.status === 'fail') {
+			issues.push(`Required real-call profile ${profileId} is failing.`);
+		} else if (profile.status === 'warn') {
+			warnings.push(`Required real-call profile ${profileId} is warning.`);
+		}
+		for (const role of requiredProviderRoles) {
+			if (!profile.providerRoutes[role]) {
+				warnings.push(
+					`Required real-call profile ${profileId} is missing ${role} provider default evidence.`
+				);
+			}
+		}
+	}
+	if (report.recommendations.profiles.some((item) => item.status === 'fail')) {
+		issues.push('At least one real-call profile recommendation is failing.');
+	}
+	if (report.recommendations.profiles.some((item) => item.status === 'warn')) {
+		warnings.push('At least one real-call profile recommendation is warning.');
+	}
+
+	return { issues, warnings };
+};
+
+export const buildVoiceRealCallProfileReadinessCheck = (
+	report: VoiceRealCallProfileHistoryReport,
+	options: VoiceRealCallProfileReadinessCheckOptions = {}
+): VoiceProductionReadinessCheck => {
+	const { issues, warnings } = buildRealCallProfileReadinessIssues(report, options);
+	const status =
+		issues.length > 0
+			? 'fail'
+			: warnings.length > 0 && options.failOnWarnings === true
+				? 'fail'
+				: warnings.length > 0
+					? 'warn'
+					: 'pass';
+	const detail =
+		status === 'pass'
+			? `${String(report.summary.profileCount)} profile(s), ${String(report.summary.cycles ?? 0)} cycle(s), ${String(report.defaults.summary.actionableProfiles)} actionable default(s).`
+			: [...issues, ...warnings].join(' ');
+
+	return {
+		detail,
+		gateExplanation: {
+			evidenceHref: options.href ?? '/api/voice/real-call-profile-history',
+			observed: report.defaults.summary.actionableProfiles,
+			remediation:
+				'Run fresh browser or phone calls for required profiles so provider/runtime recommendations have measured profile evidence.',
+			sourceHref: options.sourceHref ?? '/voice/real-call-profile-history',
+			threshold: options.minActionableProfiles ?? 1,
+			thresholdLabel: 'Minimum actionable real-call profiles',
+			unit: 'count'
+		},
+		href: options.href ?? '/voice/real-call-profile-history',
+		label: options.label ?? 'Real-call profile history',
+		proofSource: {
+			href: options.sourceHref ?? '/api/voice/real-call-profile-history',
+			source: report.source,
+			sourceLabel: 'Real-call profile history'
+		},
+		status,
+		value: `${String(report.defaults.summary.actionableProfiles)}/${String(report.summary.profileCount)} actionable`
+	};
+};
 
 export const resolveVoiceRealCallProfileProviderRoute = <
 	TProvider extends string = string
