@@ -20,7 +20,10 @@ export type VoiceRoutingEvent = {
 	kind: VoiceRoutingEventKind;
 	latencyBudgetMs?: number;
 	operation?: string;
+	profileId?: string;
+	profileLabel?: string;
 	provider?: string;
+	providerRoutes?: Record<string, string>;
 	routing?: string;
 	scenarioId?: string;
 	selectedProvider?: string;

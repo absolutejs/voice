@@ -41,6 +41,13 @@ const formatValue = (value: unknown, fallback = 'None') =>
 			? String(value)
 			: fallback;
 
+const formatProviderRoutes = (routes: unknown) =>
+	routes && typeof routes === 'object'
+		? Object.entries(routes as Record<string, unknown>)
+				.map(([role, provider]) => `${role}: ${formatValue(provider)}`)
+				.join(', ') || 'None'
+		: 'None';
+
 export const createVoiceRoutingStatusViewModel = (
 	snapshot: VoiceRoutingStatusSnapshot,
 	options: VoiceRoutingStatusWidgetOptions = {}
@@ -60,6 +67,14 @@ export const createVoiceRoutingStatusViewModel = (
 					value: formatValue(decision.fallbackProvider)
 				},
 				{ label: 'Status', value: formatValue(decision.status, 'unknown') },
+				{
+					label: 'Voice profile',
+					value: formatValue(decision.profileLabel ?? decision.profileId)
+				},
+				{
+					label: 'Default routes',
+					value: formatProviderRoutes(decision.providerRoutes)
+				},
 				{
 					label: 'Latency budget',
 					value:
