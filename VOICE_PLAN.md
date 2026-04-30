@@ -245,6 +245,7 @@ Verified:
 - `@absolutejs/voice@0.0.22-beta.373` adds `createVoiceInMemoryRealCallProfileRecoveryJobStore(...)` and async recovery action polling, so long-running proof repair can return `jobId`/`queued` immediately and expose job status at `/actions/:jobId`.
 - `@absolutejs/voice@0.0.22-beta.374` adds `createVoiceSQLiteRealCallProfileRecoveryJobStore(...)`, giving recovery jobs a Bun-native persistent store for self-hosted ops history across restarts.
 - `@absolutejs/voice@0.0.22-beta.375` keeps the SQLite recovery job store server-only at runtime so browser/client bundles do not statically import `bun:sqlite`.
+- `@absolutejs/voice@0.0.22-beta.376` adds optional recovery job history listing and `GET /actions/jobs`, so persisted proof repair runs are inspectable without copying job IDs.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 

@@ -1696,6 +1696,10 @@ describe('proof trends', () => {
 			)
 		);
 		const job = await jobResponse.json();
+		const jobsResponse = await app.handle(
+			new Request('http://localhost/api/voice/real-call-profile-history/actions/jobs')
+		);
+		const jobs = await jobsResponse.json();
 		const missingResponse = await app.handle(
 			new Request(
 				'http://localhost/api/voice/real-call-profile-history/actions/missing-job'
@@ -1715,6 +1719,12 @@ describe('proof trends', () => {
 			id: queued.jobId,
 			message: 'browser proof finished',
 			ok: true,
+			status: 'pass'
+		});
+		expect(jobsResponse.status).toBe(200);
+		expect(jobs.jobs).toHaveLength(1);
+		expect(jobs.jobs[0]).toMatchObject({
+			id: queued.jobId,
 			status: 'pass'
 		});
 		expect(missingResponse.status).toBe(404);
@@ -1751,6 +1761,16 @@ describe('proof trends', () => {
 		const thirdStore = createVoiceSQLiteRealCallProfileRecoveryJobStore({
 			path
 		});
+		const other = await thirdStore.create({
+			actionId: 'collect-browser-proof',
+			message: 'queued browser proof',
+			status: 'queued'
+		});
+		const listed = await thirdStore.list?.({ limit: 10 });
+		const listedPhone = await thirdStore.list?.({
+			actionId: 'collect-phone-proof',
+			status: 'pass'
+		});
 
 		expect(queued.id).toStartWith('sqlite-recovery-job-');
 		expect(running).toMatchObject({
@@ -1772,6 +1792,15 @@ describe('proof trends', () => {
 		expect(await thirdStore.get(queued.id)).toMatchObject({
 			id: queued.id,
 			message: 'phone proof passed',
+			status: 'pass'
+		});
+		expect(other.status).toBe('queued');
+		expect(listed?.map((job) => job.id)).toContain(queued.id);
+		expect(listed?.map((job) => job.id)).toContain(other.id);
+		expect(listedPhone).toHaveLength(1);
+		expect(listedPhone?.[0]).toMatchObject({
+			actionId: 'collect-phone-proof',
+			id: queued.id,
 			status: 'pass'
 		});
 	});

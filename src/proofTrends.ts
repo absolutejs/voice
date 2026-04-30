@@ -512,6 +512,12 @@ export type VoiceRealCallProfileRecoveryJobUpdate = Partial<
 	>
 >;
 
+export type VoiceRealCallProfileRecoveryJobListOptions = {
+	actionId?: VoiceRealCallProfileRecoveryActionId;
+	limit?: number;
+	status?: VoiceRealCallProfileRecoveryJobStatus;
+};
+
 export type VoiceRealCallProfileRecoveryJobStore = {
 	create(
 		input: VoiceRealCallProfileRecoveryJobCreateInput
@@ -519,6 +525,9 @@ export type VoiceRealCallProfileRecoveryJobStore = {
 	get(
 		id: string
 	): Promise<VoiceRealCallProfileRecoveryJob | undefined> | VoiceRealCallProfileRecoveryJob | undefined;
+	list?(
+		options?: VoiceRealCallProfileRecoveryJobListOptions
+	): Promise<VoiceRealCallProfileRecoveryJob[]> | VoiceRealCallProfileRecoveryJob[];
 	update(
 		id: string,
 		update: VoiceRealCallProfileRecoveryJobUpdate
@@ -1948,6 +1957,23 @@ export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
 		get(id) {
 			return jobs.get(id);
 		},
+		list(input = {}) {
+			const limit =
+				Number.isFinite(input.limit) && input.limit !== undefined && input.limit > 0
+					? Math.floor(input.limit)
+					: 50;
+			return [...jobs.values()]
+				.filter((job) => !input.actionId || job.actionId === input.actionId)
+				.filter((job) => !input.status || job.status === input.status)
+				.sort((first, second) => {
+					const updatedDelta =
+						Date.parse(second.updatedAt) - Date.parse(first.updatedAt);
+					return updatedDelta === 0
+						? second.id.localeCompare(first.id)
+						: updatedDelta;
+				})
+				.slice(0, limit);
+		},
 		update(id, update) {
 			const existing = jobs.get(id);
 			if (!existing) {
@@ -2002,6 +2028,9 @@ export const createVoiceSQLiteRealCallProfileRecoveryJobStore = (
 	const selectStatement = database.query(
 		`SELECT payload FROM "${tableName}" WHERE id = ?1 LIMIT 1`
 	);
+	const listStatement = database.query(
+		`SELECT payload FROM "${tableName}" ORDER BY sort_at DESC, id DESC`
+	);
 	const upsertStatement = database.query(
 		`INSERT INTO "${tableName}" (id, sort_at, payload)
 		 VALUES (?1, ?2, ?3)
@@ -2037,6 +2066,21 @@ export const createVoiceSQLiteRealCallProfileRecoveryJobStore = (
 		},
 		get(id) {
 			return readJob(id);
+		},
+		list(input = {}) {
+			const limit =
+				Number.isFinite(input.limit) && input.limit !== undefined && input.limit > 0
+					? Math.floor(input.limit)
+					: 50;
+			return listStatement
+				.all()
+				.map(
+					(row) =>
+						JSON.parse((row as { payload: string }).payload) as VoiceRealCallProfileRecoveryJob
+				)
+				.filter((job) => !input.actionId || job.actionId === input.actionId)
+				.filter((job) => !input.status || job.status === input.status)
+				.slice(0, limit);
 		},
 		update(id, update) {
 			const existing = readJob(id);
@@ -3406,6 +3450,53 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 
 	routes.get(`${path}/actions`, async () =>
 		Response.json(await listActions(), { headers: options.headers })
+	);
+
+	routes.get(
+		`${path}/actions/jobs`,
+		async ({
+			query,
+			set
+		}: {
+			query: Record<string, string | undefined>;
+			set: { status?: number | string };
+		}) => {
+			if (!options.jobStore?.list) {
+				set.status = 501;
+				return Response.json(
+					{
+						jobs: [],
+						message: 'No real-call profile recovery job list store is configured.',
+						ok: false
+					},
+					{ headers: options.headers }
+				);
+			}
+			const actionId = Object.keys(realCallProfileActionPaths).includes(
+				query.actionId ?? ''
+			)
+				? (query.actionId as VoiceRealCallProfileRecoveryActionId)
+				: undefined;
+			const status = ['fail', 'pass', 'queued', 'running'].includes(
+				query.status ?? ''
+			)
+				? (query.status as VoiceRealCallProfileRecoveryJobStatus)
+				: undefined;
+			const limit = Number(query.limit);
+			const jobs = await options.jobStore.list({
+				actionId,
+				limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
+				status
+			});
+			return Response.json(
+				{
+					generatedAt: new Date().toISOString(),
+					jobs,
+					ok: true
+				},
+				{ headers: options.headers }
+			);
+		}
 	);
 
 	routes.get(

@@ -391,6 +391,7 @@ export type {
 	VoiceRealCallProfileRecoveryActionRoutesOptions,
 	VoiceRealCallProfileRecoveryJob,
 	VoiceRealCallProfileRecoveryJobCreateInput,
+	VoiceRealCallProfileRecoveryJobListOptions,
 	VoiceRealCallProfileRecoveryJobStatus,
 	VoiceRealCallProfileRecoveryJobStore,
 	VoiceRealCallProfileRecoveryJobUpdate,
