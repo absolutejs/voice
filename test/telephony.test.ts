@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
 	assertVoiceTelephonyWebhookNormalizationEvidence,
 	createVoiceMemoryTraceEventStore,
+	runVoiceTelephonyMediaOperationsSmoke,
 	evaluateVoiceTelephonyWebhookNormalizationEvidence
 } from '../src';
 import {
@@ -782,4 +783,32 @@ test('twilio bridge can emit a compact call review artifact on close', async () 
 			(entry) => entry.source === 'twilio' && entry.event === 'media'
 		)
 	).toBe(true);
+});
+
+test('runVoiceTelephonyMediaOperationsSmoke proves operations-record inbound and outbound carrier media', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	const report = await runVoiceTelephonyMediaOperationsSmoke({
+		operationsRecordHref: ({ sessionId }) => `/ops/${sessionId}`,
+		sessionId: 'telephony-media-ops-core',
+		store: trace,
+		streamSid: 'MZ-core-smoke'
+	});
+
+	expect(report.ok).toBe(true);
+	expect(report.issues).toEqual([]);
+	expect(report.operationsRecordHref).toBe('/ops/telephony-media-ops-core');
+	expect(report.sentEvents).toEqual(expect.arrayContaining(['media', 'clear']));
+	expect(report.telephonyMedia).toMatchObject({
+		carriers: ['twilio'],
+		clears: 1,
+		inbound: 2,
+		media: 3,
+		outbound: 3,
+		starts: 1,
+		stops: 1,
+		streamIds: ['MZ-core-smoke'],
+		total: 7
+	});
+	expect(report.telephonyMedia.audioBytes).toBeGreaterThan(0);
+	expect(report.operationsRecord.telephonyMedia.total).toBe(7);
 });

@@ -1,8 +1,16 @@
 import { createVoiceMemoryStore } from '../memoryStore';
 import {
+	buildVoiceOperationsRecord,
+	type VoiceOperationsRecord
+} from '../operationsRecord';
+import {
 	createTwilioMediaStreamBridge,
 	encodeTwilioMulawBase64
 } from '../telephony/twilio';
+import {
+	createVoiceMemoryTraceEventStore,
+	type VoiceTraceEventStore
+} from '../trace';
 import type {
 	AudioChunk,
 	AudioFormat,
@@ -65,6 +73,29 @@ export type VoiceTelephonyBenchmarkReport = {
 	fixtures: VoiceTelephonyBenchmarkScenarioResult[];
 	generatedAt: number;
 	summary: VoiceTelephonyBenchmarkSummary;
+};
+
+export type VoiceTelephonyMediaOperationsSmokeOptions = {
+	callSid?: string;
+	operationsRecordHref?:
+		| string
+		| ((input: { sessionId: string; streamSid: string }) => string);
+	scenarioId?: string;
+	sessionId?: string;
+	store?: VoiceTraceEventStore;
+	streamSid?: string;
+	timeoutMs?: number;
+};
+
+export type VoiceTelephonyMediaOperationsSmokeReport = {
+	issues: string[];
+	ok: boolean;
+	operationsRecord: VoiceOperationsRecord;
+	operationsRecordHref?: string;
+	sentEvents: string[];
+	sessionId: string;
+	streamSid: string;
+	telephonyMedia: VoiceOperationsRecord['telephonyMedia'];
 };
 
 type VoiceTelephonyBenchmarkOptions = {
@@ -265,6 +296,151 @@ const createFakeTTSAdapter = (
 			};
 		}
 	}) satisfies TTSAdapter;
+
+const defaultOperationsRecordHref = ({
+	sessionId
+}: {
+	sessionId: string;
+	streamSid: string;
+}) => `/voice-operations/${encodeURIComponent(sessionId)}`;
+
+const resolveOperationsRecordHref = (
+	href:
+		| VoiceTelephonyMediaOperationsSmokeOptions['operationsRecordHref']
+		| undefined,
+	input: { sessionId: string; streamSid: string }
+) =>
+	typeof href === 'function'
+		? href(input)
+		: href === undefined
+			? defaultOperationsRecordHref(input)
+			: href;
+
+export const runVoiceTelephonyMediaOperationsSmoke = async (
+	options: VoiceTelephonyMediaOperationsSmokeOptions = {}
+): Promise<VoiceTelephonyMediaOperationsSmokeReport> => {
+	const timeoutMs = options.timeoutMs ?? 5_000;
+	const sessionId = options.sessionId ?? `telephony-media-ops-${Date.now()}`;
+	const streamSid = options.streamSid ?? 'telephony-media-ops-stream';
+	const callSid = options.callSid ?? 'telephony-media-ops-call';
+	const scenarioId = options.scenarioId ?? 'telephony-media-operations-smoke';
+	const trace = options.store ?? createVoiceMemoryTraceEventStore();
+	const sentEvents: Array<Record<string, unknown>> = [];
+	const receivedAudio: Uint8Array[] = [];
+	const bridge = createTwilioMediaStreamBridge(
+		{
+			close: () => {},
+			send: (data) => {
+				sentEvents.push(JSON.parse(data) as Record<string, unknown>);
+			}
+		},
+		{
+			context: {},
+			onComplete: async () => {},
+			onTurn: async () => ({
+				assistantText: 'Confirmed. Two way carrier media is visible.'
+			}),
+			session: createVoiceMemoryStore(),
+			stt: createFakeSTTAdapter(receivedAudio, 0),
+			trace,
+			tts: createFakeTTSAdapter(1, 0),
+			turnDetection: {
+				transcriptStabilityMs: 0
+			}
+		}
+	);
+	const payload = encodeTwilioMulawBase64(
+		new Int16Array([500, -500, 1500, -1500, 2500, -2500])
+	);
+
+	await bridge.handleMessage({
+		event: 'start',
+		start: {
+			callSid,
+			customParameters: {
+				scenarioId,
+				sessionId
+			},
+			streamSid
+		},
+		streamSid
+	});
+	await bridge.handleMessage({
+		event: 'media',
+		media: {
+			payload,
+			track: 'inbound'
+		},
+		streamSid
+	});
+	await waitFor(
+		() => sentEvents.some((message) => message.event === 'media'),
+		timeoutMs
+	);
+	await bridge.handleMessage({
+		event: 'media',
+		media: {
+			payload,
+			track: 'inbound'
+		},
+		streamSid
+	});
+	await waitFor(
+		() => sentEvents.some((message) => message.event === 'clear'),
+		timeoutMs
+	);
+	await bridge.handleMessage({
+		event: 'stop',
+		stop: {
+			callSid
+		},
+		streamSid
+	});
+	await bridge.close('telephony-media-operations-smoke-complete');
+
+	const operationsRecord = await buildVoiceOperationsRecord({
+		sessionId,
+		store: trace
+	});
+	const media = operationsRecord.telephonyMedia;
+	const issues = [
+		media.starts < 1 ? 'Missing telephony media start event.' : undefined,
+		media.stops < 1 ? 'Missing telephony media stop event.' : undefined,
+		media.inbound < 2
+			? 'Expected at least two inbound telephony media events.'
+			: undefined,
+		media.outbound < 2
+			? 'Expected outbound assistant media/control evidence.'
+			: undefined,
+		media.media < 3
+			? 'Expected inbound and outbound telephony media packet evidence.'
+			: undefined,
+		media.clears < 1 ? 'Missing outbound clear evidence.' : undefined,
+		media.audioBytes <= 0 ? 'Missing telephony media audio bytes.' : undefined,
+		media.carriers.includes('twilio')
+			? undefined
+			: 'Missing Twilio carrier evidence.',
+		media.streamIds.includes(streamSid)
+			? undefined
+			: 'Missing telephony media stream ID evidence.'
+	].filter((issue): issue is string => typeof issue === 'string');
+
+	return {
+		issues,
+		ok: issues.length === 0,
+		operationsRecord,
+		operationsRecordHref: resolveOperationsRecordHref(
+			options.operationsRecordHref,
+			{ sessionId, streamSid }
+		),
+		sentEvents: sentEvents
+			.map((message) => message.event)
+			.filter((event): event is string => typeof event === 'string'),
+		sessionId,
+		streamSid,
+		telephonyMedia: media
+	};
+};
 
 export const getDefaultVoiceTelephonyBenchmarkScenarios = () =>
 	DEFAULT_SCENARIOS.map((scenario) => ({ ...scenario }));

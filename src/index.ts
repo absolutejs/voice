@@ -929,6 +929,13 @@ export {
 	renderVoiceCallReviewHTML,
 	renderVoiceCallReviewMarkdown
 } from './testing/review';
+export {
+	getDefaultVoiceTelephonyBenchmarkScenarios,
+	runVoiceTelephonyBenchmark,
+	runVoiceTelephonyBenchmarkScenario,
+	runVoiceTelephonyMediaOperationsSmoke,
+	summarizeVoiceTelephonyBenchmark
+} from './testing/telephony';
 export type {
 	VoiceCampaign,
 	VoiceCampaignAttempt,
@@ -1596,6 +1603,14 @@ export type {
 	VoiceCallReviewSummary,
 	VoiceCallReviewTimelineEvent
 } from './testing/review';
+export type {
+	VoiceTelephonyBenchmarkReport,
+	VoiceTelephonyBenchmarkScenario,
+	VoiceTelephonyBenchmarkScenarioResult,
+	VoiceTelephonyBenchmarkSummary,
+	VoiceTelephonyMediaOperationsSmokeOptions,
+	VoiceTelephonyMediaOperationsSmokeReport
+} from './testing/telephony';
 export type {
 	StoredVoiceAuditEvent,
 	VoiceAuditActor,
