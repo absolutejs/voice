@@ -20,6 +20,7 @@ export type VoiceRealtimeProviderContractDefinition<
 	configured?: boolean;
 	env?: Record<string, string | undefined>;
 	fallbackProviders?: readonly TProvider[];
+	implementationStatus?: 'available' | 'planned';
 	latencyBudgetMs?: number;
 	provider: TProvider;
 	readinessHref?: string;
@@ -158,6 +159,7 @@ export const buildVoiceRealtimeProviderContractMatrix = <
 ): VoiceRealtimeProviderContractMatrixReport<TProvider> => {
 	const rows = input.contracts.map((contract) => {
 		const configured = contract.configured !== false;
+		const planned = contract.implementationStatus === 'planned';
 		const requiredEnv =
 			contract.requiredEnv ?? defaultProviderEnv[contract.provider] ?? [];
 		const missingEnv = requiredEnv.filter((name) => !contract.env?.[name]);
@@ -170,12 +172,14 @@ export const buildVoiceRealtimeProviderContractMatrix = <
 		const realtimeChannel = contract.realtimeChannel;
 		const checks: VoiceRealtimeProviderContractCheck[] = [
 			{
-				detail: configured
+				detail: planned
+					? 'Provider contract is declared for roadmap coverage but is not enabled for this deployment.'
+					: configured
 					? 'Provider is configured for this deployment.'
 					: 'Provider is declared but not configured.',
 				key: 'configured',
 				label: 'Configured',
-				status: configured ? 'pass' : 'fail'
+				status: configured ? 'pass' : planned ? 'warn' : 'fail'
 			},
 			{
 				detail:
@@ -184,7 +188,7 @@ export const buildVoiceRealtimeProviderContractMatrix = <
 						: `Missing env: ${missingEnv.join(', ')}.`,
 				key: 'env',
 				label: 'Required env',
-				status: missingEnv.length === 0 ? 'pass' : 'fail'
+				status: missingEnv.length === 0 ? 'pass' : planned ? 'warn' : 'fail'
 			},
 			{
 				detail:
@@ -206,6 +210,8 @@ export const buildVoiceRealtimeProviderContractMatrix = <
 						? 'pass'
 						: realtimeChannel
 							? 'warn'
+							: planned
+								? 'warn'
 							: 'fail'
 			},
 			{

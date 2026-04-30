@@ -102,6 +102,32 @@ describe('realtime provider contracts', () => {
 		);
 	});
 
+	test('buildVoiceRealtimeProviderContractMatrix warns for planned provider contracts', () => {
+		const report = buildVoiceRealtimeProviderContractMatrix({
+			contracts: [
+				{
+					configured: false,
+					implementationStatus: 'planned',
+					provider: 'gemini-live'
+				}
+			]
+		});
+
+		expect(report.status).toBe('warn');
+		expect(report.failed).toBe(0);
+		expect(report.warned).toBe(1);
+		expect(
+			report.rows[0]?.checks.find((check) => check.key === 'configured')?.status
+		).toBe('warn');
+		expect(
+			report.rows[0]?.checks.find((check) => check.key === 'env')?.status
+		).toBe('warn');
+		expect(
+			report.rows[0]?.checks.find((check) => check.key === 'realtimeChannel')
+				?.status
+		).toBe('warn');
+	});
+
 	test('createVoiceRealtimeProviderContractRoutes exposes JSON and HTML', async () => {
 		const app = createVoiceRealtimeProviderContractRoutes({
 			matrix: {
