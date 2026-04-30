@@ -462,10 +462,66 @@ export type VoiceRealCallProfileRecoveryActionHandlerInput = {
 export type VoiceRealCallProfileRecoveryActionResult = {
 	actionId: VoiceRealCallProfileRecoveryActionId;
 	generatedAt: string;
+	job?: VoiceRealCallProfileRecoveryJob;
+	jobId?: string;
+	jobStatus?: VoiceRealCallProfileRecoveryJobStatus;
 	message?: string;
 	ok: boolean;
 	report?: VoiceRealCallProfileHistoryReport;
 	status: VoiceProofTrendStatus;
+};
+
+export type VoiceRealCallProfileRecoveryJobStatus =
+	| 'fail'
+	| 'pass'
+	| 'queued'
+	| 'running';
+
+export type VoiceRealCallProfileRecoveryJob = {
+	actionId: VoiceRealCallProfileRecoveryActionId;
+	completedAt?: string;
+	createdAt: string;
+	id: string;
+	message?: string;
+	ok?: boolean;
+	report?: VoiceRealCallProfileHistoryReport;
+	startedAt?: string;
+	status: VoiceRealCallProfileRecoveryJobStatus;
+	updatedAt: string;
+};
+
+export type VoiceRealCallProfileRecoveryJobCreateInput = {
+	actionId: VoiceRealCallProfileRecoveryActionId;
+	createdAt?: string;
+	id?: string;
+	message?: string;
+	status?: VoiceRealCallProfileRecoveryJobStatus;
+};
+
+export type VoiceRealCallProfileRecoveryJobUpdate = Partial<
+	Pick<
+		VoiceRealCallProfileRecoveryJob,
+		| 'completedAt'
+		| 'message'
+		| 'ok'
+		| 'report'
+		| 'startedAt'
+		| 'status'
+		| 'updatedAt'
+	>
+>;
+
+export type VoiceRealCallProfileRecoveryJobStore = {
+	create(
+		input: VoiceRealCallProfileRecoveryJobCreateInput
+	): Promise<VoiceRealCallProfileRecoveryJob> | VoiceRealCallProfileRecoveryJob;
+	get(
+		id: string
+	): Promise<VoiceRealCallProfileRecoveryJob | undefined> | VoiceRealCallProfileRecoveryJob | undefined;
+	update(
+		id: string,
+		update: VoiceRealCallProfileRecoveryJobUpdate
+	): Promise<VoiceRealCallProfileRecoveryJob | undefined> | VoiceRealCallProfileRecoveryJob | undefined;
 };
 
 export type VoiceRealCallProfileRecoveryActionHandler = (
@@ -478,12 +534,14 @@ export type VoiceRealCallProfileRecoveryActionHandler = (
 export type VoiceRealCallProfileRecoveryActionRoutesOptions =
 	VoiceRealCallProfileRecoveryActionOptions &
 		Omit<VoiceRealCallProfileHistoryRoutesOptions, 'htmlPath' | 'markdownPath'> & {
+			asyncActionIds?: readonly VoiceRealCallProfileRecoveryActionId[];
 			handlers?: Partial<
 				Record<
 					VoiceRealCallProfileRecoveryActionId,
 					VoiceRealCallProfileRecoveryActionHandler
 				>
 			>;
+			jobStore?: VoiceRealCallProfileRecoveryJobStore;
 		};
 
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -1854,6 +1912,49 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 	return uniqueRealCallProfileActions(actions);
 };
 
+export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
+	options: { idPrefix?: string; now?: () => Date } = {}
+): VoiceRealCallProfileRecoveryJobStore => {
+	const jobs = new Map<string, VoiceRealCallProfileRecoveryJob>();
+	const now = () => (options.now ?? (() => new Date()))().toISOString();
+	const createId = () =>
+		`${options.idPrefix ?? 'voice-recovery-job'}-${Date.now().toString(36)}-${Math.random()
+			.toString(36)
+			.slice(2, 10)}`;
+
+	return {
+		create(input) {
+			const createdAt = input.createdAt ?? now();
+			const job: VoiceRealCallProfileRecoveryJob = {
+				actionId: input.actionId,
+				createdAt,
+				id: input.id ?? createId(),
+				message: input.message,
+				status: input.status ?? 'queued',
+				updatedAt: createdAt
+			};
+			jobs.set(job.id, job);
+			return job;
+		},
+		get(id) {
+			return jobs.get(id);
+		},
+		update(id, update) {
+			const existing = jobs.get(id);
+			if (!existing) {
+				return undefined;
+			}
+			const next = {
+				...existing,
+				...update,
+				updatedAt: update.updatedAt ?? now()
+			};
+			jobs.set(id, next);
+			return next;
+		}
+	};
+};
+
 export const buildVoiceRealCallProfileReadinessCheck = (
 	report: VoiceRealCallProfileHistoryReport,
 	options: VoiceRealCallProfileReadinessCheckOptions = {}
@@ -3069,6 +3170,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 	const actionPath = (actionId: VoiceRealCallProfileRecoveryActionId) =>
 		`${path}${realCallProfileActionPaths[actionId]}`;
 	const loadReport = () => loadVoiceRealCallProfileHistoryRouteReport(options);
+	const asyncActionIds = new Set(options.asyncActionIds ?? []);
 	const listActions = async () => {
 		const report = await loadReport();
 		const actions = buildVoiceRealCallProfileRecoveryActions(report, {
@@ -3099,6 +3201,80 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 		}));
 		return { actions, generatedAt: new Date().toISOString(), report };
 	};
+	const runActionHandler = async (
+		actionId: VoiceRealCallProfileRecoveryActionId,
+		report: VoiceRealCallProfileHistoryReport
+	) => {
+		const handler = options.handlers?.[actionId];
+		if (!handler) {
+			return undefined;
+		}
+		return await handler({ actionId, report });
+	};
+	const runActionAsJob = async (
+		actionId: VoiceRealCallProfileRecoveryActionId,
+		report: VoiceRealCallProfileHistoryReport
+	) => {
+		const job = await options.jobStore?.create({
+			actionId,
+			message: `Queued real-call profile recovery action: ${actionId}.`,
+			status: 'queued'
+		});
+		if (!job) {
+			return undefined;
+		}
+		queueMicrotask(() => {
+			void (async () => {
+				const startedAt = new Date().toISOString();
+				await options.jobStore?.update(job.id, {
+					message: `Running real-call profile recovery action: ${actionId}.`,
+					startedAt,
+					status: 'running',
+					updatedAt: startedAt
+				});
+				try {
+					const result = await runActionHandler(actionId, report);
+					const completedAt = new Date().toISOString();
+					const ok = result?.ok ?? true;
+					const status =
+						result?.jobStatus ??
+						(result?.status === 'fail' || ok === false ? 'fail' : 'pass');
+					await options.jobStore?.update(job.id, {
+						completedAt,
+						message:
+							result?.message ??
+							`Completed real-call profile recovery action: ${actionId}.`,
+						ok,
+						report: result?.report,
+						status,
+						updatedAt: completedAt
+					});
+				} catch (error) {
+					const completedAt = new Date().toISOString();
+					await options.jobStore?.update(job.id, {
+						completedAt,
+						message:
+							error instanceof Error
+								? error.message
+								: `Failed real-call profile recovery action: ${actionId}.`,
+						ok: false,
+						status: 'fail',
+						updatedAt: completedAt
+					});
+				}
+			})();
+		});
+		return {
+			actionId,
+			generatedAt: new Date().toISOString(),
+			job,
+			jobId: job.id,
+			jobStatus: job.status,
+			message: job.message,
+			ok: true,
+			status: 'pass' as VoiceProofTrendStatus
+		} satisfies VoiceRealCallProfileRecoveryActionResult;
+	};
 	const runAction = async (actionId: VoiceRealCallProfileRecoveryActionId) => {
 		const report = await loadReport();
 		const handler = options.handlers?.[actionId];
@@ -3111,10 +3287,19 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 				status: 'fail' as VoiceProofTrendStatus
 			};
 		}
-		const result = await handler({ actionId, report });
+		if (options.jobStore && asyncActionIds.has(actionId)) {
+			const queued = await runActionAsJob(actionId, report);
+			if (queued) {
+				return queued;
+			}
+		}
+		const result = await runActionHandler(actionId, report);
 		return {
 			actionId,
 			generatedAt: new Date().toISOString(),
+			job: result?.job,
+			jobId: result?.jobId,
+			jobStatus: result?.jobStatus,
 			message: result?.message,
 			ok: result?.ok ?? true,
 			report: result?.report,
@@ -3124,6 +3309,34 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 
 	routes.get(`${path}/actions`, async () =>
 		Response.json(await listActions(), { headers: options.headers })
+	);
+
+	routes.get(
+		`${path}/actions/:jobId`,
+		async ({
+			params,
+			set
+		}: {
+			params: Record<string, string | undefined>;
+			set: { status?: number | string };
+		}) => {
+			const jobId = params.jobId ?? '';
+			const job = await options.jobStore?.get(jobId);
+			if (!job) {
+				set.status = 404;
+				return Response.json(
+					{
+						jobId,
+						message: `No real-call profile recovery job found for id: ${jobId}.`,
+						ok: false
+					},
+					{ headers: options.headers }
+				);
+			}
+			return Response.json({ job, ok: job.ok ?? job.status !== 'fail' }, {
+				headers: options.headers
+			});
+		}
 	);
 
 	for (const actionId of Object.keys(

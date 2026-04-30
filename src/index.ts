@@ -276,6 +276,7 @@ export {
 	buildVoiceRealCallProfileHistoryReport,
 	buildVoiceRealCallProfileReadinessCheck,
 	buildVoiceRealCallProfileRecoveryActions,
+	createVoiceInMemoryRealCallProfileRecoveryJobStore,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
@@ -387,6 +388,11 @@ export type {
 	VoiceRealCallProfileRecoveryActionId,
 	VoiceRealCallProfileRecoveryActionResult,
 	VoiceRealCallProfileRecoveryActionRoutesOptions,
+	VoiceRealCallProfileRecoveryJob,
+	VoiceRealCallProfileRecoveryJobCreateInput,
+	VoiceRealCallProfileRecoveryJobStatus,
+	VoiceRealCallProfileRecoveryJobStore,
+	VoiceRealCallProfileRecoveryJobUpdate,
 	VoiceRealCallProfileTraceEvidenceOptions,
 	VoiceRealCallProfileTraceStoreEvidenceOptions
 } from './proofTrends';

@@ -1519,6 +1519,24 @@ app.use(
 );
 ```
 
+For longer-running proof collection, add a job store and mark selected actions async. The POST returns a `jobId` with `jobStatus: "queued"`, and the app can poll `${path}/actions/:jobId`:
+
+```ts
+const recoveryJobs = createVoiceInMemoryRealCallProfileRecoveryJobStore();
+
+app.use(
+	createVoiceRealCallProfileRecoveryActionRoutes({
+		asyncActionIds: ['collect-browser-proof', 'collect-phone-proof'],
+		handlers: {
+			'collect-browser-proof': async () => runBrowserProfileProof(),
+			'collect-phone-proof': async () => runPhoneProfileProof()
+		},
+		jobStore: recoveryJobs,
+		source: buildRealCallHistory
+	})
+);
+```
+
 Use `createVoiceProfileTraceTagger(...)` when the app already has a trace store and needs every appended trace to carry a benchmark profile label. It wraps any `VoiceTraceEventStore`, preserves the underlying store behavior, and adds `profileId`/`benchmarkProfileId` metadata and payload fields that real-call profile history can ingest later.
 
 ```ts

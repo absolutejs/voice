@@ -13,6 +13,7 @@ import {
 	buildVoiceRealCallProfileHistoryReport,
 	buildVoiceRealCallProfileReadinessCheck,
 	buildVoiceRealCallProfileRecoveryActions,
+	createVoiceInMemoryRealCallProfileRecoveryJobStore,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
@@ -1638,5 +1639,82 @@ describe('proof trends', () => {
 			status: 'fail'
 		});
 		expect(calls).toEqual(['collect-browser-proof']);
+	});
+
+	test('createVoiceRealCallProfileRecoveryActionRoutes can queue and poll recovery jobs', async () => {
+		const jobStore = createVoiceInMemoryRealCallProfileRecoveryJobStore({
+			idPrefix: 'test-recovery-job'
+		});
+		const app = createVoiceRealCallProfileRecoveryActionRoutes({
+			asyncActionIds: ['collect-browser-proof'],
+			handlers: {
+				'collect-browser-proof': async () => ({
+					message: 'browser proof finished'
+				})
+			},
+			jobStore,
+			minActionableProfiles: 2,
+			path: '/api/voice/real-call-profile-history',
+			requiredProfileIds: ['support-agent'],
+			source: {
+				evidence: [
+					{
+						generatedAt: '2026-04-29T12:00:00.000Z',
+						ok: true,
+						profileId: 'support-agent',
+						profileLabel: 'Support agent',
+						providers: [
+							{
+								id: 'llm:openai',
+								label: 'LLM openai',
+								p95Ms: 450,
+								role: 'llm',
+								samples: 1,
+								status: 'pass'
+							}
+						],
+						sessionId: 'support-real-call'
+					}
+				],
+				source: '.voice-runtime/real-call-profiles/latest.json'
+			}
+		});
+
+		const queuedResponse = await app.handle(
+			new Request(
+				'http://localhost/api/voice/real-call-profile-history/collect-browser-proof',
+				{ method: 'POST' }
+			)
+		);
+		const queued = await queuedResponse.json();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const jobResponse = await app.handle(
+			new Request(
+				`http://localhost/api/voice/real-call-profile-history/actions/${queued.jobId}`
+			)
+		);
+		const job = await jobResponse.json();
+		const missingResponse = await app.handle(
+			new Request(
+				'http://localhost/api/voice/real-call-profile-history/actions/missing-job'
+			)
+		);
+
+		expect(queuedResponse.status).toBe(200);
+		expect(queued).toMatchObject({
+			actionId: 'collect-browser-proof',
+			jobStatus: 'queued',
+			ok: true
+		});
+		expect(queued.jobId).toStartWith('test-recovery-job-');
+		expect(jobResponse.status).toBe(200);
+		expect(job.job).toMatchObject({
+			actionId: 'collect-browser-proof',
+			id: queued.jobId,
+			message: 'browser proof finished',
+			ok: true,
+			status: 'pass'
+		});
+		expect(missingResponse.status).toBe(404);
 	});
 });
