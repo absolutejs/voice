@@ -288,6 +288,12 @@ export {
 	renderVoiceRealCallProfileHistoryMarkdown,
 	resolveVoiceRealCallProfileProviderRoute
 } from './proofTrends';
+export { recommendVoiceProfileSwitch } from './profileSwitchRecommendation';
+export type {
+	VoiceProfileSwitchObservedSignals,
+	VoiceProfileSwitchRecommendation,
+	VoiceProfileSwitchRecommendationOptions
+} from './profileSwitchRecommendation';
 export {
 	buildVoiceProviderDecisionTraceReport,
 	createVoiceProviderDecisionTraceEvent,

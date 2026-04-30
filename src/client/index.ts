@@ -26,6 +26,10 @@ export {
 	fetchVoiceProfileComparison
 } from './profileComparison';
 export {
+	createVoiceProfileSwitchRecommendationStore,
+	fetchVoiceProfileSwitchRecommendation
+} from './profileSwitchRecommendation';
+export {
 	createVoiceReadinessFailuresStore,
 	fetchVoiceReadinessFailures
 } from './readinessFailures';
@@ -77,6 +81,12 @@ export {
 	mountVoiceProfileComparison,
 	renderVoiceProfileComparisonHTML
 } from './profileComparisonWidget';
+export {
+	defineVoiceProfileSwitchRecommendationElement,
+	getVoiceProfileSwitchRecommendationCSS,
+	mountVoiceProfileSwitchRecommendation,
+	renderVoiceProfileSwitchRecommendationHTML
+} from './profileSwitchRecommendationWidget';
 export {
 	createVoiceReadinessFailuresViewModel,
 	defineVoiceReadinessFailuresElement,
@@ -227,6 +237,10 @@ export type {
 	VoiceProfileComparisonClientOptions,
 	VoiceProfileComparisonSnapshot
 } from './profileComparison';
+export type {
+	VoiceProfileSwitchRecommendationClientOptions,
+	VoiceProfileSwitchRecommendationSnapshot
+} from './profileSwitchRecommendation';
 export type {
 	VoiceReadinessFailureView,
 	VoiceReadinessFailuresViewModel,
