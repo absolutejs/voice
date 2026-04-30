@@ -250,6 +250,7 @@ export {
 	buildEmptyVoiceProofTrendReport,
 	buildVoiceProofTrendProfileSummaries,
 	buildVoiceProofTrendRecommendationReport,
+	buildVoiceProofTrendReportFromRealCallProfiles,
 	buildVoiceProofTrendReport,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
@@ -296,9 +297,12 @@ export type {
 	VoiceProofTrendRecommendationRoutesOptions,
 	VoiceProofTrendRecommendationStatus,
 	VoiceProofTrendRecommendationSurface,
+	VoiceProofTrendRealCallProfileEvidence,
+	VoiceProofTrendRealCallProfileReportOptions,
 	VoiceProofTrendReport,
 	VoiceProofTrendReportInput,
 	VoiceProofTrendRoutesOptions,
+	VoiceProofTrendRuntimeChannelSummary,
 	VoiceProofTrendStatus,
 	VoiceProofTrendSummary
 } from './proofTrends';

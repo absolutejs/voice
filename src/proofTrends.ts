@@ -131,6 +131,33 @@ export type VoiceProofTrendProfileSummaryOptions = {
 	profiles?: readonly VoiceProofTrendProfileDefinition[];
 };
 
+export type VoiceProofTrendRealCallProfileEvidence = {
+	generatedAt?: string;
+	liveP95Ms?: number;
+	ok?: boolean;
+	operationsRecordHref?: string;
+	profileDescription?: string;
+	profileId: string;
+	profileLabel?: string;
+	providerP95Ms?: number;
+	providers?: VoiceProofTrendProviderSummary[];
+	runtimeChannel?: VoiceProofTrendRuntimeChannelSummary;
+	sessionId: string;
+	turnP95Ms?: number;
+};
+
+export type VoiceProofTrendRealCallProfileReportOptions =
+	VoiceProofTrendProfileSummaryOptions & {
+		baseUrl?: string;
+		evidence: readonly VoiceProofTrendRealCallProfileEvidence[];
+		generatedAt?: string;
+		maxAgeMs?: number;
+		now?: Date | number | string;
+		outputDir?: string;
+		runId?: string;
+		source?: string;
+	};
+
 export type VoiceProofTrendAssertionInput = {
 	maxAgeMs?: number;
 	maxRuntimeBackpressureEvents?: number;
@@ -804,6 +831,149 @@ export const buildVoiceProofTrendProfileSummaries = (
 			...derivedProfile,
 			status: readProofTrendProfileStatus(derivedProfile, budgets)
 		};
+	});
+};
+
+export const buildVoiceProofTrendReportFromRealCallProfiles = (
+	options: VoiceProofTrendRealCallProfileReportOptions
+): VoiceProofTrendReport => {
+	const providerCap = options.maxProviderP95Ms ?? 1_000;
+	const liveCap = options.maxLiveP95Ms ?? 800;
+	const turnCap = options.maxTurnP95Ms ?? 700;
+	const runtimeFirstAudioCap = options.maxRuntimeFirstAudioLatencyMs ?? 600;
+	const runtimeInterruptionCap = options.maxRuntimeInterruptionP95Ms ?? 300;
+	const runtimeJitterCap = options.maxRuntimeJitterMs ?? 30;
+	const runtimeTimestampDriftCap = options.maxRuntimeTimestampDriftMs ?? 800;
+	const budgets = {
+		maxLiveP95Ms: liveCap,
+		maxProviderP95Ms: providerCap,
+		maxRuntimeFirstAudioLatencyMs: runtimeFirstAudioCap,
+		maxRuntimeInterruptionP95Ms: runtimeInterruptionCap,
+		maxRuntimeJitterMs: runtimeJitterCap,
+		maxRuntimeTimestampDriftMs: runtimeTimestampDriftCap,
+		maxTurnP95Ms: turnCap
+	};
+	const definitionById = new Map(
+		(options.profiles ?? DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS).map(
+			(profile) => [profile.id, profile]
+		)
+	);
+	for (const evidence of options.evidence) {
+		if (!definitionById.has(evidence.profileId)) {
+			definitionById.set(evidence.profileId, {
+				description: evidence.profileDescription,
+				id: evidence.profileId,
+				label: evidence.profileLabel
+			});
+		}
+	}
+	const profiles: VoiceProofTrendProfileSummary[] = [];
+	for (const definition of definitionById.values()) {
+			const matchingEvidence = options.evidence.filter(
+				(evidence) => evidence.profileId === definition.id
+			);
+			if (matchingEvidence.length === 0) {
+				continue;
+			}
+
+			const profile: VoiceProofTrendProfileSummary = {
+				description:
+					definition.description ??
+					matchingEvidence.find((evidence) => evidence.profileDescription)
+						?.profileDescription,
+				id: definition.id,
+				label:
+					definition.label ??
+					matchingEvidence.find((evidence) => evidence.profileLabel)
+						?.profileLabel,
+				maxLiveP95Ms: maxNumber(
+					matchingEvidence.map((evidence) => evidence.liveP95Ms)
+				),
+				maxProviderP95Ms: maxNumber(
+					matchingEvidence.map((evidence) => evidence.providerP95Ms)
+				),
+				maxTurnP95Ms: maxNumber(
+					matchingEvidence.map((evidence) => evidence.turnP95Ms)
+				),
+				providers: aggregateProofTrendProviders(
+					matchingEvidence.flatMap((evidence) => evidence.providers ?? [])
+				),
+				runtimeChannel: aggregateProofTrendRuntimeChannel(
+					matchingEvidence
+						.map((evidence) => evidence.runtimeChannel)
+						.filter(
+							(
+								channel
+							): channel is VoiceProofTrendRuntimeChannelSummary =>
+								channel !== undefined
+						)
+				)
+			};
+			profiles.push({
+				...profile,
+				status: readProofTrendProfileStatus(profile, budgets)
+			});
+	}
+	const cycles: VoiceProofTrendCycle[] = options.evidence.map(
+		(evidence, index) => ({
+			at: evidence.generatedAt,
+			cycle: index + 1,
+			liveLatency:
+				evidence.liveP95Ms === undefined
+					? undefined
+					: { p95Ms: evidence.liveP95Ms, samples: 1 },
+			ok: evidence.ok !== false,
+			providers: evidence.providers,
+			runtimeChannel: evidence.runtimeChannel,
+			turnLatency:
+				evidence.turnP95Ms === undefined
+					? undefined
+					: {
+							p95Ms: evidence.turnP95Ms,
+							samples: 1,
+							status: evidence.turnP95Ms <= turnCap ? 'pass' : 'fail'
+						}
+		})
+	);
+	const summary: VoiceProofTrendSummary = {
+		cycles: options.evidence.length,
+		maxLiveP95Ms: maxNumber(
+			options.evidence.map((evidence) => evidence.liveP95Ms)
+		),
+		maxProviderP95Ms: maxNumber(
+			options.evidence.map((evidence) => evidence.providerP95Ms)
+		),
+		maxTurnP95Ms: maxNumber(
+			options.evidence.map((evidence) => evidence.turnP95Ms)
+		),
+		profiles,
+		providers: aggregateProofTrendProviders(
+			options.evidence.flatMap((evidence) => evidence.providers ?? [])
+		),
+		runtimeChannel: aggregateProofTrendRuntimeChannel(
+			options.evidence
+				.map((evidence) => evidence.runtimeChannel)
+				.filter(
+					(channel): channel is VoiceProofTrendRuntimeChannelSummary =>
+						channel !== undefined
+				)
+		)
+	};
+
+	return buildVoiceProofTrendReport({
+		baseUrl: options.baseUrl,
+		cycles,
+		generatedAt: options.generatedAt,
+		maxAgeMs: options.maxAgeMs,
+		now: options.now,
+		ok:
+			options.evidence.length > 0 &&
+			options.evidence.every((evidence) => evidence.ok !== false) &&
+			profiles.every((profile) => profile.status !== 'fail'),
+		outputDir: options.outputDir,
+		runId: options.runId,
+		source: options.source,
+		summary
 	});
 };
 

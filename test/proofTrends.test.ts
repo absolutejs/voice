@@ -6,6 +6,7 @@ import {
 	buildEmptyVoiceProofTrendReport,
 	buildVoiceProofTrendProfileSummaries,
 	buildVoiceProofTrendRecommendationReport,
+	buildVoiceProofTrendReportFromRealCallProfiles,
 	buildVoiceProofTrendReport,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
@@ -733,6 +734,113 @@ describe('proof trends', () => {
 			maxLiveP95Ms: 800,
 			maxProviderP95Ms: 720,
 			maxTurnP95Ms: 693,
+			status: 'pass'
+		});
+	});
+
+	test('buildVoiceProofTrendReportFromRealCallProfiles emits history-compatible profile proof from session evidence', () => {
+		const report = buildVoiceProofTrendReportFromRealCallProfiles({
+			evidence: [
+				{
+					generatedAt: '2026-04-29T12:00:00.000Z',
+					liveP95Ms: 510,
+					ok: true,
+					profileId: 'meeting-recorder',
+					providerP95Ms: 680,
+					providers: [
+						{
+							id: 'llm:openai',
+							label: 'LLM openai',
+							p95Ms: 680,
+							role: 'llm',
+							samples: 1,
+							status: 'pass'
+						},
+						{
+							id: 'stt:deepgram',
+							label: 'STT deepgram',
+							p95Ms: 82,
+							role: 'stt',
+							samples: 1,
+							status: 'pass'
+						},
+						{
+							id: 'tts:openai',
+							label: 'TTS openai',
+							p95Ms: 45,
+							role: 'tts',
+							samples: 1,
+							status: 'pass'
+						}
+					],
+					runtimeChannel: {
+						maxBackpressureEvents: 0,
+						maxFirstAudioLatencyMs: 410,
+						maxInterruptionP95Ms: 180,
+						maxJitterMs: 12,
+						maxTimestampDriftMs: 500,
+						samples: 1,
+						status: 'pass'
+					},
+					sessionId: 'real-call-1',
+					turnP95Ms: 650
+				},
+				{
+					generatedAt: '2026-04-29T12:02:00.000Z',
+					liveP95Ms: 540,
+					ok: true,
+					profileId: 'meeting-recorder',
+					providerP95Ms: 700,
+					providers: [
+						{
+							id: 'llm:openai',
+							label: 'LLM openai',
+							p95Ms: 700,
+							role: 'llm',
+							samples: 1,
+							status: 'pass'
+						}
+					],
+					runtimeChannel: {
+						maxBackpressureEvents: 0,
+						maxFirstAudioLatencyMs: 420,
+						maxInterruptionP95Ms: 190,
+						maxJitterMs: 14,
+						maxTimestampDriftMs: 510,
+						samples: 1,
+						status: 'pass'
+					},
+					sessionId: 'real-call-2',
+					turnP95Ms: 670
+				}
+			],
+			generatedAt: '2026-04-29T12:03:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:03:30.000Z',
+			source: '.voice-runtime/real-call-profiles/latest.json'
+		});
+
+		expect(report).toMatchObject({
+			ok: true,
+			source: '.voice-runtime/real-call-profiles/latest.json',
+			summary: {
+				cycles: 2,
+				maxLiveP95Ms: 540,
+				maxProviderP95Ms: 700,
+				maxTurnP95Ms: 670,
+				profiles: [
+					{
+						id: 'meeting-recorder',
+						maxLiveP95Ms: 540,
+						maxProviderP95Ms: 700,
+						maxTurnP95Ms: 670,
+						status: 'pass'
+					}
+				]
+			}
+		});
+		expect(report.summary.profiles?.[0]?.providers?.[0]).toMatchObject({
+			id: 'tts:openai',
 			status: 'pass'
 		});
 	});
