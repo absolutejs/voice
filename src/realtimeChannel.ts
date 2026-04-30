@@ -1,10 +1,12 @@
 import { Elysia } from 'elysia';
 import type { AudioFormat } from './types';
+import type { StoredVoiceTraceEvent } from './trace';
 
 export type VoiceRealtimeChannelStatus = 'fail' | 'pass' | 'warn';
 
 export type VoiceRealtimeChannelRuntimeSample = {
 	format?: AudioFormat;
+	observedAt?: number;
 	kind:
 		| 'assistant-audio'
 		| 'browser-capture'
@@ -13,7 +15,9 @@ export type VoiceRealtimeChannelRuntimeSample = {
 		| 'turn-commit';
 	latencyMs?: number;
 	ok?: boolean;
+	sessionId?: string;
 	source?: string;
+	turnId?: string;
 };
 
 export type VoiceRealtimeChannelBrowserCapture = {
@@ -92,6 +96,11 @@ export type VoiceRealtimeChannelRoutesOptions = VoiceRealtimeChannelReportOption
 	name?: string;
 	path?: string;
 	render?: (report: VoiceRealtimeChannelReport) => Promise<string> | string;
+	source?:
+		| (() =>
+				| Promise<VoiceRealtimeChannelReportOptions>
+				| VoiceRealtimeChannelReportOptions)
+		| VoiceRealtimeChannelReportOptions;
 	title?: string;
 };
 
@@ -146,6 +155,104 @@ const validateFormat = (
 			severity: 'error'
 		});
 	}
+};
+
+const readString = (value: unknown) =>
+	typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+const readNumber = (value: unknown) =>
+	typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+const eventHasRealtimeAssistantProof = (event: StoredVoiceTraceEvent) =>
+	event.type === 'turn.assistant' &&
+	(event.payload.realtimeConfigured === true ||
+		event.payload.mode === 'realtime' ||
+		event.metadata?.realtime === true);
+
+export const buildVoiceRealtimeChannelRuntimeSamplesFromTrace = (
+	events: readonly StoredVoiceTraceEvent[],
+	options: {
+		format?: AudioFormat;
+		source?: string;
+	} = {}
+): VoiceRealtimeChannelRuntimeSample[] => {
+	const format = options.format ?? DEFAULT_REALTIME_FORMAT;
+	const source = options.source ?? 'trace-store';
+	const samples: VoiceRealtimeChannelRuntimeSample[] = [];
+	const stagesByTurn = new Map<string, Map<string, number>>();
+
+	for (const event of events) {
+		if (event.type !== 'turn_latency.stage' || !event.turnId) {
+			continue;
+		}
+		const stage = readString(event.payload.stage);
+		if (!stage) {
+			continue;
+		}
+		const stages = stagesByTurn.get(event.turnId) ?? new Map<string, number>();
+		stages.set(stage, event.at);
+		stagesByTurn.set(event.turnId, stages);
+	}
+
+	for (const event of [...events].sort((left, right) => left.at - right.at)) {
+		if (event.type === 'turn.committed') {
+			samples.push({
+				format,
+				kind: 'input-audio',
+				observedAt: event.at,
+				ok: true,
+				sessionId: event.sessionId,
+				source,
+				turnId: event.turnId
+			});
+			samples.push({
+				kind: 'turn-commit',
+				observedAt: event.at,
+				ok: true,
+				sessionId: event.sessionId,
+				source,
+				turnId: event.turnId
+			});
+			continue;
+		}
+
+		if (eventHasRealtimeAssistantProof(event)) {
+			const stages = event.turnId ? stagesByTurn.get(event.turnId) : undefined;
+			const committedAt = stages?.get('turn_committed');
+			const audioAt =
+				stages?.get('assistant_audio_received') ??
+				stages?.get('tts_send_completed') ??
+				stages?.get('assistant_text_started') ??
+				event.at;
+			const latencyMs =
+				committedAt !== undefined ? Math.max(0, audioAt - committedAt) : readNumber(event.payload.elapsedMs);
+
+			samples.push({
+				format,
+				kind: 'assistant-audio',
+				latencyMs,
+				observedAt: event.at,
+				ok: event.payload.status !== 'realtime-send-failed',
+				sessionId: event.sessionId,
+				source,
+				turnId: event.turnId
+			});
+			continue;
+		}
+
+		if (event.type === 'client.reconnect') {
+			samples.push({
+				kind: 'reconnect',
+				observedAt: event.at,
+				ok: event.payload.status !== 'failed',
+				sessionId: event.sessionId,
+				source,
+				turnId: event.turnId
+			});
+		}
+	}
+
+	return samples;
 };
 
 export const buildVoiceRealtimeChannelReport = (
@@ -405,11 +512,32 @@ export const createVoiceRealtimeChannelRoutes = (
 	const markdownPath = options.markdownPath ?? '/voice/realtime-channel.md';
 	const headers = options.headers ?? {};
 	const title = options.title ?? 'Voice Realtime Channel Proof';
-	const report = () => buildVoiceRealtimeChannelReport(options);
+	const resolveOptions = async () => {
+		const source =
+			typeof options.source === 'function'
+				? await options.source()
+				: (options.source ?? options);
+		const {
+			headers: _headers,
+			htmlPath: _htmlPath,
+			markdownPath: _markdownPath,
+			name: _name,
+			path: _path,
+			render: _render,
+			source: _source,
+			title: _title,
+			...reportOptions
+		} = {
+			...options,
+			...source
+		};
+		return reportOptions satisfies VoiceRealtimeChannelReportOptions;
+	};
+	const report = async () => buildVoiceRealtimeChannelReport(await resolveOptions());
 	const app = new Elysia({ name: options.name ?? 'voice-realtime-channel' }).get(
 		path,
-		() =>
-			new Response(JSON.stringify(report(), null, 2), {
+		async () =>
+			new Response(JSON.stringify(await report(), null, 2), {
 				headers: {
 					'content-type': 'application/json; charset=utf-8',
 					...headers
@@ -419,7 +547,7 @@ export const createVoiceRealtimeChannelRoutes = (
 
 	if (htmlPath !== false) {
 		app.get(htmlPath, async () => {
-			const current = report();
+			const current = await report();
 			const body = options.render
 				? await options.render(current)
 				: renderVoiceRealtimeChannelHTML(current, title);
@@ -435,8 +563,8 @@ export const createVoiceRealtimeChannelRoutes = (
 	if (markdownPath !== false) {
 		app.get(
 			markdownPath,
-			() =>
-				new Response(renderVoiceRealtimeChannelMarkdown(report()), {
+			async () =>
+				new Response(renderVoiceRealtimeChannelMarkdown(await report()), {
 					headers: {
 						'content-type': 'text/markdown; charset=utf-8',
 						...headers

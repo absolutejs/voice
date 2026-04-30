@@ -98,6 +98,7 @@ export {
 } from './reconnectContract';
 export {
 	assertVoiceRealtimeChannelEvidence,
+	buildVoiceRealtimeChannelRuntimeSamplesFromTrace,
 	buildVoiceRealtimeChannelReport,
 	createVoiceRealtimeChannelRoutes,
 	evaluateVoiceRealtimeChannelEvidence,

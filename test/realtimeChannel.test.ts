@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	assertVoiceRealtimeChannelEvidence,
+	buildVoiceRealtimeChannelRuntimeSamplesFromTrace,
 	buildVoiceRealtimeChannelReport,
 	createVoiceRealtimeChannelRoutes,
 	evaluateVoiceRealtimeChannelEvidence,
@@ -179,5 +180,77 @@ describe('realtime channel proof', () => {
 		expect(await markdownResponse.text()).toContain(
 			'Voice Realtime Channel Proof'
 		);
+	});
+
+	test('buildVoiceRealtimeChannelRuntimeSamplesFromTrace converts persisted realtime traces', () => {
+		const samples = buildVoiceRealtimeChannelRuntimeSamplesFromTrace([
+			{
+				at: 100,
+				id: 'commit-stage',
+				payload: { stage: 'turn_committed' },
+				sessionId: 'session-1',
+				turnId: 'turn-1',
+				type: 'turn_latency.stage'
+			},
+			{
+				at: 440,
+				id: 'audio-stage',
+				payload: { stage: 'assistant_audio_received' },
+				sessionId: 'session-1',
+				turnId: 'turn-1',
+				type: 'turn_latency.stage'
+			},
+			{
+				at: 100,
+				id: 'committed',
+				payload: { text: 'hello' },
+				sessionId: 'session-1',
+				turnId: 'turn-1',
+				type: 'turn.committed'
+			},
+			{
+				at: 120,
+				id: 'assistant',
+				payload: { mode: 'realtime', status: 'sent' },
+				sessionId: 'session-1',
+				turnId: 'turn-1',
+				type: 'turn.assistant'
+			}
+		]);
+
+		expect(samples.map((sample) => sample.kind)).toEqual([
+			'input-audio',
+			'turn-commit',
+			'assistant-audio'
+		]);
+		expect(samples.at(-1)?.latencyMs).toBe(340);
+		expect(samples.at(-1)?.source).toBe('trace-store');
+	});
+
+	test('createVoiceRealtimeChannelRoutes can build reports from a source function', async () => {
+		const app = createVoiceRealtimeChannelRoutes({
+			path: '/api/realtime-source',
+			provider: 'placeholder',
+			source: () => ({
+				browserCapture: {
+					channelCount: 1,
+					sampleRateHz: 24_000
+				},
+				provider: 'openai-realtime',
+				runtimeSamples: [
+					{ format: realtimeFormat, kind: 'input-audio' },
+					{ format: realtimeFormat, kind: 'assistant-audio', latencyMs: 320 }
+				]
+			})
+		});
+		const response = await app.handle(
+			new Request('http://localhost/api/realtime-source')
+		);
+		const body = (await response.json()) as ReturnType<
+			typeof buildVoiceRealtimeChannelReport
+		>;
+
+		expect(body.provider).toBe('openai-realtime');
+		expect(body.status).toBe('pass');
 	});
 });
