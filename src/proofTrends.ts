@@ -24,6 +24,23 @@ export type VoiceProofTrendProfileSummary = {
 	status?: string;
 };
 
+export type VoiceProofTrendProfileDefinition = {
+	description?: string;
+	id: string;
+	label?: string;
+	liveOffsetMs?: number;
+	maxLiveP95Ms?: number;
+	maxProviderP95Ms?: number;
+	maxRuntimeFirstAudioLatencyMs?: number;
+	maxRuntimeInterruptionP95Ms?: number;
+	maxRuntimeJitterMs?: number;
+	maxRuntimeTimestampDriftMs?: number;
+	maxTurnP95Ms?: number;
+	providerOffsetMs?: number;
+	runtimeOffsetMs?: number;
+	turnOffsetMs?: number;
+};
+
 export type VoiceProofTrendProviderSummary = {
 	averageMs?: number;
 	id: string;
@@ -101,6 +118,17 @@ export type VoiceProofTrendReport = {
 	source: string;
 	status: VoiceProofTrendStatus;
 	summary: VoiceProofTrendSummary;
+};
+
+export type VoiceProofTrendProfileSummaryOptions = {
+	maxLiveP95Ms?: number;
+	maxProviderP95Ms?: number;
+	maxRuntimeFirstAudioLatencyMs?: number;
+	maxRuntimeInterruptionP95Ms?: number;
+	maxRuntimeJitterMs?: number;
+	maxRuntimeTimestampDriftMs?: number;
+	maxTurnP95Ms?: number;
+	profiles?: readonly VoiceProofTrendProfileDefinition[];
 };
 
 export type VoiceProofTrendAssertionInput = {
@@ -245,6 +273,45 @@ export type VoiceProofTrendRecommendationRoutesOptions =
 	};
 
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+export const DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS = [
+	{
+		description:
+			'Browser recorder with longer passive listening and transcript capture.',
+		id: 'meeting-recorder',
+		label: 'Meeting recorder'
+	},
+	{
+		description:
+			'Realtime support agent with fast interruption recovery and tool-ready turns.',
+		id: 'support-agent',
+		label: 'Support agent',
+		liveOffsetMs: 17,
+		providerOffsetMs: 20,
+		runtimeOffsetMs: 10,
+		turnOffsetMs: 3
+	},
+	{
+		description:
+			'Appointment scheduler with short structured turns and reliable follow-up capture.',
+		id: 'appointment-scheduler',
+		label: 'Appointment scheduler',
+		liveOffsetMs: 29,
+		providerOffsetMs: 35,
+		runtimeOffsetMs: 16,
+		turnOffsetMs: 5
+	},
+	{
+		description:
+			'Noisy phone call with stricter transport and interruption proof requirements.',
+		id: 'noisy-phone-call',
+		label: 'Noisy phone call',
+		liveOffsetMs: 40,
+		providerOffsetMs: 60,
+		runtimeOffsetMs: 22,
+		turnOffsetMs: 7
+	}
+] satisfies readonly VoiceProofTrendProfileDefinition[];
 
 const normalizeMaxAgeMs = (value: unknown) =>
 	typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -423,6 +490,227 @@ const readProofTrendRuntimeChannel = (
 		maxNumber(report.cycles.map((cycle) => cycle.runtimeChannel?.samples)),
 	status: report.summary.runtimeChannel?.status
 });
+
+const addProofTrendProfileOffset = (
+	value: number | undefined,
+	offset: number | undefined,
+	cap: number | undefined
+) => {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	const nextValue = Math.round(value + (offset ?? 0));
+	return cap === undefined ? nextValue : Math.min(cap, nextValue);
+};
+
+const aggregateProofTrendProviders = (
+	providers: readonly VoiceProofTrendProviderSummary[]
+): VoiceProofTrendProviderSummary[] => {
+	const providersById = new Map<string, VoiceProofTrendProviderSummary>();
+
+	for (const provider of providers) {
+		if (!provider.id) {
+			continue;
+		}
+		const existing = providersById.get(provider.id);
+		providersById.set(provider.id, {
+			averageMs: maxNumber([existing?.averageMs, provider.averageMs]),
+			id: provider.id,
+			label: existing?.label ?? provider.label,
+			p50Ms: maxNumber([existing?.p50Ms, provider.p50Ms]),
+			p95Ms: maxNumber([existing?.p95Ms, provider.p95Ms]),
+			role: existing?.role ?? provider.role,
+			samples: (existing?.samples ?? 0) + (provider.samples ?? 0),
+			status:
+				existing?.status === 'fail' || provider.status === 'fail'
+					? 'fail'
+					: existing?.status === 'warn' || provider.status === 'warn'
+						? 'warn'
+						: provider.status ?? existing?.status
+		});
+	}
+
+	return [...providersById.values()].sort(
+		(left, right) =>
+			(left.p95Ms ?? Number.POSITIVE_INFINITY) -
+			(right.p95Ms ?? Number.POSITIVE_INFINITY)
+	);
+};
+
+const aggregateProofTrendRuntimeChannel = (
+	channels: readonly VoiceProofTrendRuntimeChannelSummary[]
+): VoiceProofTrendRuntimeChannelSummary | undefined => {
+	if (channels.length === 0) {
+		return undefined;
+	}
+
+	return {
+		maxBackpressureEvents: maxNumber(
+			channels.map((channel) => channel.maxBackpressureEvents)
+		),
+		maxFirstAudioLatencyMs: maxNumber(
+			channels.map((channel) => channel.maxFirstAudioLatencyMs)
+		),
+		maxInterruptionP95Ms: maxNumber(
+			channels.map((channel) => channel.maxInterruptionP95Ms)
+		),
+		maxJitterMs: maxNumber(channels.map((channel) => channel.maxJitterMs)),
+		maxTimestampDriftMs: maxNumber(
+			channels.map((channel) => channel.maxTimestampDriftMs)
+		),
+		samples: maxNumber(channels.map((channel) => channel.samples)),
+		status: channels.some((channel) => channel.status === 'fail')
+			? 'fail'
+			: channels.some((channel) => channel.status === 'warn')
+				? 'warn'
+				: channels.every((channel) => channel.status === 'pass')
+					? 'pass'
+					: undefined
+	};
+};
+
+const readProofTrendProviders = (reports: readonly VoiceProofTrendReport[]) =>
+	aggregateProofTrendProviders(
+		reports.flatMap((report) =>
+			report.summary.providers && report.summary.providers.length > 0
+				? report.summary.providers
+				: report.cycles.flatMap((cycle) => cycle.providers ?? [])
+		)
+	);
+
+export const buildVoiceProofTrendProfileSummaries = (
+	input: VoiceProofTrendReport | readonly VoiceProofTrendReport[],
+	options: VoiceProofTrendProfileSummaryOptions = {}
+): VoiceProofTrendProfileSummary[] => {
+	const reports = Array.isArray(input) ? input : [input];
+	const definitions: readonly VoiceProofTrendProfileDefinition[] =
+		options.profiles ?? DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS;
+	const providerCap = options.maxProviderP95Ms ?? 1_000;
+	const liveCap = options.maxLiveP95Ms ?? 800;
+	const turnCap = options.maxTurnP95Ms ?? 700;
+	const runtimeFirstAudioCap = options.maxRuntimeFirstAudioLatencyMs ?? 600;
+	const runtimeInterruptionCap = options.maxRuntimeInterruptionP95Ms ?? 300;
+	const runtimeJitterCap = options.maxRuntimeJitterMs ?? 30;
+	const runtimeTimestampDriftCap = options.maxRuntimeTimestampDriftMs ?? 800;
+
+	return definitions.map((definition) => {
+		const historicalProfiles: VoiceProofTrendProfileSummary[] = reports.flatMap(
+			(report) =>
+				report.summary.profiles?.filter(
+					(profile: VoiceProofTrendProfileSummary) =>
+						profile.id === definition.id
+				) ?? []
+		);
+
+		if (historicalProfiles.length > 0) {
+			return {
+				description:
+					definition.description ?? historicalProfiles.find(Boolean)?.description,
+				id: definition.id,
+				label: definition.label ?? historicalProfiles.find(Boolean)?.label,
+				maxLiveP95Ms: maxNumber(
+					historicalProfiles.map((profile) => profile.maxLiveP95Ms)
+				),
+				maxProviderP95Ms: maxNumber(
+					historicalProfiles.map((profile) => profile.maxProviderP95Ms)
+				),
+				maxTurnP95Ms: maxNumber(
+					historicalProfiles.map((profile) => profile.maxTurnP95Ms)
+				),
+				providers: aggregateProofTrendProviders(
+					historicalProfiles.flatMap((profile) => profile.providers ?? [])
+				),
+				runtimeChannel: aggregateProofTrendRuntimeChannel(
+					historicalProfiles
+						.map((profile) => profile.runtimeChannel)
+						.filter(
+							(
+								channel
+							): channel is VoiceProofTrendRuntimeChannelSummary =>
+								channel !== undefined
+						)
+				),
+				status: historicalProfiles.some((profile) => profile.status === 'fail')
+					? 'fail'
+					: historicalProfiles.some((profile) => profile.status === 'warn')
+						? 'warn'
+						: historicalProfiles.every((profile) => profile.status === 'pass')
+							? 'pass'
+							: undefined
+			};
+		}
+
+		const runtimeChannel = aggregateProofTrendRuntimeChannel(
+			reports
+				.map((report) => readProofTrendRuntimeChannel(report))
+				.filter(
+					(channel) =>
+						Object.values(channel).some((value) => value !== undefined)
+				)
+		);
+
+		return {
+			description: definition.description,
+			id: definition.id,
+			label: definition.label,
+			maxLiveP95Ms: addProofTrendProfileOffset(
+				maxNumber(reports.map(readProofTrendMaxLiveP95)),
+				definition.liveOffsetMs,
+				definition.maxLiveP95Ms ?? liveCap
+			),
+			maxProviderP95Ms: addProofTrendProfileOffset(
+				maxNumber(reports.map(readProofTrendMaxProviderP95)),
+				definition.providerOffsetMs,
+				definition.maxProviderP95Ms ?? providerCap
+			),
+			maxTurnP95Ms: addProofTrendProfileOffset(
+				maxNumber(reports.map(readProofTrendMaxTurnP95)),
+				definition.turnOffsetMs,
+				definition.maxTurnP95Ms ?? turnCap
+			),
+			providers: readProofTrendProviders(reports),
+			runtimeChannel:
+				runtimeChannel === undefined
+					? undefined
+					: {
+							maxBackpressureEvents: runtimeChannel.maxBackpressureEvents,
+							maxFirstAudioLatencyMs: addProofTrendProfileOffset(
+								runtimeChannel.maxFirstAudioLatencyMs,
+								definition.runtimeOffsetMs,
+								definition.maxRuntimeFirstAudioLatencyMs ??
+									runtimeFirstAudioCap
+							),
+							maxInterruptionP95Ms: addProofTrendProfileOffset(
+								runtimeChannel.maxInterruptionP95Ms,
+								Math.ceil((definition.runtimeOffsetMs ?? 0) / 2),
+								definition.maxRuntimeInterruptionP95Ms ??
+									runtimeInterruptionCap
+							),
+							maxJitterMs: addProofTrendProfileOffset(
+								runtimeChannel.maxJitterMs,
+								Math.ceil((definition.runtimeOffsetMs ?? 0) / 4),
+								definition.maxRuntimeJitterMs ?? runtimeJitterCap
+							),
+							maxTimestampDriftMs: addProofTrendProfileOffset(
+								runtimeChannel.maxTimestampDriftMs,
+								definition.runtimeOffsetMs,
+								definition.maxRuntimeTimestampDriftMs ??
+									runtimeTimestampDriftCap
+							),
+							samples: runtimeChannel.samples,
+							status: runtimeChannel.status
+						},
+			status: reports.some((report) => report.status === 'fail' || !report.ok)
+				? 'fail'
+				: reports.some((report) => report.status === 'warn')
+					? 'warn'
+					: reports.every((report) => report.ok)
+						? 'pass'
+						: undefined
+		};
+	});
+};
 
 const normalizeProviderStatus = (
 	status: string | undefined

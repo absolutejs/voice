@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import {
 	assertVoiceProofTrendEvidence,
 	buildEmptyVoiceProofTrendReport,
+	buildVoiceProofTrendProfileSummaries,
 	buildVoiceProofTrendRecommendationReport,
 	buildVoiceProofTrendReport,
 	createVoiceProofTrendRecommendationRoutes,
@@ -446,6 +447,160 @@ describe('proof trends', () => {
 			'live-latency',
 			'turn-latency'
 		]);
+	});
+
+	test('buildVoiceProofTrendProfileSummaries aggregates profile history before using fallback derivation', () => {
+		const older = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:00:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 6,
+				maxLiveP95Ms: 520,
+				maxProviderP95Ms: 690,
+				maxTurnP95Ms: 680,
+				profiles: [
+					{
+						id: 'support-agent',
+						label: 'Support agent',
+						maxLiveP95Ms: 540,
+						maxProviderP95Ms: 710,
+						maxTurnP95Ms: 690,
+						providers: [
+							{
+								id: 'stt:deepgram',
+								label: 'STT deepgram',
+								p95Ms: 82,
+								role: 'stt',
+								samples: 6,
+								status: 'pass'
+							}
+						],
+						runtimeChannel: {
+							maxFirstAudioLatencyMs: 430,
+							maxInterruptionP95Ms: 195,
+							maxJitterMs: 14,
+							maxTimestampDriftMs: 510,
+							samples: 4,
+							status: 'pass'
+						},
+						status: 'pass'
+					}
+				],
+				providers: [
+					{
+						id: 'llm:openai',
+						label: 'LLM openai',
+						p95Ms: 690,
+						role: 'llm',
+						samples: 12,
+						status: 'pass'
+					}
+				],
+				runtimeChannel: {
+					maxFirstAudioLatencyMs: 420,
+					maxInterruptionP95Ms: 190,
+					maxJitterMs: 12,
+					maxTimestampDriftMs: 500,
+					samples: 4,
+					status: 'pass'
+				}
+			}
+		});
+		const newer = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:01:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:01:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 6,
+				maxLiveP95Ms: 531,
+				maxProviderP95Ms: 700,
+				maxTurnP95Ms: 690,
+				profiles: [
+					{
+						id: 'support-agent',
+						label: 'Support agent',
+						maxLiveP95Ms: 548,
+						maxProviderP95Ms: 720,
+						maxTurnP95Ms: 693,
+						providers: [
+							{
+								id: 'stt:deepgram',
+								label: 'STT deepgram',
+								p95Ms: 82,
+								role: 'stt',
+								samples: 6,
+								status: 'pass'
+							},
+							{
+								id: 'tts:openai',
+								label: 'TTS openai',
+								p95Ms: 45,
+								role: 'tts',
+								samples: 6,
+								status: 'pass'
+							}
+						],
+						runtimeChannel: {
+							maxFirstAudioLatencyMs: 435,
+							maxInterruptionP95Ms: 198,
+							maxJitterMs: 15,
+							maxTimestampDriftMs: 520,
+							samples: 4,
+							status: 'pass'
+						},
+						status: 'pass'
+					}
+				],
+				providers: [
+					{
+						id: 'llm:openai',
+						label: 'LLM openai',
+						p95Ms: 700,
+						role: 'llm',
+						samples: 12,
+						status: 'pass'
+					}
+				],
+				runtimeChannel: {
+					maxFirstAudioLatencyMs: 420,
+					maxInterruptionP95Ms: 190,
+					maxJitterMs: 12,
+					maxTimestampDriftMs: 500,
+					samples: 4,
+					status: 'pass'
+				}
+			}
+		});
+
+		const profiles = buildVoiceProofTrendProfileSummaries([older, newer]);
+		const supportAgent = profiles.find((profile) => profile.id === 'support-agent');
+		const meetingRecorder = profiles.find(
+			(profile) => profile.id === 'meeting-recorder'
+		);
+
+		expect(supportAgent).toMatchObject({
+			maxLiveP95Ms: 548,
+			maxProviderP95Ms: 720,
+			maxTurnP95Ms: 693,
+			runtimeChannel: {
+				maxFirstAudioLatencyMs: 435,
+				maxInterruptionP95Ms: 198
+			},
+			status: 'pass'
+		});
+		expect(
+			supportAgent?.providers.find((provider) => provider.id === 'stt:deepgram')
+				?.samples
+		).toBe(12);
+		expect(meetingRecorder).toMatchObject({
+			maxLiveP95Ms: 531,
+			maxProviderP95Ms: 700,
+			maxTurnP95Ms: 690,
+			status: 'pass'
+		});
 	});
 
 	test('buildVoiceProofTrendRecommendationReport recommends provider switches from sustained comparisons', () => {
