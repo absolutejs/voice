@@ -224,7 +224,7 @@ The biggest gaps versus Vapi/Retell/Bland are not raw code count. They are produ
 
 Current verified proof: `bun run proof:pack:server` passed on April 30, 2026.
 
-Output: `.voice-runtime/proof-pack/2026-04-30T12-05-43.243Z`.
+Output: `.voice-runtime/proof-pack/2026-04-30T15-34-16.230Z`.
 
 Verified:
 
@@ -235,6 +235,7 @@ Verified:
 - Native media pipeline proof passes through `@absolutejs/media` primitives with connected transport and processor-graph evidence: 5 frames, 3 processor nodes, 5 processor output frames, 1 processor-dropped frame, 1 input transport frame, 1 output transport frame, 0 backpressure events, 420ms first audio, 12ms jitter, 1 VAD segment, and 1 interruption frame.
 - Proof artifacts include production readiness, framework readiness gate explanations, provider SLOs, proof trends, provider/runtime recommendations, simulation suite, operations record, failure replay, post-call analysis, guardrails, media pipeline, browser WebRTC stats, and switching-from-Vapi.
 - Proof runs use isolated `VOICE_DEMO_RUNTIME_DIR` runtime directories so stale local demo sessions do not pollute release proof.
+- `@absolutejs/voice@0.0.22-beta.347` adds package-level real-call profile history reports/routes so repeated browser/phone evidence can roll up into provider/runtime recommendations by benchmark profile.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 
