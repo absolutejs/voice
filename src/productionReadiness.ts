@@ -71,6 +71,7 @@ import {
 	type VoiceObservabilityExportReplaySource,
 	type VoiceObservabilityExportReport
 } from './observabilityExport';
+import type { VoiceMediaPipelineReport } from './mediaPipelineRoutes';
 
 export type VoiceProductionReadinessObservabilityExportDeliveryHistoryOptions = {
 	failOnMissing?: boolean;
@@ -204,6 +205,7 @@ export type VoiceProductionReadinessReport = {
 		observabilityExportDeliveries?: string;
 		monitoring?: string;
 		monitoringNotifierDelivery?: string;
+		mediaPipeline?: string;
 		opsActions?: string;
 		opsRecovery?: string;
 		phoneAgentSmoke?: string;
@@ -278,6 +280,17 @@ export type VoiceProductionReadinessReport = {
 			sent: number;
 			status: VoiceProductionReadinessStatus;
 			total: number;
+		};
+		mediaPipeline?: {
+			assistantAudioFrames: number;
+			backpressureEvents: number;
+			gapCount: number;
+			inputAudioFrames: number;
+			issues: number;
+			jitterMs?: number;
+			speechRatio: number;
+			status: VoiceProductionReadinessStatus;
+			timestampDriftMs?: number;
 		};
 		opsActionHistory?: VoiceProductionReadinessOpsActionHistorySummary;
 		opsRecovery?: {
@@ -385,6 +398,7 @@ export type VoiceProductionReadinessOperationsRecordLink = {
 export type VoiceProductionReadinessOperationsRecordLinks = {
 	failedSessions: VoiceProductionReadinessOperationsRecordLink[];
 	failingLatency: VoiceProductionReadinessOperationsRecordLink[];
+	mediaQuality: VoiceProductionReadinessOperationsRecordLink[];
 	providerErrors: VoiceProductionReadinessOperationsRecordLink[];
 };
 
@@ -577,6 +591,13 @@ export type VoiceProductionReadinessRoutesOptions = {
 		  }) =>
 				| Promise<VoiceMonitorNotifierDeliveryReport>
 				| VoiceMonitorNotifierDeliveryReport);
+	mediaPipeline?:
+		| false
+		| VoiceMediaPipelineReport
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) => Promise<VoiceMediaPipelineReport> | VoiceMediaPipelineReport);
 	opsActionHistory?: false | VoiceProductionReadinessOpsActionHistoryOptions;
 	opsRecovery?:
 		| false
@@ -759,6 +780,7 @@ const readinessGateCodes: Record<string, string> = {
 	'Delivery runtime': 'voice.readiness.delivery_runtime',
 	'Handoff delivery': 'voice.readiness.handoff_delivery',
 	'Live latency proof': 'voice.readiness.live_latency',
+	'Media pipeline quality': 'voice.readiness.media_pipeline_quality',
 	'Operations records': 'voice.readiness.operations_records',
 	'Operator action history': 'voice.readiness.operator_action_history',
 	'Ops recovery': 'voice.readiness.ops_recovery',
@@ -1133,6 +1155,22 @@ const resolveMonitoringNotifierDelivery = async (
 	return typeof options.monitoringNotifierDelivery === 'function'
 		? await options.monitoringNotifierDelivery(input)
 		: options.monitoringNotifierDelivery;
+};
+
+const resolveMediaPipeline = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (options.mediaPipeline === false || options.mediaPipeline === undefined) {
+		return undefined;
+	}
+
+	return typeof options.mediaPipeline === 'function'
+		? await options.mediaPipeline(input)
+		: options.mediaPipeline;
 };
 
 const isVoiceTelephonyWebhookSecurityReport = (
@@ -1777,6 +1815,7 @@ const buildOperationsRecordLinks = (input: {
 	liveLatencyFailAfterMs: number;
 	liveLatencyMaxAgeMs?: number;
 	liveLatencyWarnAfterMs: number;
+	mediaPipeline?: VoiceMediaPipelineReport;
 }): VoiceProductionReadinessOperationsRecordLinks => {
 	const failedSessionSet = new Set(input.failedSessionIds);
 	const minLiveLatencyAt =
@@ -1829,6 +1868,18 @@ const buildOperationsRecordLinks = (input: {
 				status: latencyMs > input.liveLatencyFailAfterMs ? 'fail' : 'warn'
 			})
 		);
+	const mediaQuality =
+		input.mediaPipeline && input.mediaPipeline.status !== 'pass'
+			? input.mediaPipeline.sessionIds.map(
+					(sessionId): VoiceProductionReadinessOperationsRecordLink => ({
+						detail: `${input.mediaPipeline?.quality.issues.length ?? 0} media quality issue(s)`,
+						href: voiceOperationsRecordHref(input.base, sessionId),
+						label: 'Open media quality operations record',
+						sessionId,
+						status: 'fail'
+					})
+				)
+			: [];
 
 	return {
 		failedSessions: input.failedSessionIds.map((sessionId) => ({
@@ -1838,6 +1889,7 @@ const buildOperationsRecordLinks = (input: {
 			status: failedSessionSet.has(sessionId) ? 'fail' : 'warn'
 		})),
 		failingLatency,
+		mediaQuality,
 		providerErrors
 	};
 };
@@ -1880,6 +1932,7 @@ export const buildVoiceProductionReadinessReport = async (
 		phoneAgentSmokes,
 		monitoring,
 		monitoringNotifierDelivery,
+		mediaPipeline,
 		telephonyWebhookSecurity,
 		reconnectContracts,
 		bargeInReports,
@@ -1922,6 +1975,7 @@ export const buildVoiceProductionReadinessReport = async (
 		resolvePhoneAgentSmokes(options, { query, request }),
 		resolveMonitoring(options, { query, request }),
 		resolveMonitoringNotifierDelivery(options, { query, request }),
+		resolveMediaPipeline(options, { query, request }),
 		resolveTelephonyWebhookSecurity(options, { query, request }),
 		resolveReconnectContracts(options, { query, request }),
 		resolveBargeInReports(options, { query, request }),
@@ -1951,7 +2005,8 @@ export const buildVoiceProductionReadinessReport = async (
 		failedSessionIds: failedSessionItems.map((session) => session.sessionId),
 		liveLatencyFailAfterMs: options.liveLatencyFailAfterMs ?? 3200,
 		liveLatencyMaxAgeMs: options.liveLatencyMaxAgeMs,
-		liveLatencyWarnAfterMs: options.liveLatencyWarnAfterMs ?? 1800
+		liveLatencyWarnAfterMs: options.liveLatencyWarnAfterMs ?? 1800,
+		mediaPipeline
 	});
 	const checks: VoiceProductionReadinessCheck[] = [
 		{
@@ -2201,9 +2256,27 @@ export const buildVoiceProductionReadinessReport = async (
 				metric.label === issue.label ||
 				issue.code.endsWith(
 					metric.label.toLowerCase().replace(/[^a-z0-9]+/g, '_')
-				)
+			)
 		);
 	};
+	const mediaPipelineSummary = mediaPipeline
+		? ({
+				assistantAudioFrames: mediaPipeline.quality.assistantAudioFrames,
+				backpressureEvents: mediaPipeline.quality.backpressureEvents,
+				gapCount: mediaPipeline.quality.gapCount,
+				inputAudioFrames: mediaPipeline.quality.inputAudioFrames,
+				issues:
+					mediaPipeline.calibration.issues.length +
+					mediaPipeline.interruption.issues.length +
+					mediaPipeline.quality.issues.length,
+				jitterMs: mediaPipeline.quality.jitterMs,
+				speechRatio: mediaPipeline.quality.speechRatio,
+				status: mediaPipeline.status === 'pass' ? 'pass' : 'fail',
+				timestampDriftMs: mediaPipeline.quality.timestampDriftMs
+			} satisfies NonNullable<
+				VoiceProductionReadinessReport['summary']['mediaPipeline']
+			>)
+		: undefined;
 	checks.push({
 		detail:
 			liveLatency.total === 0
@@ -2266,8 +2339,74 @@ export const buildVoiceProductionReadinessReport = async (
 							label: 'Open live latency traces'
 						},
 						...calibratedThresholdActions()
-					]
+				]
 	});
+
+	if (mediaPipeline && mediaPipelineSummary) {
+		const firstIssue = [
+			...mediaPipeline.quality.issues,
+			...mediaPipeline.calibration.issues,
+			...mediaPipeline.interruption.issues
+		][0];
+		checks.push({
+			detail:
+				mediaPipelineSummary.status === 'pass'
+					? `Media pipeline quality is passing with ${mediaPipelineSummary.inputAudioFrames} input frame(s), ${mediaPipelineSummary.assistantAudioFrames} assistant frame(s), ${mediaPipelineSummary.gapCount} gap(s), ${String(mediaPipelineSummary.jitterMs ?? 'n/a')}ms jitter, and ${mediaPipelineSummary.speechRatio} speech ratio.`
+					: firstIssue?.message ??
+						`${mediaPipelineSummary.issues} media pipeline issue(s) need review.`,
+			href:
+				firstOperationsRecordHref(operationsRecords.mediaQuality) ??
+				options.links?.mediaPipeline ??
+				'/voice/media-pipeline',
+			label: 'Media pipeline quality',
+			proofSource: proofSource('mediaPipeline', 'mediaQuality'),
+			gateExplanation:
+				mediaPipelineSummary.status === 'pass'
+					? undefined
+					: {
+							evidenceHref:
+								firstOperationsRecordHref(operationsRecords.mediaQuality) ??
+								options.links?.mediaPipeline ??
+								'/voice/media-pipeline',
+							observed:
+								firstIssue?.code ??
+								`${mediaPipelineSummary.issues} issue(s)`,
+							remediation:
+								'Inspect media pipeline quality, fix excessive gaps, jitter, drift, speech-ratio, or backpressure issues, then rerun readiness proof.',
+							thresholdLabel: 'Media quality report status',
+							unit: 'status'
+						},
+			status: mediaPipelineSummary.status,
+			value:
+				mediaPipelineSummary.status === 'pass'
+					? `${mediaPipelineSummary.gapCount} gaps`
+					: `${mediaPipelineSummary.issues} issue(s)`,
+			actions:
+				mediaPipelineSummary.status === 'pass'
+					? []
+					: [
+							...(firstOperationsRecordHref(operationsRecords.mediaQuality)
+								? [
+										{
+											description:
+												'Open the exact call/session operations record for the first media quality issue.',
+											href: firstOperationsRecordHref(
+												operationsRecords.mediaQuality
+											) as string,
+											label: 'Open media operations record'
+										}
+									]
+								: []),
+							{
+								description:
+									'Open media pipeline proof and inspect quality, calibration, VAD, interruption, transport, and processor-graph evidence.',
+								href: options.links?.mediaPipeline ?? '/voice/media-pipeline',
+								label: 'Open media pipeline proof'
+							}
+						]
+		});
+	}
+
 	const carrierSummary = carriers
 		? {
 				failing: carriers.summary.failing,
@@ -3399,6 +3538,7 @@ export const buildVoiceProductionReadinessReport = async (
 				'/api/voice/observability-export/deliveries',
 			monitoring: '/voice/monitors',
 			monitoringNotifierDelivery: '/api/voice/monitor-issues/notifications',
+			mediaPipeline: '/voice/media-pipeline',
 			opsActions: '/voice/ops-actions',
 			opsRecovery: '/ops-recovery',
 			phoneAgentSmoke: '/sessions',
@@ -3432,6 +3572,7 @@ export const buildVoiceProductionReadinessReport = async (
 				total: handoffs.total
 			},
 			liveLatency,
+			mediaPipeline: mediaPipelineSummary,
 			monitoring: monitoringSummary,
 			monitoringNotifierDelivery: monitoringNotifierDeliverySummary,
 			opsActionHistory,

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
 	assertVoiceProductionReadinessEvidence,
+	buildVoiceMediaPipelineReport,
 	buildVoiceProductionReadinessGate,
 	buildVoiceProductionReadinessReport,
 	buildVoiceProviderOrchestrationReport,
@@ -30,6 +31,14 @@ import {
 	evaluateVoiceProductionReadinessEvidence,
 	summarizeVoiceProductionReadinessGate
 } from '../src';
+import { createMediaFrame } from '@absolutejs/media';
+
+const raw24k = {
+	channels: 1,
+	container: 'raw',
+	encoding: 'pcm_s16le',
+	sampleRateHz: 24_000
+} as const;
 
 test('buildVoiceProductionReadinessReport warns when deployment has no runtime proof', async () => {
 	const report = await buildVoiceProductionReadinessReport({
@@ -133,6 +142,77 @@ test('buildVoiceProductionReadinessReport includes campaign readiness proof', as
 				label: 'Campaign readiness proof',
 				status: 'pass',
 				value: `${campaignReadiness.checks.length}/${campaignReadiness.checks.length}`
+			})
+		])
+	);
+});
+
+test('buildVoiceProductionReadinessReport gates media pipeline quality and links operations records', async () => {
+	const mediaPipeline = buildVoiceMediaPipelineReport({
+		expectedInputFormat: raw24k,
+		expectedOutputFormat: raw24k,
+		frames: [
+			createMediaFrame({
+				at: 100,
+				durationMs: 20,
+				format: raw24k,
+				id: 'input-1',
+				kind: 'input-audio',
+				metadata: { speechProbability: 0.1 },
+				sessionId: 'session-media',
+				source: 'browser',
+				traceEventId: 'trace-input-1'
+			}),
+			createMediaFrame({
+				at: 500,
+				durationMs: 20,
+				format: raw24k,
+				id: 'assistant-1',
+				kind: 'assistant-audio',
+				metadata: { jitterMs: 120 },
+				sessionId: 'session-media',
+				source: 'provider',
+				traceEventId: 'trace-assistant-1'
+			})
+		],
+		maxMediaGapMs: 100,
+		maxMediaJitterMs: 50,
+		minMediaSpeechRatio: 0.8,
+		requireTraceEvidence: true,
+		surface: 'browser-realtime'
+	});
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			mediaPipeline: '/voice/media-pipeline',
+			operationsRecords: '/voice-operations/:sessionId'
+		},
+		mediaPipeline,
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.mediaPipeline).toMatchObject({
+		assistantAudioFrames: 1,
+		gapCount: 1,
+		inputAudioFrames: 1,
+		issues: expect.any(Number),
+		jitterMs: 120,
+		speechRatio: 0,
+		status: 'fail'
+	});
+	expect(report.operationsRecords?.mediaQuality).toEqual([
+		expect.objectContaining({
+			href: '/voice-operations/session-media',
+			sessionId: 'session-media',
+			status: 'fail'
+		})
+	]);
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice-operations/session-media',
+				label: 'Media pipeline quality',
+				status: 'fail'
 			})
 		])
 	);

@@ -42,6 +42,7 @@ export type VoiceMediaPipelineReport = {
 	quality: MediaQualityReport;
 	resampling?: MediaResamplingPlan;
 	processorGraph?: MediaProcessorGraphReport;
+	sessionIds: string[];
 	status: MediaPipelineStatus;
 	surface: string;
 	transport?: MediaTransportReport;
@@ -166,6 +167,13 @@ export const buildVoiceMediaPipelineReport = (
 		processorGraph: options.processorGraph,
 		quality,
 		resampling,
+		sessionIds: [
+			...new Set(
+				frames
+					.map((frame) => frame.sessionId)
+					.filter((sessionId): sessionId is string => typeof sessionId === 'string')
+			)
+		].sort(),
 		status,
 		surface: options.surface ?? 'voice-media-pipeline',
 		transport: options.transport,
