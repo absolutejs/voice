@@ -376,6 +376,32 @@ test('assertVoiceLiveOpsControlEvidence reports missing live-ops control actions
 	).toThrow('Missing live-ops control action: force-handoff.');
 });
 
+test('evaluateVoiceLiveOpsControlEvidence ignores missing result rows', () => {
+	const paused = buildVoiceLiveOpsControlState({
+		action: 'pause-assistant',
+		sessionId: 'session-1'
+	});
+	const assertion = evaluateVoiceLiveOpsControlEvidence({
+		minSnapshots: 1,
+		requiredActions: ['pause-assistant'],
+		requiredStatuses: ['assistant-paused'],
+		results: [
+			undefined,
+			{
+				action: 'pause-assistant',
+				control: paused,
+				ok: true,
+				sessionId: 'session-1'
+			},
+			null
+		]
+	});
+
+	expect(assertion.ok).toBe(true);
+	expect(assertion.actionCount).toBe(1);
+	expect(assertion.snapshots).toBe(1);
+});
+
 test('live ops runtime can pause assistant turns and inject operator instructions after resume', async () => {
 	const sessionId = 'live-ops-runtime-proof';
 	const injectedInstruction = 'Say LIVE OPS PROOF in the next assistant answer.';

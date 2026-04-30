@@ -109,7 +109,9 @@ export type VoiceLiveOpsControlEvidenceInput = {
 	requiredActions?: VoiceLiveOpsAction[];
 	requiredStatuses?: VoiceLiveOpsControlStatus[];
 	results?: Array<
-		Partial<Omit<VoiceLiveOpsActionResult, 'ok'>> & { ok?: boolean }
+		| (Partial<Omit<VoiceLiveOpsActionResult, 'ok'>> & { ok?: boolean })
+		| null
+		| undefined
 	>;
 };
 
@@ -328,7 +330,11 @@ export const evaluateVoiceLiveOpsControlEvidence = (
 	input: VoiceLiveOpsControlEvidenceInput = {}
 ): VoiceLiveOpsControlEvidenceReport => {
 	const issues: string[] = [];
-	const results = input.results ?? [];
+	const results = (input.results ?? []).filter(
+		(result): result is Partial<Omit<VoiceLiveOpsActionResult, 'ok'>> & {
+			ok?: boolean;
+		} => Boolean(result)
+	);
 	const controls = results
 		.map((result) => result.control)
 		.filter((control): control is VoiceLiveOpsControlState => Boolean(control));
