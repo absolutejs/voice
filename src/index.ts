@@ -163,6 +163,14 @@ export {
 	renderVoiceBrowserMediaHTML,
 	summarizeVoiceBrowserMedia
 } from './browserMediaRoutes';
+export {
+	assertVoiceBrowserCallProfileEvidence,
+	buildVoiceBrowserCallProfileReport,
+	createVoiceBrowserCallProfileRoutes,
+	evaluateVoiceBrowserCallProfileEvidence,
+	renderVoiceBrowserCallProfileHTML,
+	renderVoiceBrowserCallProfileMarkdown
+} from './browserCallProfiles';
 export type {
 	VoiceMediaPipelineAssertionInput,
 	VoiceMediaPipelineAssertionReport,
@@ -184,6 +192,17 @@ export type {
 	VoiceBrowserMediaSample,
 	VoiceBrowserMediaStatus
 } from './browserMediaRoutes';
+export type {
+	VoiceBrowserCallProfileAssertionInput,
+	VoiceBrowserCallProfileAssertionReport,
+	VoiceBrowserCallProfileFrameworkEvidence,
+	VoiceBrowserCallProfileFrameworkSummary,
+	VoiceBrowserCallProfileReport,
+	VoiceBrowserCallProfileReportInput,
+	VoiceBrowserCallProfileRoutesOptions,
+	VoiceBrowserCallProfileStatus,
+	VoiceBrowserCallProfileSummary
+} from './browserCallProfiles';
 export {
 	buildVoiceDemoReadyReport,
 	createVoiceDemoReadyRoutes,
