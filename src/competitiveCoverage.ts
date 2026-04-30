@@ -17,7 +17,15 @@ export type VoiceCompetitiveDepthLevel =
 
 export type VoiceCompetitiveEvidence = {
 	href?: string;
-	kind?: 'docs' | 'example' | 'operations-record' | 'proof' | 'readiness' | 'route' | 'test';
+	kind?:
+		| 'docs'
+		| 'example'
+		| 'failure-replay'
+		| 'operations-record'
+		| 'proof'
+		| 'readiness'
+		| 'route'
+		| 'test';
 	name: string;
 	required?: boolean;
 	status?: 'fail' | 'pass' | 'warn';

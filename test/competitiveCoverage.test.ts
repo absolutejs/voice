@@ -23,6 +23,13 @@ const surfaces: VoiceCompetitiveSurface[] = [
 				status: 'pass'
 			},
 			{
+				href: '/voice-operations/session-1/failure-replay',
+				kind: 'failure-replay',
+				name: 'failureReplay',
+				required: true,
+				status: 'pass'
+			},
+			{
 				href: '/production-readiness',
 				kind: 'readiness',
 				name: 'readinessGate',
@@ -34,7 +41,7 @@ const surfaces: VoiceCompetitiveSurface[] = [
 		operationsRecord: 'linked',
 		readinessGate: 'present',
 		surface: 'Unified call log / operations record',
-		why: 'Operations records link trace, transcript, provider decisions, tools, handoffs, audit, reviews, tasks, delivery attempts, and incident Markdown.'
+		why: 'Operations records link trace, transcript, provider decisions, tools, handoffs, audit, reviews, tasks, delivery attempts, failure replay, and incident Markdown.'
 	},
 	{
 		buyerNeed: 'Run outbound campaigns without a hosted dialer.',
@@ -101,7 +108,7 @@ describe('competitive coverage', () => {
 			minSurfaces: 3,
 			requireOperationsRecordLinks: true,
 			requireReadinessGates: true,
-			requiredEvidence: ['operationsRecord', 'readinessGate'],
+			requiredEvidence: ['failureReplay', 'operationsRecord', 'readinessGate'],
 			requiredSurfaces: [
 				'Outbound campaigns',
 				'SIP/media infrastructure',
@@ -209,6 +216,8 @@ describe('competitive coverage', () => {
 		expect(body.summary.surfaces).toBe(3);
 		expect(htmlResponse.headers.get('content-type')).toContain('text/html');
 		expect(html).toContain('Competitive Proof');
+		expect(html).toContain('failureReplay');
+		expect(html).toContain('failure-replay');
 		expect(markdownResponse.headers.get('content-type')).toContain(
 			'text/markdown'
 		);
