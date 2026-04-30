@@ -271,8 +271,10 @@ export {
 	buildVoiceProofTrendRecommendationReport,
 	buildVoiceProofTrendReportFromRealCallProfiles,
 	buildVoiceProofTrendReport,
+	buildVoiceRealCallProfileHistoryReport,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
+	createVoiceRealCallProfileHistoryRoutes,
 	DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS,
 	DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS,
 	evaluateVoiceProofTrendEvidence,
@@ -280,7 +282,9 @@ export {
 	normalizeVoiceProofTrendReport,
 	readVoiceProofTrendReportFile,
 	renderVoiceProofTrendRecommendationHTML,
-	renderVoiceProofTrendRecommendationMarkdown
+	renderVoiceProofTrendRecommendationMarkdown,
+	renderVoiceRealCallProfileHistoryHTML,
+	renderVoiceRealCallProfileHistoryMarkdown
 } from './proofTrends';
 export {
 	buildVoiceProviderDecisionTraceReport,
@@ -323,7 +327,10 @@ export type {
 	VoiceProofTrendRoutesOptions,
 	VoiceProofTrendRuntimeChannelSummary,
 	VoiceProofTrendStatus,
-	VoiceProofTrendSummary
+	VoiceProofTrendSummary,
+	VoiceRealCallProfileHistoryOptions,
+	VoiceRealCallProfileHistoryReport,
+	VoiceRealCallProfileHistoryRoutesOptions
 } from './proofTrends';
 export {
 	assertVoiceSloCalibration,

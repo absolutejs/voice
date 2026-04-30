@@ -299,6 +299,49 @@ export type VoiceProofTrendRecommendationRoutesOptions =
 		title?: string;
 	};
 
+export type VoiceRealCallProfileHistoryReport = {
+	generatedAt: string;
+	history: VoiceProofTrendReport[];
+	issues: string[];
+	ok: boolean;
+	recommendations: VoiceProofTrendRecommendationReport;
+	reports: number;
+	source: string;
+	status: VoiceProofTrendStatus;
+	summary: VoiceProofTrendSummary & {
+		failedReports: number;
+		profileCount: number;
+	};
+	trend: VoiceProofTrendReport;
+};
+
+export type VoiceRealCallProfileHistoryOptions =
+	VoiceProofTrendProfileSummaryOptions &
+		VoiceProofTrendRecommendationOptions & {
+			baseUrl?: string;
+			evidence?: readonly VoiceProofTrendRealCallProfileEvidence[];
+			generatedAt?: string;
+			maxAgeMs?: number;
+			now?: Date | number | string;
+			reports?: readonly (VoiceProofTrendReport | VoiceProofTrendReportInput)[];
+			source?: string;
+		};
+
+export type VoiceRealCallProfileHistoryRoutesOptions =
+	Omit<VoiceRealCallProfileHistoryOptions, 'source'> & {
+		headers?: HeadersInit;
+		htmlPath?: false | string;
+		markdownPath?: false | string;
+		name?: string;
+		path?: string;
+		source?:
+			| (() =>
+					| Promise<VoiceRealCallProfileHistoryOptions>
+					| VoiceRealCallProfileHistoryOptions)
+			| VoiceRealCallProfileHistoryOptions;
+		title?: string;
+	};
+
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export const DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS = [
@@ -413,7 +456,7 @@ export const buildEmptyVoiceProofTrendReport = (
 
 export const normalizeVoiceProofTrendReport = (
 	value: VoiceProofTrendReport | VoiceProofTrendReportInput,
-	options: { maxAgeMs?: number; source?: string } = {}
+	options: { maxAgeMs?: number; now?: Date | number | string; source?: string } = {}
 ): VoiceProofTrendReport => {
 	if ('status' in value && value.status === 'empty') {
 		return buildEmptyVoiceProofTrendReport(
@@ -425,6 +468,7 @@ export const normalizeVoiceProofTrendReport = (
 	return buildVoiceProofTrendReport({
 		...value,
 		maxAgeMs: options.maxAgeMs ?? value.maxAgeMs,
+		now: options.now ?? ('now' in value ? value.now : undefined),
 		source: value.source ?? options.source
 	});
 };
@@ -985,6 +1029,108 @@ export const buildVoiceProofTrendReportFromRealCallProfiles = (
 	});
 };
 
+const flattenProofTrendCycles = (
+	reports: readonly VoiceProofTrendReport[]
+): VoiceProofTrendCycle[] =>
+	reports.flatMap((report) => report.cycles ?? []);
+
+export const buildVoiceRealCallProfileHistoryReport = (
+	options: VoiceRealCallProfileHistoryOptions = {}
+): VoiceRealCallProfileHistoryReport => {
+	const generatedAt =
+		options.generatedAt ??
+		(options.now instanceof Date
+			? options.now.toISOString()
+			: typeof options.now === 'number'
+				? new Date(options.now).toISOString()
+				: typeof options.now === 'string'
+					? new Date(options.now).toISOString()
+					: new Date().toISOString());
+	const evidenceReport =
+		options.evidence && options.evidence.length > 0
+			? buildVoiceProofTrendReportFromRealCallProfiles({
+					...options,
+					evidence: options.evidence,
+					generatedAt,
+					source: `${options.source ?? 'real-call-profile-history'}#evidence`
+				})
+			: undefined;
+	const history = [
+		...(options.reports ?? []).map((report) =>
+			normalizeVoiceProofTrendReport(report, {
+				maxAgeMs: options.maxAgeMs,
+				now: options.now
+			})
+		),
+		...(evidenceReport ? [evidenceReport] : [])
+	];
+	const profiles = buildVoiceProofTrendProfileSummaries(history, options);
+	const summary: VoiceProofTrendSummary & {
+		failedReports: number;
+		profileCount: number;
+	} = {
+		cycles: history.reduce(
+			(total, report) => total + (report.summary.cycles ?? report.cycles.length),
+			0
+		),
+		failedReports: history.filter((report) => report.ok !== true).length,
+		maxLiveP95Ms: maxNumber(history.map(readProofTrendMaxLiveP95)),
+		maxProviderP95Ms: maxNumber(history.map(readProofTrendMaxProviderP95)),
+		maxTurnP95Ms: maxNumber(history.map(readProofTrendMaxTurnP95)),
+		profileCount: profiles.length,
+		profiles,
+		providers: readProofTrendProviders(history),
+		runtimeChannel: aggregateProofTrendRuntimeChannel(
+			history
+				.map(readProofTrendRuntimeChannel)
+				.filter(
+					(channel): channel is VoiceProofTrendRuntimeChannelSummary =>
+						channel !== undefined
+				)
+		)
+	};
+	const trend = buildVoiceProofTrendReport({
+		baseUrl: options.baseUrl,
+		cycles: flattenProofTrendCycles(history),
+		generatedAt,
+		maxAgeMs: options.maxAgeMs,
+		now: options.now,
+		ok:
+			history.length > 0 &&
+			summary.failedReports === 0 &&
+			profiles.every((profile) => profile.status !== 'fail'),
+		source: options.source ?? 'real-call-profile-history',
+		summary
+	});
+	const recommendations = buildVoiceProofTrendRecommendationReport(trend, options);
+	const issues = [
+		...(history.length === 0 ? ['No real-call profile reports were present.'] : []),
+		...(profiles.length === 0 ? ['No benchmark profiles were present.'] : []),
+		...(summary.failedReports > 0
+			? [`${summary.failedReports} real-call profile report(s) failed.`]
+			: []),
+		...recommendations.issues
+	];
+
+	return {
+		generatedAt,
+		history,
+		issues,
+		ok: trend.ok && issues.length === 0,
+		recommendations,
+		reports: history.length,
+		source: trend.source,
+		status:
+			issues.length > 0
+				? trend.status === 'pass'
+					? 'fail'
+					: trend.status
+				: trend.status,
+		summary,
+		trend
+	};
+};
+
 const normalizeProviderStatus = (
 	status: string | undefined
 ): VoiceProofTrendRecommendationStatus =>
@@ -1132,7 +1278,7 @@ const bestProviderByRole = (
 };
 
 const formatProviderMix = (
-	providers: readonly VoiceProofTrendProviderRecommendation[]
+	providers: readonly { id: string; label?: string; role?: string }[]
 ) =>
 	providers.length === 0
 		? 'n/a'
@@ -1768,6 +1914,69 @@ export const renderVoiceProofTrendRecommendationHTML = (
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}pre{background:#0b1110;border-radius:14px;overflow:auto;padding:12px}a{color:#5eead4}li{margin:.45rem 0}li span,li small{display:block;color:#c9d3ca}</style></head><body><main><section class="hero"><p class="eyebrow">Sustained proof recommendations</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Provider ${report.summary.keepCurrentProviderPath ? 'keep' : 'change'}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.bestProviders))}</span><span class="pill">Profiles ${String(report.profiles.length)}</span><span class="pill">Runtime ${report.summary.keepCurrentRuntimeChannel ? 'keep' : 'tune'}</span><span class="pill">${String(report.summary.recommendedActions)} action(s)</span></div></section>${cards}<section class="hero"><h2>Benchmark Profiles</h2><ul>${profileRows}</ul></section><section class="hero"><h2>Provider Comparison</h2><ul>${providerRows}</ul></section><section class="hero"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
 };
 
+export const renderVoiceRealCallProfileHistoryMarkdown = (
+	report: VoiceRealCallProfileHistoryReport,
+	title = 'Voice Real-Call Profile History'
+) => [
+	`# ${title}`,
+	'',
+	`- Status: ${report.status}`,
+	`- Reports: ${String(report.reports)}`,
+	`- Profiles: ${String(report.summary.profileCount)}`,
+	`- Cycles: ${String(report.summary.cycles ?? 0)}`,
+	`- Source: ${report.source}`,
+	`- Best provider mix: ${formatProviderMix(report.recommendations.bestProviders)}`,
+	'',
+	'## Profiles',
+	'',
+	'| Profile | Status | Live p95 | Provider p95 | Turn p95 | Provider mix |',
+	'| --- | --- | ---: | ---: | ---: | --- |',
+	...(report.summary.profiles?.length
+		? report.summary.profiles.map(
+				(profile) =>
+					`| ${escapeMarkdown(profile.label ?? profile.id)} | ${profile.status ?? 'unknown'} | ${profile.maxLiveP95Ms ?? 'n/a'} | ${profile.maxProviderP95Ms ?? 'n/a'} | ${profile.maxTurnP95Ms ?? 'n/a'} | ${escapeMarkdown(formatProviderMix(profile.providers ?? []))} |`
+			)
+		: ['| n/a | n/a | n/a | n/a | n/a | No profiles present. |']),
+	'',
+	'## Recommendations',
+	'',
+	...report.recommendations.recommendations.map(
+		(recommendation) =>
+			`- ${recommendation.status}: ${recommendation.recommendation} ${recommendation.nextMove}`
+	),
+	'',
+	'## Issues',
+	'',
+	...(report.issues.length ? report.issues.map((issue) => `- ${issue}`) : ['- None'])
+].join('\n');
+
+export const renderVoiceRealCallProfileHistoryHTML = (
+	report: VoiceRealCallProfileHistoryReport,
+	title = 'Voice Real-Call Profile History'
+) => {
+	const profileRows =
+		report.summary.profiles?.length
+			? report.summary.profiles
+					.map(
+						(profile) =>
+							`<tr><td>${escapeHtml(profile.label ?? profile.id)}</td><td>${escapeHtml(profile.status ?? 'unknown')}</td><td>${escapeHtml(profile.maxLiveP95Ms ?? 'n/a')}</td><td>${escapeHtml(profile.maxProviderP95Ms ?? 'n/a')}</td><td>${escapeHtml(profile.maxTurnP95Ms ?? 'n/a')}</td><td>${escapeHtml(formatProviderMix(profile.providers ?? []))}</td></tr>`
+					)
+					.join('')
+			: '<tr><td colspan="6">No profiles present.</td></tr>';
+	const recommendations = report.recommendations.recommendations
+		.map(
+			(recommendation) =>
+				`<article class="${escapeHtml(recommendation.status)}"><p class="eyebrow">${escapeHtml(recommendation.surface)} · ${escapeHtml(recommendation.status)}</p><h2>${escapeHtml(recommendation.recommendation)}</h2><p>${escapeHtml(recommendation.nextMove)}</p></article>`
+		)
+		.join('');
+	const issues =
+		report.issues.length === 0
+			? '<li>None</li>'
+			: report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111510;color:#f6f0dd;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article,.card{background:#182117;border:1px solid #32412d;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(132,204,22,.16),rgba(20,184,166,.12))}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #52624b;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #32412d;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real-call benchmark history</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Reports ${String(report.reports)}</span><span class="pill">Profiles ${String(report.summary.profileCount)}</span><span class="pill">Cycles ${String(report.summary.cycles ?? 0)}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.recommendations.bestProviders))}</span></div></section><section class="card"><h2>Profiles</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Live p95</th><th>Provider p95</th><th>Turn p95</th><th>Provider mix</th></tr></thead><tbody>${profileRows}</tbody></table></section>${recommendations}<section class="card"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
+};
+
 export const createVoiceProofTrendRecommendationRoutes = (
 	options: VoiceProofTrendRecommendationRoutesOptions
 ) => {
@@ -1825,6 +2034,70 @@ export const createVoiceProofTrendRecommendationRoutes = (
 			const report = await loadReport();
 			return new Response(
 				renderVoiceProofTrendRecommendationMarkdown(report, title),
+				{
+					headers: {
+						'content-type': 'text/markdown; charset=utf-8',
+						...Object.fromEntries(new Headers(options.headers))
+					}
+				}
+			);
+		});
+	}
+
+	return routes;
+};
+
+export const createVoiceRealCallProfileHistoryRoutes = (
+	options: VoiceRealCallProfileHistoryRoutesOptions = {}
+) => {
+	const path = options.path ?? '/api/voice/real-call-profile-history';
+	const htmlPath =
+		options.htmlPath === undefined
+			? '/voice/real-call-profile-history'
+			: options.htmlPath;
+	const markdownPath =
+		options.markdownPath === undefined
+			? '/voice/real-call-profile-history.md'
+			: options.markdownPath;
+	const title = options.title ?? 'Voice Real-Call Profile History';
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-real-call-profile-history'
+	});
+	const loadReport = async () => {
+		const { source, ...routeOptions } = options;
+		const sourceOptions =
+			source === undefined
+				? routeOptions
+				: typeof source === 'function'
+					? await source()
+					: source;
+		return buildVoiceRealCallProfileHistoryReport({
+			...routeOptions,
+			...sourceOptions
+		});
+	};
+
+	routes.get(path, async () =>
+		Response.json(await loadReport(), { headers: options.headers })
+	);
+
+	if (htmlPath !== false) {
+		routes.get(htmlPath, async () => {
+			const report = await loadReport();
+			return new Response(renderVoiceRealCallProfileHistoryHTML(report, title), {
+				headers: {
+					'content-type': 'text/html; charset=utf-8',
+					...Object.fromEntries(new Headers(options.headers))
+				}
+			});
+		});
+	}
+
+	if (markdownPath !== false) {
+		routes.get(markdownPath, async () => {
+			const report = await loadReport();
+			return new Response(
+				renderVoiceRealCallProfileHistoryMarkdown(report, title),
 				{
 					headers: {
 						'content-type': 'text/markdown; charset=utf-8',

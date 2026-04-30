@@ -8,8 +8,10 @@ import {
 	buildVoiceProofTrendRecommendationReport,
 	buildVoiceProofTrendReportFromRealCallProfiles,
 	buildVoiceProofTrendReport,
+	buildVoiceRealCallProfileHistoryReport,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
+	createVoiceRealCallProfileHistoryRoutes,
 	evaluateVoiceProofTrendEvidence,
 	formatVoiceProofTrendAge
 } from '../src/proofTrends';
@@ -1052,5 +1054,119 @@ describe('proof trends', () => {
 		expect(markdown).toContain('Voice Provider Runtime Recommendations');
 		expect(markdown).toContain('OpenAI Realtime');
 		expect(markdown).toContain('Benchmark Profiles');
+	});
+
+	test('buildVoiceRealCallProfileHistoryReport aggregates historical profile reports into recommendations', () => {
+		const older = buildVoiceProofTrendReportFromRealCallProfiles({
+			evidence: [
+				{
+					generatedAt: '2026-04-29T12:00:00.000Z',
+					liveP95Ms: 510,
+					ok: true,
+					profileId: 'meeting-recorder',
+					providerP95Ms: 680,
+					providers: [
+						{
+							id: 'llm:openai',
+							label: 'LLM openai',
+							p95Ms: 680,
+							role: 'llm',
+							samples: 1,
+							status: 'pass'
+						}
+					],
+					runtimeChannel: {
+						maxBackpressureEvents: 0,
+						maxFirstAudioLatencyMs: 410,
+						maxInterruptionP95Ms: 180,
+						maxJitterMs: 12,
+						maxTimestampDriftMs: 500,
+						samples: 1,
+						status: 'pass'
+					},
+					sessionId: 'real-call-1',
+					turnP95Ms: 650
+				}
+			],
+			generatedAt: '2026-04-29T12:01:00.000Z',
+			now: '2026-04-29T12:01:30.000Z'
+		});
+		const history = buildVoiceRealCallProfileHistoryReport({
+			generatedAt: '2026-04-29T12:04:00.000Z',
+			now: '2026-04-29T12:04:30.000Z',
+			reports: [older],
+			source: '.voice-runtime/real-call-profiles'
+		});
+
+		expect(history.ok).toBe(true);
+		expect(history.reports).toBe(1);
+		expect(history.summary.profileCount).toBeGreaterThanOrEqual(1);
+		expect(history.summary.profiles?.[0]).toMatchObject({
+			id: 'meeting-recorder',
+			status: 'pass'
+		});
+		expect(history.recommendations.profiles[0]?.label).toBe('Meeting recorder');
+	});
+
+	test('createVoiceRealCallProfileHistoryRoutes exposes JSON, HTML, and Markdown history', async () => {
+		const app = createVoiceRealCallProfileHistoryRoutes({
+			source: {
+				generatedAt: '2026-04-29T12:00:00.000Z',
+				now: '2026-04-29T12:00:30.000Z',
+				evidence: [
+					{
+						generatedAt: '2026-04-29T12:00:00.000Z',
+						liveP95Ms: 510,
+						ok: true,
+						profileId: 'support-agent',
+						profileLabel: 'Support agent',
+						providerP95Ms: 680,
+						providers: [
+							{
+								id: 'openai-realtime',
+								label: 'OpenAI Realtime',
+								p95Ms: 680,
+								role: 'realtime',
+								samples: 1,
+								status: 'pass'
+							}
+						],
+						runtimeChannel: {
+							maxBackpressureEvents: 0,
+							maxFirstAudioLatencyMs: 410,
+							maxInterruptionP95Ms: 180,
+							maxJitterMs: 12,
+							maxTimestampDriftMs: 500,
+							samples: 1,
+							status: 'pass'
+						},
+						sessionId: 'support-real-call',
+						turnP95Ms: 650
+					}
+				],
+				source: '.voice-runtime/real-call-profiles/latest.json'
+			}
+		});
+
+		const jsonResponse = await app.handle(
+			new Request('http://localhost/api/voice/real-call-profile-history')
+		);
+		const htmlResponse = await app.handle(
+			new Request('http://localhost/voice/real-call-profile-history')
+		);
+		const markdownResponse = await app.handle(
+			new Request('http://localhost/voice/real-call-profile-history.md')
+		);
+		const json = await jsonResponse.json();
+		const html = await htmlResponse.text();
+		const markdown = await markdownResponse.text();
+
+		expect(jsonResponse.status).toBe(200);
+		expect(json.ok).toBe(true);
+		expect(json.summary.profileCount).toBeGreaterThanOrEqual(1);
+		expect(html).toContain('Real-call benchmark history');
+		expect(html).toContain('Support agent');
+		expect(markdown).toContain('Voice Real-Call Profile History');
+		expect(markdown).toContain('Support agent');
 	});
 });
