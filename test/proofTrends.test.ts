@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
 	assertVoiceProofTrendEvidence,
@@ -14,6 +15,7 @@ import {
 	buildVoiceRealCallProfileReadinessCheck,
 	buildVoiceRealCallProfileRecoveryActions,
 	createVoiceInMemoryRealCallProfileRecoveryJobStore,
+	createVoiceSQLiteRealCallProfileRecoveryJobStore,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
@@ -1716,5 +1718,61 @@ describe('proof trends', () => {
 			status: 'pass'
 		});
 		expect(missingResponse.status).toBe(404);
+	});
+
+	test('createVoiceSQLiteRealCallProfileRecoveryJobStore persists recovery jobs across instances', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'voice-recovery-jobs-'));
+		const path = join(directory, 'jobs.sqlite');
+		const firstStore = createVoiceSQLiteRealCallProfileRecoveryJobStore({
+			idPrefix: 'sqlite-recovery-job',
+			path
+		});
+		const queued = await firstStore.create({
+			actionId: 'collect-phone-proof',
+			message: 'queued phone proof',
+			status: 'queued'
+		});
+		const running = await firstStore.update(queued.id, {
+			message: 'running phone proof',
+			status: 'running'
+		});
+
+		const secondStore = createVoiceSQLiteRealCallProfileRecoveryJobStore({
+			path
+		});
+		const persisted = await secondStore.get(queued.id);
+		const completed = await secondStore.update(queued.id, {
+			completedAt: '2026-04-30T12:00:00.000Z',
+			message: 'phone proof passed',
+			ok: true,
+			status: 'pass',
+			updatedAt: '2026-04-30T12:00:00.000Z'
+		});
+		const thirdStore = createVoiceSQLiteRealCallProfileRecoveryJobStore({
+			path
+		});
+
+		expect(queued.id).toStartWith('sqlite-recovery-job-');
+		expect(running).toMatchObject({
+			actionId: 'collect-phone-proof',
+			message: 'running phone proof',
+			status: 'running'
+		});
+		expect(persisted).toMatchObject({
+			id: queued.id,
+			message: 'running phone proof',
+			status: 'running'
+		});
+		expect(completed).toMatchObject({
+			completedAt: '2026-04-30T12:00:00.000Z',
+			message: 'phone proof passed',
+			ok: true,
+			status: 'pass'
+		});
+		expect(await thirdStore.get(queued.id)).toMatchObject({
+			id: queued.id,
+			message: 'phone proof passed',
+			status: 'pass'
+		});
 	});
 });

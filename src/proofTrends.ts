@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import type { Database } from 'bun:sqlite';
 import type {
 	VoiceProductionReadinessAction,
 	VoiceProductionReadinessCheck
@@ -522,6 +523,14 @@ export type VoiceRealCallProfileRecoveryJobStore = {
 		id: string,
 		update: VoiceRealCallProfileRecoveryJobUpdate
 	): Promise<VoiceRealCallProfileRecoveryJob | undefined> | VoiceRealCallProfileRecoveryJob | undefined;
+};
+
+export type VoiceSQLiteRealCallProfileRecoveryJobStoreOptions = {
+	database?: Database;
+	idPrefix?: string;
+	now?: () => Date;
+	path?: string;
+	tableName?: string;
 };
 
 export type VoiceRealCallProfileRecoveryActionHandler = (
@@ -1951,6 +1960,94 @@ export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
 			};
 			jobs.set(id, next);
 			return next;
+		}
+	};
+};
+
+const normalizeRealCallRecoveryJobTableName = (value: string) =>
+	value
+		.trim()
+		.replace(/[^a-zA-Z0-9_]+/g, '_')
+		.replace(/^_+|_+$/g, '') || 'voice_real_call_profile_recovery_jobs';
+
+export const createVoiceSQLiteRealCallProfileRecoveryJobStore = (
+	options: VoiceSQLiteRealCallProfileRecoveryJobStoreOptions = {}
+): VoiceRealCallProfileRecoveryJobStore => {
+	const { Database: SQLiteDatabase } = require('bun:sqlite') as typeof import('bun:sqlite');
+	const database =
+		options.database ??
+		new SQLiteDatabase(options.path ?? ':memory:', {
+			create: true
+		});
+	const tableName = normalizeRealCallRecoveryJobTableName(
+		options.tableName ?? 'voice_real_call_profile_recovery_jobs'
+	);
+	const now = () => (options.now ?? (() => new Date()))().toISOString();
+	const createId = () =>
+		`${options.idPrefix ?? 'voice-recovery-job'}-${Date.now().toString(36)}-${Math.random()
+			.toString(36)
+			.slice(2, 10)}`;
+
+	database.exec('PRAGMA journal_mode = WAL;');
+	database.exec('PRAGMA synchronous = NORMAL;');
+	database.exec('PRAGMA busy_timeout = 5000;');
+	database.exec(
+		`CREATE TABLE IF NOT EXISTS "${tableName}" (
+			id TEXT PRIMARY KEY,
+			sort_at INTEGER NOT NULL,
+			payload TEXT NOT NULL
+		)`
+	);
+
+	const selectStatement = database.query(
+		`SELECT payload FROM "${tableName}" WHERE id = ?1 LIMIT 1`
+	);
+	const upsertStatement = database.query(
+		`INSERT INTO "${tableName}" (id, sort_at, payload)
+		 VALUES (?1, ?2, ?3)
+		 ON CONFLICT(id) DO UPDATE SET sort_at = excluded.sort_at, payload = excluded.payload`
+	);
+
+	const writeJob = (job: VoiceRealCallProfileRecoveryJob) => {
+		upsertStatement.run(
+			job.id,
+			Date.parse(job.updatedAt) || Date.now(),
+			JSON.stringify(job)
+		);
+		return job;
+	};
+	const readJob = (id: string) => {
+		const row = selectStatement.get(id) as { payload: string } | null;
+		return row
+			? (JSON.parse(row.payload) as VoiceRealCallProfileRecoveryJob)
+			: undefined;
+	};
+
+	return {
+		create(input) {
+			const createdAt = input.createdAt ?? now();
+			return writeJob({
+				actionId: input.actionId,
+				createdAt,
+				id: input.id ?? createId(),
+				message: input.message,
+				status: input.status ?? 'queued',
+				updatedAt: createdAt
+			});
+		},
+		get(id) {
+			return readJob(id);
+		},
+		update(id, update) {
+			const existing = readJob(id);
+			if (!existing) {
+				return undefined;
+			}
+			return writeJob({
+				...existing,
+				...update,
+				updatedAt: update.updatedAt ?? now()
+			});
 		}
 	};
 };

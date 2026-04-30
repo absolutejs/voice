@@ -1537,6 +1537,14 @@ app.use(
 );
 ```
 
+Use the SQLite job store when recovery jobs should survive restarts:
+
+```ts
+const recoveryJobs = createVoiceSQLiteRealCallProfileRecoveryJobStore({
+	path: '.voice-runtime/real-call-recovery/jobs.sqlite'
+});
+```
+
 Use `createVoiceProfileTraceTagger(...)` when the app already has a trace store and needs every appended trace to carry a benchmark profile label. It wraps any `VoiceTraceEventStore`, preserves the underlying store behavior, and adds `profileId`/`benchmarkProfileId` metadata and payload fields that real-call profile history can ingest later.
 
 ```ts
