@@ -1350,6 +1350,8 @@ export type {
 	VoiceOperationsRecordRoutesOptions,
 	VoiceOperationsRecordStatus,
 	VoiceOperationsRecordTaskSummary,
+	VoiceOperationsRecordTelephonyMediaEvent,
+	VoiceOperationsRecordTelephonyMediaSummary,
 	VoiceOperationsRecordTranscriptTurn,
 	VoiceOperationsRecordTool
 } from './operationsRecord';
