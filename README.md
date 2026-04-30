@@ -1504,6 +1504,21 @@ createVoiceProductionReadinessRoutes({
 
 The readiness check includes recovery actions from `buildVoiceRealCallProfileRecoveryActions(...)`, so failed gates can point operators at the profile history report, browser/phone proof, missing provider-role evidence, operations records, and production-readiness refresh instead of only saying "failed."
 
+Mount `createVoiceRealCallProfileRecoveryActionRoutes(...)` when those actions should be executable. The package owns the route contract and result shape; the app supplies safe handlers:
+
+```ts
+app.use(
+	createVoiceRealCallProfileRecoveryActionRoutes({
+		handlers: {
+			'collect-browser-proof': async () => runBrowserProfileProof(),
+			'collect-phone-proof': async () => runPhoneProfileProof(),
+			refresh: async () => refreshReadinessProof()
+		},
+		source: buildRealCallHistory
+	})
+);
+```
+
 Use `createVoiceProfileTraceTagger(...)` when the app already has a trace store and needs every appended trace to carry a benchmark profile label. It wraps any `VoiceTraceEventStore`, preserves the underlying store behavior, and adds `profileId`/`benchmarkProfileId` metadata and payload fields that real-call profile history can ingest later.
 
 ```ts

@@ -279,6 +279,7 @@ export {
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
+	createVoiceRealCallProfileRecoveryActionRoutes,
 	DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS,
 	DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS,
 	evaluateVoiceProofTrendEvidence,
@@ -380,6 +381,12 @@ export type {
 	VoiceRealCallProfileProviderRouteOptions,
 	VoiceRealCallProfileReadinessCheckOptions,
 	VoiceRealCallProfileRecoveryActionOptions,
+	VoiceRealCallProfileRecoveryAction,
+	VoiceRealCallProfileRecoveryActionHandler,
+	VoiceRealCallProfileRecoveryActionHandlerInput,
+	VoiceRealCallProfileRecoveryActionId,
+	VoiceRealCallProfileRecoveryActionResult,
+	VoiceRealCallProfileRecoveryActionRoutesOptions,
 	VoiceRealCallProfileTraceEvidenceOptions,
 	VoiceRealCallProfileTraceStoreEvidenceOptions
 } from './proofTrends';

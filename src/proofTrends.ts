@@ -424,6 +424,16 @@ export type VoiceRealCallProfileHistoryRoutesOptions =
 		title?: string;
 	};
 
+export type VoiceRealCallProfileRecoveryActionId =
+	| 'collect-browser-proof'
+	| 'collect-phone-proof'
+	| 'collect-provider-role-evidence'
+	| 'refresh';
+
+export type VoiceRealCallProfileRecoveryAction = VoiceProductionReadinessAction & {
+	id: VoiceRealCallProfileRecoveryActionId;
+};
+
 export type VoiceRealCallProfileReadinessCheckOptions = {
 	browserProofHref?: string;
 	failOnWarnings?: boolean;
@@ -443,6 +453,38 @@ export type VoiceRealCallProfileReadinessCheckOptions = {
 
 export type VoiceRealCallProfileRecoveryActionOptions =
 	VoiceRealCallProfileReadinessCheckOptions;
+
+export type VoiceRealCallProfileRecoveryActionHandlerInput = {
+	actionId: VoiceRealCallProfileRecoveryActionId;
+	report: VoiceRealCallProfileHistoryReport;
+};
+
+export type VoiceRealCallProfileRecoveryActionResult = {
+	actionId: VoiceRealCallProfileRecoveryActionId;
+	generatedAt: string;
+	message?: string;
+	ok: boolean;
+	report?: VoiceRealCallProfileHistoryReport;
+	status: VoiceProofTrendStatus;
+};
+
+export type VoiceRealCallProfileRecoveryActionHandler = (
+	input: VoiceRealCallProfileRecoveryActionHandlerInput
+) =>
+	| Promise<Partial<VoiceRealCallProfileRecoveryActionResult> | void>
+	| Partial<VoiceRealCallProfileRecoveryActionResult>
+	| void;
+
+export type VoiceRealCallProfileRecoveryActionRoutesOptions =
+	VoiceRealCallProfileRecoveryActionOptions &
+		Omit<VoiceRealCallProfileHistoryRoutesOptions, 'htmlPath' | 'markdownPath'> & {
+			handlers?: Partial<
+				Record<
+					VoiceRealCallProfileRecoveryActionId,
+					VoiceRealCallProfileRecoveryActionHandler
+				>
+			>;
+		};
 
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -1690,7 +1732,7 @@ const buildRealCallProfileReadinessIssues = (
 };
 
 const uniqueRealCallProfileActions = (
-	actions: VoiceProductionReadinessAction[]
+	actions: VoiceRealCallProfileRecoveryAction[]
 ) => {
 	const seen = new Set<string>();
 	return actions.filter((action) => {
@@ -1706,18 +1748,20 @@ const uniqueRealCallProfileActions = (
 export const buildVoiceRealCallProfileRecoveryActions = (
 	report: VoiceRealCallProfileHistoryReport,
 	options: VoiceRealCallProfileRecoveryActionOptions = {}
-): VoiceProductionReadinessAction[] => {
-	const actions: VoiceProductionReadinessAction[] = [
+): VoiceRealCallProfileRecoveryAction[] => {
+	const actions: VoiceRealCallProfileRecoveryAction[] = [
 		{
 			description:
 				'Open the current real-call profile history report and profile defaults.',
 			href: options.href ?? '/voice/real-call-profile-history',
+			id: 'refresh',
 			label: 'Open real-call profile history'
 		},
 		{
 			description:
 				'Refresh production readiness after collecting or replaying profile evidence.',
 			href: options.productionReadinessHref ?? '/production-readiness',
+			id: 'refresh',
 			label: 'Refresh production readiness'
 		}
 	];
@@ -1755,12 +1799,14 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 			description:
 				'Run browser profile proof to collect microphone, WebSocket, live-latency, and provider traces for missing profiles.',
 			href: options.browserProofHref ?? '/voice/browser-call-profiles',
+			id: 'collect-browser-proof',
 			label: 'Run browser profile proof'
 		});
 		actions.push({
 			description:
 				'Run phone profile proof when required profiles depend on carrier, telephony media, or noisy-call evidence.',
 			href: options.phoneProofHref ?? '/api/voice/phone/smoke',
+			id: 'collect-phone-proof',
 			label: 'Run phone profile proof'
 		});
 	}
@@ -1773,6 +1819,7 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 			description:
 				'Collect fresh real-call profile traces because the current history artifact is stale.',
 			href: options.browserProofHref ?? '/voice/browser-call-profiles',
+			id: 'collect-browser-proof',
 			label: 'Collect fresh profile evidence'
 		});
 	}
@@ -1786,6 +1833,7 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 			description:
 				'Collect missing LLM/STT/TTS provider-role evidence so profile defaults can become actionable.',
 			href: options.sourceHref ?? '/api/voice/real-call-profile-history',
+			id: 'collect-provider-role-evidence',
 			label: 'Collect missing provider-role evidence'
 		});
 	}
@@ -1798,6 +1846,7 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 			description:
 				'Open operations records to inspect the sessions behind failing or warning profile evidence.',
 			href: options.operationsRecordsHref ?? '/voice-operations',
+			id: 'refresh',
 			label: 'Open operations records'
 		});
 	}
@@ -2976,6 +3025,116 @@ export const createVoiceRealCallProfileHistoryRoutes = (
 					}
 				}
 			);
+		});
+	}
+
+	return routes;
+};
+
+const realCallProfileActionPaths: Record<
+	VoiceRealCallProfileRecoveryActionId,
+	string
+> = {
+	'collect-browser-proof': '/collect-browser-proof',
+	'collect-phone-proof': '/collect-phone-proof',
+	'collect-provider-role-evidence': '/collect-provider-role-evidence',
+	refresh: '/refresh'
+};
+
+const loadVoiceRealCallProfileHistoryRouteReport = async (
+	options:
+		| VoiceRealCallProfileHistoryRoutesOptions
+		| VoiceRealCallProfileRecoveryActionRoutesOptions
+) => {
+	const { source, ...routeOptions } = options;
+	const sourceOptions =
+		source === undefined
+			? routeOptions
+			: typeof source === 'function'
+				? await source()
+				: source;
+	return buildVoiceRealCallProfileHistoryReport({
+		...routeOptions,
+		...sourceOptions
+	});
+};
+
+export const createVoiceRealCallProfileRecoveryActionRoutes = (
+	options: VoiceRealCallProfileRecoveryActionRoutesOptions = {}
+) => {
+	const path = options.path ?? '/api/voice/real-call-profile-history';
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-real-call-profile-recovery-actions'
+	});
+	const actionPath = (actionId: VoiceRealCallProfileRecoveryActionId) =>
+		`${path}${realCallProfileActionPaths[actionId]}`;
+	const loadReport = () => loadVoiceRealCallProfileHistoryRouteReport(options);
+	const listActions = async () => {
+		const report = await loadReport();
+		const actions = buildVoiceRealCallProfileRecoveryActions(report, {
+			...options,
+			browserProofHref:
+				options.browserProofHref ?? actionPath('collect-browser-proof'),
+			phoneProofHref: options.phoneProofHref ?? actionPath('collect-phone-proof'),
+			sourceHref:
+				options.sourceHref ?? actionPath('collect-provider-role-evidence'),
+			productionReadinessHref:
+				options.productionReadinessHref ?? actionPath('refresh')
+		}).map((action) => ({
+			...action,
+			href:
+				action.id === 'collect-browser-proof'
+					? actionPath('collect-browser-proof')
+					: action.id === 'collect-phone-proof'
+						? actionPath('collect-phone-proof')
+						: action.id === 'collect-provider-role-evidence'
+							? actionPath('collect-provider-role-evidence')
+							: action.href,
+			method:
+				action.id === 'refresh' &&
+				(action.label === 'Open real-call profile history' ||
+					action.label === 'Open operations records')
+					? 'GET'
+					: 'POST'
+		}));
+		return { actions, generatedAt: new Date().toISOString(), report };
+	};
+	const runAction = async (actionId: VoiceRealCallProfileRecoveryActionId) => {
+		const report = await loadReport();
+		const handler = options.handlers?.[actionId];
+		if (!handler) {
+			return {
+				actionId,
+				generatedAt: new Date().toISOString(),
+				message: `No handler configured for real-call profile recovery action: ${actionId}.`,
+				ok: false,
+				status: 'fail' as VoiceProofTrendStatus
+			};
+		}
+		const result = await handler({ actionId, report });
+		return {
+			actionId,
+			generatedAt: new Date().toISOString(),
+			message: result?.message,
+			ok: result?.ok ?? true,
+			report: result?.report,
+			status: result?.status ?? 'pass'
+		} satisfies VoiceRealCallProfileRecoveryActionResult;
+	};
+
+	routes.get(`${path}/actions`, async () =>
+		Response.json(await listActions(), { headers: options.headers })
+	);
+
+	for (const actionId of Object.keys(
+		realCallProfileActionPaths
+	) as VoiceRealCallProfileRecoveryActionId[]) {
+		routes.post(actionPath(actionId), async ({ set }) => {
+			const result = await runAction(actionId);
+			if (!result.ok) {
+				set.status = 501;
+			}
+			return Response.json(result, { headers: options.headers });
 		});
 	}
 

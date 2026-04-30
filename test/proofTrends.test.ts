@@ -16,6 +16,7 @@ import {
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
+	createVoiceRealCallProfileRecoveryActionRoutes,
 	evaluateVoiceProofTrendEvidence,
 	formatVoiceProofTrendAge,
 	loadVoiceRealCallProfileEvidenceFromTraceStore,
@@ -1560,5 +1561,82 @@ describe('proof trends', () => {
 		expect(markdown).toContain('Voice Real-Call Profile History');
 		expect(markdown).toContain('Actionable Defaults');
 		expect(markdown).toContain('Support agent');
+	});
+
+	test('createVoiceRealCallProfileRecoveryActionRoutes exposes actions and executable handlers', async () => {
+		const calls: string[] = [];
+		const app = createVoiceRealCallProfileRecoveryActionRoutes({
+			handlers: {
+				'collect-browser-proof': ({ actionId }) => {
+					calls.push(actionId);
+					return {
+						message: 'browser proof queued'
+					};
+				}
+			},
+			minActionableProfiles: 2,
+			path: '/api/voice/real-call-profile-history',
+			requiredProfileIds: ['support-agent'],
+			source: {
+				evidence: [
+					{
+						generatedAt: '2026-04-29T12:00:00.000Z',
+						ok: true,
+						profileId: 'support-agent',
+						profileLabel: 'Support agent',
+						providers: [
+							{
+								id: 'llm:openai',
+								label: 'LLM openai',
+								p95Ms: 450,
+								role: 'llm',
+								samples: 1,
+								status: 'pass'
+							}
+						],
+						sessionId: 'support-real-call'
+					}
+				],
+				source: '.voice-runtime/real-call-profiles/latest.json'
+			}
+		});
+
+		const actionsResponse = await app.handle(
+			new Request('http://localhost/api/voice/real-call-profile-history/actions')
+		);
+		const actions = await actionsResponse.json();
+		const browserResponse = await app.handle(
+			new Request(
+				'http://localhost/api/voice/real-call-profile-history/collect-browser-proof',
+				{ method: 'POST' }
+			)
+		);
+		const browser = await browserResponse.json();
+		const phoneResponse = await app.handle(
+			new Request(
+				'http://localhost/api/voice/real-call-profile-history/collect-phone-proof',
+				{ method: 'POST' }
+			)
+		);
+		const phone = await phoneResponse.json();
+
+		expect(actionsResponse.status).toBe(200);
+		expect(actions.actions.map((action: { href: string; method?: string }) => action.href)).toContain(
+			'/api/voice/real-call-profile-history/collect-browser-proof'
+		);
+		expect(browserResponse.status).toBe(200);
+		expect(browser).toMatchObject({
+			actionId: 'collect-browser-proof',
+			message: 'browser proof queued',
+			ok: true,
+			status: 'pass'
+		});
+		expect(phoneResponse.status).toBe(501);
+		expect(phone).toMatchObject({
+			actionId: 'collect-phone-proof',
+			ok: false,
+			status: 'fail'
+		});
+		expect(calls).toEqual(['collect-browser-proof']);
 	});
 });
