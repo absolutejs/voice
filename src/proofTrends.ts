@@ -540,6 +540,14 @@ const aggregateProofTrendProviders = (
 		if (!provider.id) {
 			continue;
 		}
+		if (
+			provider.p95Ms === undefined &&
+			provider.p50Ms === undefined &&
+			provider.averageMs === undefined &&
+			(provider.samples ?? 0) <= 0
+		) {
+			continue;
+		}
 		const existing = providersById.get(provider.id);
 		providersById.set(provider.id, {
 			averageMs: maxNumber([existing?.averageMs, provider.averageMs]),

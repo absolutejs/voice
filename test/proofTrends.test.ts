@@ -738,6 +738,52 @@ describe('proof trends', () => {
 		});
 	});
 
+	test('buildVoiceProofTrendProfileSummaries ignores zero-sample stale provider rows', () => {
+		const report = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:00:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 6,
+				profiles: [
+					{
+						id: 'support-agent',
+						label: 'Support agent',
+						maxProviderP95Ms: 700,
+						providers: [
+							{
+								id: 'llm',
+								label: 'LLM llm',
+								role: 'llm',
+								samples: 0,
+								status: 'fail'
+							},
+							{
+								id: 'llm:openai',
+								label: 'LLM openai',
+								p95Ms: 700,
+								role: 'llm',
+								samples: 12,
+								status: 'pass'
+							}
+						],
+						status: 'pass'
+					}
+				]
+			}
+		});
+
+		const supportAgent = buildVoiceProofTrendProfileSummaries([report]).find(
+			(profile) => profile.id === 'support-agent'
+		);
+
+		expect(supportAgent?.providers?.map((provider) => provider.id)).toEqual([
+			'llm:openai'
+		]);
+		expect(supportAgent?.status).toBe('pass');
+	});
+
 	test('buildVoiceProofTrendReportFromRealCallProfiles emits history-compatible profile proof from session evidence', () => {
 		const report = buildVoiceProofTrendReportFromRealCallProfiles({
 			evidence: [
