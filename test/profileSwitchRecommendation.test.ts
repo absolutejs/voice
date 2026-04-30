@@ -148,4 +148,79 @@ describe('profile switch recommendations', () => {
 		expect(decision.selectedProfileId).toBe('meeting-recorder');
 		expect(decision.auditEvent?.outcome).toBe('skipped');
 	});
+
+	test('off mode disables switching even when evidence is strong', async () => {
+		const audit = createVoiceMemoryAuditEventStore();
+		const decision = await applyVoiceProfileSwitchGuard({
+			audit,
+			defaults,
+			mode: 'off',
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			}
+		});
+
+		expect(decision.action).toBe('disabled');
+		expect(decision.autoApplied).toBe(false);
+		expect(decision.selectedProfileId).toBe('meeting-recorder');
+		expect(decision.auditEvent?.outcome).toBe('skipped');
+	});
+
+	test('allowed profile policy blocks unlisted switch targets', async () => {
+		const decision = await applyVoiceProfileSwitchGuard({
+			allowedProfileIds: ['meeting-recorder'],
+			defaults,
+			mode: 'auto',
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			}
+		});
+
+		expect(decision.action).toBe('blocked');
+		expect(decision.blockedByPolicy).toBe('allowed-profiles');
+		expect(decision.selectedProfileId).toBe('meeting-recorder');
+	});
+
+	test('blocked profile policy denies unsafe switch targets', async () => {
+		const decision = await applyVoiceProfileSwitchGuard({
+			blockedProfileIds: ['noisy-phone-call'],
+			defaults,
+			mode: 'auto',
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			}
+		});
+
+		expect(decision.action).toBe('blocked');
+		expect(decision.blockedByPolicy).toBe('blocked-profiles');
+		expect(decision.selectedProfileId).toBe('meeting-recorder');
+	});
+
+	test('max switch policy blocks automatic switches after the session budget is used', async () => {
+		const decision = await applyVoiceProfileSwitchGuard({
+			autoSwitchCount: 1,
+			defaults,
+			maxAutoSwitchesPerSession: 1,
+			mode: 'auto',
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			}
+		});
+
+		expect(decision.action).toBe('blocked');
+		expect(decision.blockedByPolicy).toBe('max-switches');
+		expect(decision.selectedProfileId).toBe('meeting-recorder');
+	});
 });

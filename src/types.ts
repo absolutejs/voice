@@ -901,7 +901,17 @@ export type VoicePluginProfileSwitchGuardConfig<
 	TResult = unknown
 > = {
 	actor?: VoiceAuditActor;
+	allowedProfileIds?:
+		| string[]
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) => Promise<string[] | undefined> | string[] | undefined);
 	audit?: VoiceAuditEventStore;
+	blockedProfileIds?:
+		| string[]
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) => Promise<string[] | undefined> | string[] | undefined);
 	currentProfileId?:
 		| string
 		| ((
@@ -923,6 +933,11 @@ export type VoicePluginProfileSwitchGuardConfig<
 				input: VoiceProfileSwitchGuardResolverInput<TContext>
 		  ) => Promise<Record<string, unknown> | undefined> | Record<string, unknown> | undefined);
 	minConfidence?:
+		| number
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) => Promise<number | undefined> | number | undefined);
+	maxAutoSwitchesPerSession?:
 		| number
 		| ((
 				input: VoiceProfileSwitchGuardResolverInput<TContext>

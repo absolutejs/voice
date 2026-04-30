@@ -49,10 +49,11 @@ export type VoiceProfileSwitchRecommendationOptions = {
 	observed?: VoiceProfileSwitchObservedSignals;
 };
 
-export type VoiceProfileSwitchGuardMode = 'auto' | 'recommend';
+export type VoiceProfileSwitchGuardMode = 'auto' | 'off' | 'recommend';
 
 export type VoiceProfileSwitchGuardAction =
 	| 'blocked'
+	| 'disabled'
 	| 'recommend'
 	| 'stay'
 	| 'switch';
@@ -61,9 +62,12 @@ export type VoiceProfileSwitchGuardDecision = {
 	action: VoiceProfileSwitchGuardAction;
 	auditEvent?: StoredVoiceAuditEvent;
 	autoApplied: boolean;
+	autoSwitchCount: number;
+	blockedByPolicy?: 'allowed-profiles' | 'blocked-profiles' | 'max-switches';
 	confidence: number;
 	minConfidence: number;
 	mode: VoiceProfileSwitchGuardMode;
+	maxAutoSwitchesPerSession: number;
 	previousProfileId?: string;
 	reason: string;
 	recommendation: VoiceProfileSwitchRecommendation;
@@ -73,7 +77,11 @@ export type VoiceProfileSwitchGuardDecision = {
 
 export type VoiceProfileSwitchGuardOptions = VoiceProfileSwitchRecommendationOptions & {
 	actor?: VoiceAuditActor;
+	allowedProfileIds?: string[];
 	audit?: VoiceAuditEventStore;
+	autoSwitchCount?: number;
+	blockedProfileIds?: string[];
+	maxAutoSwitchesPerSession?: number;
 	metadata?: Record<string, unknown>;
 	minConfidence?: number;
 	mode?: VoiceProfileSwitchGuardMode;
@@ -262,17 +270,43 @@ export const applyVoiceProfileSwitchGuard = async (
 ): Promise<VoiceProfileSwitchGuardDecision> => {
 	const mode = options.mode ?? 'recommend';
 	const minConfidence = options.minConfidence ?? 0.75;
+	const maxAutoSwitchesPerSession = Math.max(
+		0,
+		Math.floor(options.maxAutoSwitchesPerSession ?? 1)
+	);
+	const autoSwitchCount = Math.max(0, Math.floor(options.autoSwitchCount ?? 0));
 	const recommendation = recommendVoiceProfileSwitch(options);
 	const confidence = estimateSwitchConfidence(recommendation);
 	const previousProfileId = recommendation.currentProfile?.profileId;
 	const recommendedProfileId = recommendation.recommendedProfile?.profileId;
+	const isRecommendedAllowed =
+		!recommendedProfileId ||
+		!options.allowedProfileIds ||
+		options.allowedProfileIds.length === 0 ||
+		options.allowedProfileIds.includes(recommendedProfileId);
+	const isRecommendedBlocked =
+		recommendedProfileId
+			? Boolean(options.blockedProfileIds?.includes(recommendedProfileId))
+			: false;
+	const blockedByPolicy: VoiceProfileSwitchGuardDecision['blockedByPolicy'] =
+		!isRecommendedAllowed
+			? 'allowed-profiles'
+			: isRecommendedBlocked
+				? 'blocked-profiles'
+				: mode === 'auto' && autoSwitchCount >= maxAutoSwitchesPerSession
+					? 'max-switches'
+					: undefined;
 	const canSwitch =
+		mode !== 'off' &&
 		recommendation.status === 'switch' &&
 		recommendation.ok &&
 		Boolean(recommendedProfileId) &&
-		confidence >= minConfidence;
+		confidence >= minConfidence &&
+		!blockedByPolicy;
 	const action: VoiceProfileSwitchGuardAction =
-		recommendation.status === 'stay'
+		mode === 'off'
+			? 'disabled'
+			: recommendation.status === 'stay'
 			? 'stay'
 			: canSwitch
 				? mode === 'auto'
@@ -282,17 +316,28 @@ export const applyVoiceProfileSwitchGuard = async (
 	const selectedProfileId =
 		action === 'switch' ? recommendedProfileId : previousProfileId ?? recommendedProfileId;
 	const reason =
-		action === 'switch'
+		action === 'disabled'
+			? 'Profile switch guard is disabled by policy.'
+			: action === 'switch'
 			? `Auto-switched from ${previousProfileId ?? 'unknown'} to ${recommendedProfileId}.`
 			: action === 'recommend'
 				? `Recommended ${recommendedProfileId} but left selection unchanged because mode is recommend.`
 				: action === 'blocked'
-					? `Blocked profile switch because confidence ${confidence} is below ${minConfidence} or evidence is incomplete.`
+					? blockedByPolicy === 'allowed-profiles'
+						? `Blocked profile switch because ${recommendedProfileId} is not in the allowed profile list.`
+						: blockedByPolicy === 'blocked-profiles'
+							? `Blocked profile switch because ${recommendedProfileId} is in the blocked profile list.`
+							: blockedByPolicy === 'max-switches'
+								? `Blocked profile switch because the session already used ${autoSwitchCount} of ${maxAutoSwitchesPerSession} allowed automatic switch(es).`
+								: `Blocked profile switch because confidence ${confidence} is below ${minConfidence} or evidence is incomplete.`
 					: 'Kept current profile because measured evidence does not require a switch.';
 	const decision: VoiceProfileSwitchGuardDecision = {
 		action,
 		autoApplied: action === 'switch',
+		autoSwitchCount,
+		blockedByPolicy,
 		confidence,
+		maxAutoSwitchesPerSession,
 		minConfidence,
 		mode,
 		previousProfileId,
@@ -312,10 +357,14 @@ export const applyVoiceProfileSwitchGuard = async (
 					name: 'AbsoluteJS Voice Profile Switch Guard'
 				},
 				metadata: options.metadata,
-				outcome: action === 'blocked' ? 'skipped' : 'success',
+				outcome:
+					action === 'blocked' || action === 'disabled' ? 'skipped' : 'success',
 				payload: {
 					autoApplied: decision.autoApplied,
+					autoSwitchCount,
+					blockedByPolicy,
 					confidence,
+					maxAutoSwitchesPerSession,
 					minConfidence,
 					mode,
 					previousProfileId,

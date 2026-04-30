@@ -33,6 +33,7 @@ type VoiceRuntime = {
 		VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>
 	>;
 	logger: ReturnType<typeof resolveLogger>;
+	profileSwitchGuardAutoSwitchCounts: Map<string, number>;
 	profileSwitchGuardedSessions: Set<string>;
 	socketSessions: WeakMap<
 		object,
@@ -429,12 +430,29 @@ const resolveProfileSwitchGuard = async <
 		guard.minConfidence,
 		resolverInput
 	);
+	const maxAutoSwitchesPerSession = await resolveMaybeFunction(
+		guard.maxAutoSwitchesPerSession,
+		resolverInput
+	);
+	const allowedProfileIds = await resolveMaybeFunction(
+		guard.allowedProfileIds,
+		resolverInput
+	);
+	const blockedProfileIds = await resolveMaybeFunction(
+		guard.blockedProfileIds,
+		resolverInput
+	);
 	const mode = await resolveMaybeFunction(guard.mode, resolverInput);
 	const decision = await applyVoiceProfileSwitchGuard({
 		actor: guard.actor,
+		allowedProfileIds,
 		audit: guard.audit,
+		autoSwitchCount:
+			runtime.profileSwitchGuardAutoSwitchCounts.get(input.sessionId) ?? 0,
+		blockedProfileIds,
 		defaultProfileId: guard.defaultProfileId,
 		defaults,
+		maxAutoSwitchesPerSession,
 		metadata,
 		minConfidence,
 		mode,
@@ -444,6 +462,12 @@ const resolveProfileSwitchGuard = async <
 		},
 		sessionId: input.sessionId
 	});
+	if (decision.autoApplied) {
+		runtime.profileSwitchGuardAutoSwitchCounts.set(
+			input.sessionId,
+			decision.autoSwitchCount + 1
+		);
+	}
 
 	await guard.onDecision?.({
 		context: input.context,
@@ -460,12 +484,15 @@ const resolveProfileSwitchGuard = async <
 				...metadata,
 				source: 'profile-switch-guard'
 			},
-			payload: {
-				action: decision.action,
-				autoApplied: decision.autoApplied,
-				confidence: decision.confidence,
-				minConfidence: decision.minConfidence,
-				mode: decision.mode,
+				payload: {
+					action: decision.action,
+					autoApplied: decision.autoApplied,
+					autoSwitchCount: decision.autoSwitchCount,
+					blockedByPolicy: decision.blockedByPolicy,
+					confidence: decision.confidence,
+					maxAutoSwitchesPerSession: decision.maxAutoSwitchesPerSession,
+					minConfidence: decision.minConfidence,
+					mode: decision.mode,
 				previousProfileId: decision.previousProfileId,
 				reason: decision.reason,
 				recommendedProfileId: decision.recommendedProfileId,
@@ -495,6 +522,7 @@ export const voice = <
 	const runtime: VoiceRuntime = {
 		activeSessions: new Map(),
 		logger: resolveLogger(config.logger),
+		profileSwitchGuardAutoSwitchCounts: new Map(),
 		profileSwitchGuardedSessions: new Set(),
 		socketSessions: new WeakMap()
 	};
