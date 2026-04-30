@@ -609,6 +609,7 @@ export type VoiceProductionReadinessRoutesOptions = {
 		  }) =>
 				| Promise<VoiceCampaignReadinessProofReport>
 				| VoiceCampaignReadinessProofReport);
+	cacheMs?: number;
 	deliveryRuntime?:
 		| false
 		| VoiceDeliveryRuntime
@@ -4128,6 +4129,16 @@ export const createVoiceProductionReadinessRoutes = (
 	const routes = new Elysia({
 		name: options.name ?? 'absolutejs-voice-production-readiness'
 	});
+	let cachedReport:
+		| {
+				key: string;
+				loadedAt: number;
+				value: Promise<{
+					report: VoiceProductionReadinessReport;
+					resolvedOptions: VoiceProductionReadinessRoutesOptions;
+				}>;
+		  }
+		| undefined;
 	const resolveOptions = async (input: VoiceProductionReadinessRouteInput) => {
 		if (!options.resolveOptions) {
 			return options;
@@ -4138,20 +4149,69 @@ export const createVoiceProductionReadinessRoutes = (
 			...(await options.resolveOptions(input))
 		};
 	};
+	const reportCacheKey = (
+		query: Record<string, unknown>,
+		request: Request
+	) => {
+		const url = new URL(request.url);
+		const queryKey = Object.entries(query)
+			.map(([key, value]) => [key, String(value)] as const)
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([key, value]) => `${key}=${value}`)
+			.join('&');
 
-	routes.get(path, async ({ query, request }) =>
-		buildVoiceProductionReadinessReport(
-			await resolveOptions({ query, request }),
-			{ query, request }
-		)
-	);
-	if (gatePath !== false) {
-		routes.get(gatePath, async ({ query, request }) => {
+		return `${url.pathname}?${queryKey}`;
+	};
+	const getReport = async (
+		query: Record<string, unknown>,
+		request: Request
+	) => {
+		const cacheMs =
+			typeof options.cacheMs === 'number' &&
+			Number.isFinite(options.cacheMs) &&
+			options.cacheMs > 0
+				? options.cacheMs
+				: 0;
+		const key = reportCacheKey(query, request);
+		if (
+			cacheMs > 0 &&
+			cachedReport &&
+			cachedReport.key === key &&
+			Date.now() - cachedReport.loadedAt <= cacheMs
+		) {
+			return cachedReport.value;
+		}
+
+		const value = (async () => {
 			const resolvedOptions = await resolveOptions({ query, request });
-			const gate = await buildVoiceProductionReadinessGate(resolvedOptions, {
+			return {
+				report: await buildVoiceProductionReadinessReport(resolvedOptions, {
 					query,
 					request
-				});
+				}),
+				resolvedOptions
+			};
+		})();
+
+		if (cacheMs > 0) {
+			cachedReport = {
+				key,
+				loadedAt: Date.now(),
+				value
+			};
+		}
+
+		return value;
+	};
+
+	routes.get(path, async ({ query, request }) => (await getReport(query, request)).report);
+	if (gatePath !== false) {
+		routes.get(gatePath, async ({ query, request }) => {
+			const { report, resolvedOptions } = await getReport(query, request);
+			const gate = summarizeVoiceProductionReadinessGate(
+				report,
+				resolvedOptions.gate || undefined
+			);
 
 			return new Response(JSON.stringify(gate), {
 				headers: {
@@ -4164,14 +4224,7 @@ export const createVoiceProductionReadinessRoutes = (
 	}
 	if (htmlPath !== false) {
 		routes.get(htmlPath, async ({ query, request }) => {
-			const resolvedOptions = await resolveOptions({ query, request });
-			const report = await buildVoiceProductionReadinessReport(
-				resolvedOptions,
-				{
-					query,
-					request
-				}
-			);
+			const { report, resolvedOptions } = await getReport(query, request);
 			const body = await (
 				resolvedOptions.render ?? renderVoiceProductionReadinessHTML
 			)(report);
