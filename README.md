@@ -1401,6 +1401,63 @@ assertVoiceProductionReadinessEvidence(readiness, {
 });
 ```
 
+Use `createVoiceProductionReadinessProofRuntime(...)` when the app needs a fresh, isolated proof window instead of letting stale local traces certify a deploy. The runtime is intentionally small: it owns a bounded in-memory trace store, route-cache defaults, a reusable TTL cache, a proof-freshness check, and optional synthetic provider/live-latency seed events. Your app still mounts routes, writes artifacts, and decides which proof sources matter.
+
+```ts
+import {
+	createVoiceProductionReadinessProofRuntime,
+	createVoiceProductionReadinessRoutes,
+	createVoiceReadinessProfile
+} from '@absolutejs/voice';
+
+const readinessProof = createVoiceProductionReadinessProofRuntime({
+	cacheMs: 10_000,
+	traceMaxAgeMs: 30 * 60_000
+});
+
+const refreshReadinessProof = () =>
+	readinessProof.refresh(async (metadata) => {
+		await readinessProof.seedTraceProof({
+			llmProvider: 'openai',
+			scenarioId: 'provider-slo-proof',
+			sttProvider: 'deepgram',
+			ttsProvider: 'openai'
+		});
+
+		await writeProofPack({
+			generatedAt: metadata.generatedAt,
+			runId: metadata.runId
+		});
+	});
+
+app.use(
+	createVoiceProductionReadinessRoutes({
+		...createVoiceReadinessProfile('phone-agent', {
+			explain: true
+		}),
+		additionalChecks: async () => [
+			await readinessProof.buildFreshnessCheck()
+		],
+		cacheMs: readinessProof.options.cacheMs,
+		providerSlo: async () => {
+			await refreshReadinessProof();
+			return {
+				events: await readinessProof.store.list(),
+				requiredKinds: ['llm', 'stt', 'tts']
+			};
+		},
+		resolveOptions: async () => {
+			await refreshReadinessProof();
+			return {};
+		},
+		store: readinessProof.store,
+		traceMaxAgeMs: readinessProof.options.traceMaxAgeMs
+	})
+);
+```
+
+This primitive does not start workers, create persistent storage, mount a dashboard, or prescribe a deploy workflow. It only gives self-hosted apps one clean readiness-proof runtime so JSON, HTML, gate checks, proof packs, and trend artifacts agree on the same fresh evidence window.
+
 Built-in profiles:
 
 - `meeting-recorder`: live latency, session health, provider fallback, routing contracts, reconnect proof, and barge-in interruption proof.
