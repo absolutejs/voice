@@ -62,6 +62,70 @@ export type VoiceMediaFrameTransformPipeline = {
 	transforms: readonly VoiceMediaFrameTransform[];
 };
 
+export type VoiceMediaProcessorNodeKind =
+	| 'branch'
+	| 'filter'
+	| 'processor'
+	| 'sink';
+
+export type VoiceMediaProcessorNodeEvent = {
+	at: number;
+	dropped: number;
+	emitted: number;
+	frameId: string;
+	inputs: number;
+	node: string;
+};
+
+export type VoiceMediaProcessorNodeReport = {
+	droppedFrames: number;
+	emittedFrames: number;
+	events: readonly VoiceMediaProcessorNodeEvent[];
+	inputFrames: number;
+	kind: VoiceMediaProcessorNodeKind;
+	name: string;
+	status: VoiceMediaPipelineStatus;
+};
+
+export type VoiceMediaProcessorGraphReport = {
+	checkedAt: number;
+	droppedFrames: number;
+	emittedFrames: number;
+	events: readonly VoiceMediaProcessorNodeEvent[];
+	inputFrames: number;
+	name: string;
+	nodes: readonly VoiceMediaProcessorNodeReport[];
+	status: VoiceMediaPipelineStatus;
+};
+
+export type VoiceMediaProcessorNode = {
+	inputFormat?: AudioFormat;
+	kind?: VoiceMediaProcessorNodeKind;
+	name: string;
+	outputFormat?: AudioFormat;
+	process: (
+		frame: VoiceMediaFrame
+	) =>
+		| boolean
+		| VoiceMediaFrame
+		| readonly VoiceMediaFrame[]
+		| undefined
+		| Promise<
+				boolean | VoiceMediaFrame | readonly VoiceMediaFrame[] | undefined
+		  >;
+};
+
+export type VoiceMediaProcessorGraph = {
+	nodes: readonly VoiceMediaProcessorNode[];
+	process: (
+		frame: VoiceMediaFrame
+	) => Promise<readonly VoiceMediaFrame[]>;
+	processMany: (
+		frames: readonly VoiceMediaFrame[]
+	) => Promise<readonly VoiceMediaFrame[]>;
+	report: () => VoiceMediaProcessorGraphReport;
+};
+
 export type VoiceMediaTransportAdapter = {
 	close?: () => Promise<void> | void;
 	connect?: () => Promise<void> | void;
@@ -404,6 +468,141 @@ export const createVoiceMediaFrameTransformPipeline = (input: {
 			return output;
 		},
 		transforms
+	};
+};
+
+const normalizeProcessorResult = (
+	frame: VoiceMediaFrame,
+	result:
+		| boolean
+		| VoiceMediaFrame
+		| readonly VoiceMediaFrame[]
+		| undefined
+): readonly VoiceMediaFrame[] => {
+	if (result === false || result === undefined) {
+		return [];
+	}
+	if (result === true) {
+		return [frame];
+	}
+	if (Array.isArray(result)) {
+		return result;
+	}
+	return [result as VoiceMediaFrame];
+};
+
+export const buildVoiceMediaProcessorGraphReport = (input: {
+	events?: readonly VoiceMediaProcessorNodeEvent[];
+	name: string;
+	nodes: readonly VoiceMediaProcessorNode[];
+}): VoiceMediaProcessorGraphReport => {
+	const events = input.events ?? [];
+	const nodes = input.nodes.map((node) => {
+		const nodeEvents = events.filter((event) => event.node === node.name);
+		const droppedFrames = nodeEvents.reduce(
+			(total, event) => total + event.dropped,
+			0
+		);
+		const emittedFrames = nodeEvents.reduce(
+			(total, event) => total + event.emitted,
+			0
+		);
+		const inputFrames = nodeEvents.reduce(
+			(total, event) => total + event.inputs,
+			0
+		);
+
+		return {
+			droppedFrames,
+			emittedFrames,
+			events: nodeEvents,
+			inputFrames,
+			kind: node.kind ?? 'processor',
+			name: node.name,
+			status:
+				inputFrames > 0 && emittedFrames === 0 && node.kind !== 'sink'
+					? 'warn'
+					: 'pass'
+		} satisfies VoiceMediaProcessorNodeReport;
+	});
+	const inputFrames = events.filter(
+		(event) => event.node === input.nodes[0]?.name
+	).length;
+	const droppedFrames = events.reduce(
+		(total, event) => total + event.dropped,
+		0
+	);
+	const emittedFrames = input.nodes.at(-1)
+		? events
+				.filter((event) => event.node === input.nodes.at(-1)?.name)
+				.reduce((total, event) => total + event.emitted, 0)
+		: 0;
+	const status = nodes.some((node) => node.status === 'warn') ? 'warn' : 'pass';
+
+	return {
+		checkedAt: Date.now(),
+		droppedFrames,
+		emittedFrames,
+		events,
+		inputFrames,
+		name: input.name,
+		nodes,
+		status
+	};
+};
+
+export const createVoiceMediaProcessorGraph = (input: {
+	name?: string;
+	nodes?: readonly VoiceMediaProcessorNode[];
+} = {}): VoiceMediaProcessorGraph => {
+	const nodes = input.nodes ?? [];
+	const events: VoiceMediaProcessorNodeEvent[] = [];
+
+	const process = async (frame: VoiceMediaFrame) => {
+		let frames: readonly VoiceMediaFrame[] = [frame];
+
+		for (const node of nodes) {
+			const nextFrames: VoiceMediaFrame[] = [];
+			for (const current of frames) {
+				const output = normalizeProcessorResult(
+					current,
+					await node.process(current)
+				);
+				events.push({
+					at: Date.now(),
+					dropped: output.length === 0 ? 1 : 0,
+					emitted: output.length,
+					frameId: current.id,
+					inputs: 1,
+					node: node.name
+				});
+				nextFrames.push(...output);
+			}
+			frames = nextFrames;
+			if (frames.length === 0) {
+				break;
+			}
+		}
+
+		return frames;
+	};
+
+	return {
+		nodes,
+		process,
+		processMany: async (frames) => {
+			const output: VoiceMediaFrame[] = [];
+			for (const frame of frames) {
+				output.push(...(await process(frame)));
+			}
+			return output;
+		},
+		report: () =>
+			buildVoiceMediaProcessorGraphReport({
+				events,
+				name: input.name ?? 'voice-media-processor-graph',
+				nodes
+			})
 	};
 };
 

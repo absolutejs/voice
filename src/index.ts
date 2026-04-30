@@ -148,9 +148,11 @@ export {
 	buildVoiceMediaInterruptionReport,
 	buildVoiceMediaPipelineCalibrationReport,
 	buildVoiceMediaResamplingPlan,
+	buildVoiceMediaProcessorGraphReport,
 	buildVoiceMediaVadReport,
 	createVoiceMediaFrame,
 	createVoiceMediaFrameTransformPipeline,
+	createVoiceMediaProcessorGraph,
 	createVoiceMediaTransport
 } from './mediaPipeline';
 export type {
@@ -165,6 +167,12 @@ export type {
 	VoiceMediaPipelineCalibrationIssue,
 	VoiceMediaPipelineCalibrationReport,
 	VoiceMediaPipelineStatus,
+	VoiceMediaProcessorGraph,
+	VoiceMediaProcessorGraphReport,
+	VoiceMediaProcessorNode,
+	VoiceMediaProcessorNodeEvent,
+	VoiceMediaProcessorNodeKind,
+	VoiceMediaProcessorNodeReport,
 	VoiceMediaResamplingPlan,
 	VoiceMediaTransport,
 	VoiceMediaTransportAdapter,

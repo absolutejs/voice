@@ -3,8 +3,10 @@ import {
 	buildVoiceMediaInterruptionReport,
 	buildVoiceMediaPipelineCalibrationReport,
 	buildVoiceMediaPipelineReport,
+	buildVoiceMediaProcessorGraphReport,
 	buildVoiceMediaResamplingPlan,
 	buildVoiceMediaVadReport,
+	createVoiceMediaProcessorGraph,
 	createVoiceMediaTransport,
 	createVoiceMediaFrame,
 	createVoiceMediaFrameTransformPipeline,
@@ -198,6 +200,82 @@ describe('media pipeline calibration', () => {
 		expect(sent).toEqual(['assistant-1']);
 	});
 
+	test('runs ordered media processor graphs with filters and branches', async () => {
+		const graph = createVoiceMediaProcessorGraph({
+			name: 'browser-media-graph',
+			nodes: [
+				{
+					kind: 'filter',
+					name: 'speech-only',
+					process: (frame) =>
+						frame.kind !== 'input-audio' ||
+						frame.metadata?.speechProbability !== 0.1
+				},
+				{
+					kind: 'branch',
+					name: 'transcript-alignment',
+					process: (frame) =>
+						frame.kind === 'input-audio'
+							? [
+									frame,
+									createVoiceMediaFrame({
+										...frame,
+										id: `${frame.id}:transcript`,
+										kind: 'transcript',
+										source: 'voice-runtime'
+									})
+								]
+							: frame
+				},
+				{
+					name: 'mark-processed',
+					process: (frame) => ({
+						...frame,
+						metadata: { ...frame.metadata, graphProcessed: true }
+					})
+				}
+			]
+		});
+		const output = await graph.processMany([
+			createVoiceMediaFrame({
+				format: raw24k,
+				id: 'speech-1',
+				kind: 'input-audio',
+				metadata: { speechProbability: 0.92 },
+				source: 'browser'
+			}),
+			createVoiceMediaFrame({
+				format: raw24k,
+				id: 'silence-1',
+				kind: 'input-audio',
+				metadata: { speechProbability: 0.1 },
+				source: 'browser'
+			})
+		]);
+		const report = graph.report();
+		const rebuilt = buildVoiceMediaProcessorGraphReport({
+			events: report.events,
+			name: report.name,
+			nodes: graph.nodes
+		});
+
+		expect(output).toHaveLength(2);
+		expect(output.map((frame) => frame.kind)).toEqual([
+			'input-audio',
+			'transcript'
+		]);
+		expect(output.every((frame) => frame.metadata?.graphProcessed)).toBe(true);
+		expect(report.status).toBe('pass');
+		expect(report.droppedFrames).toBe(1);
+		expect(report.emittedFrames).toBe(2);
+		expect(report.nodes.map((node) => node.name)).toEqual([
+			'speech-only',
+			'transcript-alignment',
+			'mark-processed'
+		]);
+		expect(rebuilt.emittedFrames).toBe(2);
+	});
+
 	test('derives VAD speech segments from input frames', () => {
 		const report = buildVoiceMediaVadReport({
 			frames: [
@@ -313,6 +391,35 @@ describe('media pipeline calibration', () => {
 			maxInterruptionLatencyMs: 250,
 			requireInterruptionFrame: true,
 			requireTraceEvidence: true,
+			processorGraph: {
+				checkedAt: Date.now(),
+				droppedFrames: 0,
+				emittedFrames: 2,
+				events: [],
+				inputFrames: 1,
+				name: 'browser-media-graph',
+				nodes: [
+					{
+						droppedFrames: 0,
+						emittedFrames: 1,
+						events: [],
+						inputFrames: 1,
+						kind: 'filter',
+						name: 'speech-only',
+						status: 'pass'
+					},
+					{
+						droppedFrames: 0,
+						emittedFrames: 2,
+						events: [],
+						inputFrames: 1,
+						kind: 'branch',
+						name: 'transcript-alignment',
+						status: 'pass'
+					}
+				],
+				status: 'pass'
+			},
 			transport: {
 				backpressureEvents: 0,
 				checkedAt: Date.now(),
@@ -330,6 +437,8 @@ describe('media pipeline calibration', () => {
 		const assertion = evaluateVoiceMediaPipelineEvidence(report, {
 			maxFirstAudioLatencyMs: 800,
 			maxInterruptionLatencyMs: 250,
+			minProcessorGraphEmittedFrames: 2,
+			minProcessorGraphNodes: 2,
 			minAssistantAudioFrames: 1,
 			minInputAudioFrames: 1,
 			minTransportInputFrames: 1,
@@ -338,10 +447,12 @@ describe('media pipeline calibration', () => {
 			minVadSegments: 1,
 			requireInterruptionFrame: true,
 			requirePass: true,
+			requireProcessorGraph: true,
 			requireTransportConnected: true
 		});
 
 		expect(report.status).toBe('pass');
+		expect(report.processorGraph?.nodes).toHaveLength(2);
 		expect(report.transport?.connected).toBe(true);
 		expect(report.vad.segments).toHaveLength(1);
 		expect(assertion.ok).toBe(true);
@@ -395,6 +506,7 @@ describe('media pipeline calibration', () => {
 		expect(body.status).toBe('pass');
 		expect(await htmlResponse.text()).toContain('Media Proof');
 		expect(await markdownResponse.text()).toContain('Voice Media Pipeline Proof');
+		expect(markdown).toContain('Processor graph');
 		expect(markdown).toContain('VAD segments: 1');
 	});
 });
