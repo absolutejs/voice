@@ -282,6 +282,8 @@ export type {
 	VoiceProofTrendAssertionInput,
 	VoiceProofTrendAssertionReport,
 	VoiceProofTrendCycle,
+	VoiceProofTrendProfileRecommendation,
+	VoiceProofTrendProfileSummary,
 	VoiceProofTrendProviderRecommendation,
 	VoiceProofTrendProviderSummary,
 	VoiceProofTrendRecommendation,

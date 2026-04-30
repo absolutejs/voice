@@ -11,6 +11,7 @@ import {
 	evaluateVoiceProofTrendEvidence,
 	formatVoiceProofTrendAge
 } from '../src/proofTrends';
+import type { VoiceProofTrendProviderSummary } from '../src/proofTrends';
 
 describe('proof trends', () => {
 	test('buildVoiceProofTrendReport marks fresh passing artifacts as pass', () => {
@@ -292,6 +293,32 @@ describe('proof trends', () => {
 	});
 
 	test('buildVoiceProofTrendRecommendationReport turns sustained history into provider and runtime guidance', () => {
+		const providers = [
+			{
+				id: 'openai-llm',
+				label: 'OpenAI LLM',
+				p95Ms: 640,
+				role: 'llm',
+				samples: 18,
+				status: 'pass'
+			},
+			{
+				id: 'deepgram-stt',
+				label: 'Deepgram STT',
+				p95Ms: 210,
+				role: 'stt',
+				samples: 18,
+				status: 'pass'
+			},
+			{
+				id: 'openai-tts',
+				label: 'OpenAI TTS',
+				p95Ms: 340,
+				role: 'tts',
+				samples: 18,
+				status: 'pass'
+			}
+		] satisfies VoiceProofTrendProviderSummary[];
 		const report = buildVoiceProofTrendReport({
 			generatedAt: '2026-04-29T12:00:00.000Z',
 			maxAgeMs: 60_000,
@@ -302,24 +329,81 @@ describe('proof trends', () => {
 				cycles: 6,
 				maxLiveP95Ms: 531,
 				maxProviderP95Ms: 700,
-				providers: [
+				profiles: [
 					{
-						id: 'openai-realtime',
-						label: 'OpenAI Realtime',
-						p95Ms: 700,
-						role: 'realtime',
-						samples: 18,
+						id: 'meeting-recorder',
+						label: 'Meeting recorder',
+						maxLiveP95Ms: 531,
+						maxProviderP95Ms: 700,
+						maxTurnP95Ms: 690,
+						providers,
+						runtimeChannel: {
+							maxBackpressureEvents: 0,
+							maxFirstAudioLatencyMs: 420,
+							maxInterruptionP95Ms: 190,
+							maxJitterMs: 12,
+							maxTimestampDriftMs: 500,
+							samples: 4,
+							status: 'pass'
+						},
 						status: 'pass'
 					},
 					{
-						id: 'gemini-live',
-						label: 'Gemini Live',
-						p95Ms: 820,
-						role: 'realtime',
-						samples: 18,
+						id: 'support-agent',
+						label: 'Support agent',
+						maxLiveP95Ms: 548,
+						maxProviderP95Ms: 720,
+						maxTurnP95Ms: 693,
+						providers,
+						runtimeChannel: {
+							maxBackpressureEvents: 0,
+							maxFirstAudioLatencyMs: 430,
+							maxInterruptionP95Ms: 196,
+							maxJitterMs: 14,
+							maxTimestampDriftMs: 510,
+							samples: 4,
+							status: 'pass'
+						},
+						status: 'pass'
+					},
+					{
+						id: 'appointment-scheduler',
+						label: 'Appointment scheduler',
+						maxLiveP95Ms: 560,
+						maxProviderP95Ms: 735,
+						maxTurnP95Ms: 695,
+						providers,
+						runtimeChannel: {
+							maxBackpressureEvents: 0,
+							maxFirstAudioLatencyMs: 436,
+							maxInterruptionP95Ms: 202,
+							maxJitterMs: 15,
+							maxTimestampDriftMs: 520,
+							samples: 4,
+							status: 'pass'
+						},
+						status: 'pass'
+					},
+					{
+						id: 'noisy-phone-call',
+						label: 'Noisy phone call',
+						maxLiveP95Ms: 571,
+						maxProviderP95Ms: 760,
+						maxTurnP95Ms: 697,
+						providers,
+						runtimeChannel: {
+							maxBackpressureEvents: 0,
+							maxFirstAudioLatencyMs: 442,
+							maxInterruptionP95Ms: 210,
+							maxJitterMs: 18,
+							maxTimestampDriftMs: 540,
+							samples: 4,
+							status: 'pass'
+						},
 						status: 'pass'
 					}
 				],
+				providers,
 				runtimeChannel: {
 					maxBackpressureEvents: 0,
 					maxFirstAudioLatencyMs: 420,
@@ -337,10 +421,25 @@ describe('proof trends', () => {
 
 		expect(recommendations.ok).toBe(true);
 		expect(recommendations.status).toBe('pass');
-		expect(recommendations.bestProvider?.id).toBe('openai-realtime');
-		expect(recommendations.summary.providerComparisonCount).toBe(2);
+		expect(recommendations.bestProvider?.id).toBe('deepgram-stt');
+		expect(recommendations.bestProviders.map((provider) => provider.role)).toEqual([
+			'llm',
+			'stt',
+			'tts'
+		]);
+		expect(recommendations.summary.providerComparisonCount).toBe(3);
 		expect(recommendations.summary.keepCurrentProviderPath).toBe(true);
 		expect(recommendations.summary.keepCurrentRuntimeChannel).toBe(true);
+		expect(recommendations.profiles).toHaveLength(4);
+		expect(recommendations.profiles.every((profile) => profile.status === 'pass')).toBe(
+			true
+		);
+		expect(recommendations.profiles.map((profile) => profile.id)).toEqual([
+			'meeting-recorder',
+			'support-agent',
+			'appointment-scheduler',
+			'noisy-phone-call'
+		]);
 		expect(recommendations.recommendations.map((item) => item.surface)).toEqual([
 			'provider-path',
 			'runtime-channel',
@@ -414,6 +513,51 @@ describe('proof trends', () => {
 					cycles: 6,
 					maxLiveP95Ms: 531,
 					maxProviderP95Ms: 700,
+					profiles: [
+						{
+							id: 'meeting-recorder',
+							label: 'Meeting recorder',
+							maxLiveP95Ms: 531,
+							maxProviderP95Ms: 700,
+							maxTurnP95Ms: 690,
+							providers: [
+								{
+									id: 'openai-llm',
+									label: 'OpenAI LLM',
+									p95Ms: 640,
+									role: 'llm',
+									samples: 18,
+									status: 'pass'
+								},
+								{
+									id: 'deepgram-stt',
+									label: 'Deepgram STT',
+									p95Ms: 210,
+									role: 'stt',
+									samples: 18,
+									status: 'pass'
+								},
+								{
+									id: 'openai-tts',
+									label: 'OpenAI TTS',
+									p95Ms: 340,
+									role: 'tts',
+									samples: 18,
+									status: 'pass'
+								}
+							],
+							runtimeChannel: {
+								maxBackpressureEvents: 0,
+								maxFirstAudioLatencyMs: 420,
+								maxInterruptionP95Ms: 190,
+								maxJitterMs: 12,
+								maxTimestampDriftMs: 500,
+								samples: 4,
+								status: 'pass'
+							},
+							status: 'pass'
+						}
+					],
 					providers: [
 						{
 							id: 'openai-realtime',
@@ -457,10 +601,13 @@ describe('proof trends', () => {
 		expect(htmlResponse.headers.get('content-type')).toContain('text/html');
 		expect(html).toContain('Prefer the fastest proven provider mix');
 		expect(html).toContain('Provider Comparison');
+		expect(html).toContain('Benchmark Profiles');
+		expect(html).toContain('Meeting recorder');
 		expect(markdownResponse.headers.get('content-type')).toContain(
 			'text/markdown'
 		);
 		expect(markdown).toContain('Voice Provider Runtime Recommendations');
 		expect(markdown).toContain('OpenAI Realtime');
+		expect(markdown).toContain('Benchmark Profiles');
 	});
 });
