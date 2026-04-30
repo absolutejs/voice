@@ -218,6 +218,56 @@ test('buildVoiceProductionReadinessReport gates media pipeline quality and links
 	);
 });
 
+test('buildVoiceProductionReadinessReport gates browser media transport stats', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		browserMedia: {
+			activeCandidatePairs: 0,
+			bytesReceived: 100,
+			bytesSent: 0,
+			checkedAt: Date.now(),
+			endedAudioTracks: 1,
+			inboundPackets: 90,
+			issues: [
+				{
+					code: 'media.webrtc_packet_loss',
+					message: 'Observed WebRTC packet loss ratio 0.1 above 0.02.',
+					severity: 'warning'
+				}
+			],
+			jitterMs: 80,
+			liveAudioTracks: 0,
+			outboundPackets: 0,
+			packetLossRatio: 0.1,
+			packetsLost: 10,
+			roundTripTimeMs: 350,
+			status: 'warn',
+			totalStats: 3
+		},
+		links: {
+			browserMedia: '/voice/browser-media'
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.browserMedia).toMatchObject({
+		activeCandidatePairs: 0,
+		issues: 1,
+		liveAudioTracks: 0,
+		packetLossRatio: 0.1,
+		status: 'fail'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice/browser-media',
+				label: 'Browser media transport',
+				status: 'fail'
+			})
+		])
+	);
+});
+
 test('buildVoiceProductionReadinessReport gates carrier webhook security', async () => {
 	const report = await buildVoiceProductionReadinessReport({
 		links: {

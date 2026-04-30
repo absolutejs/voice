@@ -72,6 +72,7 @@ import {
 	type VoiceObservabilityExportReport
 } from './observabilityExport';
 import type { VoiceMediaPipelineReport } from './mediaPipelineRoutes';
+import type { MediaWebRTCStatsReport } from '@absolutejs/media';
 
 export type VoiceProductionReadinessObservabilityExportDeliveryHistoryOptions = {
 	failOnMissing?: boolean;
@@ -205,6 +206,7 @@ export type VoiceProductionReadinessReport = {
 		observabilityExportDeliveries?: string;
 		monitoring?: string;
 		monitoringNotifierDelivery?: string;
+		browserMedia?: string;
 		mediaPipeline?: string;
 		opsActions?: string;
 		opsRecovery?: string;
@@ -291,6 +293,17 @@ export type VoiceProductionReadinessReport = {
 			speechRatio: number;
 			status: VoiceProductionReadinessStatus;
 			timestampDriftMs?: number;
+		};
+		browserMedia?: {
+			activeCandidatePairs: number;
+			bytesReceived: number;
+			bytesSent: number;
+			issues: number;
+			jitterMs?: number;
+			liveAudioTracks: number;
+			packetLossRatio: number;
+			roundTripTimeMs?: number;
+			status: VoiceProductionReadinessStatus;
 		};
 		opsActionHistory?: VoiceProductionReadinessOpsActionHistorySummary;
 		opsRecovery?: {
@@ -598,6 +611,13 @@ export type VoiceProductionReadinessRoutesOptions = {
 				query: Record<string, unknown>;
 				request: Request;
 		  }) => Promise<VoiceMediaPipelineReport> | VoiceMediaPipelineReport);
+	browserMedia?:
+		| false
+		| MediaWebRTCStatsReport
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) => Promise<MediaWebRTCStatsReport> | MediaWebRTCStatsReport);
 	opsActionHistory?: false | VoiceProductionReadinessOpsActionHistoryOptions;
 	opsRecovery?:
 		| false
@@ -775,6 +795,7 @@ const readinessGateCodes: Record<string, string> = {
 	'Audit evidence': 'voice.readiness.audit_evidence',
 	'Audit sink delivery': 'voice.readiness.audit_sink_delivery',
 	'Barge-in interruption proof': 'voice.readiness.barge_in_interruption',
+	'Browser media transport': 'voice.readiness.browser_media_transport',
 	'Campaign readiness proof': 'voice.readiness.campaign_readiness',
 	'Carrier readiness': 'voice.readiness.carrier_readiness',
 	'Delivery runtime': 'voice.readiness.delivery_runtime',
@@ -1171,6 +1192,22 @@ const resolveMediaPipeline = async (
 	return typeof options.mediaPipeline === 'function'
 		? await options.mediaPipeline(input)
 		: options.mediaPipeline;
+};
+
+const resolveBrowserMedia = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (options.browserMedia === false || options.browserMedia === undefined) {
+		return undefined;
+	}
+
+	return typeof options.browserMedia === 'function'
+		? await options.browserMedia(input)
+		: options.browserMedia;
 };
 
 const isVoiceTelephonyWebhookSecurityReport = (
@@ -1933,6 +1970,7 @@ export const buildVoiceProductionReadinessReport = async (
 		monitoring,
 		monitoringNotifierDelivery,
 		mediaPipeline,
+		browserMedia,
 		telephonyWebhookSecurity,
 		reconnectContracts,
 		bargeInReports,
@@ -1976,6 +2014,7 @@ export const buildVoiceProductionReadinessReport = async (
 		resolveMonitoring(options, { query, request }),
 		resolveMonitoringNotifierDelivery(options, { query, request }),
 		resolveMediaPipeline(options, { query, request }),
+		resolveBrowserMedia(options, { query, request }),
 		resolveTelephonyWebhookSecurity(options, { query, request }),
 		resolveReconnectContracts(options, { query, request }),
 		resolveBargeInReports(options, { query, request }),
@@ -2277,6 +2316,21 @@ export const buildVoiceProductionReadinessReport = async (
 				VoiceProductionReadinessReport['summary']['mediaPipeline']
 			>)
 		: undefined;
+	const browserMediaSummary = browserMedia
+		? ({
+				activeCandidatePairs: browserMedia.activeCandidatePairs,
+				bytesReceived: browserMedia.bytesReceived,
+				bytesSent: browserMedia.bytesSent,
+				issues: browserMedia.issues.length,
+				jitterMs: browserMedia.jitterMs,
+				liveAudioTracks: browserMedia.liveAudioTracks,
+				packetLossRatio: browserMedia.packetLossRatio,
+				roundTripTimeMs: browserMedia.roundTripTimeMs,
+				status: browserMedia.status === 'pass' ? 'pass' : 'fail'
+			} satisfies NonNullable<
+				VoiceProductionReadinessReport['summary']['browserMedia']
+			>)
+		: undefined;
 	checks.push({
 		detail:
 			liveLatency.total === 0
@@ -2402,6 +2456,49 @@ export const buildVoiceProductionReadinessReport = async (
 									'Open media pipeline proof and inspect quality, calibration, VAD, interruption, transport, and processor-graph evidence.',
 								href: options.links?.mediaPipeline ?? '/voice/media-pipeline',
 								label: 'Open media pipeline proof'
+							}
+						]
+		});
+	}
+
+	if (browserMedia && browserMediaSummary) {
+		const firstIssue = browserMedia.issues[0];
+		checks.push({
+			detail:
+				browserMediaSummary.status === 'pass'
+					? `Browser media transport is passing with ${browserMediaSummary.activeCandidatePairs} active candidate pair(s), ${browserMediaSummary.liveAudioTracks} live audio track(s), ${String(browserMediaSummary.roundTripTimeMs ?? 'n/a')}ms RTT, ${String(browserMediaSummary.jitterMs ?? 'n/a')}ms jitter, and ${browserMediaSummary.packetLossRatio} packet loss ratio.`
+					: firstIssue?.message ??
+						`${browserMediaSummary.issues} browser media transport issue(s) need review.`,
+			href: options.links?.browserMedia ?? '/voice/browser-media',
+			label: 'Browser media transport',
+			proofSource: proofSource('browserMedia', 'webrtcStats'),
+			gateExplanation:
+				browserMediaSummary.status === 'pass'
+					? undefined
+					: {
+							evidenceHref: options.links?.browserMedia ?? '/voice/browser-media',
+							observed:
+								firstIssue?.code ??
+								`${browserMediaSummary.issues} issue(s)`,
+							remediation:
+								'Inspect browser WebRTC media stats, fix packet loss, RTT, jitter, candidate-pair, or audio-track issues, then rerun readiness proof.',
+							thresholdLabel: 'Browser media transport status',
+							unit: 'status'
+						},
+			status: browserMediaSummary.status,
+			value:
+				browserMediaSummary.status === 'pass'
+					? `${browserMediaSummary.packetLossRatio} loss`
+					: `${browserMediaSummary.issues} issue(s)`,
+			actions:
+				browserMediaSummary.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open browser media transport proof and inspect WebRTC packet loss, RTT, jitter, bytes, candidate-pair, and audio-track evidence.',
+								href: options.links?.browserMedia ?? '/voice/browser-media',
+								label: 'Open browser media proof'
 							}
 						]
 		});
@@ -3526,6 +3623,7 @@ export const buildVoiceProductionReadinessReport = async (
 			audit: '/audit',
 			auditDeliveries: '/audit',
 			bargeIn: '/barge-in',
+			browserMedia: '/voice/browser-media',
 			campaignReadiness: '/api/voice/campaigns/readiness-proof',
 			carriers: '/carriers',
 			deliveryRuntime: '/delivery-runtime',
@@ -3564,6 +3662,7 @@ export const buildVoiceProductionReadinessReport = async (
 			audit,
 			auditDeliveries,
 			bargeIn: bargeInSummary,
+			browserMedia: browserMediaSummary,
 			campaignReadiness: campaignReadinessSummary,
 			carriers: carrierSummary,
 			deliveryRuntime,
