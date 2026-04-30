@@ -124,6 +124,66 @@ export type VoiceProofTrendRoutesOptions = {
 		| VoiceProofTrendReportInput;
 };
 
+export type VoiceProofTrendRecommendationStatus = 'fail' | 'pass' | 'warn';
+
+export type VoiceProofTrendRecommendationSurface =
+	| 'live-latency'
+	| 'provider-path'
+	| 'runtime-channel'
+	| 'turn-latency';
+
+export type VoiceProofTrendRecommendation = {
+	evidence: Record<string, number | string | undefined>;
+	nextMove: string;
+	recommendation: string;
+	status: VoiceProofTrendRecommendationStatus;
+	surface: VoiceProofTrendRecommendationSurface;
+};
+
+export type VoiceProofTrendRecommendationReport = {
+	generatedAt: string;
+	issues: string[];
+	ok: boolean;
+	recommendations: VoiceProofTrendRecommendation[];
+	source: string;
+	status: VoiceProofTrendRecommendationStatus;
+	summary: {
+		keepCurrentProviderPath: boolean;
+		keepCurrentRuntimeChannel: boolean;
+		recommendedActions: number;
+	};
+};
+
+export type VoiceProofTrendRecommendationOptions = {
+	maxLiveP95Ms?: number;
+	maxProviderP95Ms?: number;
+	maxRuntimeBackpressureEvents?: number;
+	maxRuntimeFirstAudioLatencyMs?: number;
+	maxRuntimeInterruptionP95Ms?: number;
+	maxRuntimeJitterMs?: number;
+	maxRuntimeTimestampDriftMs?: number;
+	maxTurnP95Ms?: number;
+};
+
+export type VoiceProofTrendRecommendationRoutesOptions =
+	VoiceProofTrendRecommendationOptions & {
+		headers?: HeadersInit;
+		htmlPath?: false | string;
+		jsonPath?: string;
+		maxAgeMs?: number;
+		markdownPath?: false | string;
+		name?: string;
+		path?: string;
+		source?:
+			| (() =>
+					| Promise<VoiceProofTrendReport | VoiceProofTrendReportInput>
+					| VoiceProofTrendReport
+					| VoiceProofTrendReportInput)
+			| VoiceProofTrendReport
+			| VoiceProofTrendReportInput;
+		title?: string;
+	};
+
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const normalizeMaxAgeMs = (value: unknown) =>
@@ -497,6 +557,293 @@ export const assertVoiceProofTrendEvidence = (
 		);
 	}
 	return assertion;
+};
+
+const DEFAULT_RECOMMENDATION_BUDGETS = {
+	maxLiveP95Ms: 800,
+	maxProviderP95Ms: 1_000,
+	maxRuntimeBackpressureEvents: 0,
+	maxRuntimeFirstAudioLatencyMs: 600,
+	maxRuntimeInterruptionP95Ms: 300,
+	maxRuntimeJitterMs: 30,
+	maxRuntimeTimestampDriftMs: 800,
+	maxTurnP95Ms: 700
+};
+
+const withinBudget = (value: number | undefined, budget: number) =>
+	typeof value === 'number' && Number.isFinite(value) && value <= budget;
+
+const recommendationStatusRank: Record<VoiceProofTrendRecommendationStatus, number> = {
+	pass: 0,
+	warn: 1,
+	fail: 2
+};
+
+const worstRecommendationStatus = (
+	recommendations: readonly VoiceProofTrendRecommendation[]
+): VoiceProofTrendRecommendationStatus =>
+	recommendations.reduce(
+		(status, recommendation) =>
+			recommendationStatusRank[recommendation.status] >
+			recommendationStatusRank[status]
+				? recommendation.status
+				: status,
+		'pass' as VoiceProofTrendRecommendationStatus
+	);
+
+export const buildVoiceProofTrendRecommendationReport = (
+	report: VoiceProofTrendReport,
+	options: VoiceProofTrendRecommendationOptions = {}
+): VoiceProofTrendRecommendationReport => {
+	const budgets = { ...DEFAULT_RECOMMENDATION_BUDGETS, ...options };
+	const maxLiveP95Ms = readProofTrendMaxLiveP95(report);
+	const maxProviderP95Ms = readProofTrendMaxProviderP95(report);
+	const maxTurnP95Ms = readProofTrendMaxTurnP95(report);
+	const runtimeChannel = readProofTrendRuntimeChannel(report);
+	const recommendations: VoiceProofTrendRecommendation[] = [];
+	const issues: string[] = [];
+
+	if (report.ok !== true) {
+		issues.push(`Proof trend report is ${report.status}; recommendations need a fresh passing trend artifact.`);
+	}
+
+	recommendations.push({
+		evidence: {
+			budgetMs: budgets.maxProviderP95Ms,
+			providerP95Ms: maxProviderP95Ms
+		},
+		nextMove: withinBudget(maxProviderP95Ms, budgets.maxProviderP95Ms)
+			? 'Keep the current provider route for latency-sensitive turns and keep collecting sustained proof.'
+			: 'Route latency-sensitive turns to a faster provider profile or tighten fallback/circuit-breaker budgets before promotion.',
+		recommendation: withinBudget(maxProviderP95Ms, budgets.maxProviderP95Ms)
+			? 'Keep current provider path'
+			: 'Change provider routing for latency-sensitive traffic',
+		status: withinBudget(maxProviderP95Ms, budgets.maxProviderP95Ms)
+			? 'pass'
+			: maxProviderP95Ms === undefined
+				? 'fail'
+				: 'warn',
+		surface: 'provider-path'
+	});
+
+	const runtimePass =
+		withinBudget(
+			runtimeChannel.maxFirstAudioLatencyMs,
+			budgets.maxRuntimeFirstAudioLatencyMs
+		) &&
+		withinBudget(
+			runtimeChannel.maxInterruptionP95Ms,
+			budgets.maxRuntimeInterruptionP95Ms
+		) &&
+		withinBudget(runtimeChannel.maxJitterMs, budgets.maxRuntimeJitterMs) &&
+		withinBudget(
+			runtimeChannel.maxTimestampDriftMs,
+			budgets.maxRuntimeTimestampDriftMs
+		) &&
+		withinBudget(
+			runtimeChannel.maxBackpressureEvents,
+			budgets.maxRuntimeBackpressureEvents
+		);
+	recommendations.push({
+		evidence: {
+			backpressureEvents: runtimeChannel.maxBackpressureEvents,
+			firstAudioBudgetMs: budgets.maxRuntimeFirstAudioLatencyMs,
+			firstAudioMs: runtimeChannel.maxFirstAudioLatencyMs,
+			interruptionBudgetMs: budgets.maxRuntimeInterruptionP95Ms,
+			interruptionP95Ms: runtimeChannel.maxInterruptionP95Ms,
+			jitterBudgetMs: budgets.maxRuntimeJitterMs,
+			jitterMs: runtimeChannel.maxJitterMs,
+			samples: runtimeChannel.samples,
+			timestampDriftMs: runtimeChannel.maxTimestampDriftMs
+		},
+		nextMove: runtimePass
+			? 'Keep the current runtime-channel settings and use this artifact as the deploy gate baseline.'
+			: 'Tune capture/output format, buffering, interruption threshold, or transport backpressure before promoting this runtime path.',
+		recommendation: runtimePass
+			? 'Keep current runtime channel'
+			: 'Tune runtime channel before promotion',
+		status: runtimePass ? 'pass' : runtimeChannel.samples === undefined ? 'fail' : 'warn',
+		surface: 'runtime-channel'
+	});
+
+	recommendations.push({
+		evidence: {
+			budgetMs: budgets.maxLiveP95Ms,
+			liveP95Ms: maxLiveP95Ms
+		},
+		nextMove: withinBudget(maxLiveP95Ms, budgets.maxLiveP95Ms)
+			? 'Keep browser live-latency defaults and continue watching long-window drift.'
+			: 'Tune browser streaming, chunking, or readiness thresholds before release.',
+		recommendation: withinBudget(maxLiveP95Ms, budgets.maxLiveP95Ms)
+			? 'Keep live-latency settings'
+			: 'Tune live-latency path',
+		status: withinBudget(maxLiveP95Ms, budgets.maxLiveP95Ms)
+			? 'pass'
+			: maxLiveP95Ms === undefined
+				? 'fail'
+				: 'warn',
+		surface: 'live-latency'
+	});
+
+	recommendations.push({
+		evidence: {
+			budgetMs: budgets.maxTurnP95Ms,
+			turnP95Ms: maxTurnP95Ms
+		},
+		nextMove: withinBudget(maxTurnP95Ms, budgets.maxTurnP95Ms)
+			? 'Keep current turn pipeline defaults.'
+			: 'Reduce tool/provider latency or split the turn pipeline before promotion.',
+		recommendation: withinBudget(maxTurnP95Ms, budgets.maxTurnP95Ms)
+			? 'Keep turn pipeline'
+			: 'Tune turn pipeline',
+		status: withinBudget(maxTurnP95Ms, budgets.maxTurnP95Ms)
+			? 'pass'
+			: maxTurnP95Ms === undefined
+				? 'fail'
+				: 'warn',
+		surface: 'turn-latency'
+	});
+
+	const status = issues.length > 0 ? 'fail' : worstRecommendationStatus(recommendations);
+
+	return {
+		generatedAt: new Date().toISOString(),
+		issues,
+		ok: status !== 'fail',
+		recommendations,
+		source: report.source || report.outputDir || report.runId || 'proof-trends',
+		status,
+		summary: {
+			keepCurrentProviderPath:
+				recommendations.find((item) => item.surface === 'provider-path')?.status ===
+				'pass',
+			keepCurrentRuntimeChannel:
+				recommendations.find((item) => item.surface === 'runtime-channel')
+					?.status === 'pass',
+			recommendedActions: recommendations.filter((item) => item.status !== 'pass')
+				.length
+		}
+	};
+};
+
+const escapeHtml = (value: unknown) =>
+	String(value)
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;');
+
+const escapeMarkdown = (value: string) => value.replaceAll('|', '\\|');
+
+export const renderVoiceProofTrendRecommendationMarkdown = (
+	report: VoiceProofTrendRecommendationReport,
+	title = 'Voice Provider Runtime Recommendations'
+) => [
+	`# ${title}`,
+	'',
+	`- Status: ${report.status}`,
+	`- Source: ${report.source}`,
+	`- Recommended actions: ${String(report.summary.recommendedActions)}`,
+	'',
+	'| Surface | Status | Recommendation | Next move |',
+	'| --- | --- | --- | --- |',
+	...report.recommendations.map(
+		(recommendation) =>
+			`| ${escapeMarkdown(recommendation.surface)} | ${recommendation.status} | ${escapeMarkdown(recommendation.recommendation)} | ${escapeMarkdown(recommendation.nextMove)} |`
+	),
+	'',
+	'## Issues',
+	'',
+	...(report.issues.length ? report.issues.map((issue) => `- ${issue}`) : ['- None'])
+].join('\n');
+
+export const renderVoiceProofTrendRecommendationHTML = (
+	report: VoiceProofTrendRecommendationReport,
+	title = 'Voice Provider Runtime Recommendations'
+) => {
+	const cards = report.recommendations
+		.map(
+			(recommendation) =>
+				`<article class="${escapeHtml(recommendation.status)}"><p class="eyebrow">${escapeHtml(recommendation.surface)} · ${escapeHtml(recommendation.status)}</p><h2>${escapeHtml(recommendation.recommendation)}</h2><p>${escapeHtml(recommendation.nextMove)}</p><pre>${escapeHtml(JSON.stringify(recommendation.evidence, null, 2))}</pre></article>`
+		)
+		.join('');
+	const issues =
+		report.issues.length === 0
+			? '<li>None</li>'
+			: report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}pre{background:#0b1110;border-radius:14px;overflow:auto;padding:12px}a{color:#5eead4}</style></head><body><main><section class="hero"><p class="eyebrow">Sustained proof recommendations</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Provider ${report.summary.keepCurrentProviderPath ? 'keep' : 'change'}</span><span class="pill">Runtime ${report.summary.keepCurrentRuntimeChannel ? 'keep' : 'tune'}</span><span class="pill">${String(report.summary.recommendedActions)} action(s)</span></div></section>${cards}<section class="hero"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
+};
+
+export const createVoiceProofTrendRecommendationRoutes = (
+	options: VoiceProofTrendRecommendationRoutesOptions
+) => {
+	const path = options.path ?? '/api/voice/proof-trend-recommendations';
+	const htmlPath =
+		options.htmlPath === undefined
+			? '/voice/proof-trend-recommendations'
+			: options.htmlPath;
+	const markdownPath =
+		options.markdownPath === undefined
+			? '/voice/proof-trend-recommendations.md'
+			: options.markdownPath;
+	const title = options.title ?? 'Voice Provider Runtime Recommendations';
+	const routes = new Elysia({
+		name: options.name ?? 'absolutejs-voice-proof-trend-recommendations'
+	});
+	const loadReport = async () => {
+		const value =
+			options.source !== undefined
+				? typeof options.source === 'function'
+					? await options.source()
+					: options.source
+				: options.jsonPath
+					? await readVoiceProofTrendReportFile(options.jsonPath, {
+							maxAgeMs: options.maxAgeMs
+						})
+					: buildEmptyVoiceProofTrendReport('', options.maxAgeMs);
+		return buildVoiceProofTrendRecommendationReport(
+			normalizeVoiceProofTrendReport(value, {
+				maxAgeMs: options.maxAgeMs,
+				source: options.jsonPath
+			}),
+			options
+		);
+	};
+
+	routes.get(path, async () =>
+		Response.json(await loadReport(), { headers: options.headers })
+	);
+
+	if (htmlPath !== false) {
+		routes.get(htmlPath, async () => {
+			const report = await loadReport();
+			return new Response(renderVoiceProofTrendRecommendationHTML(report, title), {
+				headers: {
+					'content-type': 'text/html; charset=utf-8',
+					...Object.fromEntries(new Headers(options.headers))
+				}
+			});
+		});
+	}
+
+	if (markdownPath !== false) {
+		routes.get(markdownPath, async () => {
+			const report = await loadReport();
+			return new Response(
+				renderVoiceProofTrendRecommendationMarkdown(report, title),
+				{
+					headers: {
+						'content-type': 'text/markdown; charset=utf-8',
+						...Object.fromEntries(new Headers(options.headers))
+					}
+				}
+			);
+		});
+	}
+
+	return routes;
 };
 
 export const createVoiceProofTrendRoutes = (

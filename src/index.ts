@@ -248,13 +248,17 @@ export type {
 export {
 	assertVoiceProofTrendEvidence,
 	buildEmptyVoiceProofTrendReport,
+	buildVoiceProofTrendRecommendationReport,
 	buildVoiceProofTrendReport,
+	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS,
 	evaluateVoiceProofTrendEvidence,
 	formatVoiceProofTrendAge,
 	normalizeVoiceProofTrendReport,
-	readVoiceProofTrendReportFile
+	readVoiceProofTrendReportFile,
+	renderVoiceProofTrendRecommendationHTML,
+	renderVoiceProofTrendRecommendationMarkdown
 } from './proofTrends';
 export {
 	buildVoiceProviderDecisionTraceReport,
@@ -278,6 +282,12 @@ export type {
 	VoiceProofTrendAssertionInput,
 	VoiceProofTrendAssertionReport,
 	VoiceProofTrendCycle,
+	VoiceProofTrendRecommendation,
+	VoiceProofTrendRecommendationOptions,
+	VoiceProofTrendRecommendationReport,
+	VoiceProofTrendRecommendationRoutesOptions,
+	VoiceProofTrendRecommendationStatus,
+	VoiceProofTrendRecommendationSurface,
 	VoiceProofTrendReport,
 	VoiceProofTrendReportInput,
 	VoiceProofTrendRoutesOptions,

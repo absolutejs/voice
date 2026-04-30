@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import {
 	assertVoiceProofTrendEvidence,
 	buildEmptyVoiceProofTrendReport,
+	buildVoiceProofTrendRecommendationReport,
 	buildVoiceProofTrendReport,
+	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	evaluateVoiceProofTrendEvidence,
 	formatVoiceProofTrendAge
@@ -287,5 +289,91 @@ describe('proof trends', () => {
 		expect(body.ok).toBe(true);
 		expect(body.source).toBe(path);
 		expect(body.summary.cycles).toBe(3);
+	});
+
+	test('buildVoiceProofTrendRecommendationReport turns sustained history into provider and runtime guidance', () => {
+		const report = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:00:30.000Z',
+			ok: true,
+			outputDir: '.voice-runtime/proof-trends/recommend',
+			summary: {
+				cycles: 6,
+				maxLiveP95Ms: 531,
+				maxProviderP95Ms: 700,
+				runtimeChannel: {
+					maxBackpressureEvents: 0,
+					maxFirstAudioLatencyMs: 420,
+					maxInterruptionP95Ms: 190,
+					maxJitterMs: 12,
+					maxTimestampDriftMs: 500,
+					samples: 4,
+					status: 'pass'
+				},
+				maxTurnP95Ms: 690
+			}
+		});
+
+		const recommendations = buildVoiceProofTrendRecommendationReport(report);
+
+		expect(recommendations.ok).toBe(true);
+		expect(recommendations.status).toBe('pass');
+		expect(recommendations.summary.keepCurrentProviderPath).toBe(true);
+		expect(recommendations.summary.keepCurrentRuntimeChannel).toBe(true);
+		expect(recommendations.recommendations.map((item) => item.surface)).toEqual([
+			'provider-path',
+			'runtime-channel',
+			'live-latency',
+			'turn-latency'
+		]);
+	});
+
+	test('createVoiceProofTrendRecommendationRoutes exposes JSON, HTML, and Markdown guidance', async () => {
+		const app = createVoiceProofTrendRecommendationRoutes({
+			source: {
+				generatedAt: '2026-04-29T12:00:00.000Z',
+				maxAgeMs: 60_000,
+				now: '2026-04-29T12:00:30.000Z',
+				ok: true,
+				summary: {
+					cycles: 6,
+					maxLiveP95Ms: 531,
+					maxProviderP95Ms: 700,
+					runtimeChannel: {
+						maxBackpressureEvents: 0,
+						maxFirstAudioLatencyMs: 420,
+						maxInterruptionP95Ms: 190,
+						maxJitterMs: 12,
+						maxTimestampDriftMs: 500,
+						samples: 4,
+						status: 'pass'
+					},
+					maxTurnP95Ms: 690
+				}
+			}
+		});
+
+		const jsonResponse = await app.handle(
+			new Request('http://localhost/api/voice/proof-trend-recommendations')
+		);
+		const htmlResponse = await app.handle(
+			new Request('http://localhost/voice/proof-trend-recommendations')
+		);
+		const markdownResponse = await app.handle(
+			new Request('http://localhost/voice/proof-trend-recommendations.md')
+		);
+		const json = await jsonResponse.json();
+		const html = await htmlResponse.text();
+		const markdown = await markdownResponse.text();
+
+		expect(jsonResponse.status).toBe(200);
+		expect(json.summary.keepCurrentProviderPath).toBe(true);
+		expect(htmlResponse.headers.get('content-type')).toContain('text/html');
+		expect(html).toContain('Keep current provider path');
+		expect(markdownResponse.headers.get('content-type')).toContain(
+			'text/markdown'
+		);
+		expect(markdown).toContain('Voice Provider Runtime Recommendations');
 	});
 });
