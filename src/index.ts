@@ -117,6 +117,25 @@ export type {
 	VoiceRealtimeChannelStatus
 } from './realtimeChannel';
 export {
+	assertVoiceRealtimeProviderContractEvidence,
+	buildVoiceRealtimeProviderContractMatrix,
+	createVoiceRealtimeProviderContractRoutes,
+	evaluateVoiceRealtimeProviderContractEvidence,
+	renderVoiceRealtimeProviderContractHTML
+} from './realtimeProviderContracts';
+export type {
+	VoiceRealtimeProviderContractAssertionInput,
+	VoiceRealtimeProviderContractAssertionReport,
+	VoiceRealtimeProviderContractCapability,
+	VoiceRealtimeProviderContractCheck,
+	VoiceRealtimeProviderContractDefinition,
+	VoiceRealtimeProviderContractMatrixInput,
+	VoiceRealtimeProviderContractMatrixReport,
+	VoiceRealtimeProviderContractRoutesOptions,
+	VoiceRealtimeProviderContractRow,
+	VoiceRealtimeProviderContractStatus
+} from './realtimeProviderContracts';
+export {
 	buildVoiceDiagnosticsMarkdown,
 	createVoiceDiagnosticsRoutes,
 	resolveVoiceDiagnosticsTraceFilter
