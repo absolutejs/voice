@@ -268,6 +268,48 @@ test('buildVoiceProductionReadinessReport gates browser media transport stats', 
 	);
 });
 
+test('buildVoiceProductionReadinessReport gates telephony media serializers', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		links: {
+			telephonyMedia: '/voice/telephony-media'
+		},
+		store: createVoiceMemoryTraceEventStore(),
+		telephonyMedia: {
+			carriers: [
+				{
+					audioBytes: 0,
+					carrier: 'twilio',
+					issues: ['Carrier media envelope did not produce a MediaFrame.'],
+					status: 'fail'
+				}
+			],
+			checkedAt: Date.now(),
+			issues: ['twilio: Carrier media envelope did not produce a MediaFrame.'],
+			status: 'fail'
+		}
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary.telephonyMedia).toMatchObject({
+		audioBytes: 0,
+		carriers: 1,
+		failed: 1,
+		issues: 1,
+		passed: 0,
+		status: 'fail'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice/telephony-media',
+				label: 'Telephony media serializers',
+				status: 'fail',
+				value: '1/1 failing'
+			})
+		])
+	);
+});
+
 test('buildVoiceProductionReadinessReport gates carrier webhook security', async () => {
 	const report = await buildVoiceProductionReadinessReport({
 		links: {

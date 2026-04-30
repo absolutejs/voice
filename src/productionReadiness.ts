@@ -72,6 +72,7 @@ import {
 	type VoiceObservabilityExportReport
 } from './observabilityExport';
 import type { VoiceMediaPipelineReport } from './mediaPipelineRoutes';
+import type { VoiceTelephonyMediaReport } from './telephonyMediaRoutes';
 import type { MediaWebRTCStatsReport } from '@absolutejs/media';
 
 export type VoiceProductionReadinessObservabilityExportDeliveryHistoryOptions = {
@@ -212,6 +213,7 @@ export type VoiceProductionReadinessReport = {
 		opsRecovery?: string;
 		phoneAgentSmoke?: string;
 		telephonyWebhookSecurity?: string;
+		telephonyMedia?: string;
 		providerContracts?: string;
 		providerOrchestration?: string;
 		providerRoutingContracts?: string;
@@ -365,6 +367,14 @@ export type VoiceProductionReadinessReport = {
 			passed: number;
 			status: VoiceProductionReadinessStatus;
 			warned: number;
+		};
+		telephonyMedia?: {
+			audioBytes: number;
+			carriers: number;
+			failed: number;
+			issues: number;
+			passed: number;
+			status: VoiceProductionReadinessStatus;
 		};
 		providerRoutingContracts?: {
 			failed: number;
@@ -618,6 +628,13 @@ export type VoiceProductionReadinessRoutesOptions = {
 				query: Record<string, unknown>;
 				request: Request;
 		  }) => Promise<MediaWebRTCStatsReport> | MediaWebRTCStatsReport);
+	telephonyMedia?:
+		| false
+		| VoiceTelephonyMediaReport
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) => Promise<VoiceTelephonyMediaReport> | VoiceTelephonyMediaReport);
 	opsActionHistory?: false | VoiceProductionReadinessOpsActionHistoryOptions;
 	opsRecovery?:
 		| false
@@ -1208,6 +1225,22 @@ const resolveBrowserMedia = async (
 	return typeof options.browserMedia === 'function'
 		? await options.browserMedia(input)
 		: options.browserMedia;
+};
+
+const resolveTelephonyMedia = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (options.telephonyMedia === false || options.telephonyMedia === undefined) {
+		return undefined;
+	}
+
+	return typeof options.telephonyMedia === 'function'
+		? await options.telephonyMedia(input)
+		: options.telephonyMedia;
 };
 
 const isVoiceTelephonyWebhookSecurityReport = (
@@ -1971,6 +2004,7 @@ export const buildVoiceProductionReadinessReport = async (
 		monitoringNotifierDelivery,
 		mediaPipeline,
 		browserMedia,
+		telephonyMedia,
 		telephonyWebhookSecurity,
 		reconnectContracts,
 		bargeInReports,
@@ -2015,6 +2049,7 @@ export const buildVoiceProductionReadinessReport = async (
 		resolveMonitoringNotifierDelivery(options, { query, request }),
 		resolveMediaPipeline(options, { query, request }),
 		resolveBrowserMedia(options, { query, request }),
+		resolveTelephonyMedia(options, { query, request }),
 		resolveTelephonyWebhookSecurity(options, { query, request }),
 		resolveReconnectContracts(options, { query, request }),
 		resolveBargeInReports(options, { query, request }),
@@ -2331,6 +2366,25 @@ export const buildVoiceProductionReadinessReport = async (
 				VoiceProductionReadinessReport['summary']['browserMedia']
 			>)
 		: undefined;
+	const telephonyMediaSummary = telephonyMedia
+		? ({
+				audioBytes: telephonyMedia.carriers.reduce(
+					(total, carrier) => total + carrier.audioBytes,
+					0
+				),
+				carriers: telephonyMedia.carriers.length,
+				failed: telephonyMedia.carriers.filter(
+					(carrier) => carrier.status !== 'pass'
+				).length,
+				issues: telephonyMedia.issues.length,
+				passed: telephonyMedia.carriers.filter(
+					(carrier) => carrier.status === 'pass'
+				).length,
+				status: telephonyMedia.status === 'pass' ? 'pass' : 'fail'
+			} satisfies NonNullable<
+				VoiceProductionReadinessReport['summary']['telephonyMedia']
+			>)
+		: undefined;
 	checks.push({
 		detail:
 			liveLatency.total === 0
@@ -2499,6 +2553,49 @@ export const buildVoiceProductionReadinessReport = async (
 									'Open browser media transport proof and inspect WebRTC packet loss, RTT, jitter, bytes, candidate-pair, and audio-track evidence.',
 								href: options.links?.browserMedia ?? '/voice/browser-media',
 								label: 'Open browser media proof'
+							}
+						]
+		});
+	}
+
+	if (telephonyMedia && telephonyMediaSummary) {
+		const firstIssue = telephonyMedia.issues[0];
+		checks.push({
+			detail:
+				telephonyMediaSummary.status === 'pass'
+					? `Telephony media serializers are passing for ${telephonyMediaSummary.passed}/${telephonyMediaSummary.carriers} carrier(s) with ${telephonyMediaSummary.audioBytes} audio byte(s) parsed into MediaFrame objects.`
+					: firstIssue ??
+						`${telephonyMediaSummary.issues} telephony media serializer issue(s) need review.`,
+			href: options.links?.telephonyMedia ?? '/voice/telephony-media',
+			label: 'Telephony media serializers',
+			proofSource: proofSource('telephonyMedia', 'carrierMediaSerializers'),
+			gateExplanation:
+				telephonyMediaSummary.status === 'pass'
+					? undefined
+					: {
+							evidenceHref:
+								options.links?.telephonyMedia ?? '/voice/telephony-media',
+							observed: firstIssue ?? `${telephonyMediaSummary.issues} issue(s)`,
+							remediation:
+								'Inspect carrier media serializer proof, fix payload parsing or outbound envelope serialization, then rerun readiness proof.',
+							thresholdLabel: 'Telephony media serializer status',
+							unit: 'status'
+						},
+			status: telephonyMediaSummary.status,
+			value:
+				telephonyMediaSummary.status === 'pass'
+					? `${telephonyMediaSummary.passed}/${telephonyMediaSummary.carriers}`
+					: `${telephonyMediaSummary.failed}/${telephonyMediaSummary.carriers} failing`,
+			actions:
+				telephonyMediaSummary.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open telephony media proof and inspect carrier media payload parsing, MediaFrame shape, and outbound envelope serialization.',
+								href:
+									options.links?.telephonyMedia ?? '/voice/telephony-media',
+								label: 'Open telephony media proof'
 							}
 						]
 		});
@@ -3640,6 +3737,7 @@ export const buildVoiceProductionReadinessReport = async (
 			opsActions: '/voice/ops-actions',
 			opsRecovery: '/ops-recovery',
 			phoneAgentSmoke: '/sessions',
+			telephonyMedia: '/voice/telephony-media',
 			telephonyWebhookSecurity: '/api/voice/telephony/webhook-security',
 			providerContracts: '/provider-contracts',
 			providerOrchestration: '/voice/provider-orchestration',
@@ -3697,6 +3795,7 @@ export const buildVoiceProductionReadinessReport = async (
 			providerOrchestration: providerOrchestrationSummary,
 			providerRecovery,
 			phoneAgentSmokes: phoneAgentSmokeSummary,
+			telephonyMedia: telephonyMediaSummary,
 			telephonyWebhookSecurity: telephonyWebhookSecuritySummary,
 			providerRoutingContracts: providerRoutingContractSummary,
 			providerSlo: providerSloSummary,
