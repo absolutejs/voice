@@ -119,6 +119,71 @@ test('evaluateVoiceProductionReadinessEvidence verifies gate status and required
 	).toThrow('Voice production readiness assertion failed');
 });
 
+test('buildVoiceProductionReadinessReport includes profile switch readiness checks', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		llmProviders: ['openai'],
+		profileSwitchReadiness: {
+			generatedAt: new Date().toISOString(),
+			issues: [],
+			live: {
+				generatedAt: new Date().toISOString(),
+				ok: true,
+				sessions: [],
+				summary: {
+					auditEvents: 1,
+					autoApplied: 1,
+					blocked: 0,
+					decisions: 2,
+					recommendations: 0,
+					sessions: 1,
+					switches: 1,
+					traceEvents: 1
+				}
+			},
+			policy: {
+				generatedAt: new Date().toISOString(),
+				ok: true,
+				observed: {},
+				results: [],
+				summary: {
+					failed: 0,
+					passed: 6,
+					total: 6
+				}
+			},
+			status: 'pass',
+			summary: {
+				auditEvents: 1,
+				autoApplied: 1,
+				blocked: 0,
+				decisions: 2,
+				policyCases: 6,
+				sessions: 1,
+				switches: 1,
+				traceEvents: 1
+			}
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.summary.profileSwitchReadiness).toMatchObject({
+		decisions: 2,
+		issues: 0,
+		policyCases: 6,
+		sessions: 1,
+		status: 'pass'
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Profile switch readiness',
+				status: 'pass',
+				value: '1/2'
+			})
+		])
+	);
+});
+
 test('buildVoiceProductionReadinessReport includes campaign readiness proof', async () => {
 	const campaignReadiness = await runVoiceCampaignReadinessProof();
 	const report = await buildVoiceProductionReadinessReport({

@@ -74,6 +74,11 @@ import {
 import type { VoiceMediaPipelineReport } from './mediaPipelineRoutes';
 import type { VoiceTelephonyMediaReport } from './telephonyMediaRoutes';
 import type { MediaWebRTCStatsReport } from '@absolutejs/media';
+import {
+	buildVoiceProfileSwitchReadinessReport,
+	type VoiceProfileSwitchReadinessOptions,
+	type VoiceProfileSwitchReadinessReport
+} from './profileSwitchRecommendation';
 
 export type VoiceProductionReadinessObservabilityExportDeliveryHistoryOptions = {
 	failOnMissing?: boolean;
@@ -212,6 +217,9 @@ export type VoiceProductionReadinessReport = {
 		opsActions?: string;
 		opsRecovery?: string;
 		phoneAgentSmoke?: string;
+		profileSwitchLiveDecisions?: string;
+		profileSwitchPolicy?: string;
+		profileSwitchReadiness?: string;
 		telephonyWebhookSecurity?: string;
 		telephonyMedia?: string;
 		providerContracts?: string;
@@ -355,6 +363,15 @@ export type VoiceProductionReadinessReport = {
 			warned: number;
 		};
 		providerRecovery: VoiceProviderFallbackRecoverySummary;
+		profileSwitchReadiness?: {
+			auditEvents: number;
+			decisions: number;
+			issues: number;
+			policyCases?: number;
+			sessions: number;
+			status: VoiceProductionReadinessStatus;
+			traceEvents: number;
+		};
 		phoneAgentSmokes?: {
 			failed: number;
 			passed: number;
@@ -746,6 +763,17 @@ export type VoiceProductionReadinessRoutesOptions = {
 		  }) =>
 				| Promise<VoiceProviderOrchestrationReport>
 				| VoiceProviderOrchestrationReport);
+	profileSwitchReadiness?:
+		| false
+		| VoiceProfileSwitchReadinessReport
+		| VoiceProfileSwitchReadinessOptions
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) =>
+				| Promise<VoiceProfileSwitchReadinessReport | VoiceProfileSwitchReadinessOptions>
+				| VoiceProfileSwitchReadinessReport
+				| VoiceProfileSwitchReadinessOptions);
 	providerStack?:
 		| false
 		| VoiceProviderStackCapabilityGapReport
@@ -1119,6 +1147,37 @@ const resolveProviderOrchestration = async (
 	return typeof options.providerOrchestration === 'function'
 		? await options.providerOrchestration(input)
 		: options.providerOrchestration;
+};
+
+const isVoiceProfileSwitchReadinessReport = (
+	value: VoiceProfileSwitchReadinessReport | VoiceProfileSwitchReadinessOptions
+): value is VoiceProfileSwitchReadinessReport =>
+	typeof (value as VoiceProfileSwitchReadinessReport).status === 'string' &&
+	typeof (value as VoiceProfileSwitchReadinessReport).generatedAt === 'string' &&
+	typeof (value as VoiceProfileSwitchReadinessReport).summary === 'object';
+
+const resolveProfileSwitchReadiness = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: {
+		query: Record<string, unknown>;
+		request: Request;
+	}
+) => {
+	if (
+		options.profileSwitchReadiness === false ||
+		options.profileSwitchReadiness === undefined
+	) {
+		return undefined;
+	}
+
+	const value =
+		typeof options.profileSwitchReadiness === 'function'
+			? await options.profileSwitchReadiness(input)
+			: options.profileSwitchReadiness;
+
+	return isVoiceProfileSwitchReadinessReport(value)
+		? value
+		: buildVoiceProfileSwitchReadinessReport(value);
 };
 
 const resolveProviderStack = async (
@@ -2060,6 +2119,7 @@ export const buildVoiceProductionReadinessReport = async (
 		providerRoutingContracts,
 		providerSlo,
 		providerOrchestration,
+		profileSwitchReadiness,
 		providerStack,
 		providerContractMatrix,
 		phoneAgentSmokes,
@@ -2106,6 +2166,7 @@ export const buildVoiceProductionReadinessReport = async (
 		resolveProviderRoutingContracts(options, { query, request }),
 		resolveProviderSlo(options, { query, request }),
 		resolveProviderOrchestration(options, { query, request }),
+		resolveProfileSwitchReadiness(options, { query, request }),
 		resolveProviderStack(options, { query, request }),
 		resolveProviderContractMatrix(options, { query, request }),
 		resolvePhoneAgentSmokes(options, { query, request }),
@@ -3504,6 +3565,45 @@ export const buildVoiceProductionReadinessReport = async (
 		});
 	}
 
+	if (profileSwitchReadiness) {
+		const issueLabels = profileSwitchReadiness.issues.map((issue) => issue.code);
+		checks.push({
+			detail:
+				profileSwitchReadiness.status === 'pass'
+					? `${profileSwitchReadiness.summary.decisions} profile switch guard decision(s) are backed by readiness evidence.`
+					: issueLabels.length > 0
+						? `Profile switch readiness issues: ${issueLabels.join(', ')}.`
+						: 'Profile switch readiness needs attention.',
+			href:
+				options.links?.profileSwitchReadiness ??
+				'/voice/profile-switch-readiness',
+			label: 'Profile switch readiness',
+			status: profileSwitchReadiness.status,
+			value: `${profileSwitchReadiness.summary.sessions}/${profileSwitchReadiness.summary.decisions}`,
+			actions:
+				profileSwitchReadiness.status === 'pass'
+					? []
+					: [
+							{
+								description:
+									'Open profile switch readiness to inspect policy proof, audit evidence, trace evidence, and live decisions.',
+								href:
+									options.links?.profileSwitchReadiness ??
+									'/voice/profile-switch-readiness',
+								label: 'Open profile readiness'
+							},
+							{
+								description:
+									'Open live profile switch decisions recorded from audit and trace stores.',
+								href:
+									options.links?.profileSwitchLiveDecisions ??
+									'/voice/profile-switch-live-decisions',
+								label: 'Open live decisions'
+							}
+						]
+		});
+	}
+
 	if (audit) {
 		const missingLabels = audit.missing.map(
 			(requirement) => requirement.label ?? requirement.type
@@ -3827,6 +3927,9 @@ export const buildVoiceProductionReadinessReport = async (
 			opsActions: '/voice/ops-actions',
 			opsRecovery: '/ops-recovery',
 			phoneAgentSmoke: '/sessions',
+			profileSwitchLiveDecisions: '/voice/profile-switch-live-decisions',
+			profileSwitchPolicy: '/voice/profile-switch-policy',
+			profileSwitchReadiness: '/voice/profile-switch-readiness',
 			telephonyMedia: '/voice/telephony-media',
 			telephonyWebhookSecurity: '/api/voice/telephony/webhook-security',
 			providerContracts: '/provider-contracts',
@@ -3884,6 +3987,17 @@ export const buildVoiceProductionReadinessReport = async (
 			providerContractMatrix,
 			providerOrchestration: providerOrchestrationSummary,
 			providerRecovery,
+			profileSwitchReadiness: profileSwitchReadiness
+				? {
+						auditEvents: profileSwitchReadiness.summary.auditEvents,
+						decisions: profileSwitchReadiness.summary.decisions,
+						issues: profileSwitchReadiness.issues.length,
+						policyCases: profileSwitchReadiness.summary.policyCases,
+						sessions: profileSwitchReadiness.summary.sessions,
+						status: profileSwitchReadiness.status,
+						traceEvents: profileSwitchReadiness.summary.traceEvents
+					}
+				: undefined,
 			phoneAgentSmokes: phoneAgentSmokeSummary,
 			telephonyMedia: telephonyMediaSummary,
 			telephonyWebhookSecurity: telephonyWebhookSecuritySummary,
