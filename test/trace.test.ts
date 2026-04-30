@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceEventStore,
+	createVoiceProfileTraceTagger,
 	createVoiceTraceHTTPSink,
 	createVoiceTraceEvent,
 	createVoiceTraceS3Sink,
@@ -565,6 +566,82 @@ test('createVoiceTraceSinkStore mirrors appends to sinks', async () => {
 	expect(await base.get(event.id)).toEqual(event);
 	expect(delivered).toEqual([event]);
 	expect(deliveryResults).toEqual(['delivered']);
+});
+
+test('createVoiceProfileTraceTagger annotates appended events with benchmark profile metadata', async () => {
+	const base = createVoiceMemoryTraceEventStore();
+	const store = createVoiceProfileTraceTagger({
+		defaultProfile: {
+			description: 'Browser meeting recorder path.',
+			id: 'meeting-recorder',
+			label: 'Meeting recorder'
+		},
+		store: base
+	});
+
+	const event = await store.append({
+		at: 100,
+		payload: {
+			elapsedMs: 420,
+			kind: 'llm',
+			provider: 'openai'
+		},
+		sessionId: 'profile-tagged-session',
+		type: 'session.error'
+	});
+
+	expect(await base.get(event.id)).toMatchObject({
+		metadata: {
+			benchmarkProfileId: 'meeting-recorder',
+			profileDescription: 'Browser meeting recorder path.',
+			profileId: 'meeting-recorder',
+			profileLabel: 'Meeting recorder'
+		},
+		payload: {
+			benchmarkProfileId: 'meeting-recorder',
+			profileDescription: 'Browser meeting recorder path.',
+			profileId: 'meeting-recorder',
+			profileLabel: 'Meeting recorder'
+		}
+	});
+});
+
+test('createVoiceProfileTraceTagger resolves per-session profiles without overwriting explicit profile payloads', async () => {
+	const base = createVoiceMemoryTraceEventStore();
+	const store = createVoiceProfileTraceTagger({
+		profiles: [
+			{ id: 'support-agent', label: 'Support agent' },
+			{ id: 'meeting-recorder', label: 'Meeting recorder' }
+		],
+		resolveProfile: (event) =>
+			event.sessionId.startsWith('support')
+				? 'support-agent'
+				: 'meeting-recorder',
+		store: base
+	});
+
+	const event = await store.append({
+		at: 100,
+		payload: {
+			profileId: 'custom-profile',
+			text: 'stored'
+		},
+		sessionId: 'support-session',
+		type: 'turn.assistant'
+	});
+
+	expect(await base.get(event.id)).toMatchObject({
+		metadata: {
+			benchmarkProfileId: 'support-agent',
+			profileId: 'support-agent',
+			profileLabel: 'Support agent'
+		},
+		payload: {
+			benchmarkProfileId: 'support-agent',
+			profileId: 'custom-profile',
+			profileLabel: 'Support agent'
+		}
+	});
 });
 
 test('redactVoiceTraceText supports custom replacements', () => {

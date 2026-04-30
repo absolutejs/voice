@@ -824,6 +824,7 @@ export {
 export {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceSinkDeliveryStore,
+	createVoiceProfileTraceTagger,
 	createVoiceTraceHTTPSink,
 	createVoiceTraceS3Sink,
 	createVoiceMemoryTraceEventStore,
@@ -1770,6 +1771,8 @@ export type {
 } from './auditDeliveryRoutes';
 export type { VoiceFileRuntimeStorage, VoiceFileStoreOptions } from './fileStore';
 export type {
+	VoiceProfileTraceTaggerOptions,
+	VoiceProfileTraceTaggerProfile,
 	StoredVoiceTraceEvent,
 	VoiceTraceEvaluation,
 	VoiceTraceEvaluationOptions,

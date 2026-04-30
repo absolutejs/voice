@@ -1486,6 +1486,22 @@ app.use(
 
 The point is not to benchmark a fake demo once. The point is to let every real call add profile evidence so `/api/voice/real-call-profile-history`, provider recommendations, profile-switch readiness, and operations records can explain which provider/runtime path is winning for each call shape.
 
+Use `createVoiceProfileTraceTagger(...)` when the app already has a trace store and needs every appended trace to carry a benchmark profile label. It wraps any `VoiceTraceEventStore`, preserves the underlying store behavior, and adds `profileId`/`benchmarkProfileId` metadata and payload fields that real-call profile history can ingest later.
+
+```ts
+import { createVoiceProfileTraceTagger } from '@absolutejs/voice';
+
+const trace = createVoiceProfileTraceTagger({
+	defaultProfile: {
+		id: 'meeting-recorder',
+		label: 'Meeting recorder'
+	},
+	resolveProfile: (event) =>
+		event.sessionId.startsWith('support-') ? 'support-agent' : undefined,
+	store: runtime.traces
+});
+```
+
 Built-in profiles:
 
 - `meeting-recorder`: live latency, session health, provider fallback, routing contracts, reconnect proof, and barge-in interruption proof.

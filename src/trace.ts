@@ -187,6 +187,27 @@ export type VoiceTraceSinkStoreOptions<
 	store: VoiceTraceEventStore<TEvent>;
 };
 
+export type VoiceProfileTraceTaggerProfile = {
+	description?: string;
+	id: string;
+	label?: string;
+};
+
+export type VoiceProfileTraceTaggerOptions<
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+> = {
+	defaultProfile?: VoiceProfileTraceTaggerProfile | string;
+	profiles?: readonly VoiceProfileTraceTaggerProfile[];
+	resolveProfile?: (
+		event: VoiceTraceEvent | TEvent
+	) =>
+		| Promise<VoiceProfileTraceTaggerProfile | string | undefined>
+		| VoiceProfileTraceTaggerProfile
+		| string
+		| undefined;
+	store: VoiceTraceEventStore<TEvent>;
+};
+
 export type VoiceTraceSummary = {
 	assistantReplyCount: number;
 	callDurationMs?: number;
@@ -765,6 +786,81 @@ export const createVoiceTraceSinkStore = <
 			}
 
 			return stored;
+		},
+		get: (id) => options.store.get(id),
+		list: (filter) => options.store.list(filter),
+		remove: (id) => options.store.remove(id)
+	};
+};
+
+const normalizeVoiceProfileTraceTaggerProfile = (
+	profile: VoiceProfileTraceTaggerProfile | string | undefined
+) =>
+	typeof profile === 'string'
+		? { id: profile }
+		: profile?.id
+			? profile
+			: undefined;
+
+export const createVoiceProfileTraceTagger = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	options: VoiceProfileTraceTaggerOptions<TEvent>
+): VoiceTraceEventStore<TEvent> => {
+	const profiles = new Map(
+		(options.profiles ?? []).map((profile) => [profile.id, profile])
+	);
+	const defaultProfile = normalizeVoiceProfileTraceTaggerProfile(
+		options.defaultProfile
+	);
+
+	const resolveProfile = async (event: VoiceTraceEvent | TEvent) => {
+		const resolved = normalizeVoiceProfileTraceTaggerProfile(
+			await options.resolveProfile?.(event)
+		);
+		const profile = resolved ?? defaultProfile;
+		return profile ? (profiles.get(profile.id) ?? profile) : undefined;
+	};
+
+	return {
+		append: async (event) => {
+			const profile = await resolveProfile(event);
+			if (!profile) {
+				return options.store.append(event);
+			}
+
+			const metadata = {
+				...(event.metadata ?? {}),
+				benchmarkProfileId: profile.id,
+				profileDescription:
+					event.metadata?.profileDescription ?? profile.description,
+				profileId: profile.id,
+				profileLabel: event.metadata?.profileLabel ?? profile.label
+			};
+			const payload =
+				event.payload && typeof event.payload === 'object'
+					? {
+							...(event.payload as Record<string, unknown>),
+							benchmarkProfileId:
+								(event.payload as Record<string, unknown>).benchmarkProfileId ??
+								profile.id,
+							profileDescription:
+								(event.payload as Record<string, unknown>).profileDescription ??
+								profile.description,
+							profileId:
+								(event.payload as Record<string, unknown>).profileId ??
+								profile.id,
+							profileLabel:
+								(event.payload as Record<string, unknown>).profileLabel ??
+								profile.label
+						}
+					: event.payload;
+
+			return options.store.append({
+				...event,
+				metadata,
+				payload
+			});
 		},
 		get: (id) => options.store.get(id),
 		list: (filter) => options.store.list(filter),
