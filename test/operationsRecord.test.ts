@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
 	assertVoiceOperationsRecordGuardrails,
 	assertVoiceOperationsRecordProviderRecovery,
+	buildVoiceFailureReplay,
 	buildVoiceOperationsRecord,
 	createVoiceAuditEvent,
 	createVoiceIntegrationEvent,
@@ -12,6 +13,7 @@ import {
 	createVoiceTraceEvent,
 	evaluateVoiceOperationsRecordGuardrails,
 	evaluateVoiceOperationsRecordProviderRecovery,
+	renderVoiceFailureReplayMarkdown,
 	renderVoiceOperationsRecordHTML,
 	renderVoiceOperationsRecordIncidentMarkdown
 } from '../src';
@@ -500,6 +502,66 @@ test('buildVoiceOperationsRecord aggregates trace, replay, provider, handoff, to
 	).toEqual([
 		'Billing can help with that invoice.'
 	]);
+});
+
+test('buildVoiceFailureReplay explains provider recovery media path and user-heard output', async () => {
+	const trace = createVoiceMemoryTraceEventStore();
+	for (const event of createRecordEvents()) {
+		await trace.append(event);
+	}
+
+	const record = await buildVoiceOperationsRecord({
+		sessionId: 'session-ops',
+		store: trace
+	});
+	const replay = buildVoiceFailureReplay(record, {
+		operationsRecordHref: ({ sessionId }) => `/voice-operations/${sessionId}`
+	});
+	const markdown = renderVoiceFailureReplayMarkdown(replay);
+
+	expect(replay).toMatchObject({
+		ok: false,
+		operationsRecordHref: '/voice-operations/session-ops',
+		providers: {
+			degraded: 1,
+			fallbacks: 1,
+			recoveryStatus: 'degraded',
+			total: 5
+		},
+		sessionId: 'session-ops',
+		status: 'degraded',
+		summary: {
+			userHeard: ['Billing can help with that invoice.']
+		}
+	});
+	expect(replay.summary.issues).toEqual(
+		expect.arrayContaining([
+			expect.stringContaining('openai recovered through anthropic'),
+			expect.stringContaining('openai degraded to deterministic')
+		])
+	);
+	expect(replay.providers.steps).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				fallbackProvider: 'anthropic',
+				status: 'fallback',
+				userHeard: ['Billing can help with that invoice.']
+			}),
+			expect.objectContaining({
+				fallbackProvider: 'deterministic',
+				status: 'degraded'
+			})
+		])
+	);
+	expect(replay.media).toMatchObject({
+		audioBytes: 8,
+		clears: 1,
+		errors: 0,
+		total: 5
+	});
+	expect(markdown).toContain('## What The User Heard');
+	expect(markdown).toContain('Billing can help with that invoice.');
+	expect(replay.incidentMarkdown).toContain('## Provider Path');
 });
 
 test('buildVoiceOperationsRecord links reviews tasks integration events and sink delivery proof', async () => {

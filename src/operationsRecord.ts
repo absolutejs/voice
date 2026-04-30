@@ -274,6 +274,84 @@ export type VoiceOperationsRecord = {
 	transcript: VoiceOperationsRecordTranscriptTurn[];
 };
 
+export type VoiceFailureReplayStatus =
+	| 'degraded'
+	| 'failed'
+	| 'healthy'
+	| 'recovered';
+
+export type VoiceFailureReplayProviderStep = {
+	at: number;
+	elapsedMs?: number;
+	error?: string;
+	fallbackProvider?: string;
+	kind?: string;
+	provider?: string;
+	reason?: string;
+	selectedProvider?: string;
+	status?: string;
+	surface?: string;
+	turnId?: string;
+	userHeard: string[];
+};
+
+export type VoiceFailureReplayMediaStep = {
+	at: number;
+	audioBytes: number;
+	carrier?: string;
+	direction?: string;
+	event: string;
+	issue?: string;
+	streamId?: string;
+};
+
+export type VoiceFailureReplayTurn = {
+	assistantReplies: string[];
+	committedText?: string;
+	errors: string[];
+	id: string;
+	media: VoiceFailureReplayMediaStep[];
+	providers: VoiceFailureReplayProviderStep[];
+	transcripts: string[];
+};
+
+export type VoiceFailureReplayReport = {
+	incidentMarkdown: string;
+	media: {
+		audioBytes: number;
+		clears: number;
+		errors: number;
+		issues: string[];
+		steps: VoiceFailureReplayMediaStep[];
+		total: number;
+	};
+	ok: boolean;
+	operationsRecordHref?: string;
+	providers: {
+		degraded: number;
+		errors: number;
+		fallbacks: number;
+		recoveryStatus: VoiceOperationsRecordProviderDecisionRecoveryStatus;
+		selected: number;
+		steps: VoiceFailureReplayProviderStep[];
+		total: number;
+	};
+	sessionId: string;
+	status: VoiceFailureReplayStatus;
+	summary: {
+		callDurationMs?: number;
+		issues: string[];
+		userHeard: string[];
+	};
+	turns: VoiceFailureReplayTurn[];
+};
+
+export type VoiceFailureReplayOptions = {
+	operationsRecordHref?:
+		| string
+		| ((input: { record: VoiceOperationsRecord; sessionId: string }) => string);
+};
+
 export type VoiceOperationsRecordOptions = {
 	audit?: VoiceAuditEventStore;
 	evaluation?: VoiceTraceEvaluationOptions;
@@ -365,6 +443,14 @@ const pushMissingValuesIssue = (input: {
 
 const resolveRoutePath = (path: string, sessionId: string) =>
 	path.replace(':sessionId', encodeURIComponent(sessionId));
+
+const resolveOperationsRecordHref = (
+	href: VoiceFailureReplayOptions['operationsRecordHref'],
+	record: VoiceOperationsRecord
+) =>
+	typeof href === 'function'
+		? href({ record, sessionId: record.sessionId })
+		: href;
 
 const toHandoff = (
 	event: StoredVoiceTraceEvent
@@ -1050,6 +1136,225 @@ export const assertVoiceOperationsRecordProviderRecovery = (
 		);
 	}
 	return report;
+};
+
+const getAssistantRepliesForTurn = (
+	record: VoiceOperationsRecord,
+	turnId: string | undefined
+) =>
+	turnId
+		? (record.transcript.find((turn) => turn.id === turnId)?.assistantReplies ??
+			[])
+		: [];
+
+const mediaIssueForStep = (
+	step: VoiceFailureReplayMediaStep
+): string | undefined => {
+	const event = step.event.toLowerCase();
+	if (event === 'error') {
+		return 'Carrier media stream emitted an error.';
+	}
+	if (event === 'media' && step.audioBytes <= 0) {
+		return 'Carrier media packet had no audio bytes.';
+	}
+	return undefined;
+};
+
+export const buildVoiceFailureReplay = (
+	record: VoiceOperationsRecord,
+	options: VoiceFailureReplayOptions = {}
+): VoiceFailureReplayReport => {
+	const providerSteps = record.providerDecisions
+		.filter((decision) =>
+			['degraded', 'error', 'fallback', 'selected', 'success'].includes(
+				decision.status ?? ''
+			)
+		)
+		.map(
+			(decision): VoiceFailureReplayProviderStep => ({
+				at: decision.at,
+				elapsedMs: decision.elapsedMs,
+				error: decision.error,
+				fallbackProvider: decision.fallbackProvider,
+				kind: decision.kind,
+				provider: decision.provider,
+				reason: decision.reason,
+				selectedProvider: decision.selectedProvider,
+				status: decision.status,
+				surface: decision.surface,
+				turnId: decision.turnId,
+				userHeard: getAssistantRepliesForTurn(record, decision.turnId)
+			})
+		);
+	const mediaSteps = record.telephonyMedia.events.map(
+		(event): VoiceFailureReplayMediaStep => {
+			const step = {
+				at: event.at,
+				audioBytes: event.audioBytes,
+				carrier: event.carrier,
+				direction: event.direction,
+				event: event.event,
+				streamId: event.streamId
+			};
+			return {
+				...step,
+				issue: mediaIssueForStep(step)
+			};
+		}
+	);
+	const providerIssues = providerSteps
+		.filter((step) =>
+			step.status === 'error' ||
+			step.status === 'fallback' ||
+			step.status === 'degraded'
+		)
+		.map((step) => {
+			const provider = step.provider ?? step.selectedProvider ?? 'provider';
+			const recovery =
+				step.status === 'fallback'
+					? `recovered through ${step.fallbackProvider ?? step.selectedProvider ?? 'fallback'}`
+					: step.status === 'degraded'
+						? `degraded to ${step.fallbackProvider ?? step.selectedProvider ?? 'fallback'}`
+						: 'failed before recovery';
+			return `${provider} ${recovery}${step.reason ? `: ${step.reason}` : ''}`;
+		});
+	const mediaIssues = [
+		...mediaSteps
+			.map((step) => step.issue)
+			.filter((issue): issue is string => typeof issue === 'string'),
+		record.telephonyMedia.total > 0 && record.telephonyMedia.inbound === 0
+			? 'Carrier stream has no inbound media evidence.'
+			: undefined,
+		record.telephonyMedia.total > 0 && record.telephonyMedia.outbound === 0
+			? 'Carrier stream has no outbound assistant media/control evidence.'
+			: undefined
+	].filter((issue): issue is string => typeof issue === 'string');
+	const userHeard = [
+		...new Set(record.transcript.flatMap((turn) => turn.assistantReplies))
+	];
+	const status: VoiceFailureReplayStatus =
+		record.providerDecisionSummary.errors > 0 || record.telephonyMedia.errors > 0
+			? 'failed'
+			: record.providerDecisionSummary.degraded > 0
+				? 'degraded'
+				: record.providerDecisionSummary.fallbacks > 0 || mediaIssues.length > 0
+					? 'recovered'
+					: 'healthy';
+	const turns = record.transcript.map(
+		(turn): VoiceFailureReplayTurn => ({
+			...turn,
+			media: mediaSteps.filter((step) =>
+				record.traceEvents.some(
+					(event) =>
+						event.turnId === turn.id &&
+						event.type === 'client.telephony_media' &&
+						event.at === step.at
+				)
+			),
+			providers: providerSteps.filter((step) => step.turnId === turn.id)
+		})
+	);
+	const issues = [...providerIssues, ...mediaIssues];
+	const reportBase = {
+		media: {
+			audioBytes: record.telephonyMedia.audioBytes,
+			clears: record.telephonyMedia.clears,
+			errors: record.telephonyMedia.errors,
+			issues: mediaIssues,
+			steps: mediaSteps,
+			total: record.telephonyMedia.total
+		},
+		ok: status === 'healthy' || status === 'recovered',
+		operationsRecordHref: resolveOperationsRecordHref(
+			options.operationsRecordHref,
+			record
+		),
+		providers: {
+			degraded: record.providerDecisionSummary.degraded,
+			errors: record.providerDecisionSummary.errors,
+			fallbacks: record.providerDecisionSummary.fallbacks,
+			recoveryStatus: record.providerDecisionSummary.recoveryStatus,
+			selected: record.providerDecisionSummary.selected,
+			steps: providerSteps,
+			total: record.providerDecisionSummary.total
+		},
+		sessionId: record.sessionId,
+		status,
+		summary: {
+			callDurationMs: record.summary.callDurationMs,
+			issues,
+			userHeard
+		},
+		turns
+	};
+
+	return {
+		...reportBase,
+		incidentMarkdown: renderVoiceFailureReplayMarkdown(reportBase)
+	};
+};
+
+export const renderVoiceFailureReplayMarkdown = (
+	report: Omit<VoiceFailureReplayReport, 'incidentMarkdown'> | VoiceFailureReplayReport
+) => {
+	const heard = report.summary.userHeard.length
+		? report.summary.userHeard.map((text) => `- ${text}`).join('\n')
+		: '- none recorded';
+	const providerSteps = report.providers.steps.length
+		? report.providers.steps
+				.slice(0, 8)
+				.map((step) => {
+					const provider = step.provider ?? step.selectedProvider ?? 'provider';
+					const parts = [
+						step.status ? `status=${step.status}` : undefined,
+						step.selectedProvider ? `selected=${step.selectedProvider}` : undefined,
+						step.fallbackProvider ? `fallback=${step.fallbackProvider}` : undefined,
+						step.elapsedMs !== undefined ? `elapsed=${step.elapsedMs}ms` : undefined,
+						step.reason
+					].filter((part): part is string => typeof part === 'string');
+					return `- ${provider}: ${parts.join('; ')}`;
+				})
+				.join('\n')
+		: '- none recorded';
+	const mediaSteps = report.media.steps.length
+		? report.media.steps
+				.slice(0, 8)
+				.map((step) => {
+					const parts = [
+						step.carrier,
+						step.event,
+						step.direction,
+						step.streamId ? `stream=${step.streamId}` : undefined,
+						`audioBytes=${String(step.audioBytes)}`,
+						step.issue
+					].filter((part): part is string => typeof part === 'string');
+					return `- ${parts.join('; ')}`;
+				})
+				.join('\n')
+		: '- none recorded';
+	const issues = report.summary.issues.length
+		? report.summary.issues.map((issue) => `- ${issue}`).join('\n')
+		: '- none';
+
+	return [
+		`# Voice Failure Replay: ${report.sessionId}`,
+		'',
+		`Status: ${report.status}`,
+		`Operations record: ${report.operationsRecordHref ?? 'not linked'}`,
+		`Duration: ${formatMs(report.summary.callDurationMs)}`,
+		'',
+		'## What Failed Or Recovered',
+		issues,
+		'',
+		'## Provider Path',
+		providerSteps,
+		'',
+		'## Media Path',
+		mediaSteps,
+		'',
+		'## What The User Heard',
+		heard
+	].join('\n');
 };
 
 const escapeHtml = (value: string) =>

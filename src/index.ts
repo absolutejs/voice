@@ -653,10 +653,12 @@ export {
 export {
 	assertVoiceOperationsRecordGuardrails,
 	assertVoiceOperationsRecordProviderRecovery,
+	buildVoiceFailureReplay,
 	buildVoiceOperationsRecord,
 	createVoiceOperationsRecordRoutes,
 	evaluateVoiceOperationsRecordGuardrails,
 	evaluateVoiceOperationsRecordProviderRecovery,
+	renderVoiceFailureReplayMarkdown,
 	renderVoiceOperationsRecordGuardrailMarkdown,
 	renderVoiceOperationsRecordHTML,
 	renderVoiceOperationsRecordIncidentMarkdown
@@ -1337,6 +1339,12 @@ export type {
 	VoiceProviderStackRecommendation
 } from './providerStackRecommendations';
 export type {
+	VoiceFailureReplayMediaStep,
+	VoiceFailureReplayOptions,
+	VoiceFailureReplayProviderStep,
+	VoiceFailureReplayReport,
+	VoiceFailureReplayStatus,
+	VoiceFailureReplayTurn,
 	VoiceOperationsRecord,
 	VoiceOperationsRecordAgentHandoff,
 	VoiceOperationsRecordAuditSummary,
