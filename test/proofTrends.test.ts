@@ -13,6 +13,7 @@ import {
 	buildVoiceRealCallProfileEvidenceFromTraceEvents,
 	buildVoiceRealCallProfileHistoryReport,
 	buildVoiceRealCallProfileReadinessCheck,
+	buildVoiceRealCallProfileRecoveryJobHistoryCheck,
 	buildVoiceRealCallProfileRecoveryActions,
 	createVoiceInMemoryRealCallProfileRecoveryJobStore,
 	createVoiceSQLiteRealCallProfileRecoveryJobStore,
@@ -1728,6 +1729,60 @@ describe('proof trends', () => {
 			status: 'pass'
 		});
 		expect(missingResponse.status).toBe(404);
+	});
+
+	test('buildVoiceRealCallProfileRecoveryJobHistoryCheck gates persisted recovery job history', async () => {
+		const store = createVoiceInMemoryRealCallProfileRecoveryJobStore({
+			idPrefix: 'readiness-recovery-job'
+		});
+		const passingJob = await store.create({
+			actionId: 'collect-phone-proof',
+			createdAt: '2026-04-30T12:00:00.000Z',
+			message: 'phone proof queued',
+			status: 'queued'
+		});
+		await store.update(passingJob.id, {
+			completedAt: '2026-04-30T12:01:00.000Z',
+			message: 'phone proof passed',
+			ok: true,
+			status: 'pass',
+			updatedAt: '2026-04-30T12:01:00.000Z'
+		});
+		const runningJob = await store.create({
+			actionId: 'collect-browser-proof',
+			createdAt: '2026-04-30T12:02:00.000Z',
+			message: 'browser proof queued',
+			status: 'queued'
+		});
+		await store.update(runningJob.id, {
+			message: 'browser proof running',
+			status: 'running',
+			updatedAt: '2026-04-30T12:02:30.000Z'
+		});
+
+		await expect(
+			buildVoiceRealCallProfileRecoveryJobHistoryCheck(undefined)
+		).resolves.toMatchObject({
+			status: 'fail',
+			value: 'missing'
+		});
+		await expect(
+			buildVoiceRealCallProfileRecoveryJobHistoryCheck(store, {
+				minCompletedJobs: 1
+			})
+		).resolves.toMatchObject({
+			label: 'Real-call recovery job history',
+			status: 'warn',
+			value: '1 completed / 0 failed / 1 running'
+		});
+		await expect(
+			buildVoiceRealCallProfileRecoveryJobHistoryCheck(store, {
+				failOnRunningJobs: true,
+				minCompletedJobs: 1
+			})
+		).resolves.toMatchObject({
+			status: 'fail'
+		});
 	});
 
 	test('createVoiceSQLiteRealCallProfileRecoveryJobStore persists recovery jobs across instances', async () => {

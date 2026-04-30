@@ -455,6 +455,16 @@ export type VoiceRealCallProfileReadinessCheckOptions = {
 export type VoiceRealCallProfileRecoveryActionOptions =
 	VoiceRealCallProfileReadinessCheckOptions;
 
+export type VoiceRealCallProfileRecoveryJobHistoryCheckOptions = {
+	allowFailedJobs?: boolean;
+	failOnRunningJobs?: boolean;
+	href?: string;
+	label?: string;
+	maxAgeMs?: number;
+	minCompletedJobs?: number;
+	sourceHref?: string;
+};
+
 export type VoiceRealCallProfileRecoveryActionHandlerInput = {
 	actionId: VoiceRealCallProfileRecoveryActionId;
 	report: VoiceRealCallProfileHistoryReport;
@@ -2136,6 +2146,119 @@ export const buildVoiceRealCallProfileReadinessCheck = (
 		},
 		status,
 		value: `${String(report.defaults.summary.actionableProfiles)}/${String(report.summary.profileCount)} actionable`
+	};
+};
+
+export const buildVoiceRealCallProfileRecoveryJobHistoryCheck = async (
+	store: Pick<VoiceRealCallProfileRecoveryJobStore, 'list'> | undefined,
+	options: VoiceRealCallProfileRecoveryJobHistoryCheckOptions = {}
+): Promise<VoiceProductionReadinessCheck> => {
+	const href = options.href ?? '/voice/real-call-profile-recovery';
+	const sourceHref =
+		options.sourceHref ?? '/api/voice/real-call-profile-history/actions/jobs';
+	const minCompletedJobs = options.minCompletedJobs ?? 1;
+	const label = options.label ?? 'Real-call recovery job history';
+	if (!store?.list) {
+		return {
+			actions: [
+				{
+					description:
+						'Configure a recovery job store with list support so operators can inspect proof repair history.',
+					href,
+					label: 'Configure recovery job history'
+				}
+			],
+			detail:
+				'No real-call profile recovery job store with list support is configured.',
+			gateExplanation: {
+				evidenceHref: sourceHref,
+				observed: 'missing',
+				remediation:
+					'Use the bundled memory or SQLite recovery job store, or implement list() on the custom store.',
+				sourceHref,
+				threshold: 'list support',
+				thresholdLabel: 'Inspectable recovery jobs',
+				unit: 'status'
+			},
+			href,
+			label,
+			status: 'fail',
+			value: 'missing'
+		};
+	}
+
+	const jobs = await store.list({ limit: 50 });
+	const now = Date.now();
+	const recentJobs =
+		options.maxAgeMs === undefined
+			? jobs
+			: jobs.filter((job) => now - Date.parse(job.updatedAt) <= options.maxAgeMs!);
+	const completedJobs = recentJobs.filter(
+		(job) => job.status === 'pass' || job.status === 'fail'
+	);
+	const failedJobs = recentJobs.filter((job) => job.status === 'fail');
+	const runningJobs = recentJobs.filter(
+		(job) => job.status === 'queued' || job.status === 'running'
+	);
+	const issues: string[] = [];
+	const warnings: string[] = [];
+
+	if (completedJobs.length < minCompletedJobs) {
+		issues.push(
+			`Expected at least ${String(minCompletedJobs)} completed recovery job(s), found ${String(completedJobs.length)}.`
+		);
+	}
+	if (!options.allowFailedJobs && failedJobs.length > 0) {
+		issues.push(`${String(failedJobs.length)} recent recovery job(s) failed.`);
+	}
+	if (runningJobs.length > 0) {
+		const message = `${String(runningJobs.length)} recovery job(s) are still queued or running.`;
+		if (options.failOnRunningJobs) {
+			issues.push(message);
+		} else {
+			warnings.push(message);
+		}
+	}
+
+	const status = issues.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass';
+	const detail =
+		status === 'pass'
+			? `${String(completedJobs.length)} completed recovery job(s), ${String(failedJobs.length)} failed, ${String(runningJobs.length)} running.`
+			: [...issues, ...warnings].join(' ');
+
+	return {
+		actions: [
+			{
+				description: 'Open the recovery job UI and run or inspect proof repair jobs.',
+				href,
+				label: 'Open recovery job history'
+			},
+			{
+				description: 'Open the recovery job history API.',
+				href: sourceHref,
+				label: 'Open recovery jobs API'
+			}
+		],
+		detail,
+		gateExplanation: {
+			evidenceHref: sourceHref,
+			observed: completedJobs.length,
+			remediation:
+				'Run a browser or phone recovery proof job and ensure recent recovery jobs complete without failure.',
+			sourceHref,
+			threshold: minCompletedJobs,
+			thresholdLabel: 'Minimum completed recovery jobs',
+			unit: 'count'
+		},
+		href,
+		label,
+		proofSource: {
+			href: sourceHref,
+			source: 'recovery-job-store',
+			sourceLabel: 'Real-call recovery jobs'
+		},
+		status,
+		value: `${String(completedJobs.length)} completed / ${String(failedJobs.length)} failed / ${String(runningJobs.length)} running`
 	};
 };
 
