@@ -237,6 +237,7 @@ Verified:
 - Proof runs use isolated `VOICE_DEMO_RUNTIME_DIR` runtime directories so stale local demo sessions do not pollute release proof.
 - `@absolutejs/voice@0.0.22-beta.347` adds package-level real-call profile history reports/routes so repeated browser/phone evidence can roll up into provider/runtime recommendations by benchmark profile.
 - `@absolutejs/voice@0.0.22-beta.367` adds `createVoiceProductionReadinessProofRuntime(...)`, giving apps a package-owned bounded proof store, proof-freshness gate, shared readiness cache, trace-window defaults, and synthetic provider/live-latency seed events without becoming an app kit. The voice example now uses that primitive for production-readiness JSON, HTML, gate, proof-pack, trend, provider SLO, and freshness evidence.
+- `@absolutejs/voice@0.0.22-beta.368` adds `buildVoiceRealCallProfileEvidenceFromTraceEvents(...)` and `loadVoiceRealCallProfileEvidenceFromTraceStore(...)`, so ordinary persisted session/provider/live-latency/runtime/turn traces can become real-call benchmark profile history without app-specific glue.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 

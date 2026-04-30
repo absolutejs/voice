@@ -9,15 +9,21 @@ import {
 	buildVoiceProofTrendReportFromRealCallProfiles,
 	buildVoiceProofTrendReport,
 	buildVoiceRealCallProfileDefaults,
+	buildVoiceRealCallProfileEvidenceFromTraceEvents,
 	buildVoiceRealCallProfileHistoryReport,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
 	evaluateVoiceProofTrendEvidence,
 	formatVoiceProofTrendAge,
+	loadVoiceRealCallProfileEvidenceFromTraceStore,
 	resolveVoiceRealCallProfileProviderRoute
 } from '../src/proofTrends';
 import type { VoiceProofTrendProviderSummary } from '../src/proofTrends';
+import {
+	createVoiceMemoryTraceEventStore,
+	createVoiceTraceEvent
+} from '../src/trace';
 
 describe('proof trends', () => {
 	test('buildVoiceProofTrendReport marks fresh passing artifacts as pass', () => {
@@ -892,6 +898,146 @@ describe('proof trends', () => {
 		expect(report.summary.profiles?.[0]?.providers?.[0]).toMatchObject({
 			id: 'tts:openai',
 			status: 'pass'
+		});
+	});
+
+	test('buildVoiceRealCallProfileEvidenceFromTraceEvents converts stored traces into profile evidence', () => {
+		const evidence = buildVoiceRealCallProfileEvidenceFromTraceEvents(
+			[
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 12, 0, 0),
+					metadata: { profileId: 'support-agent' },
+					payload: {
+						elapsedMs: 620,
+						kind: 'llm',
+						provider: 'openai',
+						providerStatus: 'success'
+					},
+					sessionId: 'real-session-1',
+					type: 'session.error'
+				}),
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 12, 0, 1),
+					payload: {
+						elapsedMs: 84,
+						kind: 'stt',
+						selectedProvider: 'deepgram',
+						status: 'success'
+					},
+					sessionId: 'real-session-1',
+					type: 'provider.decision'
+				}),
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 12, 0, 2),
+					payload: {
+						latencyMs: 510,
+						status: 'assistant_audio_started'
+					},
+					sessionId: 'real-session-1',
+					type: 'client.live_latency'
+				}),
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 12, 0, 3),
+					payload: {
+						firstAudioLatencyMs: 410,
+						jitterMs: 12,
+						timestampDriftMs: 300
+					},
+					sessionId: 'real-session-1',
+					type: 'client.browser_media'
+				}),
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 12, 0, 4),
+					payload: { stage: 'committed' },
+					sessionId: 'real-session-1',
+					turnId: 'turn-1',
+					type: 'turn_latency.stage'
+				}),
+				createVoiceTraceEvent({
+					at: Date.UTC(2026, 3, 29, 12, 0, 4) + 670,
+					payload: { stage: 'assistant_audio_started' },
+					sessionId: 'real-session-1',
+					turnId: 'turn-1',
+					type: 'turn_latency.stage'
+				})
+			],
+			{
+				profileLabels: {
+					'support-agent': 'Support agent'
+				}
+			}
+		);
+
+		expect(evidence).toHaveLength(1);
+		expect(evidence[0]).toMatchObject({
+			liveP95Ms: 510,
+			ok: true,
+			operationsRecordHref: '/voice-operations/real-session-1',
+			profileId: 'support-agent',
+			profileLabel: 'Support agent',
+			providerP95Ms: 620,
+			runtimeChannel: {
+				maxFirstAudioLatencyMs: 410,
+				maxJitterMs: 12,
+				maxTimestampDriftMs: 300,
+				samples: 1,
+				status: 'pass'
+			},
+			sessionId: 'real-session-1',
+			turnP95Ms: 670
+		});
+		expect(evidence[0]?.providers?.map((provider) => provider.id)).toEqual([
+			'llm:openai',
+			'stt:deepgram'
+		]);
+	});
+
+	test('loadVoiceRealCallProfileEvidenceFromTraceStore loads repeated call evidence from a trace store', async () => {
+		const store = createVoiceMemoryTraceEventStore();
+		await store.append(
+			createVoiceTraceEvent({
+				at: Date.UTC(2026, 3, 29, 13, 0, 0),
+				payload: {
+					elapsedMs: 480,
+					kind: 'tts',
+					profileId: 'meeting-recorder',
+					provider: 'openai',
+					status: 'success'
+				},
+				sessionId: 'stored-real-session',
+				type: 'session.error'
+			})
+		);
+		await store.append(
+			createVoiceTraceEvent({
+				at: Date.UTC(2026, 3, 29, 13, 0, 1),
+				payload: { latencyMs: 530 },
+				sessionId: 'stored-real-session',
+				type: 'client.live_latency'
+			})
+		);
+
+		const evidence = await loadVoiceRealCallProfileEvidenceFromTraceStore({
+			store
+		});
+		const history = buildVoiceRealCallProfileHistoryReport({
+			evidence,
+			generatedAt: '2026-04-29T13:01:00.000Z',
+			now: '2026-04-29T13:01:30.000Z',
+			source: 'trace-store'
+		});
+
+		expect(evidence).toHaveLength(1);
+		expect(history.ok).toBe(true);
+		expect(
+			history.summary.profiles?.some((profile) => profile.id === 'meeting-recorder')
+		).toBe(true);
+		expect(history.defaults.profiles[0]).toMatchObject({
+			profileId: 'meeting-recorder',
+			providerRoutes: {
+				tts: 'tts:openai'
+			},
+			status: 'warn'
 		});
 	});
 

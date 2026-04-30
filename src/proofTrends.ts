@@ -1,4 +1,8 @@
 import { Elysia } from 'elysia';
+import type {
+	StoredVoiceTraceEvent,
+	VoiceTraceEventStore
+} from './trace';
 
 export type VoiceProofTrendStatus = 'empty' | 'fail' | 'pass' | 'stale';
 
@@ -145,6 +149,21 @@ export type VoiceProofTrendRealCallProfileEvidence = {
 	sessionId: string;
 	turnP95Ms?: number;
 };
+
+export type VoiceRealCallProfileTraceEvidenceOptions = {
+	defaultProfileId?: string;
+	defaultProfileLabel?: string;
+	maxProviderP95Ms?: number;
+	profileDescriptions?: Record<string, string>;
+	profileLabels?: Record<string, string>;
+	sessionIds?: readonly string[];
+};
+
+export type VoiceRealCallProfileTraceStoreEvidenceOptions =
+	VoiceRealCallProfileTraceEvidenceOptions & {
+		limit?: number;
+		store: VoiceTraceEventStore;
+	};
 
 export type VoiceProofTrendRealCallProfileReportOptions =
 	VoiceProofTrendProfileSummaryOptions & {
@@ -563,6 +582,33 @@ const maxNumber = (values: Array<number | undefined>) => {
 	return finite.length > 0 ? Math.max(...finite) : undefined;
 };
 
+const percentile = (values: number[], rank: number) => {
+	const finite = values
+		.filter((value) => Number.isFinite(value))
+		.sort((left, right) => left - right);
+	if (finite.length === 0) {
+		return undefined;
+	}
+	const index = Math.min(
+		finite.length - 1,
+		Math.max(0, Math.ceil((rank / 100) * finite.length) - 1)
+	);
+	return finite[index];
+};
+
+const averageNumber = (values: number[]) => {
+	const finite = values.filter((value) => Number.isFinite(value));
+	return finite.length === 0
+		? undefined
+		: Math.round(finite.reduce((total, value) => total + value, 0) / finite.length);
+};
+
+const readString = (value: unknown) =>
+	typeof value === 'string' && value.trim() ? value : undefined;
+
+const readNumber = (value: unknown) =>
+	typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
 const readProofTrendMaxLiveP95 = (report: VoiceProofTrendReport) =>
 	report.summary.maxLiveP95Ms ??
 	maxNumber(report.cycles.map((cycle) => cycle.liveLatency?.p95Ms));
@@ -707,6 +753,275 @@ const aggregateProofTrendRuntimeChannel = (
 					: undefined
 	};
 };
+
+const readTraceRecord = (event: StoredVoiceTraceEvent) =>
+	event.payload as Record<string, unknown>;
+
+const readTraceProfileId = (
+	events: readonly StoredVoiceTraceEvent[],
+	options: VoiceRealCallProfileTraceEvidenceOptions
+) => {
+	for (const event of events) {
+		const payload = readTraceRecord(event);
+		const profileId =
+			readString(payload.profileId) ??
+			readString(event.metadata?.profileId) ??
+			readString(payload.benchmarkProfileId) ??
+			readString(event.metadata?.benchmarkProfileId);
+		if (profileId) {
+			return profileId;
+		}
+	}
+
+	return options.defaultProfileId;
+};
+
+const readProviderTraceRole = (payload: Record<string, unknown>) =>
+	readString(payload.kind) ??
+	readString(payload.role) ??
+	readString(payload.surface) ??
+	'provider';
+
+const readProviderTraceLatency = (payload: Record<string, unknown>) =>
+	readNumber(payload.elapsedMs) ??
+	readNumber(payload.latencyMs) ??
+	readNumber(payload.durationMs);
+
+const readProviderTraceId = (payload: Record<string, unknown>) =>
+	readString(payload.selectedProvider) ??
+	readString(payload.provider) ??
+	readString(payload.model) ??
+	readString(payload.adapter);
+
+const readTraceStatus = (payload: Record<string, unknown>) =>
+	readString(payload.providerStatus) ?? readString(payload.status);
+
+const isFailingTraceStatus = (status: string | undefined) =>
+	status === 'error' ||
+	status === 'fail' ||
+	status === 'failed' ||
+	status === 'timeout';
+
+const summarizeProviderTraceEvidence = (
+	events: readonly StoredVoiceTraceEvent[],
+	maxProviderP95Ms?: number
+) => {
+	const providerLatencies = new Map<string, number[]>();
+	const providerMeta = new Map<
+		string,
+		{ failed: boolean; label: string; role: string }
+	>();
+
+	for (const event of events) {
+		if (event.type !== 'session.error' && event.type !== 'provider.decision') {
+			continue;
+		}
+
+		const payload = readTraceRecord(event);
+		const provider = readProviderTraceId(payload);
+		if (!provider) {
+			continue;
+		}
+
+		const role = readProviderTraceRole(payload);
+		const id = `${role}:${provider}`;
+		const latency = readProviderTraceLatency(payload);
+		if (latency !== undefined) {
+			providerLatencies.set(id, [...(providerLatencies.get(id) ?? []), latency]);
+		}
+		const existing = providerMeta.get(id);
+		providerMeta.set(id, {
+			failed:
+				existing?.failed === true || isFailingTraceStatus(readTraceStatus(payload)),
+			label: existing?.label ?? `${role.toUpperCase()} ${provider}`,
+			role: existing?.role ?? role
+		});
+	}
+
+	return [...providerMeta.entries()].map(([id, meta]) => {
+		const latencies = providerLatencies.get(id) ?? [];
+		const p95Ms = percentile(latencies, 95);
+		return {
+			averageMs: averageNumber(latencies),
+			id,
+			label: meta.label,
+			p50Ms: percentile(latencies, 50),
+			p95Ms,
+			role: meta.role,
+			samples: latencies.length,
+			status:
+				meta.failed ||
+				(p95Ms ?? 0) > (maxProviderP95Ms ?? Number.POSITIVE_INFINITY)
+					? 'fail'
+					: latencies.length > 0
+						? 'pass'
+						: 'warn'
+		} satisfies VoiceProofTrendProviderSummary;
+	});
+};
+
+const summarizeTurnTraceP95 = (events: readonly StoredVoiceTraceEvent[]) => {
+	const explicit = events
+		.filter((event) => event.type === 'turn_latency.stage')
+		.map((event) => {
+			const payload = readTraceRecord(event);
+			return (
+				readNumber(payload.totalMs) ??
+				readNumber(payload.elapsedMs) ??
+				readNumber(payload.latencyMs)
+			);
+		})
+		.filter((value): value is number => value !== undefined);
+	if (explicit.length > 0) {
+		return percentile(explicit, 95);
+	}
+
+	const turnStages = new Map<string, number[]>();
+	for (const event of events) {
+		if (event.type !== 'turn_latency.stage' || !event.turnId) {
+			continue;
+		}
+		const key = `${event.sessionId}:${event.turnId}`;
+		turnStages.set(key, [...(turnStages.get(key) ?? []), event.at]);
+	}
+
+	const totals = [...turnStages.values()]
+		.map((stages) =>
+			stages.length < 2 ? undefined : Math.max(...stages) - Math.min(...stages)
+		)
+		.filter((value): value is number => value !== undefined);
+	return percentile(totals, 95);
+};
+
+const summarizeRuntimeChannelTraceEvidence = (
+	events: readonly StoredVoiceTraceEvent[]
+): VoiceProofTrendRuntimeChannelSummary | undefined => {
+	const runtimeEvents = events.filter(
+		(event) =>
+			event.type === 'client.browser_media' ||
+			event.type === 'client.telephony_media' ||
+			event.type === 'client.barge_in'
+	);
+	if (runtimeEvents.length === 0) {
+		return undefined;
+	}
+
+	const firstAudio = runtimeEvents
+		.map((event) => readNumber(readTraceRecord(event).firstAudioLatencyMs))
+		.filter((value): value is number => value !== undefined);
+	const jitter = runtimeEvents
+		.map((event) => readNumber(readTraceRecord(event).jitterMs))
+		.filter((value): value is number => value !== undefined);
+	const timestampDrift = runtimeEvents
+		.map((event) => readNumber(readTraceRecord(event).timestampDriftMs))
+		.filter((value): value is number => value !== undefined);
+	const backpressure = runtimeEvents
+		.map((event) => readNumber(readTraceRecord(event).backpressureEvents))
+		.filter((value): value is number => value !== undefined);
+	const interruptions = runtimeEvents
+		.map((event) => {
+			const payload = readTraceRecord(event);
+			return (
+				readNumber(payload.interruptionLatencyMs) ??
+				readNumber(payload.interruptionMs) ??
+				readNumber(payload.elapsedMs)
+			);
+		})
+		.filter((value): value is number => value !== undefined);
+
+	return {
+		maxBackpressureEvents: maxNumber(backpressure),
+		maxFirstAudioLatencyMs: maxNumber(firstAudio),
+		maxInterruptionP95Ms: percentile(interruptions, 95),
+		maxJitterMs: maxNumber(jitter),
+		maxTimestampDriftMs: maxNumber(timestampDrift),
+		samples: runtimeEvents.length,
+		status: runtimeEvents.some((event) =>
+			isFailingTraceStatus(readTraceStatus(readTraceRecord(event)))
+		)
+			? 'fail'
+			: 'pass'
+	};
+};
+
+export const buildVoiceRealCallProfileEvidenceFromTraceEvents = (
+	events: readonly StoredVoiceTraceEvent[],
+	options: VoiceRealCallProfileTraceEvidenceOptions = {}
+): VoiceProofTrendRealCallProfileEvidence[] => {
+	const sessionFilter = new Set(options.sessionIds ?? []);
+	const eventsBySession = new Map<string, StoredVoiceTraceEvent[]>();
+	for (const event of events) {
+		if (sessionFilter.size > 0 && !sessionFilter.has(event.sessionId)) {
+			continue;
+		}
+		eventsBySession.set(event.sessionId, [
+			...(eventsBySession.get(event.sessionId) ?? []),
+			event
+		]);
+	}
+
+	return [...eventsBySession.entries()]
+		.map(([
+			sessionId,
+			sessionEvents
+		]): VoiceProofTrendRealCallProfileEvidence | undefined => {
+			const profileId = readTraceProfileId(sessionEvents, options);
+			if (!profileId) {
+				return undefined;
+			}
+			const providers = summarizeProviderTraceEvidence(
+				sessionEvents,
+				options.maxProviderP95Ms
+			);
+			const liveLatencies = sessionEvents
+				.filter((event) => event.type === 'client.live_latency')
+				.map((event) => {
+					const payload = readTraceRecord(event);
+					return readNumber(payload.latencyMs) ?? readNumber(payload.elapsedMs);
+				})
+				.filter((value): value is number => value !== undefined);
+			const turnP95Ms = summarizeTurnTraceP95(sessionEvents);
+			const providerP95Ms = maxNumber(providers.map((provider) => provider.p95Ms));
+			const runtimeChannel = summarizeRuntimeChannelTraceEvidence(sessionEvents);
+
+			return {
+				generatedAt: new Date(
+					Math.max(...sessionEvents.map((event) => event.at))
+				).toISOString(),
+				liveP95Ms: percentile(liveLatencies, 95),
+				ok:
+					providers.every((provider) => provider.status !== 'fail') &&
+					(runtimeChannel?.status ?? 'pass') !== 'fail',
+				operationsRecordHref: `/voice-operations/${sessionId}`,
+				profileDescription: options.profileDescriptions?.[profileId],
+				profileId,
+				profileLabel:
+					options.profileLabels?.[profileId] ??
+					(profileId === options.defaultProfileId
+						? options.defaultProfileLabel
+						: undefined),
+				providerP95Ms,
+				providers,
+				runtimeChannel,
+				sessionId,
+				turnP95Ms
+			} satisfies VoiceProofTrendRealCallProfileEvidence;
+		})
+		.filter(
+			(
+				evidence
+			): evidence is VoiceProofTrendRealCallProfileEvidence =>
+				evidence !== undefined
+		);
+};
+
+export const loadVoiceRealCallProfileEvidenceFromTraceStore = async (
+	options: VoiceRealCallProfileTraceStoreEvidenceOptions
+) =>
+	buildVoiceRealCallProfileEvidenceFromTraceEvents(
+		await options.store.list({ limit: options.limit ?? 5000 }),
+		options
+	);
 
 const readProofTrendProviders = (reports: readonly VoiceProofTrendReport[]) =>
 	aggregateProofTrendProviders(

@@ -1458,6 +1458,34 @@ app.use(
 
 This primitive does not start workers, create persistent storage, mount a dashboard, or prescribe a deploy workflow. It only gives self-hosted apps one clean readiness-proof runtime so JSON, HTML, gate checks, proof packs, and trend artifacts agree on the same fresh evidence window.
 
+Use `buildVoiceRealCallProfileEvidenceFromTraceEvents(...)` or `loadVoiceRealCallProfileEvidenceFromTraceStore(...)` when repeated real browser/phone sessions should drive profile defaults and provider/runtime recommendations. These helpers read ordinary trace events such as `session.error`, `provider.decision`, `client.live_latency`, `client.browser_media`, `client.telephony_media`, `client.barge_in`, and `turn_latency.stage`, then emit `VoiceProofTrendRealCallProfileEvidence[]` for `buildVoiceRealCallProfileHistoryReport(...)`.
+
+```ts
+import {
+	buildVoiceRealCallProfileHistoryReport,
+	createVoiceRealCallProfileHistoryRoutes,
+	loadVoiceRealCallProfileEvidenceFromTraceStore
+} from '@absolutejs/voice';
+
+const buildRealCallHistory = async () =>
+	buildVoiceRealCallProfileHistoryReport({
+		evidence: await loadVoiceRealCallProfileEvidenceFromTraceStore({
+			defaultProfileId: 'meeting-recorder',
+			defaultProfileLabel: 'Meeting recorder',
+			store: runtime.traces
+		}),
+		source: 'runtime.traces'
+	});
+
+app.use(
+	createVoiceRealCallProfileHistoryRoutes({
+		source: buildRealCallHistory
+	})
+);
+```
+
+The point is not to benchmark a fake demo once. The point is to let every real call add profile evidence so `/api/voice/real-call-profile-history`, provider recommendations, profile-switch readiness, and operations records can explain which provider/runtime path is winning for each call shape.
+
 Built-in profiles:
 
 - `meeting-recorder`: live latency, session health, provider fallback, routing contracts, reconnect proof, and barge-in interruption proof.
