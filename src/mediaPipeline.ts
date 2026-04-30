@@ -16,6 +16,14 @@ export type VoiceMediaFrameSource =
 
 export type VoiceMediaPipelineStatus = 'fail' | 'pass' | 'warn';
 
+export type VoiceMediaResamplingPlan = {
+	inputFormat: AudioFormat;
+	outputFormat: AudioFormat;
+	ratio: number;
+	required: boolean;
+	status: VoiceMediaPipelineStatus;
+};
+
 export type VoiceMediaFrame = {
 	at?: number;
 	audio?: ArrayBuffer | ArrayBufferView;
@@ -29,6 +37,41 @@ export type VoiceMediaFrame = {
 	source: VoiceMediaFrameSource | (string & {});
 	traceEventId?: string;
 	turnId?: string;
+};
+
+export type VoiceMediaFrameTransform = {
+	inputFormat?: AudioFormat;
+	name: string;
+	outputFormat?: AudioFormat;
+	transform: (
+		frame: VoiceMediaFrame
+	) =>
+		| VoiceMediaFrame
+		| readonly VoiceMediaFrame[]
+		| undefined
+		| Promise<VoiceMediaFrame | readonly VoiceMediaFrame[] | undefined>;
+};
+
+export type VoiceMediaFrameTransformPipeline = {
+	push: (
+		frame: VoiceMediaFrame
+	) => Promise<readonly VoiceMediaFrame[]>;
+	pushMany: (
+		frames: readonly VoiceMediaFrame[]
+	) => Promise<readonly VoiceMediaFrame[]>;
+	transforms: readonly VoiceMediaFrameTransform[];
+};
+
+export type VoiceMediaTransportAdapter = {
+	close?: () => Promise<void> | void;
+	connect?: () => Promise<void> | void;
+	inputFormat?: AudioFormat;
+	name: string;
+	onFrame?: (
+		handler: (frame: VoiceMediaFrame) => Promise<void> | void
+	) => () => void;
+	outputFormat?: AudioFormat;
+	send: (frame: VoiceMediaFrame) => Promise<void> | void;
 };
 
 export type VoiceMediaPipelineCalibrationInput = {
@@ -70,6 +113,44 @@ export type VoiceMediaPipelineCalibrationReport = {
 	turnCommitFrames: number;
 };
 
+export type VoiceMediaVadInput = {
+	frames?: readonly VoiceMediaFrame[];
+	maxSilenceFrames?: number;
+	minSpeechFrames?: number;
+	speechEndThreshold?: number;
+	speechStartThreshold?: number;
+};
+
+export type VoiceMediaVadSegment = {
+	durationMs?: number;
+	endAt?: number;
+	frameCount: number;
+	segmentId: string;
+	sessionId?: string;
+	startAt?: number;
+	turnId?: string;
+};
+
+export type VoiceMediaVadReport = {
+	checkedAt: number;
+	inputAudioFrames: number;
+	segments: VoiceMediaVadSegment[];
+	status: VoiceMediaPipelineStatus;
+};
+
+export type VoiceMediaInterruptionInput = {
+	frames?: readonly VoiceMediaFrame[];
+	maxInterruptionLatencyMs?: number;
+};
+
+export type VoiceMediaInterruptionReport = {
+	checkedAt: number;
+	interruptionFrames: number;
+	issues: VoiceMediaPipelineCalibrationIssue[];
+	latenciesMs: number[];
+	status: VoiceMediaPipelineStatus;
+};
+
 const formatLabel = (format: AudioFormat) =>
 	`${format.container}/${format.encoding}/${String(format.sampleRateHz)}hz/${String(format.channels)}ch`;
 
@@ -99,6 +180,199 @@ const numericMetadata = (
 export const createVoiceMediaFrame = (
 	frame: VoiceMediaFrame
 ): VoiceMediaFrame => frame;
+
+export const buildVoiceMediaResamplingPlan = (input: {
+	inputFormat: AudioFormat;
+	outputFormat: AudioFormat;
+}): VoiceMediaResamplingPlan => {
+	const required = !formatMatches(input.inputFormat, input.outputFormat);
+
+	return {
+		inputFormat: input.inputFormat,
+		outputFormat: input.outputFormat,
+		ratio: input.outputFormat.sampleRateHz / input.inputFormat.sampleRateHz,
+		required,
+		status:
+			input.inputFormat.container === input.outputFormat.container &&
+			input.inputFormat.encoding === input.outputFormat.encoding &&
+			input.inputFormat.channels === input.outputFormat.channels
+				? 'pass'
+				: 'warn'
+	};
+};
+
+export const createVoiceMediaFrameTransformPipeline = (input: {
+	transforms?: readonly VoiceMediaFrameTransform[];
+} = {}): VoiceMediaFrameTransformPipeline => {
+	const transforms = input.transforms ?? [];
+	const push = async (frame: VoiceMediaFrame) => {
+		let frames: readonly VoiceMediaFrame[] = [frame];
+
+		for (const transform of transforms) {
+			const nextFrames: VoiceMediaFrame[] = [];
+			for (const current of frames) {
+				const transformed = await transform.transform(current);
+				if (transformed === undefined) {
+					continue;
+				}
+				if (Array.isArray(transformed)) {
+					nextFrames.push(...transformed);
+				} else {
+					nextFrames.push(transformed as VoiceMediaFrame);
+				}
+			}
+			frames = nextFrames;
+		}
+
+		return frames;
+	};
+
+	return {
+		push,
+		pushMany: async (frames: readonly VoiceMediaFrame[]) => {
+			const output: VoiceMediaFrame[] = [];
+			for (const frame of frames) {
+				output.push(...(await push(frame)));
+			}
+			return output;
+		},
+		transforms
+	};
+};
+
+const speechProbability = (frame: VoiceMediaFrame): number => {
+	if (frame.metadata?.isSpeech === true) {
+		return 1;
+	}
+	if (frame.metadata?.isSpeech === false) {
+		return 0;
+	}
+
+	for (const key of ['speechProbability', 'voiceProbability', 'rms', 'energy']) {
+		const value = numericMetadata(frame, key);
+		if (value !== undefined) {
+			return value;
+		}
+	}
+
+	return 0;
+};
+
+export const buildVoiceMediaVadReport = (
+	input: VoiceMediaVadInput = {}
+): VoiceMediaVadReport => {
+	const frames = (input.frames ?? []).filter(
+		(frame) => frame.kind === 'input-audio'
+	);
+	const speechStartThreshold = input.speechStartThreshold ?? 0.6;
+	const speechEndThreshold = input.speechEndThreshold ?? 0.35;
+	const minSpeechFrames = input.minSpeechFrames ?? 1;
+	const maxSilenceFrames = input.maxSilenceFrames ?? 1;
+	const segments: VoiceMediaVadSegment[] = [];
+	let activeFrames: VoiceMediaFrame[] = [];
+	let silenceFrames = 0;
+
+	const closeSegment = () => {
+		if (activeFrames.length < minSpeechFrames) {
+			activeFrames = [];
+			silenceFrames = 0;
+			return;
+		}
+		const first = activeFrames[0];
+		const last = activeFrames.at(-1);
+		if (!first) {
+			return;
+		}
+		segments.push({
+			durationMs:
+				first.at !== undefined && last?.at !== undefined
+					? last.at - first.at + (last.durationMs ?? 0)
+					: undefined,
+			endAt:
+				last?.at !== undefined ? last.at + (last.durationMs ?? 0) : undefined,
+			frameCount: activeFrames.length,
+			segmentId: `vad:${String(segments.length + 1)}`,
+			sessionId: first.sessionId,
+			startAt: first.at,
+			turnId: first.turnId
+		});
+		activeFrames = [];
+		silenceFrames = 0;
+	};
+
+	for (const frame of frames) {
+		const probability = speechProbability(frame);
+		if (activeFrames.length === 0) {
+			if (probability >= speechStartThreshold) {
+				activeFrames.push(frame);
+			}
+			continue;
+		}
+
+		activeFrames.push(frame);
+		if (probability <= speechEndThreshold) {
+			silenceFrames += 1;
+		} else {
+			silenceFrames = 0;
+		}
+		if (silenceFrames > maxSilenceFrames) {
+			closeSegment();
+		}
+	}
+	closeSegment();
+
+	return {
+		checkedAt: Date.now(),
+		inputAudioFrames: frames.length,
+		segments,
+		status: frames.length === 0 ? 'warn' : 'pass'
+	};
+};
+
+export const buildVoiceMediaInterruptionReport = (
+	input: VoiceMediaInterruptionInput = {}
+): VoiceMediaInterruptionReport => {
+	const issues: VoiceMediaPipelineCalibrationIssue[] = [];
+	const interruptionFrames = (input.frames ?? []).filter(
+		(frame) => frame.kind === 'interruption'
+	);
+	const latenciesMs = interruptionFrames
+		.map((frame) => frame.latencyMs)
+		.filter((latency): latency is number => typeof latency === 'number');
+	const maxInterruptionLatencyMs = input.maxInterruptionLatencyMs;
+
+	if (interruptionFrames.length === 0) {
+		pushIssue(
+			issues,
+			'warning',
+			'media.interruption_missing',
+			'No interruption frame was observed.'
+		);
+	}
+	if (
+		maxInterruptionLatencyMs !== undefined &&
+		latenciesMs.some((latency) => latency > maxInterruptionLatencyMs)
+	) {
+		pushIssue(
+			issues,
+			'error',
+			'media.interruption_latency',
+			`Interruption latency exceeded ${String(maxInterruptionLatencyMs)}ms.`
+		);
+	}
+
+	return {
+		checkedAt: Date.now(),
+		interruptionFrames: interruptionFrames.length,
+		issues,
+		latenciesMs,
+		status: issues.some((issue) => issue.severity === 'error')
+			? 'fail'
+			: issues.length > 0
+				? 'warn'
+				: 'pass'
+	};
+};
 
 export const buildVoiceMediaPipelineCalibrationReport = (
 	input: VoiceMediaPipelineCalibrationInput = {}

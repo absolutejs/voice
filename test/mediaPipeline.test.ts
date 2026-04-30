@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	buildVoiceMediaInterruptionReport,
 	buildVoiceMediaPipelineCalibrationReport,
-	createVoiceMediaFrame
+	buildVoiceMediaResamplingPlan,
+	buildVoiceMediaVadReport,
+	createVoiceMediaFrame,
+	createVoiceMediaFrameTransformPipeline
 } from '../src';
 
 const raw24k = {
@@ -90,6 +94,133 @@ describe('media pipeline calibration', () => {
 				expect.objectContaining({ code: 'media.input_format_mismatch' }),
 				expect.objectContaining({ code: 'media.assistant_audio_missing' }),
 				expect.objectContaining({ code: 'media.trace_evidence_missing' })
+			])
+		);
+	});
+
+	test('plans media resampling without hiding format mismatches', () => {
+		const plan = buildVoiceMediaResamplingPlan({
+			inputFormat: browser48k,
+			outputFormat: raw24k
+		});
+
+		expect(plan.required).toBe(true);
+		expect(plan.ratio).toBe(0.5);
+		expect(plan.status).toBe('pass');
+	});
+
+	test('runs frame transform pipelines in order', async () => {
+		const pipeline = createVoiceMediaFrameTransformPipeline({
+			transforms: [
+				{
+					name: 'tag-input',
+					transform: (frame) => ({
+						...frame,
+						metadata: { ...frame.metadata, tagged: true }
+					})
+				},
+				{
+					name: 'drop-metadata',
+					transform: (frame) =>
+						frame.kind === 'metadata' ? undefined : frame
+				}
+			]
+		});
+
+		const output = await pipeline.pushMany([
+			createVoiceMediaFrame({
+				format: raw24k,
+				id: 'input-1',
+				kind: 'input-audio',
+				source: 'browser'
+			}),
+			createVoiceMediaFrame({
+				id: 'metadata-1',
+				kind: 'metadata',
+				source: 'voice-runtime'
+			})
+		]);
+
+		expect(output).toHaveLength(1);
+		expect(output[0]?.metadata?.tagged).toBe(true);
+	});
+
+	test('derives VAD speech segments from input frames', () => {
+		const report = buildVoiceMediaVadReport({
+			frames: [
+				createVoiceMediaFrame({
+					at: 0,
+					durationMs: 20,
+					format: raw24k,
+					id: 'silence-1',
+					kind: 'input-audio',
+					metadata: { speechProbability: 0.1 },
+					source: 'browser'
+				}),
+				createVoiceMediaFrame({
+					at: 20,
+					durationMs: 20,
+					format: raw24k,
+					id: 'speech-1',
+					kind: 'input-audio',
+					metadata: { speechProbability: 0.8 },
+					source: 'browser',
+					turnId: 'turn-1'
+				}),
+				createVoiceMediaFrame({
+					at: 40,
+					durationMs: 20,
+					format: raw24k,
+					id: 'speech-2',
+					kind: 'input-audio',
+					metadata: { speechProbability: 0.7 },
+					source: 'browser',
+					turnId: 'turn-1'
+				}),
+				createVoiceMediaFrame({
+					at: 60,
+					durationMs: 20,
+					format: raw24k,
+					id: 'silence-2',
+					kind: 'input-audio',
+					metadata: { speechProbability: 0.1 },
+					source: 'browser',
+					turnId: 'turn-1'
+				})
+			],
+			maxSilenceFrames: 0,
+			minSpeechFrames: 2
+		});
+
+		expect(report.status).toBe('pass');
+		expect(report.segments).toEqual([
+			expect.objectContaining({
+				durationMs: 60,
+				frameCount: 3,
+				startAt: 20,
+				turnId: 'turn-1'
+			})
+		]);
+	});
+
+	test('reports interruption latency failures', () => {
+		const report = buildVoiceMediaInterruptionReport({
+			frames: [
+				createVoiceMediaFrame({
+					id: 'interrupt-1',
+					kind: 'interruption',
+					latencyMs: 340,
+					source: 'voice-runtime'
+				})
+			],
+			maxInterruptionLatencyMs: 250
+		});
+
+		expect(report.status).toBe('fail');
+		expect(report.interruptionFrames).toBe(1);
+		expect(report.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: 'media.interruption_latency' })
 			])
 		);
 	});
