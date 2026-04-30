@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import {
+	buildMediaTelephonyStreamLifecycleReport,
 	createTelephonyMediaSerializer,
 	parseTelephonyMediaFrame,
 	serializeTelephonyMediaFrame
@@ -7,7 +8,8 @@ import {
 import type {
 	MediaFrame,
 	MediaTelephonyCarrier,
-	MediaTelephonyEnvelope
+	MediaTelephonyEnvelope,
+	MediaTelephonyStreamLifecycleReport
 } from '@absolutejs/media';
 
 export type VoiceTelephonyMediaStatus = 'fail' | 'pass';
@@ -15,6 +17,7 @@ export type VoiceTelephonyMediaStatus = 'fail' | 'pass';
 export type VoiceTelephonyMediaCarrierInput = {
 	carrier: MediaTelephonyCarrier;
 	envelope?: MediaTelephonyEnvelope;
+	lifecycleEnvelopes?: readonly MediaTelephonyEnvelope[];
 };
 
 export type VoiceTelephonyMediaCarrierReport = {
@@ -22,6 +25,7 @@ export type VoiceTelephonyMediaCarrierReport = {
 	carrier: MediaTelephonyCarrier;
 	frame?: MediaFrame;
 	issues: string[];
+	lifecycle: MediaTelephonyStreamLifecycleReport;
 	serialized?: MediaTelephonyEnvelope;
 	status: VoiceTelephonyMediaStatus;
 };
@@ -83,6 +87,53 @@ const demoEnvelope = (carrier: MediaTelephonyCarrier): MediaTelephonyEnvelope =>
 	};
 };
 
+const demoLifecycleEnvelopes = (
+	carrier: MediaTelephonyCarrier
+): readonly MediaTelephonyEnvelope[] => {
+	if (carrier === 'twilio') {
+		return [
+			{
+				event: 'start',
+				start: {
+					streamSid: 'proof-twilio-media'
+				}
+			},
+			demoEnvelope(carrier),
+			{
+				event: 'stop',
+				stop: {
+					streamSid: 'proof-twilio-media'
+				}
+			}
+		];
+	}
+	if (carrier === 'telnyx') {
+		return [
+			{
+				event: 'start',
+				stream_id: 'proof-telnyx-media'
+			},
+			demoEnvelope(carrier),
+			{
+				event: 'stop',
+				stream_id: 'proof-telnyx-media'
+			}
+		];
+	}
+
+	return [
+		{
+			event: 'start',
+			streamId: 'proof-plivo-media'
+		},
+		demoEnvelope(carrier),
+		{
+			event: 'stop',
+			streamId: 'proof-plivo-media'
+		}
+	];
+};
+
 const byteLength = (audio: MediaFrame['audio']): number => {
 	if (!audio) {
 		return 0;
@@ -123,6 +174,10 @@ export const buildVoiceTelephonyMediaReport = (input: {
 					frame
 				})
 			: undefined;
+		const lifecycle = buildMediaTelephonyStreamLifecycleReport({
+			carrier: entry.carrier,
+			envelopes: entry.lifecycleEnvelopes ?? demoLifecycleEnvelopes(entry.carrier)
+		});
 		const audioBytes = byteLength(frame?.audio);
 		const issues: string[] = [];
 
@@ -141,12 +196,16 @@ export const buildVoiceTelephonyMediaReport = (input: {
 		if (!serialized || typeof serialized !== 'object') {
 			issues.push('MediaFrame did not serialize back into a carrier envelope.');
 		}
+		for (const issue of lifecycle.issues) {
+			issues.push(issue.message);
+		}
 
 		return {
 			audioBytes,
 			carrier: entry.carrier,
 			frame,
 			issues,
+			lifecycle,
 			serialized,
 			status: issues.length === 0 ? 'pass' : 'fail'
 		} satisfies VoiceTelephonyMediaCarrierReport;
@@ -171,11 +230,11 @@ export const renderVoiceTelephonyMediaHTML = (
 	const rows = report.carriers
 		.map(
 			(carrier) =>
-				`<tr><td>${escapeHtml(carrier.carrier)}</td><td>${escapeHtml(carrier.status)}</td><td>${String(carrier.audioBytes)}</td><td>${escapeHtml(carrier.frame?.kind ?? 'missing')}</td><td>${escapeHtml(carrier.frame?.format?.encoding ?? 'missing')}</td><td>${escapeHtml(carrier.issues.join(' ') || 'none')}</td></tr>`
+				`<tr><td>${escapeHtml(carrier.carrier)}</td><td>${escapeHtml(carrier.status)}</td><td>${String(carrier.audioBytes)}</td><td>${String(carrier.lifecycle.mediaEvents)}</td><td>${escapeHtml(carrier.lifecycle.started ? 'yes' : 'no')}</td><td>${escapeHtml(carrier.lifecycle.stopped ? 'yes' : 'no')}</td><td>${escapeHtml(carrier.frame?.kind ?? 'missing')}</td><td>${escapeHtml(carrier.frame?.format?.encoding ?? 'missing')}</td><td>${escapeHtml(carrier.issues.join(' ') || 'none')}</td></tr>`
 		)
 		.join('');
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#e5e7eb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,table{background:#0f172a;border:1px solid #334155;border-radius:20px;margin-bottom:16px}.hero{padding:22px}.eyebrow{color:#67e8f9;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.5rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{color:#86efac}.fail{color:#fecaca}code{color:#bfdbfe}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Carrier media serializer proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><p>Twilio, Telnyx, and Plivo media payload envelopes are parsed into generic <code>MediaFrame</code> objects and serialized back into carrier envelopes by <code>@absolutejs/media</code>.</p></section><table><thead><tr><th>Carrier</th><th>Status</th><th>Audio bytes</th><th>Frame kind</th><th>Encoding</th><th>Issues</th></tr></thead><tbody>${rows}</tbody></table></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#e5e7eb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,table{background:#0f172a;border:1px solid #334155;border-radius:20px;margin-bottom:16px}.hero{padding:22px}.eyebrow{color:#67e8f9;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.5rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{color:#86efac}.fail{color:#fecaca}code{color:#bfdbfe}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Carrier media serializer proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><p>Twilio, Telnyx, and Plivo media payload envelopes are parsed into generic <code>MediaFrame</code> objects, serialized back into carrier envelopes, and checked for start/media/stop lifecycle sequencing by <code>@absolutejs/media</code>.</p></section><table><thead><tr><th>Carrier</th><th>Status</th><th>Audio bytes</th><th>Media events</th><th>Started</th><th>Stopped</th><th>Frame kind</th><th>Encoding</th><th>Issues</th></tr></thead><tbody>${rows}</tbody></table></main></body></html>`;
 };
 
 export const createVoiceTelephonyMediaRoutes = (

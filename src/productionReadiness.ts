@@ -373,6 +373,8 @@ export type VoiceProductionReadinessReport = {
 			carriers: number;
 			failed: number;
 			issues: number;
+			lifecycleFailures: number;
+			mediaEvents: number;
 			passed: number;
 			status: VoiceProductionReadinessStatus;
 		};
@@ -2377,6 +2379,13 @@ export const buildVoiceProductionReadinessReport = async (
 					(carrier) => carrier.status !== 'pass'
 				).length,
 				issues: telephonyMedia.issues.length,
+				lifecycleFailures: telephonyMedia.carriers.filter(
+					(carrier) => carrier.lifecycle.status !== 'pass'
+				).length,
+				mediaEvents: telephonyMedia.carriers.reduce(
+					(total, carrier) => total + carrier.lifecycle.mediaEvents,
+					0
+				),
 				passed: telephonyMedia.carriers.filter(
 					(carrier) => carrier.status === 'pass'
 				).length,
@@ -2563,7 +2572,7 @@ export const buildVoiceProductionReadinessReport = async (
 		checks.push({
 			detail:
 				telephonyMediaSummary.status === 'pass'
-					? `Telephony media serializers are passing for ${telephonyMediaSummary.passed}/${telephonyMediaSummary.carriers} carrier(s) with ${telephonyMediaSummary.audioBytes} audio byte(s) parsed into MediaFrame objects.`
+					? `Telephony media serializers are passing for ${telephonyMediaSummary.passed}/${telephonyMediaSummary.carriers} carrier(s) with ${telephonyMediaSummary.audioBytes} audio byte(s), ${telephonyMediaSummary.mediaEvents} media event(s), and valid start/media/stop lifecycle sequencing.`
 					: firstIssue ??
 						`${telephonyMediaSummary.issues} telephony media serializer issue(s) need review.`,
 			href: options.links?.telephonyMedia ?? '/voice/telephony-media',
@@ -2577,8 +2586,8 @@ export const buildVoiceProductionReadinessReport = async (
 								options.links?.telephonyMedia ?? '/voice/telephony-media',
 							observed: firstIssue ?? `${telephonyMediaSummary.issues} issue(s)`,
 							remediation:
-								'Inspect carrier media serializer proof, fix payload parsing or outbound envelope serialization, then rerun readiness proof.',
-							thresholdLabel: 'Telephony media serializer status',
+								'Inspect carrier media proof, fix start/media/stop sequencing, payload parsing, byte flow, or outbound envelope serialization, then rerun readiness proof.',
+							thresholdLabel: 'Telephony media serializer and lifecycle status',
 							unit: 'status'
 						},
 			status: telephonyMediaSummary.status,
@@ -2592,7 +2601,7 @@ export const buildVoiceProductionReadinessReport = async (
 					: [
 							{
 								description:
-									'Open telephony media proof and inspect carrier media payload parsing, MediaFrame shape, and outbound envelope serialization.',
+									'Open telephony media proof and inspect carrier media lifecycle sequencing, payload parsing, MediaFrame shape, byte flow, and outbound envelope serialization.',
 								href:
 									options.links?.telephonyMedia ?? '/voice/telephony-media',
 								label: 'Open telephony media proof'

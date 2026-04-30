@@ -280,6 +280,17 @@ test('buildVoiceProductionReadinessReport gates telephony media serializers', as
 					audioBytes: 0,
 					carrier: 'twilio',
 					issues: ['Carrier media envelope did not produce a MediaFrame.'],
+					lifecycle: {
+						audioBytes: 0,
+						checkedAt: Date.now(),
+						events: [],
+						issues: [],
+						mediaEvents: 0,
+						started: false,
+						status: 'pass',
+						stopped: false,
+						streamIds: []
+					},
 					status: 'fail'
 				}
 			],
@@ -295,6 +306,8 @@ test('buildVoiceProductionReadinessReport gates telephony media serializers', as
 		carriers: 1,
 		failed: 1,
 		issues: 1,
+		lifecycleFailures: 0,
+		mediaEvents: 0,
 		passed: 0,
 		status: 'fail'
 	});

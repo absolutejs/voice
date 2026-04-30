@@ -20,6 +20,11 @@ describe('telephony media routes', () => {
 		expect(report.carriers.every((carrier) => carrier.frame?.source === 'telephony')).toBe(
 			true
 		);
+		expect(report.carriers.every((carrier) => carrier.lifecycle.status === 'pass')).toBe(
+			true
+		);
+		expect(report.carriers.every((carrier) => carrier.lifecycle.started)).toBe(true);
+		expect(report.carriers.every((carrier) => carrier.lifecycle.stopped)).toBe(true);
 	});
 
 	test('fails malformed carrier media packets', () => {
@@ -38,6 +43,38 @@ describe('telephony media routes', () => {
 		expect(report.status).toBe('fail');
 		expect(report.issues).toContain(
 			'twilio: Carrier media envelope did not produce a MediaFrame.'
+		);
+	});
+
+	test('fails broken carrier stream lifecycle', () => {
+		const report = buildVoiceTelephonyMediaReport({
+			carriers: [
+				{
+					carrier: 'twilio',
+					lifecycleEnvelopes: [
+						{
+							event: 'media',
+							media: {
+								payload: Buffer.from(new Uint8Array([1, 2, 3, 4])).toString(
+									'base64'
+								),
+								timestamp: 1000,
+								track: 'inbound'
+							},
+							streamSid: 'twilio-stream-1'
+						}
+					]
+				}
+			]
+		});
+
+		expect(report.status).toBe('fail');
+		expect(report.carriers[0]?.lifecycle.status).toBe('fail');
+		expect(report.issues).toEqual(
+			expect.arrayContaining([
+				'twilio: Telephony media stream did not include a start event.',
+				'twilio: Telephony media stream did not include a stop event.'
+			])
 		);
 	});
 
