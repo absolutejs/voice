@@ -4913,6 +4913,13 @@ Shared stream options:
 
 ```ts
 const browserMedia = {
+	continuity: {
+		maxGapMs: 7000,
+		maxInboundPacketStallMs: 7000,
+		maxOutboundPacketStallMs: 7000,
+		requireInboundAudio: true,
+		requireOutboundAudio: true
+	},
 	getPeerConnection: () => peerConnection,
 	maxJitterMs: 30,
 	maxPacketLossRatio: 0.02,

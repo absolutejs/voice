@@ -2,7 +2,9 @@ import type { SessionStore } from '@absolutejs/absolute';
 import type {
 	MediaWebRTCStatsCollector,
 	MediaWebRTCStatsReport,
-	MediaWebRTCStatsReportInput
+	MediaWebRTCStatsReportInput,
+	MediaWebRTCStreamContinuityInput,
+	MediaWebRTCStreamContinuityReport
 } from '@absolutejs/media';
 import type {
 	VoiceOpsDispositionTaskPolicies,
@@ -1103,6 +1105,7 @@ export type VoiceConnectionOptions = {
 
 export type VoiceBrowserMediaReportPayload = {
 	at: number;
+	continuity?: MediaWebRTCStreamContinuityReport;
 	report: MediaWebRTCStatsReport;
 	scenarioId?: string | null;
 	sessionId?: string | null;
@@ -1119,6 +1122,7 @@ export type VoiceBrowserMediaReporterOptions = Omit<
 	getScenarioId?: () => string | null | undefined;
 	getSessionId?: () => string | null | undefined;
 	intervalMs?: number;
+	continuity?: false | Omit<MediaWebRTCStreamContinuityInput, 'previousStats' | 'stats'>;
 	onError?: (error: unknown) => void;
 	onReport?: (payload: VoiceBrowserMediaReportPayload) => void;
 	path?: string;

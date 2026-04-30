@@ -1,4 +1,9 @@
-import { collectMediaWebRTCStatsReport } from '@absolutejs/media';
+import {
+	buildMediaWebRTCStatsReport,
+	buildMediaWebRTCStreamContinuityReport,
+	collectMediaWebRTCStats
+} from '@absolutejs/media';
+import type { MediaWebRTCStatsSample } from '@absolutejs/media';
 import type {
 	VoiceBrowserMediaReporterOptions,
 	VoiceBrowserMediaReportPayload
@@ -45,6 +50,7 @@ export const createVoiceBrowserMediaReporter = (
 	options: VoiceBrowserMediaReporterOptions
 ): VoiceBrowserMediaReporter => {
 	let interval: ReturnType<typeof setInterval> | null = null;
+	let previousStats: readonly MediaWebRTCStatsSample[] = [];
 
 	const reportOnce = async () => {
 		const peerConnection = await resolvePeerConnection(options);
@@ -53,16 +59,27 @@ export const createVoiceBrowserMediaReporter = (
 			return undefined;
 		}
 
-		const report = await collectMediaWebRTCStatsReport({
+		const stats = await collectMediaWebRTCStats({ peerConnection });
+		const report = buildMediaWebRTCStatsReport({
 			...options,
-			peerConnection
+			stats
 		});
+		const continuity =
+			options.continuity === false
+				? undefined
+				: buildMediaWebRTCStreamContinuityReport({
+						...options.continuity,
+						previousStats,
+						stats
+					});
 		const payload: VoiceBrowserMediaReportPayload = {
 			at: Date.now(),
+			continuity,
 			report,
 			scenarioId: options.getScenarioId?.() ?? null,
 			sessionId: options.getSessionId?.() ?? null
 		};
+		previousStats = stats;
 
 		options.onReport?.(payload);
 		await postBrowserMediaReport(payload, options);
