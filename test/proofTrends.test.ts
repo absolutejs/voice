@@ -8,6 +8,7 @@ import {
 	buildVoiceProofTrendRecommendationReport,
 	buildVoiceProofTrendReportFromRealCallProfiles,
 	buildVoiceProofTrendReport,
+	buildVoiceRealCallProfileDefaults,
 	buildVoiceRealCallProfileHistoryReport,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
@@ -1106,6 +1107,105 @@ describe('proof trends', () => {
 			status: 'pass'
 		});
 		expect(history.recommendations.profiles[0]?.label).toBe('Meeting recorder');
+		expect(history.defaults.profiles[0]).toMatchObject({
+			profileId: 'meeting-recorder',
+			providerRoutes: {
+				llm: 'llm:openai'
+			},
+			status: 'warn'
+		});
+		expect(history.defaults.profiles[0]?.latencyBudgets).toMatchObject({
+			maxLiveP95Ms: 662,
+			maxProviderP95Ms: 866,
+			maxTurnP95Ms: 830
+		});
+	});
+
+	test('buildVoiceRealCallProfileDefaults emits complete profile routing defaults from real-call history', () => {
+		const report = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:00:30.000Z',
+			ok: true,
+			source: '.voice-runtime/real-call-profiles/latest.json',
+			summary: {
+				cycles: 3,
+				profiles: [
+					{
+						id: 'support-agent',
+						label: 'Support agent',
+						maxLiveP95Ms: 420,
+						maxProviderP95Ms: 610,
+						maxTurnP95Ms: 640,
+						providers: [
+							{
+								id: 'llm:openai',
+								label: 'LLM openai',
+								p95Ms: 610,
+								role: 'llm',
+								samples: 3,
+								status: 'pass'
+							},
+							{
+								id: 'stt:deepgram',
+								label: 'STT deepgram',
+								p95Ms: 110,
+								role: 'stt',
+								samples: 3,
+								status: 'pass'
+							},
+							{
+								id: 'tts:elevenlabs',
+								label: 'TTS elevenlabs',
+								p95Ms: 240,
+								role: 'tts',
+								samples: 3,
+								status: 'pass'
+							}
+						],
+						runtimeChannel: {
+							maxBackpressureEvents: 0,
+							maxFirstAudioLatencyMs: 330,
+							maxInterruptionP95Ms: 140,
+							maxJitterMs: 8,
+							maxTimestampDriftMs: 430,
+							samples: 3,
+							status: 'pass'
+						},
+						status: 'pass'
+					}
+				]
+			}
+		});
+
+		const defaults = buildVoiceRealCallProfileDefaults(report, {
+			latencyBudgetHeadroomMs: 25,
+			latencyBudgetHeadroomRatio: 1.1
+		});
+
+		expect(defaults.ok).toBe(true);
+		expect(defaults.status).toBe('pass');
+		expect(defaults.summary.actionableProfiles).toBe(1);
+		expect(defaults.profiles[0]).toMatchObject({
+			latencyBudgets: {
+				maxLiveP95Ms: 488,
+				maxProviderP95Ms: 696,
+				maxTurnP95Ms: 729
+			},
+			profileId: 'support-agent',
+			providerRoutes: {
+				llm: 'llm:openai',
+				stt: 'stt:deepgram',
+				tts: 'tts:elevenlabs'
+			},
+			status: 'pass'
+		});
+		expect(defaults.profiles[0]?.runtimeChannel).toMatchObject({
+			maxFirstAudioLatencyMs: 389,
+			maxInterruptionP95Ms: 179,
+			maxJitterMs: 34,
+			maxTimestampDriftMs: 499
+		});
 	});
 
 	test('createVoiceRealCallProfileHistoryRoutes exposes JSON, HTML, and Markdown history', async () => {
@@ -1164,9 +1264,16 @@ describe('proof trends', () => {
 		expect(jsonResponse.status).toBe(200);
 		expect(json.ok).toBe(true);
 		expect(json.summary.profileCount).toBeGreaterThanOrEqual(1);
+		expect(
+			json.defaults.profiles.some(
+				(profile: { profileId?: string }) => profile.profileId === 'support-agent'
+			)
+		).toBe(true);
 		expect(html).toContain('Real-call benchmark history');
+		expect(html).toContain('Actionable Defaults');
 		expect(html).toContain('Support agent');
 		expect(markdown).toContain('Voice Real-Call Profile History');
+		expect(markdown).toContain('Actionable Defaults');
 		expect(markdown).toContain('Support agent');
 	});
 });

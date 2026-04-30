@@ -271,6 +271,7 @@ export {
 	buildVoiceProofTrendRecommendationReport,
 	buildVoiceProofTrendReportFromRealCallProfiles,
 	buildVoiceProofTrendReport,
+	buildVoiceRealCallProfileDefaults,
 	buildVoiceRealCallProfileHistoryReport,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
@@ -328,6 +329,9 @@ export type {
 	VoiceProofTrendRuntimeChannelSummary,
 	VoiceProofTrendStatus,
 	VoiceProofTrendSummary,
+	VoiceRealCallProfileDefault,
+	VoiceRealCallProfileDefaultsOptions,
+	VoiceRealCallProfileDefaultsReport,
 	VoiceRealCallProfileHistoryOptions,
 	VoiceRealCallProfileHistoryReport,
 	VoiceRealCallProfileHistoryRoutesOptions
