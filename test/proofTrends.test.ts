@@ -14,7 +14,8 @@ import {
 	createVoiceProofTrendRoutes,
 	createVoiceRealCallProfileHistoryRoutes,
 	evaluateVoiceProofTrendEvidence,
-	formatVoiceProofTrendAge
+	formatVoiceProofTrendAge,
+	resolveVoiceRealCallProfileProviderRoute
 } from '../src/proofTrends';
 import type { VoiceProofTrendProviderSummary } from '../src/proofTrends';
 
@@ -1206,6 +1207,63 @@ describe('proof trends', () => {
 			maxJitterMs: 34,
 			maxTimestampDriftMs: 499
 		});
+	});
+
+	test('resolveVoiceRealCallProfileProviderRoute maps measured routes to available providers', () => {
+		const defaults = buildVoiceRealCallProfileDefaults(
+			buildVoiceProofTrendReport({
+				generatedAt: '2026-04-29T12:00:00.000Z',
+				maxAgeMs: 60_000,
+				now: '2026-04-29T12:00:30.000Z',
+				ok: true,
+				summary: {
+					profiles: [
+						{
+							id: 'support-agent',
+							label: 'Support agent',
+							providers: [
+								{
+									id: 'llm:deterministic+openai',
+									p95Ms: 610,
+									role: 'llm',
+									samples: 3,
+									status: 'pass'
+								},
+								{
+									id: 'stt:deepgram',
+									p95Ms: 110,
+									role: 'stt',
+									samples: 3,
+									status: 'pass'
+								}
+							],
+							status: 'pass'
+						}
+					]
+				}
+			}),
+			{ requiredProviderRoles: ['llm', 'stt'] }
+		);
+
+		expect(
+			resolveVoiceRealCallProfileProviderRoute({
+				availableProviders: ['openai', 'anthropic'],
+				defaults,
+				profileId: 'support-agent',
+				providerAliases: {
+					'llm:deterministic+openai': 'openai'
+				},
+				role: 'llm'
+			})
+		).toBe('openai');
+		expect(
+			resolveVoiceRealCallProfileProviderRoute({
+				availableProviders: ['deepgram', 'assemblyai'],
+				defaults,
+				profileId: 'support-agent',
+				role: 'stt'
+			})
+		).toBe('deepgram');
 	});
 
 	test('createVoiceRealCallProfileHistoryRoutes exposes JSON, HTML, and Markdown history', async () => {

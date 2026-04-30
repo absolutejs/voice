@@ -375,6 +375,17 @@ export type VoiceRealCallProfileDefaultsOptions =
 		requiredProviderRoles?: readonly string[];
 	};
 
+export type VoiceRealCallProfileProviderRouteOptions<
+	TProvider extends string = string
+> = {
+	availableProviders?: readonly TProvider[];
+	defaults: VoiceRealCallProfileDefaultsReport | VoiceRealCallProfileHistoryReport;
+	fallbackProvider?: TProvider;
+	profileId?: string;
+	providerAliases?: Partial<Record<string, TProvider | readonly TProvider[]>>;
+	role: string;
+};
+
 export type VoiceRealCallProfileHistoryRoutesOptions =
 	Omit<VoiceRealCallProfileHistoryOptions, 'source'> & {
 		headers?: HeadersInit;
@@ -1225,6 +1236,76 @@ export const buildVoiceRealCallProfileDefaults = (
 			requiredProviderRoles
 		}
 	};
+};
+
+const normalizeProviderRouteCandidate = (provider: string, role: string) => {
+	const rolePrefix = `${role}:`;
+	return provider.startsWith(rolePrefix) ? provider.slice(rolePrefix.length) : provider;
+};
+
+const expandProviderRouteCandidates = (
+	provider: string | undefined,
+	role: string,
+	aliases: Partial<Record<string, string | readonly string[]>> = {}
+) => {
+	if (!provider) {
+		return [];
+	}
+	const explicitAlias = aliases[provider];
+	const normalized = normalizeProviderRouteCandidate(provider, role);
+	const normalizedAlias = aliases[normalized];
+	const aliasCandidates = [
+		...(Array.isArray(explicitAlias)
+			? explicitAlias
+			: explicitAlias
+				? [explicitAlias]
+				: []),
+		...(Array.isArray(normalizedAlias)
+			? normalizedAlias
+			: normalizedAlias
+				? [normalizedAlias]
+				: [])
+	];
+	return [
+		...aliasCandidates,
+		provider,
+		normalized,
+		...normalized.split('+').filter(Boolean)
+	];
+};
+
+const readRealCallProfileDefaultsReport = (
+	input: VoiceRealCallProfileDefaultsReport | VoiceRealCallProfileHistoryReport
+) => ('defaults' in input ? input.defaults : input);
+
+export const resolveVoiceRealCallProfileProviderRoute = <
+	TProvider extends string = string
+>(
+	options: VoiceRealCallProfileProviderRouteOptions<TProvider>
+): TProvider | undefined => {
+	const defaults = readRealCallProfileDefaultsReport(options.defaults);
+	const profile =
+		defaults.profiles.find((item) => item.profileId === options.profileId) ??
+		defaults.profiles.find((item) => item.status === 'pass') ??
+		defaults.profiles[0];
+	const provider = profile?.providerRoutes[options.role];
+	const available = new Set(options.availableProviders ?? []);
+	const candidates = expandProviderRouteCandidates(
+		provider,
+		options.role,
+		options.providerAliases
+	);
+
+	for (const candidate of candidates) {
+		if (
+			(options.availableProviders === undefined || available.has(candidate as TProvider)) &&
+			candidate
+		) {
+			return candidate as TProvider;
+		}
+	}
+
+	return options.fallbackProvider;
 };
 
 export const buildVoiceRealCallProfileHistoryReport = (

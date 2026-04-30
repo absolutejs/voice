@@ -285,7 +285,8 @@ export {
 	renderVoiceProofTrendRecommendationHTML,
 	renderVoiceProofTrendRecommendationMarkdown,
 	renderVoiceRealCallProfileHistoryHTML,
-	renderVoiceRealCallProfileHistoryMarkdown
+	renderVoiceRealCallProfileHistoryMarkdown,
+	resolveVoiceRealCallProfileProviderRoute
 } from './proofTrends';
 export {
 	buildVoiceProviderDecisionTraceReport,
@@ -334,7 +335,8 @@ export type {
 	VoiceRealCallProfileDefaultsReport,
 	VoiceRealCallProfileHistoryOptions,
 	VoiceRealCallProfileHistoryReport,
-	VoiceRealCallProfileHistoryRoutesOptions
+	VoiceRealCallProfileHistoryRoutesOptions,
+	VoiceRealCallProfileProviderRouteOptions
 } from './proofTrends';
 export {
 	assertVoiceSloCalibration,
