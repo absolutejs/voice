@@ -4882,3 +4882,125 @@ Browser and framework helpers sit on top of the same connection core:
 - `VoiceStreamService` in `@absolutejs/voice/angular`
 
 For plain HTML or HTMX flows, use `@absolutejs/voice/client` directly.
+
+### Browser Media Proof
+
+If your app owns a browser `RTCPeerConnection`, pass it through `browserMedia` so AbsoluteJS can persist real `RTCPeerConnection.getStats()` evidence and feed production readiness. The default WebSocket microphone flow does not require this; this is for WebRTC voice surfaces where browser transport quality matters.
+
+Server route setup:
+
+```ts
+import {
+	createVoiceBrowserMediaRoutes,
+	createVoiceProductionReadinessRoutes,
+	getLatestVoiceBrowserMediaReport
+} from '@absolutejs/voice';
+
+app
+	.use(createVoiceBrowserMediaRoutes({ store: runtime.traces }))
+	.use(
+		createVoiceProductionReadinessRoutes({
+			browserMedia: () =>
+				getLatestVoiceBrowserMediaReport({ store: runtime.traces }),
+			links: {
+				browserMedia: '/voice/browser-media'
+			}
+		})
+	);
+```
+
+Shared stream options:
+
+```ts
+const browserMedia = {
+	getPeerConnection: () => peerConnection,
+	maxJitterMs: 30,
+	maxPacketLossRatio: 0.02,
+	maxRoundTripTimeMs: 250,
+	requireConnectedCandidatePair: true,
+	requireLiveAudioTrack: true
+};
+```
+
+React:
+
+```tsx
+import { useRef } from 'react';
+import { useVoiceStream } from '@absolutejs/voice/react';
+
+export function WebRTCVoice() {
+	const peerConnection = useRef<RTCPeerConnection | null>(null);
+	const voice = useVoiceStream('/voice/support', {
+		browserMedia: {
+			...browserMedia,
+			getPeerConnection: () => peerConnection.current
+		}
+	});
+
+	return <button onClick={() => voice.close()}>End call</button>;
+}
+```
+
+Vue:
+
+```ts
+import { shallowRef } from 'vue';
+import { useVoiceStream } from '@absolutejs/voice/vue';
+
+const peerConnection = shallowRef<RTCPeerConnection | null>(null);
+const voice = useVoiceStream('/voice/support', {
+	browserMedia: {
+		...browserMedia,
+		getPeerConnection: () => peerConnection.value
+	}
+});
+```
+
+Svelte:
+
+```ts
+import { createVoiceStream } from '@absolutejs/voice/svelte';
+
+let peerConnection: RTCPeerConnection | null = null;
+const voice = createVoiceStream('/voice/support', {
+	browserMedia: {
+		...browserMedia,
+		getPeerConnection: () => peerConnection
+	}
+});
+```
+
+Angular:
+
+```ts
+import { Component, inject } from '@angular/core';
+import { VoiceStreamService } from '@absolutejs/voice/angular';
+
+@Component({
+	selector: 'app-webrtc-voice',
+	template: `<button type="button" (click)="stream.close()">End call</button>`
+})
+export class WebRTCVoiceComponent {
+	private readonly voice = inject(VoiceStreamService);
+	private peerConnection: RTCPeerConnection | null = null;
+
+	readonly stream = this.voice.connect('/voice/support', {
+		browserMedia: {
+			...browserMedia,
+			getPeerConnection: () => this.peerConnection
+		}
+	});
+}
+```
+
+HTMX/plain browser:
+
+```ts
+import { createVoiceController } from '@absolutejs/voice/client';
+
+const voice = createVoiceController('/voice/support', {
+	browserMedia
+});
+
+voice.bindHTMX({ element: '#voice-htmx-sync' });
+```
