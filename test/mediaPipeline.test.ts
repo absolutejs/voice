@@ -1,15 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import {
-	buildVoiceMediaInterruptionReport,
-	buildVoiceMediaPipelineCalibrationReport,
+	buildMediaInterruptionReport,
+	buildMediaPipelineCalibrationReport,
+	buildMediaProcessorGraphReport,
+	buildMediaResamplingPlan,
+	buildMediaVadReport,
+	createMediaProcessorGraph,
+	createMediaTransport,
+	createMediaFrame,
+	createMediaFrameTransformPipeline,
+	type MediaFrame
+} from '@absolutejs/media';
+import {
 	buildVoiceMediaPipelineReport,
-	buildVoiceMediaProcessorGraphReport,
-	buildVoiceMediaResamplingPlan,
-	buildVoiceMediaVadReport,
-	createVoiceMediaProcessorGraph,
-	createVoiceMediaTransport,
-	createVoiceMediaFrame,
-	createVoiceMediaFrameTransformPipeline,
 	createVoiceMediaPipelineRoutes,
 	evaluateVoiceMediaPipelineEvidence,
 	renderVoiceMediaPipelineMarkdown
@@ -29,18 +32,18 @@ const browser48k = {
 
 describe('media pipeline calibration', () => {
 	test('passes calibrated media frames with trace evidence', () => {
-		const report = buildVoiceMediaPipelineCalibrationReport({
+		const report = buildMediaPipelineCalibrationReport({
 			expectedInputFormat: raw24k,
 			expectedOutputFormat: raw24k,
 			frames: [
-				createVoiceMediaFrame({
+				createMediaFrame({
 					format: raw24k,
 					id: 'input-1',
 					kind: 'input-audio',
 					source: 'browser',
 					traceEventId: 'trace-input-1'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					format: raw24k,
 					id: 'assistant-1',
 					kind: 'assistant-audio',
@@ -49,13 +52,13 @@ describe('media pipeline calibration', () => {
 					source: 'provider',
 					traceEventId: 'trace-output-1'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					id: 'interrupt-1',
 					kind: 'interruption',
 					source: 'voice-runtime',
 					traceEventId: 'trace-interrupt-1'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					id: 'turn-1',
 					kind: 'turn-commit',
 					source: 'voice-runtime',
@@ -80,10 +83,10 @@ describe('media pipeline calibration', () => {
 	});
 
 	test('fails when media format needs unhandled resampling', () => {
-		const report = buildVoiceMediaPipelineCalibrationReport({
+		const report = buildMediaPipelineCalibrationReport({
 			expectedInputFormat: raw24k,
 			frames: [
-				createVoiceMediaFrame({
+				createMediaFrame({
 					format: browser48k,
 					id: 'input-1',
 					kind: 'input-audio',
@@ -106,7 +109,7 @@ describe('media pipeline calibration', () => {
 	});
 
 	test('plans media resampling without hiding format mismatches', () => {
-		const plan = buildVoiceMediaResamplingPlan({
+		const plan = buildMediaResamplingPlan({
 			inputFormat: browser48k,
 			outputFormat: raw24k
 		});
@@ -117,7 +120,7 @@ describe('media pipeline calibration', () => {
 	});
 
 	test('runs frame transform pipelines in order', async () => {
-		const pipeline = createVoiceMediaFrameTransformPipeline({
+		const pipeline = createMediaFrameTransformPipeline({
 			transforms: [
 				{
 					name: 'tag-input',
@@ -135,13 +138,13 @@ describe('media pipeline calibration', () => {
 		});
 
 		const output = await pipeline.pushMany([
-			createVoiceMediaFrame({
+			createMediaFrame({
 				format: raw24k,
 				id: 'input-1',
 				kind: 'input-audio',
 				source: 'browser'
 			}),
-			createVoiceMediaFrame({
+			createMediaFrame({
 				id: 'metadata-1',
 				kind: 'metadata',
 				source: 'voice-runtime'
@@ -155,7 +158,7 @@ describe('media pipeline calibration', () => {
 	test('tracks media transport lifecycle, frame flow, and backpressure', async () => {
 		const sent: string[] = [];
 		const received: string[] = [];
-		const transport = createVoiceMediaTransport({
+		const transport = createMediaTransport({
 			inputFormat: raw24k,
 			maxBufferedFrames: 1,
 			name: 'browser-websocket',
@@ -166,7 +169,7 @@ describe('media pipeline calibration', () => {
 		transport.onFrame((frame) => received.push(frame.id));
 		await transport.connect?.();
 		await transport.receive(
-			createVoiceMediaFrame({
+			createMediaFrame({
 				format: raw24k,
 				id: 'input-1',
 				kind: 'input-audio',
@@ -174,7 +177,7 @@ describe('media pipeline calibration', () => {
 			})
 		);
 		await transport.receive(
-			createVoiceMediaFrame({
+			createMediaFrame({
 				format: raw24k,
 				id: 'input-2',
 				kind: 'input-audio',
@@ -182,7 +185,7 @@ describe('media pipeline calibration', () => {
 			})
 		);
 		await transport.send(
-			createVoiceMediaFrame({
+			createMediaFrame({
 				format: raw24k,
 				id: 'assistant-1',
 				kind: 'assistant-audio',
@@ -201,7 +204,7 @@ describe('media pipeline calibration', () => {
 	});
 
 	test('runs ordered media processor graphs with filters and branches', async () => {
-		const graph = createVoiceMediaProcessorGraph({
+		const graph = createMediaProcessorGraph({
 			name: 'browser-media-graph',
 			nodes: [
 				{
@@ -218,7 +221,7 @@ describe('media pipeline calibration', () => {
 						frame.kind === 'input-audio'
 							? [
 									frame,
-									createVoiceMediaFrame({
+									createMediaFrame({
 										...frame,
 										id: `${frame.id}:transcript`,
 										kind: 'transcript',
@@ -237,14 +240,14 @@ describe('media pipeline calibration', () => {
 			]
 		});
 		const output = await graph.processMany([
-			createVoiceMediaFrame({
+			createMediaFrame({
 				format: raw24k,
 				id: 'speech-1',
 				kind: 'input-audio',
 				metadata: { speechProbability: 0.92 },
 				source: 'browser'
 			}),
-			createVoiceMediaFrame({
+			createMediaFrame({
 				format: raw24k,
 				id: 'silence-1',
 				kind: 'input-audio',
@@ -253,7 +256,7 @@ describe('media pipeline calibration', () => {
 			})
 		]);
 		const report = graph.report();
-		const rebuilt = buildVoiceMediaProcessorGraphReport({
+		const rebuilt = buildMediaProcessorGraphReport({
 			events: report.events,
 			name: report.name,
 			nodes: graph.nodes
@@ -277,9 +280,9 @@ describe('media pipeline calibration', () => {
 	});
 
 	test('derives VAD speech segments from input frames', () => {
-		const report = buildVoiceMediaVadReport({
+		const report = buildMediaVadReport({
 			frames: [
-				createVoiceMediaFrame({
+				createMediaFrame({
 					at: 0,
 					durationMs: 20,
 					format: raw24k,
@@ -288,7 +291,7 @@ describe('media pipeline calibration', () => {
 					metadata: { speechProbability: 0.1 },
 					source: 'browser'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					at: 20,
 					durationMs: 20,
 					format: raw24k,
@@ -298,7 +301,7 @@ describe('media pipeline calibration', () => {
 					source: 'browser',
 					turnId: 'turn-1'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					at: 40,
 					durationMs: 20,
 					format: raw24k,
@@ -308,7 +311,7 @@ describe('media pipeline calibration', () => {
 					source: 'browser',
 					turnId: 'turn-1'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					at: 60,
 					durationMs: 20,
 					format: raw24k,
@@ -335,9 +338,9 @@ describe('media pipeline calibration', () => {
 	});
 
 	test('reports interruption latency failures', () => {
-		const report = buildVoiceMediaInterruptionReport({
+		const report = buildMediaInterruptionReport({
 			frames: [
-				createVoiceMediaFrame({
+				createMediaFrame({
 					id: 'interrupt-1',
 					kind: 'interruption',
 					latencyMs: 340,
@@ -361,7 +364,7 @@ describe('media pipeline calibration', () => {
 			expectedInputFormat: raw24k,
 			expectedOutputFormat: raw24k,
 			frames: [
-				createVoiceMediaFrame({
+				createMediaFrame({
 					at: 0,
 					durationMs: 20,
 					format: raw24k,
@@ -371,7 +374,7 @@ describe('media pipeline calibration', () => {
 					source: 'browser',
 					traceEventId: 'trace-input'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					format: raw24k,
 					id: 'assistant-1',
 					kind: 'assistant-audio',
@@ -379,7 +382,7 @@ describe('media pipeline calibration', () => {
 					source: 'provider',
 					traceEventId: 'trace-assistant'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					id: 'interrupt-1',
 					kind: 'interruption',
 					latencyMs: 110,
@@ -463,7 +466,7 @@ describe('media pipeline calibration', () => {
 			expectedInputFormat: raw24k,
 			expectedOutputFormat: raw24k,
 			frames: [
-				createVoiceMediaFrame({
+				createMediaFrame({
 					format: raw24k,
 					id: 'input-1',
 					kind: 'input-audio',
@@ -471,7 +474,7 @@ describe('media pipeline calibration', () => {
 					source: 'browser',
 					traceEventId: 'trace-input'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					format: raw24k,
 					id: 'assistant-1',
 					kind: 'assistant-audio',
@@ -479,7 +482,7 @@ describe('media pipeline calibration', () => {
 					source: 'provider',
 					traceEventId: 'trace-assistant'
 				}),
-				createVoiceMediaFrame({
+				createMediaFrame({
 					id: 'interrupt-1',
 					kind: 'interruption',
 					latencyMs: 110,

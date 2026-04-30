@@ -144,48 +144,6 @@ export {
 	resolveVoiceDiagnosticsTraceFilter
 } from './diagnosticsRoutes';
 export {
-	buildVoiceMediaTransportReport,
-	buildVoiceMediaInterruptionReport,
-	buildVoiceMediaPipelineCalibrationReport,
-	buildVoiceMediaResamplingPlan,
-	buildVoiceMediaProcessorGraphReport,
-	buildVoiceMediaVadReport,
-	createVoiceMediaFrame,
-	createVoiceMediaFrameTransformPipeline,
-	createVoiceMediaProcessorGraph,
-	createVoiceMediaTransport
-} from './mediaPipeline';
-export type {
-	VoiceMediaFrame,
-	VoiceMediaFrameKind,
-	VoiceMediaFrameSource,
-	VoiceMediaFrameTransform,
-	VoiceMediaFrameTransformPipeline,
-	VoiceMediaInterruptionInput,
-	VoiceMediaInterruptionReport,
-	VoiceMediaPipelineCalibrationInput,
-	VoiceMediaPipelineCalibrationIssue,
-	VoiceMediaPipelineCalibrationReport,
-	VoiceMediaPipelineStatus,
-	VoiceMediaProcessorGraph,
-	VoiceMediaProcessorGraphReport,
-	VoiceMediaProcessorNode,
-	VoiceMediaProcessorNodeEvent,
-	VoiceMediaProcessorNodeKind,
-	VoiceMediaProcessorNodeReport,
-	VoiceMediaResamplingPlan,
-	VoiceMediaTransport,
-	VoiceMediaTransportAdapter,
-	VoiceMediaTransportEvent,
-	VoiceMediaTransportEventKind,
-	VoiceMediaTransportOptions,
-	VoiceMediaTransportReport,
-	VoiceMediaTransportState,
-	VoiceMediaVadInput,
-	VoiceMediaVadReport,
-	VoiceMediaVadSegment
-} from './mediaPipeline';
-export {
 	assertVoiceMediaPipelineEvidence,
 	buildVoiceMediaPipelineReport,
 	createVoiceMediaPipelineRoutes,

@@ -218,7 +218,7 @@ The biggest gaps versus Vapi/Retell/Bland are not raw code count. They are produ
 
 Current verified proof: `bun run proof:pack:server` passed on April 30, 2026.
 
-Output: `.voice-runtime/proof-pack/2026-04-30T07-39-24.359Z`.
+Output: `.voice-runtime/proof-pack/2026-04-30T07-54-06.747Z`.
 
 Verified:
 
@@ -226,7 +226,7 @@ Verified:
 - Production readiness evidence assertion passes.
 - Production readiness gate explanation assertion passes, including structured observed value, threshold, unit, remediation, and source link data for non-pass checks.
 - Simulation suite, live ops evidence, data-control evidence, observability export/replay, post-call analysis, guardrails, and provider SLO assertions pass.
-- Native media pipeline proof passes with connected transport and processor-graph evidence: 5 frames, 3 processor nodes, 5 processor output frames, 1 processor-dropped frame, 1 input transport frame, 1 output transport frame, 0 backpressure events, 420ms first audio, 12ms jitter, 1 VAD segment, and 1 interruption frame.
+- Native media pipeline proof passes through `@absolutejs/media` primitives with connected transport and processor-graph evidence: 5 frames, 3 processor nodes, 5 processor output frames, 1 processor-dropped frame, 1 input transport frame, 1 output transport frame, 0 backpressure events, 420ms first audio, 12ms jitter, 1 VAD segment, and 1 interruption frame.
 - Proof artifacts include production readiness, framework readiness gate explanations, provider SLOs, proof trends, simulation suite, operations record, post-call analysis, guardrails, media pipeline, and switching-from-Vapi.
 - Proof runs use isolated `VOICE_DEMO_RUNTIME_DIR` runtime directories so stale local demo sessions do not pollute release proof.
 
@@ -694,12 +694,12 @@ Acceptance criteria:
 
 Goal: own the Pipecat-style media pipeline needs that matter for AbsoluteJS apps without turning core into a hosted telco platform or no-code builder.
 
-Current status: started in core. `@absolutejs/voice` now has `VoiceMediaFrame`, frame transform pipelines, ordered processor graphs, branch/filter/processor nodes, processor graph reports, resampling plans, calibration reports, VAD reports, interruption reports, media pipeline proof routes, and transport lifecycle reports. This is enough to prove app-level media flow in an AbsoluteJS app; it is not yet Pipecat-depth because direct WebRTC helpers, telephony serializers, media-quality stats, richer graph lifecycle controls, and broader service integration are still roadmap work.
+Current status: split cleanly. `@absolutejs/media` now owns generic media frames, frame transform pipelines, ordered processor graphs, branch/filter/processor nodes, processor graph reports, resampling plans, calibration reports, VAD reports, interruption reports, and transport lifecycle reports. `@absolutejs/voice` depends on media for primitives and keeps voice-specific pipeline proof routes, readiness assertions, provider/realtime integration, operations records, and proof-pack wiring. This is enough to prove app-level media flow in an AbsoluteJS app; it is not yet Pipecat-depth because direct WebRTC helpers, telephony serializers, media-quality stats, richer graph lifecycle controls, and broader service integration are still roadmap work.
 
 Deliverables:
 
-- Browser and telephony audio frame model for input, assistant output, interruptions, and metadata. Status: core primitive exists.
-- Runtime calibration for capture format, sample rate, channel count, resampling requirement, first-audio latency, jitter, and backpressure. Status: core report/proof route exists.
+- Browser and telephony audio frame model for input, assistant output, interruptions, and metadata. Status: `@absolutejs/media` primitive exists.
+- Runtime calibration for capture format, sample rate, channel count, resampling requirement, first-audio latency, jitter, and backpressure. Status: `@absolutejs/media` report exists and `@absolutejs/voice` proof route uses it.
 - Frame processors for VAD/turn detection hooks, noise/level metadata, transcript alignment, interruption markers, and provider-stage timing. Status: frame transform pipeline, ordered processor graph, branch/filter nodes, VAD, and interruption reports exist; richer graph lifecycle controls are next.
 - Transport lifecycle primitives for browser WebSocket, telephony media streams, and direct realtime provider streams. Status: transport runtime/report primitive exists; concrete WebRTC/WebSocket/telephony helpers are next.
 - Branch/filter processor primitives so apps can model Pipecat-style parallel media paths without Python services.

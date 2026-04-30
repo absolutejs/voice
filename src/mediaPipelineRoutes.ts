@@ -1,43 +1,43 @@
 import { Elysia } from 'elysia';
 import {
-	buildVoiceMediaInterruptionReport,
-	buildVoiceMediaPipelineCalibrationReport,
-	buildVoiceMediaResamplingPlan,
-	buildVoiceMediaVadReport,
-	type VoiceMediaFrame,
-	type VoiceMediaInterruptionReport,
-	type VoiceMediaPipelineCalibrationInput,
-	type VoiceMediaPipelineCalibrationReport,
-	type VoiceMediaPipelineStatus,
-	type VoiceMediaProcessorGraphReport,
-	type VoiceMediaResamplingPlan,
-	type VoiceMediaTransportReport,
-	type VoiceMediaVadReport
-} from './mediaPipeline';
+	buildMediaInterruptionReport,
+	buildMediaPipelineCalibrationReport,
+	buildMediaResamplingPlan,
+	buildMediaVadReport,
+	type MediaFrame,
+	type MediaInterruptionReport,
+	type MediaPipelineCalibrationInput,
+	type MediaPipelineCalibrationReport,
+	type MediaPipelineStatus,
+	type MediaProcessorGraphReport,
+	type MediaResamplingPlan,
+	type MediaTransportReport,
+	type MediaVadReport
+} from '@absolutejs/media';
 
-export type VoiceMediaPipelineReportOptions = VoiceMediaPipelineCalibrationInput & {
-	frames?: readonly VoiceMediaFrame[];
+export type VoiceMediaPipelineReportOptions = MediaPipelineCalibrationInput & {
+	frames?: readonly MediaFrame[];
 	maxInterruptionLatencyMs?: number;
 	maxSilenceFrames?: number;
 	minSpeechFrames?: number;
-	processorGraph?: VoiceMediaProcessorGraphReport;
+	processorGraph?: MediaProcessorGraphReport;
 	speechEndThreshold?: number;
 	speechStartThreshold?: number;
-	transport?: VoiceMediaTransportReport;
+	transport?: MediaTransportReport;
 };
 
 export type VoiceMediaPipelineReport = {
-	calibration: VoiceMediaPipelineCalibrationReport;
+	calibration: MediaPipelineCalibrationReport;
 	checkedAt: number;
 	frames: number;
-	interruption: VoiceMediaInterruptionReport;
+	interruption: MediaInterruptionReport;
 	ok: boolean;
-	resampling?: VoiceMediaResamplingPlan;
-	processorGraph?: VoiceMediaProcessorGraphReport;
-	status: VoiceMediaPipelineStatus;
+	resampling?: MediaResamplingPlan;
+	processorGraph?: MediaProcessorGraphReport;
+	status: MediaPipelineStatus;
 	surface: string;
-	transport?: VoiceMediaTransportReport;
-	vad: VoiceMediaVadReport;
+	transport?: MediaTransportReport;
+	vad: MediaVadReport;
 };
 
 export type VoiceMediaPipelineAssertionInput = {
@@ -62,7 +62,7 @@ export type VoiceMediaPipelineAssertionInput = {
 export type VoiceMediaPipelineAssertionReport = {
 	issues: string[];
 	ok: boolean;
-	status: VoiceMediaPipelineStatus;
+	status: MediaPipelineStatus;
 	surface: string;
 };
 
@@ -87,15 +87,15 @@ const escapeHtml = (value: unknown) =>
 		.replaceAll('"', '&quot;')
 		.replaceAll("'", '&#39;');
 
-const statusRank: Record<VoiceMediaPipelineStatus, number> = {
+const statusRank: Record<MediaPipelineStatus, number> = {
 	pass: 0,
 	warn: 1,
 	fail: 2
 };
 
 const worstStatus = (
-	statuses: readonly VoiceMediaPipelineStatus[]
-): VoiceMediaPipelineStatus =>
+	statuses: readonly MediaPipelineStatus[]
+): MediaPipelineStatus =>
 	statuses.reduce(
 		(worst, status) => (statusRank[status] > statusRank[worst] ? status : worst),
 		'pass'
@@ -105,21 +105,21 @@ export const buildVoiceMediaPipelineReport = (
 	options: VoiceMediaPipelineReportOptions = {}
 ): VoiceMediaPipelineReport => {
 	const frames = options.frames ?? [];
-	const calibration = buildVoiceMediaPipelineCalibrationReport(options);
-	const vad = buildVoiceMediaVadReport({
+	const calibration = buildMediaPipelineCalibrationReport(options);
+	const vad = buildMediaVadReport({
 		frames,
 		maxSilenceFrames: options.maxSilenceFrames,
 		minSpeechFrames: options.minSpeechFrames,
 		speechEndThreshold: options.speechEndThreshold,
 		speechStartThreshold: options.speechStartThreshold
 	});
-	const interruption = buildVoiceMediaInterruptionReport({
+	const interruption = buildMediaInterruptionReport({
 		frames,
 		maxInterruptionLatencyMs: options.maxInterruptionLatencyMs
 	});
 	const resampling =
 		calibration.inputFormat && calibration.outputFormat
-			? buildVoiceMediaResamplingPlan({
+			? buildMediaResamplingPlan({
 					inputFormat: calibration.inputFormat,
 					outputFormat: calibration.outputFormat
 				})
