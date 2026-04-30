@@ -288,8 +288,15 @@ export {
 	renderVoiceRealCallProfileHistoryMarkdown,
 	resolveVoiceRealCallProfileProviderRoute
 } from './proofTrends';
-export { recommendVoiceProfileSwitch } from './profileSwitchRecommendation';
+export {
+	applyVoiceProfileSwitchGuard,
+	recommendVoiceProfileSwitch
+} from './profileSwitchRecommendation';
 export type {
+	VoiceProfileSwitchGuardAction,
+	VoiceProfileSwitchGuardDecision,
+	VoiceProfileSwitchGuardMode,
+	VoiceProfileSwitchGuardOptions,
 	VoiceProfileSwitchObservedSignals,
 	VoiceProfileSwitchRecommendation,
 	VoiceProfileSwitchRecommendationOptions

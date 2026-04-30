@@ -1,6 +1,7 @@
 export type VoiceAuditEventType =
 	| 'handoff'
 	| 'operator.action'
+	| 'profile.switch'
 	| 'provider.call'
 	| 'retention.policy'
 	| 'tool.call';

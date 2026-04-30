@@ -3,6 +3,12 @@ import type {
 	VoiceRealCallProfileDefaultsReport,
 	VoiceRealCallProfileHistoryReport
 } from './proofTrends';
+import {
+	createVoiceAuditEvent,
+	type StoredVoiceAuditEvent,
+	type VoiceAuditActor,
+	type VoiceAuditEventStore
+} from './audit';
 
 export type VoiceProfileSwitchObservedSignals = {
 	currentProfileId?: string;
@@ -43,6 +49,38 @@ export type VoiceProfileSwitchRecommendationOptions = {
 	observed?: VoiceProfileSwitchObservedSignals;
 };
 
+export type VoiceProfileSwitchGuardMode = 'auto' | 'recommend';
+
+export type VoiceProfileSwitchGuardAction =
+	| 'blocked'
+	| 'recommend'
+	| 'stay'
+	| 'switch';
+
+export type VoiceProfileSwitchGuardDecision = {
+	action: VoiceProfileSwitchGuardAction;
+	auditEvent?: StoredVoiceAuditEvent;
+	autoApplied: boolean;
+	confidence: number;
+	minConfidence: number;
+	mode: VoiceProfileSwitchGuardMode;
+	previousProfileId?: string;
+	reason: string;
+	recommendation: VoiceProfileSwitchRecommendation;
+	recommendedProfileId?: string;
+	selectedProfileId?: string;
+};
+
+export type VoiceProfileSwitchGuardOptions = VoiceProfileSwitchRecommendationOptions & {
+	actor?: VoiceAuditActor;
+	audit?: VoiceAuditEventStore;
+	metadata?: Record<string, unknown>;
+	minConfidence?: number;
+	mode?: VoiceProfileSwitchGuardMode;
+	sessionId?: string;
+	traceId?: string;
+};
+
 const readDefaults = (
 	input: VoiceRealCallProfileDefaultsReport | VoiceRealCallProfileHistoryReport
 ) => ('defaults' in input ? input.defaults : input);
@@ -69,6 +107,44 @@ const scoreProfile = (
 			? -1_000
 			: 0;
 	return live + provider + turn + statusPenalty + noisyBonus;
+};
+
+const clampConfidence = (value: number) =>
+	Math.max(0, Math.min(0.99, Number(value.toFixed(2))));
+
+const estimateSwitchConfidence = (
+	recommendation: VoiceProfileSwitchRecommendation
+) => {
+	if (!recommendation.ok || recommendation.status !== 'switch') {
+		return recommendation.status === 'stay' && recommendation.ok ? 0.99 : 0;
+	}
+
+	const observed = recommendation.observed;
+	const currentStatus = recommendation.currentProfile?.status;
+	const recommendedStatus = recommendation.recommendedProfile?.status;
+	let confidence = 0.58;
+
+	if (currentStatus && currentStatus !== 'pass') {
+		confidence += 0.12;
+	}
+	if (recommendedStatus === 'pass') {
+		confidence += 0.1;
+	}
+	if (observed.fallbackUsed) {
+		confidence += 0.08;
+	}
+	if ((observed.turnWarnings ?? 0) > 0) {
+		confidence += 0.08;
+	}
+	if (
+		recommendation.reasons.some((reason) =>
+			/budget|strongest measured fit/i.test(reason)
+		)
+	) {
+		confidence += 0.08;
+	}
+
+	return clampConfidence(confidence);
 };
 
 export const recommendVoiceProfileSwitch = (
@@ -179,4 +255,86 @@ export const recommendVoiceProfileSwitch = (
 			: undefined,
 		status: issues.length > 0 ? 'warn' : shouldSwitch ? 'switch' : 'stay'
 	};
+};
+
+export const applyVoiceProfileSwitchGuard = async (
+	options: VoiceProfileSwitchGuardOptions
+): Promise<VoiceProfileSwitchGuardDecision> => {
+	const mode = options.mode ?? 'recommend';
+	const minConfidence = options.minConfidence ?? 0.75;
+	const recommendation = recommendVoiceProfileSwitch(options);
+	const confidence = estimateSwitchConfidence(recommendation);
+	const previousProfileId = recommendation.currentProfile?.profileId;
+	const recommendedProfileId = recommendation.recommendedProfile?.profileId;
+	const canSwitch =
+		recommendation.status === 'switch' &&
+		recommendation.ok &&
+		Boolean(recommendedProfileId) &&
+		confidence >= minConfidence;
+	const action: VoiceProfileSwitchGuardAction =
+		recommendation.status === 'stay'
+			? 'stay'
+			: canSwitch
+				? mode === 'auto'
+					? 'switch'
+					: 'recommend'
+				: 'blocked';
+	const selectedProfileId =
+		action === 'switch' ? recommendedProfileId : previousProfileId ?? recommendedProfileId;
+	const reason =
+		action === 'switch'
+			? `Auto-switched from ${previousProfileId ?? 'unknown'} to ${recommendedProfileId}.`
+			: action === 'recommend'
+				? `Recommended ${recommendedProfileId} but left selection unchanged because mode is recommend.`
+				: action === 'blocked'
+					? `Blocked profile switch because confidence ${confidence} is below ${minConfidence} or evidence is incomplete.`
+					: 'Kept current profile because measured evidence does not require a switch.';
+	const decision: VoiceProfileSwitchGuardDecision = {
+		action,
+		autoApplied: action === 'switch',
+		confidence,
+		minConfidence,
+		mode,
+		previousProfileId,
+		reason,
+		recommendation,
+		recommendedProfileId,
+		selectedProfileId
+	};
+
+	if (options.audit) {
+		const auditEvent = await options.audit.append(
+			createVoiceAuditEvent({
+				action: `profile.switch.${action}`,
+				actor: options.actor ?? {
+					id: 'absolutejs-voice-profile-switch-guard',
+					kind: 'system',
+					name: 'AbsoluteJS Voice Profile Switch Guard'
+				},
+				metadata: options.metadata,
+				outcome: action === 'blocked' ? 'skipped' : 'success',
+				payload: {
+					autoApplied: decision.autoApplied,
+					confidence,
+					minConfidence,
+					mode,
+					previousProfileId,
+					reasons: recommendation.reasons,
+					recommendedProfileId,
+					selectedProfileId,
+					status: recommendation.status
+				},
+				resource: {
+					id: selectedProfileId,
+					type: 'voice-profile'
+				},
+				sessionId: options.sessionId,
+				traceId: options.traceId,
+				type: 'profile.switch'
+			})
+		);
+		decision.auditEvent = auditEvent;
+	}
+
+	return decision;
 };
