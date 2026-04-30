@@ -517,7 +517,6 @@ export {
 	resolveVoiceProviderRoutingPolicyPreset,
 	createVoiceProviderRouter
 } from './modelAdapters';
-export { createOpenAIRealtimeAdapter } from './openaiRealtime';
 export { createOpenAIVoiceTTS } from './openaiTTS';
 export {
 	createVoiceProviderHealthHTMLHandler,
@@ -1049,14 +1048,6 @@ export type {
 	VoiceJSONAssistantModelOptions
 } from './modelAdapters';
 export type { OpenAIVoiceTTSOptions, OpenAIVoiceTTSVoice } from './openaiTTS';
-export type {
-	OpenAIRealtimeAdapterOptions,
-	OpenAIRealtimeModel,
-	OpenAIRealtimeNoiseReduction,
-	OpenAIRealtimeResponseMode,
-	OpenAIRealtimeTranscriptionModel,
-	OpenAIRealtimeVoice
-} from './openaiRealtime';
 export type {
 	VoiceProviderHealthStatus,
 	VoiceProviderHealthSummary,
