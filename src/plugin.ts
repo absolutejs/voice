@@ -12,6 +12,7 @@ import { recordVoiceRuntimeOps } from './runtimeOps';
 import { createId } from './store';
 import { createVoiceSession } from './session';
 import { resolveTurnDetectionConfig } from './turnProfiles';
+import { applyVoiceProfileSwitchGuard } from './profileSwitchRecommendation';
 import type {
 	AudioChunk,
 	VoiceClientMessage,
@@ -32,6 +33,7 @@ type VoiceRuntime = {
 		VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>
 	>;
 	logger: ReturnType<typeof resolveLogger>;
+	profileSwitchGuardedSessions: Set<string>;
 	socketSessions: WeakMap<
 		object,
 		{
@@ -230,6 +232,11 @@ const resolveSessionId = (runtime: VoiceRuntime, ws: { data?: unknown }) => {
 	return resolved;
 };
 
+const resolveMaybeFunction = async <TInput, TValue>(
+	value: TValue | ((input: TInput) => Promise<TValue | undefined> | TValue | undefined) | undefined,
+	input: TInput
+) => (typeof value === 'function' ? await (value as (input: TInput) => Promise<TValue | undefined> | TValue | undefined)(input) : value);
+
 const toAudioChunk = (raw: unknown): AudioChunk | null => {
 	if (raw instanceof ArrayBuffer) {
 		return raw;
@@ -388,6 +395,92 @@ const resolveLexicon = async <
 	return normalizeLexicon(config.lexicon);
 };
 
+const resolveProfileSwitchGuard = async <
+	TContext,
+	TSession extends VoiceSessionRecord,
+	TResult
+>(
+	config: VoicePluginConfig<TContext, TSession, TResult>,
+	runtime: VoiceRuntime,
+	input: {
+		context: TContext;
+		scenarioId?: string;
+		sessionId: string;
+	}
+) => {
+	const guard = config.profileSwitchGuard;
+	if (!guard || runtime.profileSwitchGuardedSessions.has(input.sessionId)) {
+		return undefined;
+	}
+
+	runtime.profileSwitchGuardedSessions.add(input.sessionId);
+	const resolverInput = input;
+	const defaults = await resolveMaybeFunction(guard.defaults, resolverInput);
+	if (!defaults) {
+		throw new Error('voice profileSwitchGuard requires measured profile defaults.');
+	}
+	const observed = await resolveMaybeFunction(guard.observed, resolverInput);
+	const currentProfileId = await resolveMaybeFunction(
+		guard.currentProfileId,
+		resolverInput
+	);
+	const metadata = await resolveMaybeFunction(guard.metadata, resolverInput);
+	const minConfidence = await resolveMaybeFunction(
+		guard.minConfidence,
+		resolverInput
+	);
+	const mode = await resolveMaybeFunction(guard.mode, resolverInput);
+	const decision = await applyVoiceProfileSwitchGuard({
+		actor: guard.actor,
+		audit: guard.audit,
+		defaultProfileId: guard.defaultProfileId,
+		defaults,
+		metadata,
+		minConfidence,
+		mode,
+		observed: {
+			...observed,
+			currentProfileId: observed?.currentProfileId ?? currentProfileId
+		},
+		sessionId: input.sessionId
+	});
+
+	await guard.onDecision?.({
+		context: input.context,
+		decision,
+		scenarioId: input.scenarioId,
+		sessionId: input.sessionId
+	});
+
+	const trace = guard.trace === false ? undefined : guard.trace ?? config.trace;
+	if (trace) {
+		await trace.append({
+			at: Date.now(),
+			metadata: {
+				...metadata,
+				source: 'profile-switch-guard'
+			},
+			payload: {
+				action: decision.action,
+				autoApplied: decision.autoApplied,
+				confidence: decision.confidence,
+				minConfidence: decision.minConfidence,
+				mode: decision.mode,
+				previousProfileId: decision.previousProfileId,
+				reason: decision.reason,
+				recommendedProfileId: decision.recommendedProfileId,
+				selectedProfileId: decision.selectedProfileId,
+				status: decision.recommendation.status
+			},
+			scenarioId: input.scenarioId,
+			sessionId: input.sessionId,
+			type: 'provider.decision'
+		});
+	}
+
+	return decision;
+};
+
 export const voice = <
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -402,6 +495,7 @@ export const voice = <
 	const runtime: VoiceRuntime = {
 		activeSessions: new Map(),
 		logger: resolveLogger(config.logger),
+		profileSwitchGuardedSessions: new Set(),
 		socketSessions: new WeakMap()
 	};
 	const onTurn = normalizeOnTurn(config.onTurn);
@@ -422,6 +516,15 @@ export const voice = <
 		scenarioId?: string
 	) => {
 		const context = ws.data as TContext;
+		const profileSwitchDecision = await resolveProfileSwitchGuard(
+			config,
+			runtime,
+			{
+				context,
+				scenarioId,
+				sessionId
+			}
+		);
 		const phraseHints = await resolvePhraseHints(config, {
 			context,
 			scenarioId,
@@ -482,6 +585,13 @@ export const voice = <
 				onTurn,
 				onVoicemail: config.onVoicemail
 			},
+			sessionMetadata:
+				profileSwitchDecision && config.profileSwitchGuard?.sessionMetadataKey !== false
+					? {
+							[config.profileSwitchGuard?.sessionMetadataKey ??
+							'profileSwitchGuard']: profileSwitchDecision
+						}
+					: undefined,
 			scenarioId,
 			socket: createSocketAdapter(ws),
 			store: config.session,

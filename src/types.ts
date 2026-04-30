@@ -26,6 +26,16 @@ import type {
 } from './testing/review';
 import type { VoiceTraceEventStore } from './trace';
 import type { VoiceLiveOpsControlState } from './liveOps';
+import type { VoiceAuditActor, VoiceAuditEventStore } from './audit';
+import type {
+	VoiceProfileSwitchGuardDecision,
+	VoiceProfileSwitchGuardMode,
+	VoiceProfileSwitchObservedSignals
+} from './profileSwitchRecommendation';
+import type {
+	VoiceRealCallProfileDefaultsReport,
+	VoiceRealCallProfileHistoryReport
+} from './proofTrends';
 
 export type AudioFormat = {
 	container: 'raw';
@@ -879,6 +889,70 @@ export type VoiceLiveOpsRuntimeConfig = {
 		| undefined;
 };
 
+export type VoiceProfileSwitchGuardResolverInput<TContext = unknown> = {
+	context: TContext;
+	scenarioId?: string;
+	sessionId: string;
+};
+
+export type VoicePluginProfileSwitchGuardConfig<
+	TContext = unknown,
+	TSession extends VoiceSessionRecord = VoiceSessionRecord,
+	TResult = unknown
+> = {
+	actor?: VoiceAuditActor;
+	audit?: VoiceAuditEventStore;
+	currentProfileId?:
+		| string
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) => Promise<string | undefined> | string | undefined);
+	defaultProfileId?: string;
+	defaults:
+		| VoiceRealCallProfileDefaultsReport
+		| VoiceRealCallProfileHistoryReport
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) =>
+				| Promise<VoiceRealCallProfileDefaultsReport | VoiceRealCallProfileHistoryReport>
+				| VoiceRealCallProfileDefaultsReport
+				| VoiceRealCallProfileHistoryReport);
+	metadata?:
+		| Record<string, unknown>
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) => Promise<Record<string, unknown> | undefined> | Record<string, unknown> | undefined);
+	minConfidence?:
+		| number
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) => Promise<number | undefined> | number | undefined);
+	mode?:
+		| VoiceProfileSwitchGuardMode
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) =>
+				| Promise<VoiceProfileSwitchGuardMode | undefined>
+				| VoiceProfileSwitchGuardMode
+				| undefined);
+	observed?:
+		| VoiceProfileSwitchObservedSignals
+		| ((
+				input: VoiceProfileSwitchGuardResolverInput<TContext>
+		  ) =>
+				| Promise<VoiceProfileSwitchObservedSignals | undefined>
+				| VoiceProfileSwitchObservedSignals
+				| undefined);
+	onDecision?: (input: {
+		context: TContext;
+		decision: VoiceProfileSwitchGuardDecision;
+		scenarioId?: string;
+		sessionId: string;
+	}) => Promise<void> | void;
+	sessionMetadataKey?: string | false;
+	trace?: false | VoiceTraceEventStore;
+};
+
 export type VoiceNormalizedRouteConfig<
 	TContext = unknown,
 	TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -925,6 +999,11 @@ export type VoicePluginConfig<
 	handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
 	ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
 	liveOps?: VoiceLiveOpsRuntimeConfig;
+	profileSwitchGuard?: VoicePluginProfileSwitchGuardConfig<
+		TContext,
+		TSession,
+		TResult
+	>;
 	trace?: VoiceTraceEventStore;
 } & VoiceRouteConfig<TContext, TSession, TResult>;
 
@@ -948,6 +1027,7 @@ export type CreateVoiceSessionOptions<
 	trace?: VoiceTraceEventStore;
 	reconnect: Required<VoiceReconnectConfig>;
 	phraseHints?: VoicePhraseHint[];
+	sessionMetadata?: Record<string, unknown>;
 	scenarioId?: string;
 	sttLifecycle: VoiceSTTLifecycle;
 	turnDetection: VoiceResolvedTurnDetectionConfig;

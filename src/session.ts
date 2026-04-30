@@ -2279,6 +2279,15 @@ export const createVoiceSession = <
 			session.scenarioId = options.scenarioId;
 		}
 
+		if (options.sessionMetadata) {
+			session.metadata = {
+				...((session.metadata && typeof session.metadata === 'object'
+					? session.metadata
+					: {}) as Record<string, unknown>),
+				...options.sessionMetadata
+			} as TSession['metadata'];
+		}
+
 		ensureCommittedTurnGuard(session);
 		let shouldFireOnSession = !existingSession;
 		if (

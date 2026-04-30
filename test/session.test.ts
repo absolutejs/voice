@@ -370,6 +370,54 @@ const createMockSocket = () => {
 const createSpeechChunk = (sample: number) =>
 	new Int16Array(160).fill(sample);
 
+test('voice session stores initial session metadata before onSession', async () => {
+	const store = createVoiceMemoryStore();
+	const adapter = createFakeAdapter();
+	const socket = createMockSocket();
+	let metadata: Record<string, unknown> | undefined;
+
+	const session = createVoiceSession({
+		context: {},
+		id: 'session-initial-metadata',
+		reconnect: {
+			maxAttempts: 1,
+			strategy: 'resume-last-turn',
+			timeout: 5_000
+		},
+		route: {
+			onComplete: async () => {},
+			onSession: ({ session }) => {
+				metadata = session.metadata;
+			},
+			onTurn: async () => {}
+		},
+		sessionMetadata: {
+			profileSwitchGuard: {
+				action: 'switch',
+				selectedProfileId: 'noisy-phone-call'
+			}
+		},
+		socket: socket.socket,
+		store,
+		stt: adapter.adapter,
+		turnDetection: {
+			silenceMs: 20,
+			speechThreshold: 0.01,
+			transcriptStabilityMs: 5
+		}
+	});
+
+	await session.connect(socket.socket);
+
+	expect(metadata?.profileSwitchGuard).toEqual({
+		action: 'switch',
+		selectedProfileId: 'noisy-phone-call'
+	});
+	expect((await store.get('session-initial-metadata'))?.metadata).toEqual(
+		metadata
+	);
+});
+
 test('voice session commits a turn after silence and only once', async () => {
 	const store = createVoiceMemoryStore();
 	const adapter = createFakeAdapter();
