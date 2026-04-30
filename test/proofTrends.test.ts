@@ -302,6 +302,24 @@ describe('proof trends', () => {
 				cycles: 6,
 				maxLiveP95Ms: 531,
 				maxProviderP95Ms: 700,
+				providers: [
+					{
+						id: 'openai-realtime',
+						label: 'OpenAI Realtime',
+						p95Ms: 700,
+						role: 'realtime',
+						samples: 18,
+						status: 'pass'
+					},
+					{
+						id: 'gemini-live',
+						label: 'Gemini Live',
+						p95Ms: 820,
+						role: 'realtime',
+						samples: 18,
+						status: 'pass'
+					}
+				],
 				runtimeChannel: {
 					maxBackpressureEvents: 0,
 					maxFirstAudioLatencyMs: 420,
@@ -319,6 +337,8 @@ describe('proof trends', () => {
 
 		expect(recommendations.ok).toBe(true);
 		expect(recommendations.status).toBe('pass');
+		expect(recommendations.bestProvider?.id).toBe('openai-realtime');
+		expect(recommendations.summary.providerComparisonCount).toBe(2);
 		expect(recommendations.summary.keepCurrentProviderPath).toBe(true);
 		expect(recommendations.summary.keepCurrentRuntimeChannel).toBe(true);
 		expect(recommendations.recommendations.map((item) => item.surface)).toEqual([
@@ -327,6 +347,60 @@ describe('proof trends', () => {
 			'live-latency',
 			'turn-latency'
 		]);
+	});
+
+	test('buildVoiceProofTrendRecommendationReport recommends provider switches from sustained comparisons', () => {
+		const report = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:00:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 6,
+				maxLiveP95Ms: 531,
+				providers: [
+					{
+						id: 'current-stt',
+						label: 'Current STT',
+						p95Ms: 980,
+						role: 'stt',
+						samples: 30,
+						status: 'pass'
+					},
+					{
+						id: 'faster-stt',
+						label: 'Faster STT',
+						p95Ms: 650,
+						role: 'stt',
+						samples: 30,
+						status: 'pass'
+					}
+				],
+				runtimeChannel: {
+					maxBackpressureEvents: 0,
+					maxFirstAudioLatencyMs: 420,
+					maxInterruptionP95Ms: 190,
+					maxJitterMs: 12,
+					maxTimestampDriftMs: 500,
+					samples: 4,
+					status: 'pass'
+				},
+				maxTurnP95Ms: 690
+			}
+		});
+
+		const recommendations = buildVoiceProofTrendRecommendationReport(report, {
+			currentProviderId: 'current-stt'
+		});
+
+		expect(recommendations.ok).toBe(true);
+		expect(recommendations.status).toBe('warn');
+		expect(recommendations.bestProvider?.id).toBe('faster-stt');
+		expect(recommendations.summary.switchRecommended).toBe(true);
+		expect(recommendations.summary.keepCurrentProviderPath).toBe(false);
+		expect(recommendations.recommendations[0].recommendation).toContain(
+			'Faster STT'
+		);
 	});
 
 	test('createVoiceProofTrendRecommendationRoutes exposes JSON, HTML, and Markdown guidance', async () => {
@@ -340,6 +414,16 @@ describe('proof trends', () => {
 					cycles: 6,
 					maxLiveP95Ms: 531,
 					maxProviderP95Ms: 700,
+					providers: [
+						{
+							id: 'openai-realtime',
+							label: 'OpenAI Realtime',
+							p95Ms: 700,
+							role: 'realtime',
+							samples: 18,
+							status: 'pass'
+						}
+					],
 					runtimeChannel: {
 						maxBackpressureEvents: 0,
 						maxFirstAudioLatencyMs: 420,
@@ -369,11 +453,14 @@ describe('proof trends', () => {
 
 		expect(jsonResponse.status).toBe(200);
 		expect(json.summary.keepCurrentProviderPath).toBe(true);
+		expect(json.bestProvider.id).toBe('openai-realtime');
 		expect(htmlResponse.headers.get('content-type')).toContain('text/html');
-		expect(html).toContain('Keep current provider path');
+		expect(html).toContain('Prefer OpenAI Realtime');
+		expect(html).toContain('Provider Comparison');
 		expect(markdownResponse.headers.get('content-type')).toContain(
 			'text/markdown'
 		);
 		expect(markdown).toContain('Voice Provider Runtime Recommendations');
+		expect(markdown).toContain('OpenAI Realtime');
 	});
 });
