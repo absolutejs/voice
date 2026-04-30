@@ -5,6 +5,7 @@ import {
 	buildVoiceMediaPipelineReport,
 	buildVoiceMediaResamplingPlan,
 	buildVoiceMediaVadReport,
+	createVoiceMediaTransport,
 	createVoiceMediaFrame,
 	createVoiceMediaFrameTransformPipeline,
 	createVoiceMediaPipelineRoutes,
@@ -149,6 +150,54 @@ describe('media pipeline calibration', () => {
 		expect(output[0]?.metadata?.tagged).toBe(true);
 	});
 
+	test('tracks media transport lifecycle, frame flow, and backpressure', async () => {
+		const sent: string[] = [];
+		const received: string[] = [];
+		const transport = createVoiceMediaTransport({
+			inputFormat: raw24k,
+			maxBufferedFrames: 1,
+			name: 'browser-websocket',
+			onSend: (frame) => sent.push(frame.id),
+			outputFormat: raw24k
+		});
+
+		transport.onFrame((frame) => received.push(frame.id));
+		await transport.connect?.();
+		await transport.receive(
+			createVoiceMediaFrame({
+				format: raw24k,
+				id: 'input-1',
+				kind: 'input-audio',
+				source: 'browser'
+			})
+		);
+		await transport.receive(
+			createVoiceMediaFrame({
+				format: raw24k,
+				id: 'input-2',
+				kind: 'input-audio',
+				source: 'browser'
+			})
+		);
+		await transport.send(
+			createVoiceMediaFrame({
+				format: raw24k,
+				id: 'assistant-1',
+				kind: 'assistant-audio',
+				source: 'provider'
+			})
+		);
+		const report = transport.report();
+
+		expect(report.connected).toBe(true);
+		expect(report.inputFrames).toBe(2);
+		expect(report.outputFrames).toBe(1);
+		expect(report.backpressureEvents).toBe(1);
+		expect(report.status).toBe('warn');
+		expect(received).toEqual(['input-1', 'input-2']);
+		expect(sent).toEqual(['assistant-1']);
+	});
+
 	test('derives VAD speech segments from input frames', () => {
 		const report = buildVoiceMediaVadReport({
 			frames: [
@@ -263,20 +312,37 @@ describe('media pipeline calibration', () => {
 			maxFirstAudioLatencyMs: 800,
 			maxInterruptionLatencyMs: 250,
 			requireInterruptionFrame: true,
-			requireTraceEvidence: true
+			requireTraceEvidence: true,
+			transport: {
+				backpressureEvents: 0,
+				checkedAt: Date.now(),
+				closed: false,
+				connected: true,
+				events: [],
+				failed: false,
+				inputFrames: 1,
+				name: 'browser-websocket',
+				outputFrames: 1,
+				state: 'open',
+				status: 'pass'
+			}
 		});
 		const assertion = evaluateVoiceMediaPipelineEvidence(report, {
 			maxFirstAudioLatencyMs: 800,
 			maxInterruptionLatencyMs: 250,
 			minAssistantAudioFrames: 1,
 			minInputAudioFrames: 1,
+			minTransportInputFrames: 1,
+			minTransportOutputFrames: 1,
 			minTraceLinkedFrames: 3,
 			minVadSegments: 1,
 			requireInterruptionFrame: true,
-			requirePass: true
+			requirePass: true,
+			requireTransportConnected: true
 		});
 
 		expect(report.status).toBe('pass');
+		expect(report.transport?.connected).toBe(true);
 		expect(report.vad.segments).toHaveLength(1);
 		expect(assertion.ok).toBe(true);
 	});

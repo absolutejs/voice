@@ -74,6 +74,61 @@ export type VoiceMediaTransportAdapter = {
 	send: (frame: VoiceMediaFrame) => Promise<void> | void;
 };
 
+export type VoiceMediaTransportState =
+	| 'closed'
+	| 'closing'
+	| 'failed'
+	| 'idle'
+	| 'open';
+
+export type VoiceMediaTransportEventKind =
+	| 'backpressure'
+	| 'close'
+	| 'connect'
+	| 'error'
+	| 'frame-in'
+	| 'frame-out';
+
+export type VoiceMediaTransportEvent = {
+	at: number;
+	bufferedFrames?: number;
+	error?: string;
+	frameId?: string;
+	kind: VoiceMediaTransportEventKind;
+	state: VoiceMediaTransportState;
+};
+
+export type VoiceMediaTransportReport = {
+	backpressureEvents: number;
+	checkedAt: number;
+	closed: boolean;
+	connected: boolean;
+	events: readonly VoiceMediaTransportEvent[];
+	failed: boolean;
+	inputFrames: number;
+	name: string;
+	outputFrames: number;
+	state: VoiceMediaTransportState;
+	status: VoiceMediaPipelineStatus;
+};
+
+export type VoiceMediaTransport = VoiceMediaTransportAdapter & {
+	events: () => readonly VoiceMediaTransportEvent[];
+	receive: (frame: VoiceMediaFrame) => Promise<void>;
+	report: () => VoiceMediaTransportReport;
+	state: () => VoiceMediaTransportState;
+};
+
+export type VoiceMediaTransportOptions = {
+	inputFormat?: AudioFormat;
+	maxBufferedFrames?: number;
+	name: string;
+	onClose?: () => Promise<void> | void;
+	onConnect?: () => Promise<void> | void;
+	onSend?: (frame: VoiceMediaFrame) => Promise<void> | void;
+	outputFormat?: AudioFormat;
+};
+
 export type VoiceMediaPipelineCalibrationInput = {
 	expectedInputFormat?: AudioFormat;
 	expectedOutputFormat?: AudioFormat;
@@ -180,6 +235,118 @@ const numericMetadata = (
 export const createVoiceMediaFrame = (
 	frame: VoiceMediaFrame
 ): VoiceMediaFrame => frame;
+
+export const buildVoiceMediaTransportReport = (input: {
+	events?: readonly VoiceMediaTransportEvent[];
+	name: string;
+	state?: VoiceMediaTransportState;
+}): VoiceMediaTransportReport => {
+	const events = input.events ?? [];
+	const state = input.state ?? events.at(-1)?.state ?? 'idle';
+	const backpressureEvents = events.filter(
+		(event) => event.kind === 'backpressure'
+	).length;
+	const failed = state === 'failed' || events.some((event) => event.kind === 'error');
+
+	return {
+		backpressureEvents,
+		checkedAt: Date.now(),
+		closed: state === 'closed',
+		connected: state === 'open',
+		events,
+		failed,
+		inputFrames: events.filter((event) => event.kind === 'frame-in').length,
+		name: input.name,
+		outputFrames: events.filter((event) => event.kind === 'frame-out').length,
+		state,
+		status: failed ? 'fail' : backpressureEvents > 0 ? 'warn' : 'pass'
+	};
+};
+
+export const createVoiceMediaTransport = (
+	options: VoiceMediaTransportOptions
+): VoiceMediaTransport => {
+	let state: VoiceMediaTransportState = 'idle';
+	const events: VoiceMediaTransportEvent[] = [];
+	const frameHandlers = new Set<
+		(frame: VoiceMediaFrame) => Promise<void> | void
+	>();
+
+	const record = (
+		event: Omit<VoiceMediaTransportEvent, 'at' | 'state'>
+	) => {
+		events.push({ ...event, at: Date.now(), state });
+	};
+
+	return {
+		close: async () => {
+			state = 'closing';
+			await options.onClose?.();
+			state = 'closed';
+			record({ kind: 'close' });
+		},
+		connect: async () => {
+			try {
+				await options.onConnect?.();
+				state = 'open';
+				record({ kind: 'connect' });
+			} catch (error) {
+				state = 'failed';
+				record({
+					error: error instanceof Error ? error.message : String(error),
+					kind: 'error'
+				});
+				throw error;
+			}
+		},
+		events: () => [...events],
+		inputFormat: options.inputFormat,
+		name: options.name,
+		onFrame: (handler) => {
+			frameHandlers.add(handler);
+			return () => frameHandlers.delete(handler);
+		},
+		outputFormat: options.outputFormat,
+		receive: async (frame) => {
+			record({ frameId: frame.id, kind: 'frame-in' });
+			if (
+				options.maxBufferedFrames !== undefined &&
+				events.filter((event) => event.kind === 'frame-in').length >
+					options.maxBufferedFrames
+			) {
+				record({
+					bufferedFrames: events.filter((event) => event.kind === 'frame-in')
+						.length,
+					kind: 'backpressure'
+				});
+			}
+			for (const handler of frameHandlers) {
+				await handler(frame);
+			}
+		},
+		report: () =>
+			buildVoiceMediaTransportReport({
+				events,
+				name: options.name,
+				state
+			}),
+		send: async (frame) => {
+			try {
+				await options.onSend?.(frame);
+				record({ frameId: frame.id, kind: 'frame-out' });
+			} catch (error) {
+				state = 'failed';
+				record({
+					error: error instanceof Error ? error.message : String(error),
+					frameId: frame.id,
+					kind: 'error'
+				});
+				throw error;
+			}
+		},
+		state: () => state
+	};
+};
 
 export const buildVoiceMediaResamplingPlan = (input: {
 	inputFormat: AudioFormat;

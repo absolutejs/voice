@@ -117,10 +117,20 @@ Our wedge against LiveKit:
 
 What Pipecat is strong at:
 
-- Open-source Python framework for voice and multimodal agents.
-- Pipeline orchestration across transports, STT, LLM, TTS, audio processing, and multimodal services.
-- Broad provider integration story and claimed natural round-trip interaction targets around 500-800ms.
-- Good fit for teams that want programmable voice pipelines and can run Python services.
+- Open-source Python framework for real-time voice and multimodal agents. Its public README positions it around audio/video orchestration, AI services, transports, and conversation pipelines.
+- Pipeline orchestration is the product center. Current docs define `Pipeline` as the component that connects frame processors in sequence, normally shaped as transport input -> STT -> context aggregation -> LLM -> TTS -> transport output -> assistant context aggregation.
+- Frame and processor semantics are deeper than a simple event bus: frames include audio, text, image, system, context, control, error, interruption, and lifecycle classes; system frames bypass queues for immediate handling while data/control frames are queued and ordered.
+- Transports are a first-class abstraction. Current docs list Daily, FastAPI WebSocket, HeyGen, LiveKit, SmallWebRTC, Tavus, WebSocket, WhatsApp, and telephony serializers for Twilio/Telnyx/Plivo/Exotel/Vonage.
+- WebRTC/WebSocket guidance is explicit: WebRTC is recommended for browser/mobile real-time apps because of low latency, packet-loss resilience, audio processing, quality stats, timestamping, and reconnection; WebSocket is positioned for telephony, custom streams, prototyping, and server-to-server.
+- Provider integration breadth is strong across STT, LLM, TTS, speech-to-speech, image, video, memory, vision, analytics, monitoring, frame processors, context utilities, metrics, observers, service switchers, and turn management.
+- Ecosystem depth includes client SDKs, subagents, flows, UI kit, CLI, Pipecat Cloud deployment, Whisker debugger, and terminal dashboard.
+
+Research sources:
+
+- Pipecat pipeline docs: https://docs.pipecat.ai/pipecat/learn/pipeline
+- Pipecat transport docs: https://docs.pipecat.ai/pipecat/learn/transports
+- Pipecat supported services: https://docs.pipecat.ai/server/services/supported-services
+- Pipecat GitHub README: https://github.com/pipecat-ai/pipecat
 
 What Pipecat implies customers want:
 
@@ -128,6 +138,9 @@ What Pipecat implies customers want:
 - Low-latency pipeline control.
 - Extensibility across transports and models.
 - Self-hosting optionality.
+- Ordered media frames, immediate control frames, processor composition, and lifecycle management.
+- Same bot logic across browser, telephony, WebRTC, WebSocket, and provider-direct transports.
+- Observable media quality, interruption, turn detection, and replay/debug tools.
 
 Our wedge against Pipecat:
 
@@ -135,6 +148,8 @@ Our wedge against Pipecat:
 - Framework parity and app UI primitives.
 - Business workflow/readiness/eval primitives bundled with the voice layer.
 - Roadmap intent: AbsoluteJS Voice should own the common media-pipeline primitives that a self-hosted AbsoluteJS voice app needs, instead of treating Pipecat as a dependency or bridge target. The strategic goal is an AbsoluteJS-native pipeline surface for browser/telephony audio, frame processing, interruption, turn ownership, provider streaming, and proof.
+- Code-owned operations record, readiness gates, monitor issues, provider decision traces, guardrails, post-call workflows, campaign primitives, and framework hooks/composables/services are already deeper for web-app teams than Pipecat's lower-level media focus.
+- We should not ship a Pipecat bridge. We should replace the app-level needs directly in `@absolutejs/voice`, and only split into a separate `~/abs` package if native media processing becomes too large for voice core.
 
 ### OpenAI Realtime And Deepgram Flux
 
@@ -185,7 +200,7 @@ The biggest gaps versus Vapi/Retell/Bland are not raw code count. They are produ
 - Visual/declared workflow story: Bland pathways and Retell flow agents are easy to understand. We should not ship a heavy builder, but we need code-first flow primitives and diagrams/docs.
 - Simulation testing UX: evals, fixtures, tool contracts, outcome contracts, baseline comparison, simulation-suite routes, and operations-record-linked failure actions now exist. The remaining gap is buyer-facing docs that make the simulation path obvious before production traffic.
 - Compliance proof: self-hosted storage, redaction defaults, retention dry-runs, guarded deletion, zero-retention policy helper, redacted audit exports, data-control routes, provider-key recommendations, example/readiness wiring, and a compliance-sensitive workflow recipe now exist. The remaining gap is keeping compliance docs aligned with new storage/provider surfaces without claiming certification.
-- Realtime/S2S provider integration: core now owns the shared `RealtimeAdapter` contract, `voice(...)` orchestration path, realtime channel proof, and realtime provider contract matrix; vendor protocol glue now lives in adapter packages. `@absolutejs/voice-openai` and `@absolutejs/voice-gemini` are published beta adapters and pass example provider-contract proof; the remaining gap is production-grade browser format negotiation/resampling, deeper live-demo proof, and a roadmap-owned AbsoluteJS-native media pipeline that can cover Pipecat-style use cases without making Pipecat a permanent dependency.
+- Realtime/S2S provider integration: core now owns the shared `RealtimeAdapter` contract, `voice(...)` orchestration path, realtime channel proof, realtime provider contract matrix, media frame transforms, media calibration, VAD/interruption proof, media proof routes, and transport lifecycle reports. Vendor protocol glue lives in adapter packages. `@absolutejs/voice-openai` and `@absolutejs/voice-gemini` are published beta adapters and pass example provider-contract proof; the remaining gap is production-grade browser format negotiation/resampling, richer processor graphs, direct WebRTC transport helpers, and sustained live-demo proof.
 - Reconnect proof: client reconnect state and replay-safe resume now have a package contract primitive via `runVoiceReconnectContract(...)` and `createVoiceReconnectContractRoutes(...)`, are wired into the example UI/readiness route, and have six-framework forced-reconnect smoke coverage. The remaining gap is capturing real production reconnect snapshots automatically instead of relying on deterministic demo snapshots.
 - Recovery proof: provider fallback recovery is now part of session-health semantics and the unified ops/recovery report now surfaces recovered fallback counts, unresolved provider failures, delivery failures, handoff failures, live-ops interventions, failed sessions, SLO breaches, and operations-record links. Ops/recovery is wired into production readiness as a deploy gate.
 - Live-ops intervention proof: pause/resume/takeover and injected operator instructions now affect the actual session runtime, not only UI/audit routes. README now documents safe live-operator workflows, route wiring, runtime control behavior, framework UI, and audit/trace proof.
@@ -201,9 +216,9 @@ The biggest gaps versus Vapi/Retell/Bland are not raw code count. They are produ
 
 ## Latest Proof Status
 
-Current verified proof: `bun run proof:screenshots` passed on April 30, 2026.
+Current verified proof: `bun run proof:pack:server` passed on April 30, 2026.
 
-Output: `.voice-runtime/proof-pack/2026-04-30T03-23-15.496Z`.
+Output: `.voice-runtime/proof-pack/2026-04-30T06-55-18.014Z`.
 
 Verified:
 
@@ -211,7 +226,8 @@ Verified:
 - Production readiness evidence assertion passes.
 - Production readiness gate explanation assertion passes, including structured observed value, threshold, unit, remediation, and source link data for non-pass checks.
 - Simulation suite, live ops evidence, data-control evidence, observability export/replay, post-call analysis, guardrails, and provider SLO assertions pass.
-- Screenshot artifacts include production readiness, framework readiness gate explanations, provider SLOs, proof trends, simulation suite, operations record, post-call analysis, guardrails, and switching-from-Vapi.
+- Native media pipeline proof passes with connected transport evidence: 5 frames, 1 input transport frame, 1 output transport frame, 0 backpressure events, 420ms first audio, 12ms jitter, 1 VAD segment, and 1 interruption frame.
+- Proof artifacts include production readiness, framework readiness gate explanations, provider SLOs, proof trends, simulation suite, operations record, post-call analysis, guardrails, media pipeline, and switching-from-Vapi.
 - Proof runs use isolated `VOICE_DEMO_RUNTIME_DIR` runtime directories so stale local demo sessions do not pollute release proof.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
@@ -222,9 +238,9 @@ Next core-product wedge: wire the new competitive coverage/depth primitive into 
 
 Current Vapi-style surface coverage estimate: **99.8%** for a self-hosted AbsoluteJS buyer.
 
-Current broader voice-agent market coverage estimate: **93-95%** across Vapi, Retell, Bland, LiveKit Agents, Pipecat, and direct provider primitives.
+Current broader voice-agent market coverage estimate: **94-96%** across Vapi, Retell, Bland, LiveKit Agents, Pipecat, and direct provider primitives.
 
-The Vapi-style number is higher because the buyer profile is narrower and aligned with our lane: a team running its own AbsoluteJS server that wants browser agents, phone agents, provider choice, tools, Squads-style composition, observability, monitoring, call analysis, simulations, campaigns, data control, and deploy proof without a hosted voice platform. The broader-market number stays lower because LiveKit-grade SIP/media infrastructure, hosted phone-number provisioning, managed dashboards, no-code builders, and compliance certifications are intentional non-goals or adapter seams.
+The Vapi-style number is higher because the buyer profile is narrower and aligned with our lane: a team running its own AbsoluteJS server that wants browser agents, phone agents, provider choice, tools, Squads-style composition, observability, monitoring, call analysis, simulations, campaigns, data control, and deploy proof without a hosted voice platform. The broader-market number stays lower because LiveKit-grade SIP/media infrastructure, hosted phone-number provisioning, managed dashboards, no-code builders, compliance certifications, and Pipecat-grade media processor ecosystems are not fully owned yet.
 
 Depth levels:
 
@@ -250,16 +266,17 @@ Depth levels:
 | Customer-owned observability export | Covered | Advantage | Export/replay, schema validation, delivery, redaction, readiness gating, and operations-record links support SIEM/warehouse ownership. | Make export manifests the default release/incident artifact. |
 | Compliance and data control | Covered | Advantage for self-hosted buyers | Retention, redaction, zero-retention helpers, guarded deletion, customer storage, audit export, and provider-key guidance exist. Hosted competitors may still win procurement with certifications. | Keep docs precise; never imply certification. |
 | Latency, interruption, reconnect confidence | Covered | Parity to advantage | Live p50/p95, provider-stage timings, barge-in, reconnect contracts, long-window proof, SLO artifacts, and readiness gates exist. Competitors still market raw latency numbers aggressively. | Build sustained benchmark history and tune defaults from real runs. |
-| Direct realtime/duplex providers | Covered | Covered to parity | Core `RealtimeAdapter` contract plus `@absolutejs/voice-openai` and `@absolutejs/voice-gemini` adapter packages exist; example provider-contract proof shows OpenAI and Gemini passing. Cascaded STT/LLM/TTS remains strong. | Improve runtime-channel calibration/live-demo proof, then define AbsoluteJS-native media pipeline primitives instead of treating Pipecat-style orchestration as only an external bridge. |
+| Direct realtime/duplex providers | Covered | Parity | Core `RealtimeAdapter` contract plus `@absolutejs/voice-openai` and `@absolutejs/voice-gemini` adapter packages exist; example provider-contract proof shows OpenAI and Gemini passing. Cascaded STT/LLM/TTS remains strong. | Improve runtime-channel calibration/live-demo proof, browser format negotiation, and provider stream evidence. |
 | No-code visual builder | Intentional gap | Lag by design | Bland/Retell/Vapi-style visual flows are not our lane. We should provide code-first flow primitives, diagrams, and recipes. | Avoid app kits; add lightweight diagrams/docs only. |
 | Hosted phone-number provisioning | Intentional gap | Lag by design | Vapi/LiveKit Cloud can provision/manage numbers in hosted dashboards. AbsoluteJS should guide carrier setup and verify config, not become a telco platform. | Keep setup reports copy-ready and adapter-friendly. |
-| SIP/media infrastructure | Roadmap gap | Lag today, planned native depth | LiveKit owns rooms, SIP trunks, RTP/SRTP, DTMF, REFER, dispatch, and media networking. AbsoluteJS should not become a phone-number/telco dashboard, but it can own the app-level media pipeline primitives needed for self-hosted voice products. | Build native calibration, frame processing, transport lifecycle, interruption, and provider-streaming primitives. |
+| Native media pipeline / Pipecat-style orchestration | Partial | Covered, lagging Pipecat depth | Core now owns frame transforms, calibration, VAD/interruption reports, proof routes, and transport lifecycle evidence. Pipecat still has a deeper processor model, transport catalog, WebRTC guidance, service ecosystem, runners, SDKs, and debugger surfaces. | Add ordered processor graphs, branch/filter primitives, media-quality stats, direct WebRTC helpers, serializer adapters, and sustained pipeline proof. |
+| SIP/media infrastructure | Roadmap gap | Lag today, planned native depth | LiveKit owns rooms, SIP trunks, RTP/SRTP, DTMF, REFER, dispatch, and media networking. AbsoluteJS should not become a phone-number/telco dashboard, but it can own the app-level media pipeline primitives needed for self-hosted voice products. | Keep SIP/media network ownership as an adapter seam while growing app-level media pipeline primitives. |
 
 Current depth summary:
 
 - We are ahead in the surfaces that matter to a self-hosted engineering team: proof, observability, operations records, provider recovery, framework integration, data control, guardrails-as-code, and release gates.
 - We are roughly at parity where the buyer expects a complete voice-agent product surface: phone agents, Squads-style routing, post-call workflows, campaigns, and latency proof.
-- We intentionally lag hosted platforms where the product would become a dashboard/telco/no-code builder: number provisioning and visual workflow builders. Raw media infrastructure is no longer a permanent non-goal; the roadmap target is to own the app-level media pipeline primitives that AbsoluteJS voice products need while avoiding hosted telco/dashboard scope.
+- We intentionally lag hosted platforms where the product would become a dashboard/telco/no-code builder: number provisioning and visual workflow builders. Raw media infrastructure is no longer a permanent non-goal; the roadmap target is to own the app-level media pipeline primitives that AbsoluteJS voice products need while avoiding hosted telco/dashboard scope. As of the native media-pipeline work, core has frame transforms, media calibration, VAD/interruption reports, proof routes, and transport lifecycle evidence; it still needs processor graph ergonomics, direct WebRTC helpers, and deeper transport adapters before it can claim Pipecat-level media depth.
 - The next percentage gain is not another large app surface. Depth is now measurable through the package competitive coverage report; the remaining work is wiring it into the example proof pack and keeping its evidence links current.
 
 ## Vapi-User Needs Matrix
@@ -285,7 +302,8 @@ What is covered: browser agent, phone agent, phone setup guidance, carrier webho
 | Simulation and regression testing | Retell simulation testing; Bland Standards/backtesting. | Eval routes, scenario fixtures, workflow/tool/outcome contracts, simulation suite, provider simulators, baseline store, operations-record-linked failure actions, buyer-path docs, and support/scheduling/campaign/meeting-recorder proof recipes exist. | Strong | Keep simulation examples aligned as use-case docs expand. |
 | Call analysis and post-call workflow | Retell call analysis, Bland outcomes/post-call webhooks. | Reviews, outcomes, tasks, handoff deliveries, integration events, audit/webhook sinks, outcome contracts, operations-record-linked matched sessions, support-triage task docs, appointment confirmation task docs, `createVoicePostCallAnalysisRoutes(...)`, and example proof-pack/screenshot coverage for extraction/task/delivery proof exist. | Strong | Keep post-call proof aligned as new workflow recipes are added. |
 | Compliance/data control | Hosted platforms sell HIPAA/SOC2/GDPR/compliance modes. | Self-hosted storage, redaction defaults, retention plans, guarded deletion, zero-retention helper, redacted audit exports, data-control routes, file/SQLite/Postgres/S3, webhook signing, provider-key recommendations, example/readiness wiring, buyer-facing compliance recipes, and a compliance-sensitive workflow recipe exist. | Strong | Keep compliance recipes aligned with storage/provider additions and avoid claiming certification. |
-| SIP/media infrastructure | LiveKit/Pipecat are strongest here. | Twilio/Telnyx/Plivo bridges plus adapter-package seams for OpenAI/Gemini realtime exist. AbsoluteJS-native media pipeline primitives are now a roadmap goal, but not a reason to become a hosted telco dashboard. | Roadmap gap | Start with browser/telephony calibration, frame processing, interruption, and provider streaming. Add a separate `~/abs` package only if the pipeline surface grows beyond voice core. |
+| Native media pipeline | Pipecat makes ordered frame processors, transport input/output, WebRTC/WebSocket transport choice, telephony serializers, and service integrations central. | Core now has frame transforms, media calibration, VAD/interruption reports, media proof routes, and transport lifecycle evidence. It does not yet have Pipecat-level processor graph depth, WebRTC helpers, serializer adapters, or media-quality stats. | Partial | Add ordered processor graphs, branches/filters, media-quality stats, direct WebRTC helpers, serializer adapters, and sustained pipeline proof. Keep it in voice core until size forces a separate `~/abs` package. |
+| SIP/media infrastructure | LiveKit/Pipecat are strongest here. | Twilio/Telnyx/Plivo bridges plus adapter-package seams for OpenAI/Gemini realtime exist. AbsoluteJS-native media pipeline primitives are now a roadmap goal, but not a reason to become a hosted telco dashboard. | Roadmap gap | Own app-level media pipeline primitives; keep carrier number provisioning, SIP trunking, and media network rooms as adapter seams. |
 
 ## Core Product Priorities
 
@@ -676,12 +694,18 @@ Acceptance criteria:
 
 Goal: own the Pipecat-style media pipeline needs that matter for AbsoluteJS apps without turning core into a hosted telco platform or no-code builder.
 
+Current status: started in core. `@absolutejs/voice` now has `VoiceMediaFrame`, frame transform pipelines, resampling plans, calibration reports, VAD reports, interruption reports, media pipeline proof routes, and transport lifecycle reports. This is enough to prove app-level media flow in an AbsoluteJS app; it is not yet Pipecat-depth because ordered processor graphs, WebRTC helpers, telephony serializers, media-quality stats, and pipeline runner lifecycle controls are still roadmap work.
+
 Deliverables:
 
-- Browser and telephony audio frame model for input, assistant output, interruptions, and metadata.
-- Runtime calibration for capture format, sample rate, channel count, resampling requirement, first-audio latency, jitter, and backpressure.
-- Frame processors for VAD/turn detection hooks, noise/level metadata, transcript alignment, interruption markers, and provider-stage timing.
-- Transport lifecycle primitives for browser WebSocket, telephony media streams, and direct realtime provider streams.
+- Browser and telephony audio frame model for input, assistant output, interruptions, and metadata. Status: core primitive exists.
+- Runtime calibration for capture format, sample rate, channel count, resampling requirement, first-audio latency, jitter, and backpressure. Status: core report/proof route exists.
+- Frame processors for VAD/turn detection hooks, noise/level metadata, transcript alignment, interruption markers, and provider-stage timing. Status: frame transform pipeline, VAD, and interruption reports exist; richer ordered processor graph is next.
+- Transport lifecycle primitives for browser WebSocket, telephony media streams, and direct realtime provider streams. Status: transport runtime/report primitive exists; concrete WebRTC/WebSocket/telephony helpers are next.
+- Branch/filter processor primitives so apps can model Pipecat-style parallel media paths without Python services.
+- Media-quality stats for jitter, loss, playback timestamp drift, interruption stop latency, and provider-stage timing.
+- Serializer helpers for Twilio/Telnyx/Plivo/Vonage-style media streams, kept as primitives instead of bridges.
+- Direct WebRTC helper primitives for browser/mobile voice where WebSocket is the wrong transport.
 - Unified media trace events that link frames, provider decisions, operations records, barge-in, reconnect, and readiness gates.
 - A decision on package shape: keep small primitives in `@absolutejs/voice`; create a separate `~/abs` package only if the pipeline becomes large enough to deserve independent ownership.
 

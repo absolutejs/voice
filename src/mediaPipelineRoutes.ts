@@ -10,6 +10,7 @@ import {
 	type VoiceMediaPipelineCalibrationReport,
 	type VoiceMediaPipelineStatus,
 	type VoiceMediaResamplingPlan,
+	type VoiceMediaTransportReport,
 	type VoiceMediaVadReport
 } from './mediaPipeline';
 
@@ -20,6 +21,7 @@ export type VoiceMediaPipelineReportOptions = VoiceMediaPipelineCalibrationInput
 	minSpeechFrames?: number;
 	speechEndThreshold?: number;
 	speechStartThreshold?: number;
+	transport?: VoiceMediaTransportReport;
 };
 
 export type VoiceMediaPipelineReport = {
@@ -31,6 +33,7 @@ export type VoiceMediaPipelineReport = {
 	resampling?: VoiceMediaResamplingPlan;
 	status: VoiceMediaPipelineStatus;
 	surface: string;
+	transport?: VoiceMediaTransportReport;
 	vad: VoiceMediaVadReport;
 };
 
@@ -39,11 +42,15 @@ export type VoiceMediaPipelineAssertionInput = {
 	maxInterruptionLatencyMs?: number;
 	minAssistantAudioFrames?: number;
 	minInputAudioFrames?: number;
+	minTransportInputFrames?: number;
+	minTransportOutputFrames?: number;
 	minTraceLinkedFrames?: number;
 	minVadSegments?: number;
+	maxTransportBackpressureEvents?: number;
 	requireInterruptionFrame?: boolean;
 	requirePass?: boolean;
 	requireResamplingReady?: boolean;
+	requireTransportConnected?: boolean;
 };
 
 export type VoiceMediaPipelineAssertionReport = {
@@ -115,7 +122,8 @@ export const buildVoiceMediaPipelineReport = (
 		calibration.status,
 		vad.status,
 		interruption.status,
-		resampling?.status ?? 'pass'
+		resampling?.status ?? 'pass',
+		options.transport?.status ?? 'pass'
 	]);
 
 	return {
@@ -127,6 +135,7 @@ export const buildVoiceMediaPipelineReport = (
 		resampling,
 		status,
 		surface: options.surface ?? 'voice-media-pipeline',
+		transport: options.transport,
 		vad
 	};
 };
@@ -203,6 +212,34 @@ export const evaluateVoiceMediaPipelineEvidence = (
 	) {
 		issues.push('Expected resampling plan when calibration requires resampling.');
 	}
+	if (input.requireTransportConnected && !report.transport?.connected) {
+		issues.push('Expected connected media transport evidence.');
+	}
+	if (
+		input.minTransportInputFrames !== undefined &&
+		(report.transport?.inputFrames ?? 0) < input.minTransportInputFrames
+	) {
+		issues.push(
+			`Expected at least ${String(input.minTransportInputFrames)} transport input frame(s), found ${String(report.transport?.inputFrames ?? 0)}.`
+		);
+	}
+	if (
+		input.minTransportOutputFrames !== undefined &&
+		(report.transport?.outputFrames ?? 0) < input.minTransportOutputFrames
+	) {
+		issues.push(
+			`Expected at least ${String(input.minTransportOutputFrames)} transport output frame(s), found ${String(report.transport?.outputFrames ?? 0)}.`
+		);
+	}
+	if (
+		input.maxTransportBackpressureEvents !== undefined &&
+		(report.transport?.backpressureEvents ?? 0) >
+			input.maxTransportBackpressureEvents
+	) {
+		issues.push(
+			`Expected at most ${String(input.maxTransportBackpressureEvents)} transport backpressure event(s), found ${String(report.transport?.backpressureEvents ?? 0)}.`
+		);
+	}
 
 	return {
 		issues,
@@ -240,6 +277,10 @@ export const renderVoiceMediaPipelineMarkdown = (
 	`- Resampling required: ${report.calibration.resamplingRequired ? 'yes' : 'no'}`,
 	`- VAD segments: ${String(report.vad.segments.length)}`,
 	`- Interruption frames: ${String(report.interruption.interruptionFrames)}`,
+	`- Transport: ${report.transport ? `${report.transport.name} (${report.transport.state})` : 'n/a'}`,
+	`- Transport input frames: ${String(report.transport?.inputFrames ?? 0)}`,
+	`- Transport output frames: ${String(report.transport?.outputFrames ?? 0)}`,
+	`- Transport backpressure events: ${String(report.transport?.backpressureEvents ?? 0)}`,
 	'',
 	'## Issues',
 	'',
@@ -269,7 +310,7 @@ export const renderVoiceMediaPipelineHTML = (
 		)
 		.join('');
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero,.card{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.metric{background:#101814;border:1px solid #2e3d36;border-radius:18px;padding:14px}.metric span{color:#a8b5ad;display:block;font-size:.78rem;text-transform:uppercase}.metric strong{display:block;font-size:1.65rem;margin-top:5px}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:7px 11px}.pass{color:#86efac}.warn,.warning{color:#fde68a}.fail,.error{color:#fecaca}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2e3d36;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Native media pipeline</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${escapeHtml(report.surface)}</p><section class="summary"><div class="metric"><span>Frames</span><strong>${String(report.frames)}</strong></div><div class="metric"><span>Input audio</span><strong>${String(report.calibration.inputAudioFrames)}</strong></div><div class="metric"><span>Assistant audio</span><strong>${String(report.calibration.assistantAudioFrames)}</strong></div><div class="metric"><span>Trace linked</span><strong>${String(report.calibration.traceLinkedFrames)}</strong></div><div class="metric"><span>First audio</span><strong>${escapeHtml(report.calibration.firstAudioLatencyMs ?? 'n/a')}ms</strong></div><div class="metric"><span>VAD segments</span><strong>${String(report.vad.segments.length)}</strong></div><div class="metric"><span>Interruptions</span><strong>${String(report.interruption.interruptionFrames)}</strong></div><div class="metric"><span>Resampling</span><strong>${report.calibration.resamplingRequired ? 'required' : 'not required'}</strong></div></section></section><section class="card"><h2>Issues</h2><ul>${issues || '<li class="pass">No media pipeline issues.</li>'}</ul></section><section class="card"><h2>VAD Segments</h2><table><thead><tr><th>Segment</th><th>Frames</th><th>Duration ms</th><th>Turn</th></tr></thead><tbody>${segments || '<tr><td colspan="4">No VAD segments.</td></tr>'}</tbody></table></section></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero,.card{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.metric{background:#101814;border:1px solid #2e3d36;border-radius:18px;padding:14px}.metric span{color:#a8b5ad;display:block;font-size:.78rem;text-transform:uppercase}.metric strong{display:block;font-size:1.65rem;margin-top:5px}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:7px 11px}.pass{color:#86efac}.warn,.warning{color:#fde68a}.fail,.error{color:#fecaca}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2e3d36;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Native media pipeline</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${escapeHtml(report.surface)}</p><section class="summary"><div class="metric"><span>Frames</span><strong>${String(report.frames)}</strong></div><div class="metric"><span>Input audio</span><strong>${String(report.calibration.inputAudioFrames)}</strong></div><div class="metric"><span>Assistant audio</span><strong>${String(report.calibration.assistantAudioFrames)}</strong></div><div class="metric"><span>Trace linked</span><strong>${String(report.calibration.traceLinkedFrames)}</strong></div><div class="metric"><span>First audio</span><strong>${escapeHtml(report.calibration.firstAudioLatencyMs ?? 'n/a')}ms</strong></div><div class="metric"><span>VAD segments</span><strong>${String(report.vad.segments.length)}</strong></div><div class="metric"><span>Interruptions</span><strong>${String(report.interruption.interruptionFrames)}</strong></div><div class="metric"><span>Resampling</span><strong>${report.calibration.resamplingRequired ? 'required' : 'not required'}</strong></div><div class="metric"><span>Transport</span><strong>${escapeHtml(report.transport?.state ?? 'n/a')}</strong></div><div class="metric"><span>Transport in/out</span><strong>${String(report.transport?.inputFrames ?? 0)}/${String(report.transport?.outputFrames ?? 0)}</strong></div><div class="metric"><span>Backpressure</span><strong>${String(report.transport?.backpressureEvents ?? 0)}</strong></div></section></section><section class="card"><h2>Issues</h2><ul>${issues || '<li class="pass">No media pipeline issues.</li>'}</ul></section><section class="card"><h2>VAD Segments</h2><table><thead><tr><th>Segment</th><th>Frames</th><th>Duration ms</th><th>Turn</th></tr></thead><tbody>${segments || '<tr><td colspan="4">No VAD segments.</td></tr>'}</tbody></table></section></main></body></html>`;
 };
 
 export const createVoiceMediaPipelineRoutes = (
