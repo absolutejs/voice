@@ -290,7 +290,10 @@ export {
 } from './proofTrends';
 export {
 	applyVoiceProfileSwitchGuard,
-	recommendVoiceProfileSwitch
+	createVoiceProfileSwitchPolicyProofRoutes,
+	recommendVoiceProfileSwitch,
+	renderVoiceProfileSwitchPolicyProofHTML,
+	runVoiceProfileSwitchPolicyProof
 } from './profileSwitchRecommendation';
 export type {
 	VoiceProfileSwitchGuardAction,
@@ -298,6 +301,11 @@ export type {
 	VoiceProfileSwitchGuardMode,
 	VoiceProfileSwitchGuardOptions,
 	VoiceProfileSwitchObservedSignals,
+	VoiceProfileSwitchPolicyProofCase,
+	VoiceProfileSwitchPolicyProofCaseResult,
+	VoiceProfileSwitchPolicyProofOptions,
+	VoiceProfileSwitchPolicyProofReport,
+	VoiceProfileSwitchPolicyProofRoutesOptions,
 	VoiceProfileSwitchRecommendation,
 	VoiceProfileSwitchRecommendationOptions
 } from './profileSwitchRecommendation';

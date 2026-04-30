@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	applyVoiceProfileSwitchGuard,
+	createVoiceProfileSwitchPolicyProofRoutes,
 	createVoiceMemoryAuditEventStore,
 	recommendVoiceProfileSwitch,
+	runVoiceProfileSwitchPolicyProof,
 	type VoiceRealCallProfileDefaultsReport
 } from '../src';
 
@@ -222,5 +224,67 @@ describe('profile switch recommendations', () => {
 		expect(decision.action).toBe('blocked');
 		expect(decision.blockedByPolicy).toBe('max-switches');
 		expect(decision.selectedProfileId).toBe('meeting-recorder');
+	});
+
+	test('policy proof runs bounded profile switching cases', async () => {
+		const report = await runVoiceProfileSwitchPolicyProof({
+			allowedProfileIds: ['meeting-recorder', 'noisy-phone-call'],
+			defaults,
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			}
+		});
+
+		expect(report.ok).toBe(true);
+		expect(report.summary).toEqual({ failed: 0, passed: 6, total: 6 });
+		expect(report.results.map((result) => result.decision.action)).toEqual([
+			'switch',
+			'recommend',
+			'disabled',
+			'blocked',
+			'blocked',
+			'blocked'
+		]);
+		expect(
+			report.results.map((result) => result.decision.blockedByPolicy ?? null)
+		).toEqual([
+			null,
+			null,
+			null,
+			'allowed-profiles',
+			'blocked-profiles',
+			'max-switches'
+		]);
+	});
+
+	test('policy proof routes expose JSON and HTML', async () => {
+		const app = createVoiceProfileSwitchPolicyProofRoutes({
+			allowedProfileIds: ['meeting-recorder', 'noisy-phone-call'],
+			defaults,
+			observed: {
+				currentProfileId: 'meeting-recorder',
+				fallbackUsed: true,
+				providerP95Ms: 950,
+				turnWarnings: 3
+			}
+		});
+
+		const jsonResponse = await app.handle(
+			new Request('http://localhost/api/voice/profile-switch-policy-proof')
+		);
+		const json = await jsonResponse.json();
+		expect(json.ok).toBe(true);
+		expect(json.summary.total).toBe(6);
+
+		const htmlResponse = await app.handle(
+			new Request('http://localhost/voice/profile-switch-policy')
+		);
+		const html = await htmlResponse.text();
+		expect(html).toContain('Voice Profile Switch Policy Proof');
+		expect(html).toContain('Max switches');
+		expect(html).toContain('PASS');
 	});
 });
