@@ -4153,14 +4153,13 @@ export const createVoiceProductionReadinessRoutes = (
 		query: Record<string, unknown>,
 		request: Request
 	) => {
-		const url = new URL(request.url);
 		const queryKey = Object.entries(query)
 			.map(([key, value]) => [key, String(value)] as const)
 			.sort(([left], [right]) => left.localeCompare(right))
 			.map(([key, value]) => `${key}=${value}`)
 			.join('&');
 
-		return `${url.pathname}?${queryKey}`;
+		return queryKey;
 	};
 	const getReport = async (
 		query: Record<string, unknown>,
