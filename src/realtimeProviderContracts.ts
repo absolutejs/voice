@@ -31,6 +31,36 @@ export type VoiceRealtimeProviderContractDefinition<
 	traceHref?: string;
 };
 
+export type VoiceRealtimeProviderPresetProvider =
+	| 'gemini-live'
+	| 'openai-realtime'
+	| 'pipecat-bridge'
+	| (string & {});
+
+export type VoiceRealtimeProviderContractMatrixPresetOptions<
+	TProvider extends string = VoiceRealtimeProviderPresetProvider
+> = {
+	capabilities?: Record<
+		string,
+		readonly VoiceRealtimeProviderContractCapability[]
+	>;
+	configured?: Record<string, boolean>;
+	env?: Record<string, string | undefined>;
+	fallbackProviders?: Record<string, readonly TProvider[]>;
+	implementationStatus?: Record<string, 'available' | 'planned'>;
+	latencyBudgets?: Record<string, number>;
+	providers?: readonly TProvider[];
+	readinessHref?: string | Record<string, string | undefined>;
+	realtimeChannels?: Record<string, VoiceRealtimeChannelReport | undefined>;
+	requiredCapabilities?: Record<
+		string,
+		readonly VoiceRealtimeProviderContractCapability[]
+	>;
+	requiredEnv?: Record<string, readonly string[]>;
+	selected?: TProvider;
+	traceHref?: string | Record<string, string | undefined>;
+};
+
 export type VoiceRealtimeProviderContractCheck = {
 	detail?: string;
 	key: string;
@@ -124,6 +154,12 @@ const defaultProviderEnv: Record<string, string[]> = {
 	'pipecat-bridge': []
 };
 
+const defaultRealtimeProviders = [
+	'openai-realtime',
+	'gemini-live',
+	'pipecat-bridge'
+] as const;
+
 const statusRank: Record<VoiceRealtimeProviderContractStatus, number> = {
 	pass: 0,
 	warn: 1,
@@ -151,6 +187,57 @@ const escapeHtml = (value: unknown) =>
 		.replaceAll('>', '&gt;')
 		.replaceAll('"', '&quot;')
 		.replaceAll("'", '&#39;');
+
+const resolveProviderHref = <TProvider extends string>(
+	value: string | Record<string, string | undefined> | undefined,
+	provider: TProvider
+) => (typeof value === 'string' ? value : value?.[provider]);
+
+export const createVoiceRealtimeProviderContractMatrixPreset = <
+	TProvider extends string = VoiceRealtimeProviderPresetProvider
+>(
+	options: VoiceRealtimeProviderContractMatrixPresetOptions<TProvider> = {}
+): VoiceRealtimeProviderContractMatrixInput<TProvider> => {
+	const providers =
+		options.providers ??
+		(defaultRealtimeProviders as readonly unknown[] as readonly TProvider[]);
+	const selected = options.selected ?? providers[0];
+
+	return {
+		contracts: providers.map((provider) => {
+			const providerKey = String(provider);
+			const requiredEnv =
+				options.requiredEnv?.[providerKey] ?? defaultProviderEnv[providerKey] ?? [];
+			const implementationStatus =
+				options.implementationStatus?.[providerKey] ??
+				(providerKey === 'pipecat-bridge' ? 'planned' : 'available');
+			const configured =
+				options.configured?.[providerKey] ??
+				(implementationStatus === 'planned'
+					? false
+					: requiredEnv.every((name) => Boolean(options.env?.[name])));
+
+			return {
+				capabilities:
+					options.capabilities?.[providerKey] ?? defaultRequiredCapabilities,
+				configured,
+				env: options.env,
+				fallbackProviders: options.fallbackProviders?.[providerKey],
+				implementationStatus,
+				latencyBudgetMs: options.latencyBudgets?.[providerKey],
+				provider,
+				readinessHref: resolveProviderHref(options.readinessHref, provider),
+				realtimeChannel: options.realtimeChannels?.[providerKey],
+				requiredCapabilities:
+					options.requiredCapabilities?.[providerKey] ??
+					defaultRequiredCapabilities,
+				requiredEnv,
+				selected: provider === selected,
+				traceHref: resolveProviderHref(options.traceHref, provider)
+			} satisfies VoiceRealtimeProviderContractDefinition<TProvider>;
+		})
+	};
+};
 
 export const buildVoiceRealtimeProviderContractMatrix = <
 	TProvider extends string = string

@@ -119,6 +119,7 @@ export type {
 export {
 	assertVoiceRealtimeProviderContractEvidence,
 	buildVoiceRealtimeProviderContractMatrix,
+	createVoiceRealtimeProviderContractMatrixPreset,
 	createVoiceRealtimeProviderContractRoutes,
 	evaluateVoiceRealtimeProviderContractEvidence,
 	renderVoiceRealtimeProviderContractHTML
@@ -129,10 +130,12 @@ export type {
 	VoiceRealtimeProviderContractCapability,
 	VoiceRealtimeProviderContractCheck,
 	VoiceRealtimeProviderContractDefinition,
+	VoiceRealtimeProviderContractMatrixPresetOptions,
 	VoiceRealtimeProviderContractMatrixInput,
 	VoiceRealtimeProviderContractMatrixReport,
 	VoiceRealtimeProviderContractRoutesOptions,
 	VoiceRealtimeProviderContractRow,
+	VoiceRealtimeProviderPresetProvider,
 	VoiceRealtimeProviderContractStatus
 } from './realtimeProviderContracts';
 export {

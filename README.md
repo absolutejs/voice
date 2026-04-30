@@ -3471,15 +3471,16 @@ app.use(
 
 Client state now exposes `assistantAudio` on the stream/controller helpers, so apps can buffer or play synthesized chunks without inventing a second transport.
 
-## OpenAI Realtime
+## Realtime Adapter Packages
 
-Use `createOpenAIRealtimeAdapter(...)` when you want a direct OpenAI Realtime speech-to-speech output path for live smoke tests, duplex benchmarks, or custom realtime orchestration. It implements the same `RealtimeAdapter` contract used by the benchmark harness, so the provider can stream `response.output_audio.delta` audio chunks into AbsoluteJS voice events while still emitting normalized transcript, error, and close events.
+Use realtime adapter packages when you want direct speech-to-speech output paths for live smoke tests, duplex benchmarks, or custom realtime orchestration. Core owns the `RealtimeAdapter` contract and `voice({ realtime })` orchestration path; provider protocol code lives in adapter packages such as `@absolutejs/voice-openai` and `@absolutejs/voice-gemini`.
 
 ```ts
-import { createOpenAIRealtimeAdapter } from '@absolutejs/voice';
+import { voice } from '@absolutejs/voice';
+import { openai } from '@absolutejs/voice-openai';
 import { runTTSAdapterFixture } from '@absolutejs/voice/testing';
 
-const realtime = createOpenAIRealtimeAdapter({
+const realtime = openai({
 	apiKey: process.env.OPENAI_API_KEY!,
 	instructions: 'Answer in one concise sentence.',
 	model: 'gpt-realtime',
@@ -3522,7 +3523,33 @@ const report = await runTTSAdapterFixture(
 );
 ```
 
-For server-to-server use, the adapter opens a WebSocket to OpenAI, sends `session.update`, streams text or base64 PCM input, and emits raw 24kHz mono `pcm_s16le` assistant audio. It requires raw 24kHz mono PCM input because that is the OpenAI Realtime PCM format. The main `voice(...)` route can now run in cascaded mode with `stt` plus optional `tts`, or direct realtime mode with `realtime`. Browser demos should make sure the captured PCM format matches `realtimeInputFormat` or resample before sending audio.
+For server-to-server use, realtime adapters open provider-specific streaming connections, send session configuration, stream text or PCM input, and emit normalized transcript/audio/error/close events. OpenAI Realtime uses raw 24kHz mono `pcm_s16le` audio. The main `voice(...)` route can run in cascaded mode with `stt` plus optional `tts`, or direct realtime mode with `realtime`. Browser demos should make sure the captured PCM format matches `realtimeInputFormat` or resample before sending audio.
+
+Use `createVoiceRealtimeProviderContractMatrixPreset(...)` to prove which realtime providers are production-ready. Pipecat is represented as an explicit bridge seam by default, not core-owned media infrastructure:
+
+```ts
+import {
+	createVoiceRealtimeProviderContractMatrixPreset,
+	createVoiceRealtimeProviderContractRoutes
+} from '@absolutejs/voice';
+
+app.use(
+	createVoiceRealtimeProviderContractRoutes({
+		matrix: createVoiceRealtimeProviderContractMatrixPreset({
+			env: process.env,
+			fallbackProviders: {
+				'gemini-live': ['openai-realtime'],
+				'openai-realtime': ['gemini-live']
+			},
+			latencyBudgets: {
+				'gemini-live': 900,
+				'openai-realtime': 800
+			},
+			selected: 'openai-realtime'
+		})
+	})
+);
+```
 
 If you want a minimal browser playback path, use the client audio player:
 

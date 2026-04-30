@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	buildVoiceRealtimeChannelReport,
 	buildVoiceRealtimeProviderContractMatrix,
+	createVoiceRealtimeProviderContractMatrixPreset,
 	createVoiceRealtimeProviderContractRoutes,
 	evaluateVoiceRealtimeProviderContractEvidence
 } from '../src';
@@ -125,6 +126,55 @@ describe('realtime provider contracts', () => {
 		expect(
 			report.rows[0]?.checks.find((check) => check.key === 'realtimeChannel')
 				?.status
+		).toBe('warn');
+	});
+
+	test('createVoiceRealtimeProviderContractMatrixPreset declares adapter packages and pipecat seam', () => {
+		const preset = createVoiceRealtimeProviderContractMatrixPreset({
+			env: {
+				GEMINI_API_KEY: 'set',
+				OPENAI_API_KEY: 'set'
+			},
+			fallbackProviders: {
+				'gemini-live': ['openai-realtime'],
+				'openai-realtime': ['gemini-live']
+			},
+			latencyBudgets: {
+				'gemini-live': 900,
+				'openai-realtime': 800
+			},
+			readinessHref: '/production-readiness',
+			realtimeChannels: {
+				'gemini-live': realtimeChannel,
+				'openai-realtime': realtimeChannel
+			},
+			selected: 'openai-realtime',
+			traceHref: {
+				'gemini-live': '/traces?sessionId=gemini-live',
+				'openai-realtime': '/traces?sessionId=openai-realtime'
+			}
+		});
+		const report = buildVoiceRealtimeProviderContractMatrix(preset);
+
+		expect(preset.contracts.map((contract) => contract.provider)).toEqual([
+			'openai-realtime',
+			'gemini-live',
+			'pipecat-bridge'
+		]);
+		expect(
+			preset.contracts.find((contract) => contract.provider === 'pipecat-bridge')
+		).toMatchObject({
+			configured: false,
+			implementationStatus: 'planned',
+			requiredEnv: []
+		});
+		expect(report.status).toBe('warn');
+		expect(report.failed).toBe(0);
+		expect(
+			report.rows.find((row) => row.provider === 'openai-realtime')?.selected
+		).toBe(true);
+		expect(
+			report.rows.find((row) => row.provider === 'pipecat-bridge')?.status
 		).toBe('warn');
 	});
 
