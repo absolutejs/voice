@@ -154,6 +154,7 @@ export {
 export {
 	buildVoiceTelephonyMediaReport,
 	createVoiceTelephonyMediaRoutes,
+	getLatestVoiceTelephonyMediaReport,
 	renderVoiceTelephonyMediaHTML
 } from './telephonyMediaRoutes';
 export {
@@ -174,6 +175,7 @@ export type {
 	VoiceTelephonyMediaCarrierReport,
 	VoiceTelephonyMediaReport,
 	VoiceTelephonyMediaRoutesOptions,
+	VoiceTelephonyMediaTraceReportOptions,
 	VoiceTelephonyMediaStatus
 } from './telephonyMediaRoutes';
 export type {

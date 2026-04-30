@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	buildVoiceTelephonyMediaReport,
-	createVoiceTelephonyMediaRoutes
+	createVoiceTelephonyMediaRoutes,
+	getLatestVoiceTelephonyMediaReport,
+	createVoiceMemoryTraceEventStore
 } from '../src';
 
 describe('telephony media routes', () => {
@@ -93,5 +95,72 @@ describe('telephony media routes', () => {
 		});
 		expect(html.status).toBe(200);
 		expect(await html.text()).toContain('Carrier media serializer proof');
+	});
+
+	test('builds telephony media proof from live trace events', async () => {
+		const store = createVoiceMemoryTraceEventStore();
+		await store.append({
+			at: 1,
+			payload: {
+				carrier: 'twilio',
+				envelope: {
+					event: 'start',
+					start: {
+						streamSid: 'MZ-trace'
+					},
+					streamSid: 'MZ-trace'
+				}
+			},
+			sessionId: 'phone-session',
+			type: 'client.telephony_media'
+		});
+		await store.append({
+			at: 2,
+			payload: {
+				carrier: 'twilio',
+				envelope: {
+					event: 'media',
+					media: {
+						payload: Buffer.from(new Uint8Array([1, 2, 3, 4])).toString(
+							'base64'
+						),
+						track: 'inbound'
+					},
+					streamSid: 'MZ-trace'
+				}
+			},
+			sessionId: 'phone-session',
+			type: 'client.telephony_media'
+		});
+		await store.append({
+			at: 3,
+			payload: {
+				carrier: 'twilio',
+				envelope: {
+					event: 'stop',
+					stop: {
+						callSid: 'CA-trace'
+					},
+					streamSid: 'MZ-trace'
+				}
+			},
+			sessionId: 'phone-session',
+			type: 'client.telephony_media'
+		});
+
+		const report = await getLatestVoiceTelephonyMediaReport({ store });
+
+		expect(report?.status).toBe('pass');
+		expect(report?.carriers[0]).toMatchObject({
+			audioBytes: 4,
+			carrier: 'twilio',
+			lifecycle: {
+				mediaEvents: 1,
+				started: true,
+				status: 'pass',
+				stopped: true,
+				streamIds: expect.arrayContaining(['MZ-trace'])
+			}
+		});
 	});
 });

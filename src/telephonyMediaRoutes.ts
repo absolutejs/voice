@@ -11,6 +11,7 @@ import type {
 	MediaTelephonyEnvelope,
 	MediaTelephonyStreamLifecycleReport
 } from '@absolutejs/media';
+import type { VoiceTraceEventStore } from './trace';
 
 export type VoiceTelephonyMediaStatus = 'fail' | 'pass';
 
@@ -43,7 +44,13 @@ export type VoiceTelephonyMediaRoutesOptions = {
 	htmlPath?: false | string;
 	name?: string;
 	path?: string;
+	store?: VoiceTraceEventStore;
 	title?: string;
+};
+
+export type VoiceTelephonyMediaTraceReportOptions = {
+	carriers?: readonly MediaTelephonyCarrier[];
+	store: VoiceTraceEventStore;
 };
 
 const demoPayload = Buffer.from(new Uint8Array([1, 2, 3, 4])).toString('base64');
@@ -222,6 +229,46 @@ export const buildVoiceTelephonyMediaReport = (input: {
 	};
 };
 
+export const getLatestVoiceTelephonyMediaReport = async (
+	options: VoiceTelephonyMediaTraceReportOptions
+): Promise<VoiceTelephonyMediaReport | undefined> => {
+	const events = (await options.store.list({ type: 'client.telephony_media' }))
+		.filter((event) => {
+			const carrier = event.payload.carrier;
+			return (
+				typeof carrier === 'string' &&
+				(!options.carriers ||
+					options.carriers.includes(carrier as MediaTelephonyCarrier)) &&
+				event.payload.envelope &&
+				typeof event.payload.envelope === 'object'
+			);
+		})
+		.sort((left, right) => left.at - right.at);
+
+	if (events.length === 0) {
+		return undefined;
+	}
+
+	const byCarrier = new Map<MediaTelephonyCarrier, MediaTelephonyEnvelope[]>();
+	for (const event of events) {
+		const carrier = event.payload.carrier as MediaTelephonyCarrier;
+		const envelopes = byCarrier.get(carrier) ?? [];
+		envelopes.push(event.payload.envelope as MediaTelephonyEnvelope);
+		byCarrier.set(carrier, envelopes);
+	}
+
+	return buildVoiceTelephonyMediaReport({
+		carriers: [...byCarrier.entries()].map(([carrier, lifecycleEnvelopes]) => ({
+			carrier,
+			envelope: lifecycleEnvelopes.find((envelope) => {
+				const event = envelope.event;
+				return typeof event === 'string' && event.toLowerCase() === 'media';
+			}),
+			lifecycleEnvelopes
+		}))
+	});
+};
+
 export const renderVoiceTelephonyMediaHTML = (
 	report: VoiceTelephonyMediaReport,
 	options: { title?: string } = {}
@@ -247,15 +294,23 @@ export const createVoiceTelephonyMediaRoutes = (
 		name: options.name ?? 'absolutejs-voice-telephony-media'
 	});
 
-	routes.get(path, () =>
-		buildVoiceTelephonyMediaReport({ carriers: options.carriers })
+	routes.get(path, async () =>
+		options.store
+			? ((await getLatestVoiceTelephonyMediaReport({
+					store: options.store
+				})) ?? buildVoiceTelephonyMediaReport({ carriers: options.carriers }))
+			: buildVoiceTelephonyMediaReport({ carriers: options.carriers })
 	);
 
 	if (htmlPath) {
-		routes.get(htmlPath, () => {
-			const report = buildVoiceTelephonyMediaReport({
-				carriers: options.carriers
-			});
+		routes.get(htmlPath, async () => {
+			const report = options.store
+				? ((await getLatestVoiceTelephonyMediaReport({
+						store: options.store
+					})) ?? buildVoiceTelephonyMediaReport({ carriers: options.carriers }))
+				: buildVoiceTelephonyMediaReport({
+						carriers: options.carriers
+					});
 
 			return new Response(renderVoiceTelephonyMediaHTML(report, options), {
 				headers: {

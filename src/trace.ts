@@ -15,6 +15,7 @@ export type VoiceTraceEventType =
 	| 'client.browser_media'
 	| 'client.live_latency'
 	| 'client.reconnect'
+	| 'client.telephony_media'
 	| 'operator.action'
 	| 'provider.decision'
 	| 'session.error'

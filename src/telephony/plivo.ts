@@ -529,6 +529,7 @@ export const createPlivoMediaStreamBridge = <
 		createPlivoTwilioSocketAdapter(socket),
 		{
 			...(options as TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>),
+			telephonyMediaCarrier: 'plivo',
 			onVoiceMessage: options.onVoiceMessage
 				? (input) =>
 						options.onVoiceMessage?.({

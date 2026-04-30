@@ -476,6 +476,7 @@ export const createTelnyxMediaStreamBridge = <
 		createTelnyxTwilioSocketAdapter(socket),
 		{
 			...(options as TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>),
+			telephonyMediaCarrier: 'telnyx',
 			onVoiceMessage: options.onVoiceMessage
 				? (input) =>
 						options.onVoiceMessage?.({

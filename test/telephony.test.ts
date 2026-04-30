@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
 	assertVoiceTelephonyWebhookNormalizationEvidence,
+	createVoiceMemoryTraceEventStore,
 	evaluateVoiceTelephonyWebhookNormalizationEvidence
 } from '../src';
 import {
@@ -569,6 +570,7 @@ test('twilio outbound payload pass-through preserves native mulaw telephony audi
 test('twilio bridge forwards inbound media to the voice session and streams outbound audio back', async () => {
 	const sentMessages: string[] = [];
 	const receivedAudio: Uint8Array[] = [];
+	const trace = createVoiceMemoryTraceEventStore();
 	const bridge = createTwilioMediaStreamBridge(
 		{
 			close: () => {},
@@ -584,6 +586,7 @@ test('twilio bridge forwards inbound media to the voice session and streams outb
 			}),
 			session: createVoiceMemoryStore(),
 			stt: createFakeSTTAdapter(receivedAudio),
+			trace,
 			tts: createFakeTTSAdapter(),
 			turnDetection: {
 				transcriptStabilityMs: 0
@@ -644,6 +647,31 @@ test('twilio bridge forwards inbound media to the voice session and streams outb
 	});
 	const refreshed = sentMessages.map((message) => JSON.parse(message));
 	expect(refreshed.some((message) => message.event === 'clear')).toBe(true);
+
+	await bridge.handleMessage({
+		event: 'stop',
+		stop: {
+			callSid: 'CA123'
+		},
+		streamSid: 'MZ123'
+	});
+	const telephonyMediaEvents = await trace.list({
+		type: 'client.telephony_media'
+	});
+	expect(telephonyMediaEvents.map((event) => event.payload.event)).toEqual(
+		expect.arrayContaining(['start', 'media', 'stop'])
+	);
+	expect(
+		telephonyMediaEvents.filter((event) => event.payload.event === 'media')
+	).toHaveLength(2);
+	expect(telephonyMediaEvents[0]).toMatchObject({
+		payload: {
+			carrier: 'twilio',
+			streamId: 'MZ123'
+		},
+		scenarioId: 'telephony-intake',
+		sessionId: 'phone-session'
+	});
 });
 
 test('twilio bridge can emit a compact call review artifact on close', async () => {

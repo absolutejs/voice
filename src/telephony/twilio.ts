@@ -23,6 +23,7 @@ import {
 	type VoiceCallReviewRecorder
 } from '../testing/review';
 import { resolveTurnDetectionConfig } from '../turnProfiles';
+import type { VoiceTraceEventStore } from '../trace';
 import type {
 	AudioChunk,
 	AudioFormat,
@@ -177,6 +178,7 @@ export type TwilioMediaStreamBridgeOptions<
 	scenarioId?: string;
 	sessionId?: string;
 	stt: STTAdapter;
+	telephonyMediaCarrier?: 'plivo' | 'telnyx' | 'twilio';
 };
 
 export type TwilioMediaStreamBridge = {
@@ -1026,6 +1028,52 @@ export const createTwilioMediaStreamBridge = <
 		| VoiceSessionHandle<TContext, TSession, TResult>
 		| null = null;
 	let reviewArtifactDelivered = false;
+	const telephonyMediaCarrier = options.telephonyMediaCarrier ?? 'twilio';
+
+	const appendTelephonyMediaTrace = async (
+		message: TwilioInboundMessage,
+		override?: {
+			sessionId?: string;
+			streamSid?: string;
+		}
+	) => {
+		const trace = options.trace as VoiceTraceEventStore | undefined;
+		const sessionId =
+			override?.sessionId ??
+			bridgeState.sessionId ??
+			(message.event === 'start'
+				? message.start.customParameters?.sessionId
+				: undefined) ??
+			(message.event === 'start'
+				? message.start.streamSid
+				: 'telephony-media');
+		const streamSid =
+			override?.streamSid ??
+			(message.event === 'start'
+				? message.start.streamSid
+				: 'streamSid' in message
+					? message.streamSid
+					: undefined);
+
+		await trace?.append({
+			at: Date.now(),
+			payload: {
+				callSid:
+					message.event === 'start'
+						? message.start.callSid
+						: message.event === 'stop'
+							? message.stop?.callSid
+							: bridgeState.callSid ?? undefined,
+				carrier: telephonyMediaCarrier,
+				envelope: message,
+				event: message.event,
+				streamId: streamSid
+			},
+			scenarioId: bridgeState.scenarioId ?? undefined,
+			sessionId,
+			type: 'client.telephony_media'
+		});
+	};
 
 	const resolveLexicon = async () => {
 		if (typeof options.lexicon === 'function') {
@@ -1152,6 +1200,10 @@ export const createTwilioMediaStreamBridge = <
 						reason: message.start.callSid,
 						text: bridgeState.sessionId ?? undefined
 					});
+					await appendTelephonyMediaTrace(message, {
+						sessionId: bridgeState.sessionId ?? undefined,
+						streamSid: bridgeState.streamSid ?? undefined
+					});
 					await ensureSession();
 					return;
 				}
@@ -1180,6 +1232,10 @@ export const createTwilioMediaStreamBridge = <
 						);
 					}
 					bridgeState.hasOutboundAudioSinceLastInbound = false;
+					await appendTelephonyMediaTrace(message, {
+						sessionId: bridgeState.sessionId ?? undefined,
+						streamSid: bridgeState.streamSid ?? undefined
+					});
 					await activeSession.receiveAudio(
 						transcodeTwilioInboundPayloadToPCM16(message.media.payload)
 					);
@@ -1195,6 +1251,10 @@ export const createTwilioMediaStreamBridge = <
 					bridgeState.reviewRecorder?.recordTwilioInbound({
 						event: 'stop',
 						reason: message.stop?.callSid
+					});
+					await appendTelephonyMediaTrace(message, {
+						sessionId: bridgeState.sessionId ?? undefined,
+						streamSid: bridgeState.streamSid ?? undefined
 					});
 					await sessionHandle?.close('twilio-stop');
 					return;
