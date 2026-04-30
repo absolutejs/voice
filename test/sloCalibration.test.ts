@@ -25,6 +25,11 @@ describe('SLO calibration', () => {
 					cycles: 18,
 					maxLiveP95Ms: 420 + index * 10,
 					maxProviderP95Ms: 700 + index * 20,
+					runtimeChannel: {
+						maxInterruptionP95Ms: 180 + index * 10,
+						samples: 8,
+						status: 'pass'
+					},
 					maxTurnP95Ms: 140 + index * 5
 				}
 			})
@@ -43,7 +48,9 @@ describe('SLO calibration', () => {
 		expect(report.passingRuns).toBe(3);
 		expect(report.thresholds.liveLatency.recommendedMs).toBe(660);
 		expect(report.thresholds.provider.recommendedMs).toBe(1_110);
+		expect(report.thresholds.interruption.recommendedMs).toBe(300);
 		expect(report.thresholds.turnLatency.recommendedMs).toBe(250);
+		expect(report.thresholds.monitorRun.status).toBe('warn');
 		expect(report.thresholds.reconnect.status).toBe('warn');
 		expect(report.recommendedProviderSloThresholds.llm?.maxP95ElapsedMs).toBe(
 			1_110

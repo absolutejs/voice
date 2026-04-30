@@ -73,6 +73,15 @@ describe('proof trends', () => {
 						eventsWithLatency: 12,
 						status: 'pass'
 					},
+					runtimeChannel: {
+						maxBackpressureEvents: 0,
+						maxFirstAudioLatencyMs: 420,
+						maxInterruptionP95Ms: 180,
+						maxJitterMs: 12,
+						maxTimestampDriftMs: 24,
+						samples: 8,
+						status: 'pass'
+					},
 					turnLatency: { p95Ms: 140, samples: 27, status: 'pass' }
 				},
 				{
@@ -81,6 +90,15 @@ describe('proof trends', () => {
 					ok: true,
 					providerSlo: {
 						eventsWithLatency: 18,
+						status: 'pass'
+					},
+					runtimeChannel: {
+						maxBackpressureEvents: 0,
+						maxFirstAudioLatencyMs: 410,
+						maxInterruptionP95Ms: 170,
+						maxJitterMs: 10,
+						maxTimestampDriftMs: 20,
+						samples: 8,
 						status: 'pass'
 					},
 					turnLatency: { p95Ms: 130, samples: 27, status: 'pass' }
@@ -94,6 +112,15 @@ describe('proof trends', () => {
 				cycles: 2,
 				maxLiveP95Ms: 420,
 				maxProviderP95Ms: 700,
+				runtimeChannel: {
+					maxBackpressureEvents: 0,
+					maxFirstAudioLatencyMs: 420,
+					maxInterruptionP95Ms: 180,
+					maxJitterMs: 12,
+					maxTimestampDriftMs: 24,
+					samples: 16,
+					status: 'pass'
+				},
 				maxTurnP95Ms: 140
 			}
 		});
@@ -103,16 +130,26 @@ describe('proof trends', () => {
 				maxAgeMs: 60_000,
 				maxLiveP95Ms: 800,
 				maxProviderP95Ms: 1_500,
+				maxRuntimeBackpressureEvents: 0,
+				maxRuntimeFirstAudioLatencyMs: 600,
+				maxRuntimeInterruptionP95Ms: 250,
+				maxRuntimeJitterMs: 30,
+				maxRuntimeTimestampDriftMs: 50,
 				maxTurnP95Ms: 500,
 				minCycles: 2,
 				minLiveLatencySamples: 50,
 				minProviderSloEventsWithLatency: 6,
+				minRuntimeChannelSamples: 10,
 				minTurnLatencySamples: 10
 			})
 		).toMatchObject({
 			cycles: 2,
 			failedCycles: 0,
 			ok: true,
+			runtimeChannel: {
+				maxFirstAudioLatencyMs: 420,
+				maxInterruptionP95Ms: 180
+			},
 			status: 'pass'
 		});
 		expect(assertVoiceProofTrendEvidence(report, { minCycles: 2 }).ok).toBe(
@@ -142,6 +179,15 @@ describe('proof trends', () => {
 				cycles: 1,
 				maxLiveP95Ms: 1_200,
 				maxProviderP95Ms: 5_500,
+				runtimeChannel: {
+					maxBackpressureEvents: 3,
+					maxFirstAudioLatencyMs: 1_500,
+					maxInterruptionP95Ms: 700,
+					maxJitterMs: 120,
+					maxTimestampDriftMs: 200,
+					samples: 1,
+					status: 'fail'
+				},
 				maxTurnP95Ms: 900
 			}
 		});
@@ -149,10 +195,16 @@ describe('proof trends', () => {
 			maxAgeMs: 60_000,
 			maxLiveP95Ms: 800,
 			maxProviderP95Ms: 1_500,
+			maxRuntimeBackpressureEvents: 0,
+			maxRuntimeFirstAudioLatencyMs: 600,
+			maxRuntimeInterruptionP95Ms: 250,
+			maxRuntimeJitterMs: 30,
+			maxRuntimeTimestampDriftMs: 50,
 			maxTurnP95Ms: 500,
 			minCycles: 2,
 			minLiveLatencySamples: 50,
 			minProviderSloEventsWithLatency: 6,
+			minRuntimeChannelSamples: 10,
 			minTurnLatencySamples: 10
 		});
 
@@ -172,6 +224,12 @@ describe('proof trends', () => {
 				expect.stringContaining('live latency p95'),
 				expect.stringContaining('provider p95'),
 				expect.stringContaining('turn latency p95'),
+				expect.stringContaining('runtime-channel first audio latency'),
+				expect.stringContaining('runtime-channel interruption p95'),
+				expect.stringContaining('runtime-channel jitter'),
+				expect.stringContaining('runtime-channel timestamp drift'),
+				expect.stringContaining('runtime-channel backpressure events'),
+				expect.stringContaining('runtime-channel samples'),
 				expect.stringContaining('live latency sample'),
 				expect.stringContaining('provider latency event'),
 				expect.stringContaining('turn latency sample')

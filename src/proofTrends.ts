@@ -6,7 +6,18 @@ export type VoiceProofTrendSummary = {
 	cycles?: number;
 	maxLiveP95Ms?: number;
 	maxProviderP95Ms?: number;
+	runtimeChannel?: VoiceProofTrendRuntimeChannelSummary;
 	maxTurnP95Ms?: number;
+};
+
+export type VoiceProofTrendRuntimeChannelSummary = {
+	maxBackpressureEvents?: number;
+	maxFirstAudioLatencyMs?: number;
+	maxInterruptionP95Ms?: number;
+	maxJitterMs?: number;
+	maxTimestampDriftMs?: number;
+	samples?: number;
+	status?: string;
 };
 
 export type VoiceProofTrendCycle = {
@@ -29,6 +40,7 @@ export type VoiceProofTrendCycle = {
 		eventsWithLatency?: number;
 		status?: string;
 	};
+	runtimeChannel?: VoiceProofTrendRuntimeChannelSummary;
 	turnLatency?: {
 		p95Ms?: number;
 		samples?: number;
@@ -67,12 +79,18 @@ export type VoiceProofTrendReport = {
 
 export type VoiceProofTrendAssertionInput = {
 	maxAgeMs?: number;
+	maxRuntimeBackpressureEvents?: number;
+	maxRuntimeFirstAudioLatencyMs?: number;
+	maxRuntimeInterruptionP95Ms?: number;
+	maxRuntimeJitterMs?: number;
+	maxRuntimeTimestampDriftMs?: number;
 	maxLiveP95Ms?: number;
 	maxProviderP95Ms?: number;
 	maxTurnP95Ms?: number;
 	minCycles?: number;
 	minLiveLatencySamples?: number;
 	minProviderSloEventsWithLatency?: number;
+	minRuntimeChannelSamples?: number;
 	minTurnLatencySamples?: number;
 	requireAllCyclesOk?: boolean;
 	requireStatus?: VoiceProofTrendStatus;
@@ -85,6 +103,7 @@ export type VoiceProofTrendAssertionReport = {
 	issues: string[];
 	maxLiveP95Ms?: number;
 	maxProviderP95Ms?: number;
+	runtimeChannel?: VoiceProofTrendRuntimeChannelSummary;
 	maxTurnP95Ms?: number;
 	ok: boolean;
 	status: VoiceProofTrendStatus;
@@ -238,6 +257,47 @@ const readProofTrendMaxTurnP95 = (report: VoiceProofTrendReport) =>
 	report.summary.maxTurnP95Ms ??
 	maxNumber(report.cycles.map((cycle) => cycle.turnLatency?.p95Ms));
 
+const readRuntimeChannelMetric = (
+	report: VoiceProofTrendReport,
+	key: Exclude<keyof VoiceProofTrendRuntimeChannelSummary, 'status'>
+) => {
+	const summaryValue = report.summary.runtimeChannel?.[key];
+	return typeof summaryValue === 'number'
+		? summaryValue
+		: maxNumber(
+			report.cycles.map((cycle) => {
+				const value = cycle.runtimeChannel?.[key];
+				return typeof value === 'number' ? value : undefined;
+			})
+		);
+};
+
+const readProofTrendRuntimeChannel = (
+	report: VoiceProofTrendReport
+): VoiceProofTrendRuntimeChannelSummary => ({
+	maxBackpressureEvents: readRuntimeChannelMetric(
+		report,
+		'maxBackpressureEvents'
+	),
+	maxFirstAudioLatencyMs: readRuntimeChannelMetric(
+		report,
+		'maxFirstAudioLatencyMs'
+	),
+	maxInterruptionP95Ms: readRuntimeChannelMetric(
+		report,
+		'maxInterruptionP95Ms'
+	),
+	maxJitterMs: readRuntimeChannelMetric(report, 'maxJitterMs'),
+	maxTimestampDriftMs: readRuntimeChannelMetric(
+		report,
+		'maxTimestampDriftMs'
+	),
+	samples:
+		report.summary.runtimeChannel?.samples ??
+		maxNumber(report.cycles.map((cycle) => cycle.runtimeChannel?.samples)),
+	status: report.summary.runtimeChannel?.status
+});
+
 export const evaluateVoiceProofTrendEvidence = (
 	report: VoiceProofTrendReport,
 	input: VoiceProofTrendAssertionInput = {}
@@ -250,6 +310,7 @@ export const evaluateVoiceProofTrendEvidence = (
 	const failedCycles = report.cycles.filter((cycle) => cycle.ok !== true).length;
 	const maxLiveP95Ms = readProofTrendMaxLiveP95(report);
 	const maxProviderP95Ms = readProofTrendMaxProviderP95(report);
+	const runtimeChannel = readProofTrendRuntimeChannel(report);
 	const maxTurnP95Ms = readProofTrendMaxTurnP95(report);
 
 	if (report.status !== requiredStatus) {
@@ -310,6 +371,62 @@ export const evaluateVoiceProofTrendEvidence = (
 				: `Expected proof trends turn latency p95 at most ${String(input.maxTurnP95Ms)}ms, found ${String(maxTurnP95Ms)}ms.`
 		);
 	}
+	if (
+		input.maxRuntimeFirstAudioLatencyMs !== undefined &&
+		(runtimeChannel.maxFirstAudioLatencyMs === undefined ||
+			runtimeChannel.maxFirstAudioLatencyMs >
+				input.maxRuntimeFirstAudioLatencyMs)
+	) {
+		issues.push(
+			runtimeChannel.maxFirstAudioLatencyMs === undefined
+				? 'Missing proof trends runtime-channel first audio latency.'
+				: `Expected proof trends runtime-channel first audio latency at most ${String(input.maxRuntimeFirstAudioLatencyMs)}ms, found ${String(runtimeChannel.maxFirstAudioLatencyMs)}ms.`
+		);
+	}
+	if (
+		input.maxRuntimeInterruptionP95Ms !== undefined &&
+		(runtimeChannel.maxInterruptionP95Ms === undefined ||
+			runtimeChannel.maxInterruptionP95Ms > input.maxRuntimeInterruptionP95Ms)
+	) {
+		issues.push(
+			runtimeChannel.maxInterruptionP95Ms === undefined
+				? 'Missing proof trends runtime-channel interruption p95.'
+				: `Expected proof trends runtime-channel interruption p95 at most ${String(input.maxRuntimeInterruptionP95Ms)}ms, found ${String(runtimeChannel.maxInterruptionP95Ms)}ms.`
+		);
+	}
+	if (
+		input.maxRuntimeJitterMs !== undefined &&
+		(runtimeChannel.maxJitterMs === undefined ||
+			runtimeChannel.maxJitterMs > input.maxRuntimeJitterMs)
+	) {
+		issues.push(
+			runtimeChannel.maxJitterMs === undefined
+				? 'Missing proof trends runtime-channel jitter.'
+				: `Expected proof trends runtime-channel jitter at most ${String(input.maxRuntimeJitterMs)}ms, found ${String(runtimeChannel.maxJitterMs)}ms.`
+		);
+	}
+	if (
+		input.maxRuntimeTimestampDriftMs !== undefined &&
+		(runtimeChannel.maxTimestampDriftMs === undefined ||
+			runtimeChannel.maxTimestampDriftMs > input.maxRuntimeTimestampDriftMs)
+	) {
+		issues.push(
+			runtimeChannel.maxTimestampDriftMs === undefined
+				? 'Missing proof trends runtime-channel timestamp drift.'
+				: `Expected proof trends runtime-channel timestamp drift at most ${String(input.maxRuntimeTimestampDriftMs)}ms, found ${String(runtimeChannel.maxTimestampDriftMs)}ms.`
+		);
+	}
+	if (
+		input.maxRuntimeBackpressureEvents !== undefined &&
+		(runtimeChannel.maxBackpressureEvents === undefined ||
+			runtimeChannel.maxBackpressureEvents > input.maxRuntimeBackpressureEvents)
+	) {
+		issues.push(
+			runtimeChannel.maxBackpressureEvents === undefined
+				? 'Missing proof trends runtime-channel backpressure events.'
+				: `Expected proof trends runtime-channel backpressure events at most ${String(input.maxRuntimeBackpressureEvents)}, found ${String(runtimeChannel.maxBackpressureEvents)}.`
+		);
+	}
 	if (input.minLiveLatencySamples !== undefined) {
 		const lowSamples = report.cycles.filter(
 			(cycle) =>
@@ -343,6 +460,17 @@ export const evaluateVoiceProofTrendEvidence = (
 			);
 		}
 	}
+	if (
+		input.minRuntimeChannelSamples !== undefined &&
+		(runtimeChannel.samples === undefined ||
+			runtimeChannel.samples < input.minRuntimeChannelSamples)
+	) {
+		issues.push(
+			runtimeChannel.samples === undefined
+				? 'Missing proof trends runtime-channel samples.'
+				: `Expected proof trends runtime-channel samples at least ${String(input.minRuntimeChannelSamples)}, found ${String(runtimeChannel.samples)}.`
+		);
+	}
 
 	return {
 		ageMs: report.ageMs,
@@ -351,6 +479,7 @@ export const evaluateVoiceProofTrendEvidence = (
 		issues,
 		maxLiveP95Ms,
 		maxProviderP95Ms,
+		runtimeChannel,
 		maxTurnP95Ms,
 		ok: issues.length === 0,
 		status: report.status

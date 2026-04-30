@@ -190,6 +190,7 @@ const normalizeSample = (
 		return {
 			generatedAt: input.generatedAt,
 			liveP95Ms: input.summary.maxLiveP95Ms,
+			interruptionP95Ms: input.summary.runtimeChannel?.maxInterruptionP95Ms,
 			ok: input.ok,
 			providerP95Ms: input.summary.maxProviderP95Ms,
 			runId: input.runId,
