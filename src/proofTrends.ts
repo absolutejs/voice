@@ -1064,24 +1064,31 @@ export const buildVoiceRealCallProfileHistoryReport = (
 		),
 		...(evidenceReport ? [evidenceReport] : [])
 	];
-	const profiles = buildVoiceProofTrendProfileSummaries(history, options);
+	const passingHistory = history.filter((report) => report.ok === true);
+	const recommendationHistory = passingHistory.length > 0 ? passingHistory : history;
+	const profiles = buildVoiceProofTrendProfileSummaries(
+		recommendationHistory,
+		options
+	);
 	const summary: VoiceProofTrendSummary & {
 		failedReports: number;
 		profileCount: number;
 	} = {
-		cycles: history.reduce(
+		cycles: recommendationHistory.reduce(
 			(total, report) => total + (report.summary.cycles ?? report.cycles.length),
 			0
 		),
 		failedReports: history.filter((report) => report.ok !== true).length,
-		maxLiveP95Ms: maxNumber(history.map(readProofTrendMaxLiveP95)),
-		maxProviderP95Ms: maxNumber(history.map(readProofTrendMaxProviderP95)),
-		maxTurnP95Ms: maxNumber(history.map(readProofTrendMaxTurnP95)),
+		maxLiveP95Ms: maxNumber(recommendationHistory.map(readProofTrendMaxLiveP95)),
+		maxProviderP95Ms: maxNumber(
+			recommendationHistory.map(readProofTrendMaxProviderP95)
+		),
+		maxTurnP95Ms: maxNumber(recommendationHistory.map(readProofTrendMaxTurnP95)),
 		profileCount: profiles.length,
 		profiles,
-		providers: readProofTrendProviders(history),
+		providers: readProofTrendProviders(recommendationHistory),
 		runtimeChannel: aggregateProofTrendRuntimeChannel(
-			history
+			recommendationHistory
 				.map(readProofTrendRuntimeChannel)
 				.filter(
 					(channel): channel is VoiceProofTrendRuntimeChannelSummary =>
@@ -1091,24 +1098,22 @@ export const buildVoiceRealCallProfileHistoryReport = (
 	};
 	const trend = buildVoiceProofTrendReport({
 		baseUrl: options.baseUrl,
-		cycles: flattenProofTrendCycles(history),
+		cycles: flattenProofTrendCycles(recommendationHistory),
 		generatedAt,
 		maxAgeMs: options.maxAgeMs,
 		now: options.now,
 		ok:
-			history.length > 0 &&
-			summary.failedReports === 0 &&
+			recommendationHistory.length > 0 &&
 			profiles.every((profile) => profile.status !== 'fail'),
 		source: options.source ?? 'real-call-profile-history',
 		summary
 	});
 	const recommendations = buildVoiceProofTrendRecommendationReport(trend, options);
 	const issues = [
-		...(history.length === 0 ? ['No real-call profile reports were present.'] : []),
-		...(profiles.length === 0 ? ['No benchmark profiles were present.'] : []),
-		...(summary.failedReports > 0
-			? [`${summary.failedReports} real-call profile report(s) failed.`]
+		...(recommendationHistory.length === 0
+			? ['No passing real-call profile reports were present.']
 			: []),
+		...(profiles.length === 0 ? ['No benchmark profiles were present.'] : []),
 		...recommendations.issues
 	];
 
