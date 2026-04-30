@@ -271,6 +271,7 @@ test('buildVoiceProductionReadinessReport gates browser media transport stats', 
 test('buildVoiceProductionReadinessReport gates telephony media serializers', async () => {
 	const report = await buildVoiceProductionReadinessReport({
 		links: {
+			operationsRecords: '/voice-operations/:sessionId',
 			telephonyMedia: '/voice/telephony-media'
 		},
 		store: createVoiceMemoryTraceEventStore(),
@@ -279,23 +280,45 @@ test('buildVoiceProductionReadinessReport gates telephony media serializers', as
 				{
 					audioBytes: 0,
 					carrier: 'twilio',
-					issues: ['Carrier media envelope did not produce a MediaFrame.'],
+					issues: ['Telephony media stream did not include a stop event.'],
 					lifecycle: {
-						audioBytes: 0,
+						audioBytes: 4,
 						checkedAt: Date.now(),
-						events: [],
-						issues: [],
-						mediaEvents: 0,
-						started: false,
-						status: 'pass',
+						events: [
+							{
+								audioBytes: 0,
+								carrier: 'twilio',
+								direction: 'unknown',
+								kind: 'start',
+								streamId: 'twilio-stream-1'
+							},
+							{
+								audioBytes: 4,
+								carrier: 'twilio',
+								direction: 'inbound',
+								kind: 'media',
+								streamId: 'twilio-stream-1'
+							}
+						],
+						issues: [
+							{
+								code: 'media.telephony_missing_stop',
+								message:
+									'Telephony media stream did not include a stop event.',
+								severity: 'error'
+							}
+						],
+						mediaEvents: 1,
+						started: true,
+						status: 'fail',
 						stopped: false,
-						streamIds: []
+						streamIds: ['twilio-stream-1']
 					},
 					status: 'fail'
 				}
 			],
 			checkedAt: Date.now(),
-			issues: ['twilio: Carrier media envelope did not produce a MediaFrame.'],
+			issues: ['twilio: Telephony media stream did not include a stop event.'],
 			status: 'fail'
 		}
 	});
@@ -306,15 +329,23 @@ test('buildVoiceProductionReadinessReport gates telephony media serializers', as
 		carriers: 1,
 		failed: 1,
 		issues: 1,
-		lifecycleFailures: 0,
-		mediaEvents: 0,
+		lifecycleFailures: 1,
+		mediaEvents: 1,
 		passed: 0,
 		status: 'fail'
 	});
+	expect(report.operationsRecords?.telephonyMedia).toEqual([
+		expect.objectContaining({
+			detail: 'Telephony media stream did not include a stop event.',
+			href: '/voice-operations/twilio-stream-1',
+			sessionId: 'twilio-stream-1',
+			status: 'fail'
+		})
+	]);
 	expect(report.checks).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({
-				href: '/voice/telephony-media',
+				href: '/voice-operations/twilio-stream-1',
 				label: 'Telephony media serializers',
 				status: 'fail',
 				value: '1/1 failing'

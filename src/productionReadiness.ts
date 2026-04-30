@@ -425,6 +425,7 @@ export type VoiceProductionReadinessOperationsRecordLinks = {
 	failingLatency: VoiceProductionReadinessOperationsRecordLink[];
 	mediaQuality: VoiceProductionReadinessOperationsRecordLink[];
 	providerErrors: VoiceProductionReadinessOperationsRecordLink[];
+	telephonyMedia: VoiceProductionReadinessOperationsRecordLink[];
 };
 
 export type VoiceProductionReadinessAuditRequirement = {
@@ -1888,6 +1889,7 @@ const buildOperationsRecordLinks = (input: {
 	liveLatencyMaxAgeMs?: number;
 	liveLatencyWarnAfterMs: number;
 	mediaPipeline?: VoiceMediaPipelineReport;
+	telephonyMedia?: VoiceTelephonyMediaReport;
 }): VoiceProductionReadinessOperationsRecordLinks => {
 	const failedSessionSet = new Set(input.failedSessionIds);
 	const minLiveLatencyAt =
@@ -1952,6 +1954,36 @@ const buildOperationsRecordLinks = (input: {
 					})
 				)
 			: [];
+	const telephonyMedia =
+		input.telephonyMedia && input.telephonyMedia.status !== 'pass'
+			? input.telephonyMedia.carriers
+					.filter((carrier) => carrier.status !== 'pass')
+					.flatMap((carrier) => {
+						const sessionIds = [
+							...carrier.lifecycle.streamIds,
+							carrier.frame?.sessionId
+						].filter(
+							(value, index, values): value is string =>
+								typeof value === 'string' &&
+								value.length > 0 &&
+								values.indexOf(value) === index
+						);
+						const fallbackSessionId = `${carrier.carrier}-telephony-media`;
+						const ids = sessionIds.length > 0 ? sessionIds : [fallbackSessionId];
+
+						return ids.map(
+							(sessionId): VoiceProductionReadinessOperationsRecordLink => ({
+								detail:
+									carrier.issues[0] ??
+									`${carrier.lifecycle.issues.length} telephony media lifecycle issue(s)`,
+								href: voiceOperationsRecordHref(input.base, sessionId),
+								label: 'Open telephony media operations record',
+								sessionId,
+								status: 'fail'
+							})
+						);
+					})
+			: [];
 
 	return {
 		failedSessions: input.failedSessionIds.map((sessionId) => ({
@@ -1962,7 +1994,8 @@ const buildOperationsRecordLinks = (input: {
 		})),
 		failingLatency,
 		mediaQuality,
-		providerErrors
+		providerErrors,
+		telephonyMedia
 	};
 };
 
@@ -2082,7 +2115,8 @@ export const buildVoiceProductionReadinessReport = async (
 		liveLatencyFailAfterMs: options.liveLatencyFailAfterMs ?? 3200,
 		liveLatencyMaxAgeMs: options.liveLatencyMaxAgeMs,
 		liveLatencyWarnAfterMs: options.liveLatencyWarnAfterMs ?? 1800,
-		mediaPipeline
+		mediaPipeline,
+		telephonyMedia
 	});
 	const checks: VoiceProductionReadinessCheck[] = [
 		{
@@ -2575,14 +2609,18 @@ export const buildVoiceProductionReadinessReport = async (
 					? `Telephony media serializers are passing for ${telephonyMediaSummary.passed}/${telephonyMediaSummary.carriers} carrier(s) with ${telephonyMediaSummary.audioBytes} audio byte(s), ${telephonyMediaSummary.mediaEvents} media event(s), and valid start/media/stop lifecycle sequencing.`
 					: firstIssue ??
 						`${telephonyMediaSummary.issues} telephony media serializer issue(s) need review.`,
-			href: options.links?.telephonyMedia ?? '/voice/telephony-media',
+			href:
+				firstOperationsRecordHref(operationsRecords.telephonyMedia) ??
+				options.links?.telephonyMedia ??
+				'/voice/telephony-media',
 			label: 'Telephony media serializers',
 			proofSource: proofSource('telephonyMedia', 'carrierMediaSerializers'),
 			gateExplanation:
 				telephonyMediaSummary.status === 'pass'
-					? undefined
-					: {
+						? undefined
+						: {
 							evidenceHref:
+								firstOperationsRecordHref(operationsRecords.telephonyMedia) ??
 								options.links?.telephonyMedia ?? '/voice/telephony-media',
 							observed: firstIssue ?? `${telephonyMediaSummary.issues} issue(s)`,
 							remediation:
@@ -2599,6 +2637,18 @@ export const buildVoiceProductionReadinessReport = async (
 				telephonyMediaSummary.status === 'pass'
 					? []
 					: [
+							...(firstOperationsRecordHref(operationsRecords.telephonyMedia)
+								? [
+										{
+											description:
+												'Open the exact call/session operations record for the first telephony media lifecycle issue.',
+											href: firstOperationsRecordHref(
+												operationsRecords.telephonyMedia
+											) as string,
+											label: 'Open telephony media operations record'
+										}
+									]
+								: []),
 							{
 								description:
 									'Open telephony media proof and inspect carrier media lifecycle sequencing, payload parsing, MediaFrame shape, byte flow, and outbound envelope serialization.',
