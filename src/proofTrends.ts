@@ -579,6 +579,82 @@ const readProofTrendProviders = (reports: readonly VoiceProofTrendReport[]) =>
 		)
 	);
 
+const exceedsProofTrendBudget = (value: number | undefined, budget: number) =>
+	value !== undefined && (!Number.isFinite(value) || value > budget);
+
+const readProofTrendProfileStatus = (
+	profile: VoiceProofTrendProfileSummary,
+	budgets: {
+		maxLiveP95Ms: number;
+		maxProviderP95Ms: number;
+		maxRuntimeFirstAudioLatencyMs: number;
+		maxRuntimeInterruptionP95Ms: number;
+		maxRuntimeJitterMs: number;
+		maxRuntimeTimestampDriftMs: number;
+		maxTurnP95Ms: number;
+	}
+) => {
+	const runtimeChannel = profile.runtimeChannel;
+	const hasBudgetEvidence =
+		profile.maxLiveP95Ms !== undefined ||
+		profile.maxProviderP95Ms !== undefined ||
+		profile.maxTurnP95Ms !== undefined ||
+		profile.providers?.some((provider) => provider.p95Ms !== undefined) ===
+			true ||
+		runtimeChannel?.maxFirstAudioLatencyMs !== undefined ||
+		runtimeChannel?.maxInterruptionP95Ms !== undefined ||
+		runtimeChannel?.maxJitterMs !== undefined ||
+		runtimeChannel?.maxTimestampDriftMs !== undefined ||
+		runtimeChannel?.maxBackpressureEvents !== undefined;
+	const budgetFailed =
+		exceedsProofTrendBudget(profile.maxLiveP95Ms, budgets.maxLiveP95Ms) ||
+		exceedsProofTrendBudget(
+			profile.maxProviderP95Ms,
+			budgets.maxProviderP95Ms
+		) ||
+		exceedsProofTrendBudget(profile.maxTurnP95Ms, budgets.maxTurnP95Ms) ||
+		exceedsProofTrendBudget(
+			runtimeChannel?.maxFirstAudioLatencyMs,
+			budgets.maxRuntimeFirstAudioLatencyMs
+		) ||
+		exceedsProofTrendBudget(
+			runtimeChannel?.maxInterruptionP95Ms,
+			budgets.maxRuntimeInterruptionP95Ms
+		) ||
+		exceedsProofTrendBudget(
+			runtimeChannel?.maxJitterMs,
+			budgets.maxRuntimeJitterMs
+		) ||
+		exceedsProofTrendBudget(
+			runtimeChannel?.maxTimestampDriftMs,
+			budgets.maxRuntimeTimestampDriftMs
+		) ||
+		exceedsProofTrendBudget(runtimeChannel?.maxBackpressureEvents, 0);
+
+	if (budgetFailed || (!hasBudgetEvidence && profile.status === 'fail')) {
+		return 'fail';
+	}
+
+	if (
+		profile.status === 'warn' ||
+		runtimeChannel?.status === 'warn' ||
+		profile.providers?.some((provider) => provider.status === 'warn') === true
+	) {
+		return 'warn';
+	}
+
+	if (
+		hasBudgetEvidence ||
+		profile.status === 'pass' ||
+		runtimeChannel?.status === 'pass' ||
+		profile.providers?.some((provider) => provider.status === 'pass') === true
+	) {
+		return 'pass';
+	}
+
+	return undefined;
+};
+
 export const buildVoiceProofTrendProfileSummaries = (
 	input: VoiceProofTrendReport | readonly VoiceProofTrendReport[],
 	options: VoiceProofTrendProfileSummaryOptions = {}
@@ -593,6 +669,15 @@ export const buildVoiceProofTrendProfileSummaries = (
 	const runtimeInterruptionCap = options.maxRuntimeInterruptionP95Ms ?? 300;
 	const runtimeJitterCap = options.maxRuntimeJitterMs ?? 30;
 	const runtimeTimestampDriftCap = options.maxRuntimeTimestampDriftMs ?? 800;
+	const budgets = {
+		maxLiveP95Ms: liveCap,
+		maxProviderP95Ms: providerCap,
+		maxRuntimeFirstAudioLatencyMs: runtimeFirstAudioCap,
+		maxRuntimeInterruptionP95Ms: runtimeInterruptionCap,
+		maxRuntimeJitterMs: runtimeJitterCap,
+		maxRuntimeTimestampDriftMs: runtimeTimestampDriftCap,
+		maxTurnP95Ms: turnCap
+	};
 
 	return definitions.map((definition) => {
 		const historicalProfiles: VoiceProofTrendProfileSummary[] = reports.flatMap(
@@ -619,8 +704,7 @@ export const buildVoiceProofTrendProfileSummaries = (
 						})
 					: [];
 			const profiles = [...historicalProfiles, ...derivedProfiles];
-
-			return {
+			const aggregatedProfile = {
 				description:
 					definition.description ?? profiles.find(Boolean)?.description,
 				id: definition.id,
@@ -646,14 +730,12 @@ export const buildVoiceProofTrendProfileSummaries = (
 							): channel is VoiceProofTrendRuntimeChannelSummary =>
 								channel !== undefined
 						)
-				),
-				status: profiles.some((profile) => profile.status === 'fail')
-					? 'fail'
-					: profiles.some((profile) => profile.status === 'warn')
-						? 'warn'
-						: profiles.every((profile) => profile.status === 'pass')
-							? 'pass'
-							: undefined
+				)
+			};
+
+			return {
+				...aggregatedProfile,
+				status: readProofTrendProfileStatus(aggregatedProfile, budgets)
 			};
 		}
 
@@ -665,8 +747,7 @@ export const buildVoiceProofTrendProfileSummaries = (
 						Object.values(channel).some((value) => value !== undefined)
 				)
 		);
-
-		return {
+		const derivedProfile = {
 			description: definition.description,
 			id: definition.id,
 			label: definition.label,
@@ -716,14 +797,12 @@ export const buildVoiceProofTrendProfileSummaries = (
 							),
 							samples: runtimeChannel.samples,
 							status: runtimeChannel.status
-						},
-			status: reports.some((report) => report.status === 'fail' || !report.ok)
-				? 'fail'
-				: reports.some((report) => report.status === 'warn')
-					? 'warn'
-					: reports.every((report) => report.ok)
-						? 'pass'
-						: undefined
+						}
+		};
+
+		return {
+			...derivedProfile,
+			status: readProofTrendProfileStatus(derivedProfile, budgets)
 		};
 	});
 };

@@ -637,6 +637,106 @@ describe('proof trends', () => {
 		});
 	});
 
+	test('buildVoiceProofTrendProfileSummaries recomputes stale failed profile statuses from budgets', () => {
+		const staleFailedProfile = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:00:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 6,
+				profiles: [
+					{
+						id: 'support-agent',
+						label: 'Support agent',
+						maxLiveP95Ms: 800,
+						maxProviderP95Ms: 720,
+						maxTurnP95Ms: 693,
+						providers: [
+							{
+								id: 'llm:openai',
+								label: 'LLM openai',
+								p95Ms: 700,
+								role: 'llm',
+								samples: 12,
+								status: 'pass'
+							},
+							{
+								id: 'stt:deepgram',
+								label: 'STT deepgram',
+								p95Ms: 82,
+								role: 'stt',
+								samples: 6,
+								status: 'pass'
+							},
+							{
+								id: 'tts:openai',
+								label: 'TTS openai',
+								p95Ms: 45,
+								role: 'tts',
+								samples: 6,
+								status: 'pass'
+							}
+						],
+						runtimeChannel: {
+							maxBackpressureEvents: 0,
+							maxFirstAudioLatencyMs: 430,
+							maxInterruptionP95Ms: 195,
+							maxJitterMs: 15,
+							maxTimestampDriftMs: 510,
+							samples: 4,
+							status: 'pass'
+						},
+						status: 'fail'
+					}
+				]
+			}
+		});
+		const current = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:01:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:01:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 6,
+				maxLiveP95Ms: 531,
+				maxProviderP95Ms: 700,
+				maxTurnP95Ms: 690,
+				providers: [
+					{
+						id: 'llm:openai',
+						label: 'LLM openai',
+						p95Ms: 700,
+						role: 'llm',
+						samples: 12,
+						status: 'pass'
+					}
+				],
+				runtimeChannel: {
+					maxBackpressureEvents: 0,
+					maxFirstAudioLatencyMs: 420,
+					maxInterruptionP95Ms: 190,
+					maxJitterMs: 12,
+					maxTimestampDriftMs: 500,
+					samples: 4,
+					status: 'pass'
+				}
+			}
+		});
+
+		const supportAgent = buildVoiceProofTrendProfileSummaries([
+			staleFailedProfile,
+			current
+		]).find((profile) => profile.id === 'support-agent');
+
+		expect(supportAgent).toMatchObject({
+			maxLiveP95Ms: 800,
+			maxProviderP95Ms: 720,
+			maxTurnP95Ms: 693,
+			status: 'pass'
+		});
+	});
+
 	test('buildVoiceProofTrendRecommendationReport recommends provider switches from sustained comparisons', () => {
 		const report = buildVoiceProofTrendReport({
 			generatedAt: '2026-04-29T12:00:00.000Z',
