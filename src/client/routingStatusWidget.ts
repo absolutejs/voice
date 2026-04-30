@@ -6,6 +6,7 @@ import {
 } from './routingStatus';
 
 export type VoiceRoutingStatusViewModel = {
+	activeStack: Array<{ label: string; value: string }>;
 	decision: VoiceRoutingDecisionSummary | null;
 	description: string;
 	error: string | null;
@@ -48,11 +49,56 @@ const formatProviderRoutes = (routes: unknown) =>
 				.join(', ') || 'None'
 		: 'None';
 
+const getProviderRoute = (routes: unknown, role: string) =>
+	routes && typeof routes === 'object'
+		? formatValue((routes as Record<string, unknown>)[role], 'Not configured')
+		: 'Not configured';
+
+const formatFallbackPath = (decision: VoiceRoutingDecisionSummary) => {
+	const provider = formatValue(decision.provider, 'Unknown');
+	const selectedProvider = formatValue(decision.selectedProvider, provider);
+	const fallbackProvider = formatValue(decision.fallbackProvider, '');
+
+	if (fallbackProvider !== 'None' && fallbackProvider.trim()) {
+		return `${provider} -> ${fallbackProvider}`;
+	}
+
+	if (selectedProvider !== provider) {
+		return `${provider} -> ${selectedProvider}`;
+	}
+
+	return `${provider} primary`;
+};
+
 export const createVoiceRoutingStatusViewModel = (
 	snapshot: VoiceRoutingStatusSnapshot,
 	options: VoiceRoutingStatusWidgetOptions = {}
 ): VoiceRoutingStatusViewModel => {
 	const decision = snapshot.decision;
+	const activeStack = decision
+		? [
+				{
+					label: 'Profile',
+					value: formatValue(decision.profileLabel ?? decision.profileId)
+				},
+				{
+					label: 'LLM',
+					value: getProviderRoute(decision.providerRoutes, 'llm')
+				},
+				{
+					label: 'STT',
+					value: getProviderRoute(decision.providerRoutes, 'stt')
+				},
+				{
+					label: 'TTS',
+					value: getProviderRoute(decision.providerRoutes, 'tts')
+				},
+				{
+					label: 'Fallback path',
+					value: formatFallbackPath(decision)
+				}
+			]
+		: [];
 	const rows = decision
 		? [
 				{ label: 'Kind', value: decision.kind.toUpperCase() },
@@ -86,6 +132,7 @@ export const createVoiceRoutingStatusViewModel = (
 		: [];
 
 	return {
+		activeStack,
 		decision,
 		description: options.description ?? DEFAULT_DESCRIPTION,
 		error: snapshot.error,
@@ -115,6 +162,16 @@ export const renderVoiceRoutingStatusHTML = (
 	options: VoiceRoutingStatusWidgetOptions = {}
 ) => {
 	const model = createVoiceRoutingStatusViewModel(snapshot, options);
+	const activeStack = model.activeStack.length
+		? `<div class="absolute-voice-routing-status__stack" aria-label="Active voice stack">${model.activeStack
+				.map(
+					(item) => `<div>
+  <span>${escapeHtml(item.label)}</span>
+  <strong>${escapeHtml(item.value)}</strong>
+</div>`
+				)
+				.join('')}</div>`
+		: '';
 	const rows = model.rows.length
 		? `<div class="absolute-voice-routing-status__grid">${model.rows
 				.map(
@@ -132,12 +189,13 @@ export const renderVoiceRoutingStatusHTML = (
     <strong class="absolute-voice-routing-status__label">${escapeHtml(model.label)}</strong>
   </header>
   <p class="absolute-voice-routing-status__description">${escapeHtml(model.description)}</p>
+  ${activeStack}
   ${rows}
   ${model.error ? `<p class="absolute-voice-routing-status__error">${escapeHtml(model.error)}</p>` : ''}
 </section>`;
 };
 
-export const getVoiceRoutingStatusCSS = () => `.absolute-voice-routing-status{border:1px solid #d8d2c4;border-radius:20px;background:#fffaf0;color:#16130d;padding:18px;box-shadow:0 18px 40px rgba(47,37,18,.12);font-family:inherit}.absolute-voice-routing-status--error{border-color:#f2a7a7;background:#fff5f3}.absolute-voice-routing-status__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-routing-status__eyebrow{color:#73664f;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-routing-status__label{font-size:24px;line-height:1}.absolute-voice-routing-status__description{color:#514733;margin:12px 0 0}.absolute-voice-routing-status__grid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}.absolute-voice-routing-status__grid div{background:#fff;border:1px solid #eee4d2;border-radius:14px;padding:10px 12px}.absolute-voice-routing-status__grid span{color:#655944;display:block;font-size:12px;margin-bottom:4px}.absolute-voice-routing-status__grid strong{overflow-wrap:anywhere}.absolute-voice-routing-status__empty{color:#655944;margin:14px 0 0}.absolute-voice-routing-status__error{color:#9f1239;font-weight:700}`;
+export const getVoiceRoutingStatusCSS = () => `.absolute-voice-routing-status{border:1px solid #d8d2c4;border-radius:20px;background:#fffaf0;color:#16130d;padding:18px;box-shadow:0 18px 40px rgba(47,37,18,.12);font-family:inherit}.absolute-voice-routing-status--error{border-color:#f2a7a7;background:#fff5f3}.absolute-voice-routing-status__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-routing-status__eyebrow{color:#73664f;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-routing-status__label{font-size:24px;line-height:1}.absolute-voice-routing-status__description{color:#514733;margin:12px 0 0}.absolute-voice-routing-status__stack{background:linear-gradient(135deg,#16130d,#49391f);border-radius:18px;color:#fff;display:grid;gap:8px;grid-template-columns:repeat(5,minmax(0,1fr));margin-top:14px;padding:12px}.absolute-voice-routing-status__stack div{border-left:1px solid rgba(255,255,255,.18);padding-left:10px}.absolute-voice-routing-status__stack div:first-child{border-left:0;padding-left:0}.absolute-voice-routing-status__stack span{color:#e9d9b8;display:block;font-size:11px;font-weight:800;letter-spacing:.08em;margin-bottom:5px;text-transform:uppercase}.absolute-voice-routing-status__stack strong{display:block;font-size:13px;line-height:1.25;overflow-wrap:anywhere}.absolute-voice-routing-status__grid{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}.absolute-voice-routing-status__grid div{background:#fff;border:1px solid #eee4d2;border-radius:14px;padding:10px 12px}.absolute-voice-routing-status__grid span{color:#655944;display:block;font-size:12px;margin-bottom:4px}.absolute-voice-routing-status__grid strong{overflow-wrap:anywhere}.absolute-voice-routing-status__empty{color:#655944;margin:14px 0 0}.absolute-voice-routing-status__error{color:#9f1239;font-weight:700}@media (max-width:760px){.absolute-voice-routing-status__stack{grid-template-columns:repeat(2,minmax(0,1fr))}.absolute-voice-routing-status__stack div{border-left:0;border-top:1px solid rgba(255,255,255,.18);padding-left:0;padding-top:8px}.absolute-voice-routing-status__stack div:first-child{border-top:0;padding-top:0}}`;
 
 export const mountVoiceRoutingStatus = (
 	element: Element,
