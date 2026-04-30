@@ -1582,6 +1582,51 @@ test('buildVoiceProductionReadinessReport fails provider and carrier blockers', 
 	);
 });
 
+test('buildVoiceProductionReadinessReport can ignore stale trace failures', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append({
+		at: Date.now() - 60 * 60 * 1000,
+		payload: {
+			error: 'stale provider outage',
+			kind: 'llm',
+			provider: 'openai',
+			providerStatus: 'error'
+		},
+		sessionId: 'stale-failed-session',
+		type: 'session.error'
+	});
+
+	const report = await buildVoiceProductionReadinessReport({
+		llmProviders: ['openai'],
+		store,
+		traceMaxAgeMs: 1_000
+	});
+
+	expect(report.summary.providerRecovery).toMatchObject({
+		status: 'pass',
+		total: 0,
+		unresolvedErrors: 0
+	});
+	expect(report.summary.sessions).toMatchObject({
+		failed: 0,
+		total: 0
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				label: 'Provider fallback recovery',
+				status: 'pass',
+				value: '0 events'
+			}),
+			expect.objectContaining({
+				label: 'Session health',
+				status: 'warn',
+				value: '0/0'
+			})
+		])
+	);
+});
+
 test('buildVoiceProductionReadinessReport links failures to operations records', async () => {
 	const store = createVoiceMemoryTraceEventStore();
 	await Promise.all([

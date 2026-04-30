@@ -822,6 +822,7 @@ export type VoiceProductionReadinessRoutesOptions = {
 	title?: string;
 	traceDeliveries?: false | VoiceProductionReadinessTraceDeliveryOptions;
 	ttsProviders?: readonly string[];
+	traceMaxAgeMs?: number;
 	liveLatencyWarnAfterMs?: number;
 	liveLatencyFailAfterMs?: number;
 	liveLatencyMaxAgeMs?: number;
@@ -2100,10 +2101,20 @@ export const buildVoiceProductionReadinessReport = async (
 	const request = input.request ?? new Request('http://localhost/');
 	const query = input.query ?? {};
 	const events = await options.store.list();
-	const routingEvents = listVoiceRoutingEvents(events);
+	const minTraceAt =
+		typeof options.traceMaxAgeMs === 'number' &&
+		Number.isFinite(options.traceMaxAgeMs) &&
+		options.traceMaxAgeMs > 0
+			? Date.now() - options.traceMaxAgeMs
+			: undefined;
+	const readinessEvents =
+		minTraceAt === undefined
+			? events
+			: events.filter((event) => event.at >= minTraceAt);
+	const routingEvents = listVoiceRoutingEvents(readinessEvents);
 	const routingSessions = summarizeVoiceRoutingSessions(routingEvents);
-	const liveLatency = summarizeLiveLatency(events, options);
-	const providerRecovery = summarizeVoiceProviderFallbackRecovery(events);
+	const liveLatency = summarizeLiveLatency(readinessEvents, options);
+	const providerRecovery = summarizeVoiceProviderFallbackRecovery(readinessEvents);
 	const [
 		quality,
 		providers,
@@ -2139,23 +2150,23 @@ export const buildVoiceProductionReadinessReport = async (
 		proofSources,
 		additionalChecks
 	] = await Promise.all([
-		evaluateVoiceQuality({ events }),
+		evaluateVoiceQuality({ events: readinessEvents }),
 		Promise.all([
 			summarizeVoiceProviderHealth({
-				events,
+				events: readinessEvents,
 				providers: options.llmProviders ?? []
 			}),
 			summarizeVoiceProviderHealth({
-				events: events.filter((event) => event.payload.kind === 'stt'),
+				events: readinessEvents.filter((event) => event.payload.kind === 'stt'),
 				providers: options.sttProviders ?? []
 			}),
 			summarizeVoiceProviderHealth({
-				events: events.filter((event) => event.payload.kind === 'tts'),
+				events: readinessEvents.filter((event) => event.payload.kind === 'tts'),
 				providers: options.ttsProviders ?? []
 			})
 		]).then((groups) => groups.flat()),
-		summarizeVoiceSessions({ events, status: 'all' }),
-		summarizeVoiceHandoffHealth({ events }),
+		summarizeVoiceSessions({ events: readinessEvents, status: 'all' }),
+		summarizeVoiceHandoffHealth({ events: readinessEvents }),
 		summarizeAuditEvidence(options),
 		summarizeAuditDeliveries(options),
 		summarizeOpsActionHistory(options),
@@ -2201,7 +2212,7 @@ export const buildVoiceProductionReadinessReport = async (
 	);
 	const operationsRecords = buildOperationsRecordLinks({
 		base: options.links?.operationsRecords ?? '/voice-operations',
-		events,
+		events: readinessEvents,
 		failedSessionIds: failedSessionItems.map((session) => session.sessionId),
 		liveLatencyFailAfterMs: options.liveLatencyFailAfterMs ?? 3200,
 		liveLatencyMaxAgeMs: options.liveLatencyMaxAgeMs,
