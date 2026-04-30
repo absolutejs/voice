@@ -2,6 +2,7 @@ import { Elysia } from 'elysia';
 import {
 	buildMediaInterruptionReport,
 	buildMediaPipelineCalibrationReport,
+	buildMediaQualityReport,
 	buildMediaResamplingPlan,
 	buildMediaVadReport,
 	type MediaFrame,
@@ -10,6 +11,7 @@ import {
 	type MediaPipelineCalibrationReport,
 	type MediaPipelineStatus,
 	type MediaProcessorGraphReport,
+	type MediaQualityReport,
 	type MediaResamplingPlan,
 	type MediaTransportReport,
 	type MediaVadReport
@@ -18,7 +20,12 @@ import {
 export type VoiceMediaPipelineReportOptions = MediaPipelineCalibrationInput & {
 	frames?: readonly MediaFrame[];
 	maxInterruptionLatencyMs?: number;
+	maxMediaBackpressureEvents?: number;
+	maxMediaGapMs?: number;
+	maxMediaJitterMs?: number;
+	maxMediaTimestampDriftMs?: number;
 	maxSilenceFrames?: number;
+	minMediaSpeechRatio?: number;
 	minSpeechFrames?: number;
 	processorGraph?: MediaProcessorGraphReport;
 	speechEndThreshold?: number;
@@ -32,6 +39,7 @@ export type VoiceMediaPipelineReport = {
 	frames: number;
 	interruption: MediaInterruptionReport;
 	ok: boolean;
+	quality: MediaQualityReport;
 	resampling?: MediaResamplingPlan;
 	processorGraph?: MediaProcessorGraphReport;
 	status: MediaPipelineStatus;
@@ -43,8 +51,13 @@ export type VoiceMediaPipelineReport = {
 export type VoiceMediaPipelineAssertionInput = {
 	maxFirstAudioLatencyMs?: number;
 	maxInterruptionLatencyMs?: number;
+	maxMediaBackpressureEvents?: number;
+	maxMediaGapMs?: number;
+	maxMediaJitterMs?: number;
+	maxMediaTimestampDriftMs?: number;
 	minAssistantAudioFrames?: number;
 	minInputAudioFrames?: number;
+	minMediaSpeechRatio?: number;
 	minProcessorGraphEmittedFrames?: number;
 	minProcessorGraphNodes?: number;
 	minTransportInputFrames?: number;
@@ -55,6 +68,7 @@ export type VoiceMediaPipelineAssertionInput = {
 	requireInterruptionFrame?: boolean;
 	requirePass?: boolean;
 	requireProcessorGraph?: boolean;
+	requireQualityPass?: boolean;
 	requireResamplingReady?: boolean;
 	requireTransportConnected?: boolean;
 };
@@ -117,6 +131,15 @@ export const buildVoiceMediaPipelineReport = (
 		frames,
 		maxInterruptionLatencyMs: options.maxInterruptionLatencyMs
 	});
+	const quality = buildMediaQualityReport({
+		frames,
+		maxBackpressureEvents: options.maxMediaBackpressureEvents,
+		maxGapMs: options.maxMediaGapMs,
+		maxJitterMs: options.maxMediaJitterMs,
+		maxTimestampDriftMs: options.maxMediaTimestampDriftMs,
+		minSpeechRatio: options.minMediaSpeechRatio,
+		transport: options.transport
+	});
 	const resampling =
 		calibration.inputFormat && calibration.outputFormat
 			? buildMediaResamplingPlan({
@@ -128,6 +151,7 @@ export const buildVoiceMediaPipelineReport = (
 		calibration.status,
 		vad.status,
 		interruption.status,
+		quality.status,
 		resampling?.status ?? 'pass',
 		options.processorGraph?.status ?? 'pass',
 		options.transport?.status ?? 'pass'
@@ -140,6 +164,7 @@ export const buildVoiceMediaPipelineReport = (
 		interruption,
 		ok: status === 'pass',
 		processorGraph: options.processorGraph,
+		quality,
 		resampling,
 		status,
 		surface: options.surface ?? 'voice-media-pipeline',
@@ -219,6 +244,54 @@ export const evaluateVoiceMediaPipelineEvidence = (
 		!report.resampling
 	) {
 		issues.push('Expected resampling plan when calibration requires resampling.');
+	}
+	if (input.requireQualityPass && report.quality.status !== 'pass') {
+		issues.push(
+			`Expected media quality proof to pass, found ${report.quality.status}.`
+		);
+	}
+	const maxMediaGapMs = input.maxMediaGapMs;
+	if (
+		maxMediaGapMs !== undefined &&
+		report.quality.gapsMs.some((gap) => gap > maxMediaGapMs)
+	) {
+		issues.push(
+			`Expected media gaps at or below ${String(maxMediaGapMs)}ms.`
+		);
+	}
+	if (
+		input.maxMediaJitterMs !== undefined &&
+		report.quality.jitterMs !== undefined &&
+		report.quality.jitterMs > input.maxMediaJitterMs
+	) {
+		issues.push(
+			`Expected media jitter at or below ${String(input.maxMediaJitterMs)}ms, found ${String(report.quality.jitterMs)}ms.`
+		);
+	}
+	if (
+		input.maxMediaTimestampDriftMs !== undefined &&
+		report.quality.timestampDriftMs !== undefined &&
+		report.quality.timestampDriftMs > input.maxMediaTimestampDriftMs
+	) {
+		issues.push(
+			`Expected media timestamp drift at or below ${String(input.maxMediaTimestampDriftMs)}ms, found ${String(report.quality.timestampDriftMs)}ms.`
+		);
+	}
+	if (
+		input.minMediaSpeechRatio !== undefined &&
+		report.quality.speechRatio < input.minMediaSpeechRatio
+	) {
+		issues.push(
+			`Expected media speech ratio at or above ${String(input.minMediaSpeechRatio)}, found ${String(report.quality.speechRatio)}.`
+		);
+	}
+	if (
+		input.maxMediaBackpressureEvents !== undefined &&
+		report.quality.backpressureEvents > input.maxMediaBackpressureEvents
+	) {
+		issues.push(
+			`Expected at most ${String(input.maxMediaBackpressureEvents)} media backpressure event(s), found ${String(report.quality.backpressureEvents)}.`
+		);
 	}
 	if (input.requireProcessorGraph && !report.processorGraph) {
 		issues.push('Expected media processor graph evidence.');
@@ -305,6 +378,10 @@ export const renderVoiceMediaPipelineMarkdown = (
 	`- Resampling required: ${report.calibration.resamplingRequired ? 'yes' : 'no'}`,
 	`- VAD segments: ${String(report.vad.segments.length)}`,
 	`- Interruption frames: ${String(report.interruption.interruptionFrames)}`,
+	`- Media quality: ${report.quality.status}`,
+	`- Media quality gaps: ${String(report.quality.gapCount)}`,
+	`- Media quality jitter: ${String(report.quality.jitterMs ?? 'n/a')}ms`,
+	`- Media quality speech ratio: ${String(report.quality.speechRatio)}`,
 	`- Processor graph: ${report.processorGraph ? `${report.processorGraph.name} (${String(report.processorGraph.nodes.length)} nodes)` : 'n/a'}`,
 	`- Processor graph emitted frames: ${String(report.processorGraph?.emittedFrames ?? 0)}`,
 	`- Processor graph dropped frames: ${String(report.processorGraph?.droppedFrames ?? 0)}`,
@@ -317,9 +394,13 @@ export const renderVoiceMediaPipelineMarkdown = (
 	'',
 	...[
 		...report.calibration.issues,
-		...report.interruption.issues
+		...report.interruption.issues,
+		...report.quality.issues
 	].map((issue) => `- ${issue.severity.toUpperCase()} ${issue.code}: ${issue.message}`),
-	...(report.calibration.issues.length + report.interruption.issues.length === 0
+	...(report.calibration.issues.length +
+		report.interruption.issues.length +
+		report.quality.issues.length ===
+	0
 		? ['- None']
 		: [])
 ].join('\n');
@@ -328,7 +409,11 @@ export const renderVoiceMediaPipelineHTML = (
 	report: VoiceMediaPipelineReport,
 	title = 'Voice Media Pipeline Proof'
 ) => {
-	const issues = [...report.calibration.issues, ...report.interruption.issues]
+	const issues = [
+		...report.calibration.issues,
+		...report.interruption.issues,
+		...report.quality.issues
+	]
 		.map(
 			(issue) =>
 				`<li class="${escapeHtml(issue.severity)}"><strong>${escapeHtml(issue.code)}</strong>: ${escapeHtml(issue.message)}</li>`
@@ -341,7 +426,7 @@ export const renderVoiceMediaPipelineHTML = (
 		)
 		.join('');
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero,.card{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.metric{background:#101814;border:1px solid #2e3d36;border-radius:18px;padding:14px}.metric span{color:#a8b5ad;display:block;font-size:.78rem;text-transform:uppercase}.metric strong{display:block;font-size:1.65rem;margin-top:5px}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:7px 11px}.pass{color:#86efac}.warn,.warning{color:#fde68a}.fail,.error{color:#fecaca}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2e3d36;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Native media pipeline</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${escapeHtml(report.surface)}</p><section class="summary"><div class="metric"><span>Frames</span><strong>${String(report.frames)}</strong></div><div class="metric"><span>Input audio</span><strong>${String(report.calibration.inputAudioFrames)}</strong></div><div class="metric"><span>Assistant audio</span><strong>${String(report.calibration.assistantAudioFrames)}</strong></div><div class="metric"><span>Trace linked</span><strong>${String(report.calibration.traceLinkedFrames)}</strong></div><div class="metric"><span>First audio</span><strong>${escapeHtml(report.calibration.firstAudioLatencyMs ?? 'n/a')}ms</strong></div><div class="metric"><span>VAD segments</span><strong>${String(report.vad.segments.length)}</strong></div><div class="metric"><span>Interruptions</span><strong>${String(report.interruption.interruptionFrames)}</strong></div><div class="metric"><span>Processor graph</span><strong>${String(report.processorGraph?.nodes.length ?? 0)} nodes</strong></div><div class="metric"><span>Graph out/drop</span><strong>${String(report.processorGraph?.emittedFrames ?? 0)}/${String(report.processorGraph?.droppedFrames ?? 0)}</strong></div><div class="metric"><span>Resampling</span><strong>${report.calibration.resamplingRequired ? 'required' : 'not required'}</strong></div><div class="metric"><span>Transport</span><strong>${escapeHtml(report.transport?.state ?? 'n/a')}</strong></div><div class="metric"><span>Transport in/out</span><strong>${String(report.transport?.inputFrames ?? 0)}/${String(report.transport?.outputFrames ?? 0)}</strong></div><div class="metric"><span>Backpressure</span><strong>${String(report.transport?.backpressureEvents ?? 0)}</strong></div></section></section><section class="card"><h2>Issues</h2><ul>${issues || '<li class="pass">No media pipeline issues.</li>'}</ul></section><section class="card"><h2>VAD Segments</h2><table><thead><tr><th>Segment</th><th>Frames</th><th>Duration ms</th><th>Turn</th></tr></thead><tbody>${segments || '<tr><td colspan="4">No VAD segments.</td></tr>'}</tbody></table></section></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero,.card{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.metric{background:#101814;border:1px solid #2e3d36;border-radius:18px;padding:14px}.metric span{color:#a8b5ad;display:block;font-size:.78rem;text-transform:uppercase}.metric strong{display:block;font-size:1.65rem;margin-top:5px}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:7px 11px}.pass{color:#86efac}.warn,.warning{color:#fde68a}.fail,.error{color:#fecaca}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2e3d36;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Native media pipeline</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${escapeHtml(report.surface)}</p><section class="summary"><div class="metric"><span>Frames</span><strong>${String(report.frames)}</strong></div><div class="metric"><span>Input audio</span><strong>${String(report.calibration.inputAudioFrames)}</strong></div><div class="metric"><span>Assistant audio</span><strong>${String(report.calibration.assistantAudioFrames)}</strong></div><div class="metric"><span>Trace linked</span><strong>${String(report.calibration.traceLinkedFrames)}</strong></div><div class="metric"><span>First audio</span><strong>${escapeHtml(report.calibration.firstAudioLatencyMs ?? 'n/a')}ms</strong></div><div class="metric"><span>VAD segments</span><strong>${String(report.vad.segments.length)}</strong></div><div class="metric"><span>Media quality</span><strong>${escapeHtml(report.quality.status)}</strong></div><div class="metric"><span>Media gaps</span><strong>${String(report.quality.gapCount)}</strong></div><div class="metric"><span>Media jitter</span><strong>${escapeHtml(report.quality.jitterMs ?? 'n/a')}ms</strong></div><div class="metric"><span>Speech ratio</span><strong>${String(report.quality.speechRatio)}</strong></div><div class="metric"><span>Timestamp drift</span><strong>${escapeHtml(report.quality.timestampDriftMs ?? 'n/a')}ms</strong></div><div class="metric"><span>Interruptions</span><strong>${String(report.interruption.interruptionFrames)}</strong></div><div class="metric"><span>Processor graph</span><strong>${String(report.processorGraph?.nodes.length ?? 0)} nodes</strong></div><div class="metric"><span>Graph out/drop</span><strong>${String(report.processorGraph?.emittedFrames ?? 0)}/${String(report.processorGraph?.droppedFrames ?? 0)}</strong></div><div class="metric"><span>Resampling</span><strong>${report.calibration.resamplingRequired ? 'required' : 'not required'}</strong></div><div class="metric"><span>Transport</span><strong>${escapeHtml(report.transport?.state ?? 'n/a')}</strong></div><div class="metric"><span>Transport in/out</span><strong>${String(report.transport?.inputFrames ?? 0)}/${String(report.transport?.outputFrames ?? 0)}</strong></div><div class="metric"><span>Backpressure</span><strong>${String(report.transport?.backpressureEvents ?? 0)}</strong></div></section></section><section class="card"><h2>Issues</h2><ul>${issues || '<li class="pass">No media pipeline issues.</li>'}</ul></section><section class="card"><h2>VAD Segments</h2><table><thead><tr><th>Segment</th><th>Frames</th><th>Duration ms</th><th>Turn</th></tr></thead><tbody>${segments || '<tr><td colspan="4">No VAD segments.</td></tr>'}</tbody></table></section></main></body></html>`;
 };
 
 export const createVoiceMediaPipelineRoutes = (

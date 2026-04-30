@@ -392,8 +392,13 @@ describe('media pipeline calibration', () => {
 			],
 			maxFirstAudioLatencyMs: 800,
 			maxInterruptionLatencyMs: 250,
+			maxMediaBackpressureEvents: 0,
+			maxMediaGapMs: 25,
+			maxMediaJitterMs: 40,
+			maxMediaTimestampDriftMs: 25,
 			requireInterruptionFrame: true,
 			requireTraceEvidence: true,
+			minMediaSpeechRatio: 0.8,
 			processorGraph: {
 				checkedAt: Date.now(),
 				droppedFrames: 0,
@@ -440,6 +445,11 @@ describe('media pipeline calibration', () => {
 		const assertion = evaluateVoiceMediaPipelineEvidence(report, {
 			maxFirstAudioLatencyMs: 800,
 			maxInterruptionLatencyMs: 250,
+			maxMediaBackpressureEvents: 0,
+			maxMediaGapMs: 25,
+			maxMediaJitterMs: 40,
+			maxMediaTimestampDriftMs: 25,
+			minMediaSpeechRatio: 0.8,
 			minProcessorGraphEmittedFrames: 2,
 			minProcessorGraphNodes: 2,
 			minAssistantAudioFrames: 1,
@@ -451,10 +461,13 @@ describe('media pipeline calibration', () => {
 			requireInterruptionFrame: true,
 			requirePass: true,
 			requireProcessorGraph: true,
+			requireQualityPass: true,
 			requireTransportConnected: true
 		});
 
 		expect(report.status).toBe('pass');
+		expect(report.quality.status).toBe('pass');
+		expect(report.quality.speechRatio).toBe(1);
 		expect(report.processorGraph?.nodes).toHaveLength(2);
 		expect(report.transport?.connected).toBe(true);
 		expect(report.vad.segments).toHaveLength(1);
@@ -510,6 +523,7 @@ describe('media pipeline calibration', () => {
 		expect(await htmlResponse.text()).toContain('Media Proof');
 		expect(await markdownResponse.text()).toContain('Voice Media Pipeline Proof');
 		expect(markdown).toContain('Processor graph');
+		expect(markdown).toContain('Media quality');
 		expect(markdown).toContain('VAD segments: 1');
 	});
 });
