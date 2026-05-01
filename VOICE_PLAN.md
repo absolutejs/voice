@@ -251,6 +251,8 @@ Verified:
 - `@absolutejs/voice@0.0.22-beta.379` adds `createVoiceRealCallProfileTraceCollector(...)`, making ordinary profiled trace traffic self-reporting for real-call profile evidence/history instead of requiring app-specific trace-store loading glue.
 - `@absolutejs/voice@0.0.22-beta.380` deepens real-call profile readiness with per-profile cycle/session counts and required surface evidence, so readiness can warn or fail when a claimed profile lacks enough browser, phone, or live traffic proof.
 - `@absolutejs/voice@0.0.22-beta.381` maps those per-profile depth gaps into executable profile-proof recovery actions, not just warning text.
+- `@absolutejs/voice@0.0.22-beta.382` makes those recovery actions profile-targeted by carrying `profileId` in action hrefs and handler input, closing the detection -> targeted proof run loop.
+- `@absolutejs/voice@0.0.22-beta.383` marks profile-proof recovery actions as POST actions so readiness recovery UIs can run them directly instead of opening proof surfaces.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 

@@ -462,6 +462,7 @@ export type VoiceRealCallProfileRecoveryActionId =
 
 export type VoiceRealCallProfileRecoveryAction = VoiceProductionReadinessAction & {
 	id: VoiceRealCallProfileRecoveryActionId;
+	profileId?: string;
 };
 
 export type VoiceRealCallProfileReadinessCheckOptions = {
@@ -501,6 +502,7 @@ export type VoiceRealCallProfileRecoveryJobHistoryCheckOptions = {
 
 export type VoiceRealCallProfileRecoveryActionHandlerInput = {
 	actionId: VoiceRealCallProfileRecoveryActionId;
+	profileId?: string;
 	report: VoiceRealCallProfileHistoryReport;
 };
 
@@ -2039,13 +2041,29 @@ const uniqueRealCallProfileActions = (
 ) => {
 	const seen = new Set<string>();
 	return actions.filter((action) => {
-		const key = `${action.method ?? 'GET'}:${action.href}:${action.label}`;
+		const key = `${action.method ?? 'GET'}:${action.href}:${action.label}:${action.profileId ?? ''}`;
 		if (seen.has(key)) {
 			return false;
 		}
 		seen.add(key);
 		return true;
 	});
+};
+
+const appendRealCallRecoveryActionQuery = (
+	href: string,
+	query: Record<string, string | undefined>
+) => {
+	const entries = Object.entries(query).filter(
+		(entry): entry is [string, string] => entry[1] !== undefined
+	);
+	if (entries.length === 0) {
+		return href;
+	}
+	const [base = href, hash = ''] = href.split('#');
+	const separator = base.includes('?') ? '&' : '?';
+	const search = new URLSearchParams(entries).toString();
+	return `${base}${separator}${search}${hash ? `#${hash}` : ''}`;
 };
 
 export const buildVoiceRealCallProfileRecoveryActions = (
@@ -2118,7 +2136,7 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 		report.trend.ageMs ??
 		(report.generatedAt ? Date.now() - new Date(report.generatedAt).getTime() : undefined);
 
-	if (
+	const needsProfileProof =
 		missingProfiles.length > 0 ||
 		warningProfiles.length > 0 ||
 		missingRoleProfiles.length > 0 ||
@@ -2126,22 +2144,45 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 		(options.minCycles !== undefined &&
 			(report.summary.cycles ?? 0) < options.minCycles) ||
 		(options.minActionableProfiles !== undefined &&
-			report.defaults.summary.actionableProfiles < options.minActionableProfiles)
-	) {
-		actions.push({
-			description:
-				'Run browser profile proof to collect microphone, WebSocket, live-latency, and provider traces for missing profiles.',
-			href: options.browserProofHref ?? '/voice/browser-call-profiles',
-			id: 'collect-browser-proof',
-			label: 'Run browser profile proof'
-		});
-		actions.push({
-			description:
-				'Run phone profile proof when required profiles depend on carrier, telephony media, or noisy-call evidence.',
-			href: options.phoneProofHref ?? '/api/voice/phone/smoke',
-			id: 'collect-phone-proof',
-			label: 'Run phone profile proof'
-		});
+			report.defaults.summary.actionableProfiles < options.minActionableProfiles);
+	if (needsProfileProof) {
+		const targetProfileIds =
+			missingProfiles.length > 0 || missingDepthProfiles.length > 0
+				? [...new Set([...missingProfiles, ...missingDepthProfiles])]
+				: [...requiredProfiles];
+		const targets = targetProfileIds.length > 0 ? targetProfileIds : [undefined];
+		for (const profileId of targets) {
+			actions.push({
+				description: profileId
+					? `Run browser profile proof for ${profileId} to collect microphone, WebSocket, live-latency, and provider traces.`
+					: 'Run browser profile proof to collect microphone, WebSocket, live-latency, and provider traces for missing profiles.',
+				href: appendRealCallRecoveryActionQuery(
+					options.browserProofHref ?? '/voice/browser-call-profiles',
+					{ profileId }
+				),
+				id: 'collect-browser-proof',
+				label: profileId
+					? `Run browser profile proof for ${profileId}`
+					: 'Run browser profile proof',
+				method: 'POST',
+				profileId
+			});
+			actions.push({
+				description: profileId
+					? `Run phone profile proof for ${profileId} when the profile depends on carrier, telephony media, or noisy-call evidence.`
+					: 'Run phone profile proof when required profiles depend on carrier, telephony media, or noisy-call evidence.',
+				href: appendRealCallRecoveryActionQuery(
+					options.phoneProofHref ?? '/api/voice/phone/smoke',
+					{ profileId }
+				),
+				id: 'collect-phone-proof',
+				label: profileId
+					? `Run phone profile proof for ${profileId}`
+					: 'Run phone profile proof',
+				method: 'POST',
+				profileId
+			});
+		}
 	}
 
 	if (
@@ -2153,7 +2194,8 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 				'Collect fresh real-call profile traces because the current history artifact is stale.',
 			href: options.browserProofHref ?? '/voice/browser-call-profiles',
 			id: 'collect-browser-proof',
-			label: 'Collect fresh profile evidence'
+			label: 'Collect fresh profile evidence',
+			method: 'POST'
 		});
 	}
 
@@ -3697,9 +3739,15 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 			...action,
 			href:
 				action.id === 'collect-browser-proof'
-					? actionPath('collect-browser-proof')
+					? appendRealCallRecoveryActionQuery(
+							actionPath('collect-browser-proof'),
+							{ profileId: action.profileId }
+						)
 					: action.id === 'collect-phone-proof'
-						? actionPath('collect-phone-proof')
+						? appendRealCallRecoveryActionQuery(
+								actionPath('collect-phone-proof'),
+								{ profileId: action.profileId }
+							)
 						: action.id === 'collect-provider-role-evidence'
 							? actionPath('collect-provider-role-evidence')
 							: action.href,
@@ -3714,21 +3762,23 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 	};
 	const runActionHandler = async (
 		actionId: VoiceRealCallProfileRecoveryActionId,
-		report: VoiceRealCallProfileHistoryReport
+		report: VoiceRealCallProfileHistoryReport,
+		profileId?: string
 	) => {
 		const handler = options.handlers?.[actionId];
 		if (!handler) {
 			return undefined;
 		}
-		return await handler({ actionId, report });
+		return await handler({ actionId, profileId, report });
 	};
 	const runActionAsJob = async (
 		actionId: VoiceRealCallProfileRecoveryActionId,
-		report: VoiceRealCallProfileHistoryReport
+		report: VoiceRealCallProfileHistoryReport,
+		profileId?: string
 	) => {
 		const job = await options.jobStore?.create({
 			actionId,
-			message: `Queued real-call profile recovery action: ${actionId}.`,
+			message: `Queued real-call profile recovery action: ${actionId}${profileId ? ` for ${profileId}` : ''}.`,
 			status: 'queued'
 		});
 		if (!job) {
@@ -3744,7 +3794,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 					updatedAt: startedAt
 				});
 				try {
-					const result = await runActionHandler(actionId, report);
+					const result = await runActionHandler(actionId, report, profileId);
 					const completedAt = new Date().toISOString();
 					const ok = result?.ok ?? true;
 					const status =
@@ -3786,7 +3836,10 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 			status: 'pass' as VoiceProofTrendStatus
 		} satisfies VoiceRealCallProfileRecoveryActionResult;
 	};
-	const runAction = async (actionId: VoiceRealCallProfileRecoveryActionId) => {
+	const runAction = async (
+		actionId: VoiceRealCallProfileRecoveryActionId,
+		profileId?: string
+	) => {
 		const report = await loadReport();
 		const handler = options.handlers?.[actionId];
 		if (!handler) {
@@ -3799,12 +3852,12 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 			};
 		}
 		if (options.jobStore && asyncActionIds.has(actionId)) {
-			const queued = await runActionAsJob(actionId, report);
+			const queued = await runActionAsJob(actionId, report, profileId);
 			if (queued) {
 				return queued;
 			}
 		}
-		const result = await runActionHandler(actionId, report);
+		const result = await runActionHandler(actionId, report, profileId);
 		return {
 			actionId,
 			generatedAt: new Date().toISOString(),
@@ -3900,13 +3953,23 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 	for (const actionId of Object.keys(
 		realCallProfileActionPaths
 	) as VoiceRealCallProfileRecoveryActionId[]) {
-		routes.post(actionPath(actionId), async ({ set }) => {
-			const result = await runAction(actionId);
-			if (!result.ok) {
-				set.status = 501;
+		routes.post(
+			actionPath(actionId),
+			async ({
+				query,
+				set
+			}: {
+				query: Record<string, string | undefined>;
+				set: { status?: number | string };
+			}) => {
+				const profileId = query.profileId?.trim() || undefined;
+				const result = await runAction(actionId, profileId);
+				if (!result.ok) {
+					set.status = 501;
+				}
+				return Response.json(result, { headers: options.headers });
 			}
-			return Response.json(result, { headers: options.headers });
-		});
+		);
 	}
 
 	return routes;

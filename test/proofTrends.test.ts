@@ -1229,16 +1229,29 @@ describe('proof trends', () => {
 		expect(
 			buildVoiceRealCallProfileRecoveryActions(history, {
 				minActionableProfiles: 5,
+				minProfileCycles: 3,
 				requiredProfileIds: ['custom-profile'],
+				requiredProfileSurfaces: ['browser'],
 				requiredProviderRoles: ['llm', 'stt', 'tts']
 			}).map((action) => action.label)
 		).toEqual([
 			'Open real-call profile history',
 			'Refresh production readiness',
-			'Run browser profile proof',
-			'Run phone profile proof',
+			'Run browser profile proof for custom-profile',
+			'Run phone profile proof for custom-profile',
 			'Collect missing provider-role evidence'
 		]);
+		expect(
+			buildVoiceRealCallProfileRecoveryActions(history, {
+				minProfileCycles: 3,
+				requiredProfileIds: ['custom-profile'],
+				requiredProfileSurfaces: ['browser']
+			}).find((action) => action.id === 'collect-browser-proof')
+		).toMatchObject({
+			href: '/voice/browser-call-profiles?profileId=custom-profile',
+			method: 'POST',
+			profileId: 'custom-profile'
+		});
 	});
 
 	test('buildVoiceProofTrendRecommendationReport recommends provider switches from sustained comparisons', () => {
@@ -1740,7 +1753,7 @@ describe('proof trends', () => {
 
 		expect(actionsResponse.status).toBe(200);
 		expect(actions.actions.map((action: { href: string; method?: string }) => action.href)).toContain(
-			'/api/voice/real-call-profile-history/collect-browser-proof'
+			'/api/voice/real-call-profile-history/collect-browser-proof?profileId=support-agent'
 		);
 		expect(browserResponse.status).toBe(200);
 		expect(browser).toMatchObject({
