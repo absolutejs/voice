@@ -25,6 +25,7 @@ import {
 	evaluateVoiceProofTrendEvidence,
 	formatVoiceProofTrendAge,
 	loadVoiceRealCallProfileEvidenceFromTraceStore,
+	runVoiceRealCallProfileRecoveryLoop,
 	resolveVoiceRealCallProfileProviderRoute
 } from '../src/proofTrends';
 import type { VoiceProofTrendProviderSummary } from '../src/proofTrends';
@@ -1931,6 +1932,111 @@ describe('proof trends', () => {
 			status: 'pass'
 		});
 		expect(missingResponse.status).toBe(404);
+	});
+
+	test('runVoiceRealCallProfileRecoveryLoop runs real-call recovery actions in parallel', async () => {
+		const calls: string[] = [];
+		let activeStarts = 0;
+		let maxActiveStarts = 0;
+		const wait = (ms: number) =>
+			new Promise((resolve) => setTimeout(resolve, ms));
+		const fakeFetch: typeof fetch = async (input, init) => {
+			const url = new URL(String(input));
+			calls.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`);
+			if (url.pathname === '/api/production-readiness/recovery-actions') {
+				return Response.json({
+					actions: [
+						{
+							href: '/recover/browser?profileId=meeting-recorder',
+							label: 'Browser meeting',
+							method: 'POST',
+							profileId: 'meeting-recorder',
+							sourceCheckLabel: 'Real-call profile history'
+						},
+						{
+							href: '/recover/browser?profileId=meeting-recorder',
+							label: 'Duplicate browser meeting',
+							method: 'POST',
+							profileId: 'meeting-recorder',
+							sourceCheckLabel: 'Real-call profile history'
+						},
+						{
+							href: '/recover/browser?profileId=support-agent',
+							label: 'Browser support',
+							method: 'POST',
+							profileId: 'support-agent',
+							sourceCheckLabel: 'Real-call profile history'
+						},
+						{
+							href: '/recover/open',
+							label: 'Open report',
+							method: 'GET',
+							sourceCheckLabel: 'Real-call profile history'
+						}
+					]
+				});
+			}
+			if (url.pathname === '/recover/browser') {
+				activeStarts += 1;
+				maxActiveStarts = Math.max(maxActiveStarts, activeStarts);
+				await wait(5);
+				activeStarts -= 1;
+				return Response.json({
+					jobId: `job-${url.searchParams.get('profileId')}`
+				});
+			}
+			if (
+				url.pathname ===
+				'/api/voice/real-call-profile-history/actions/job-meeting-recorder'
+			) {
+				return Response.json({
+					job: { id: 'job-meeting-recorder', status: 'pass' }
+				});
+			}
+			if (
+				url.pathname ===
+				'/api/voice/real-call-profile-history/actions/job-support-agent'
+			) {
+				return Response.json({
+					job: { id: 'job-support-agent', status: 'pass' }
+				});
+			}
+			if (url.pathname === '/api/voice/real-call-profile-history/refresh') {
+				return Response.json({ ok: true });
+			}
+			if (url.pathname === '/api/production-readiness') {
+				return Response.json({
+					checks: [
+						{
+							detail: '2 profile(s), 2 cycle(s), 2 actionable default(s).',
+							label: 'Real-call profile history',
+							status: 'pass',
+							value: '2/2 actionable'
+						}
+					]
+				});
+			}
+			return new Response('missing', { status: 404 });
+		};
+
+		const report = await runVoiceRealCallProfileRecoveryLoop({
+			baseUrl: 'http://localhost',
+			fetch: fakeFetch,
+			jobPollMs: 1
+		});
+
+		expect(report.ok).toBe(true);
+		expect(report.actionCount).toBe(2);
+		expect(report.startFailures).toEqual([]);
+		expect(report.jobs.map((job) => job.result.status)).toEqual(['pass', 'pass']);
+		expect(report.realCallProfileGate).toMatchObject({
+			label: 'Real-call profile history',
+			status: 'pass'
+		});
+		expect(maxActiveStarts).toBe(2);
+		expect(
+			calls.filter((call) => call.startsWith('POST /recover/browser'))
+		).toHaveLength(2);
 	});
 
 	test('buildVoiceRealCallProfileRecoveryJobHistoryCheck gates persisted recovery job history', async () => {

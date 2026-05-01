@@ -295,6 +295,7 @@ export {
 	renderVoiceProofTrendRecommendationMarkdown,
 	renderVoiceRealCallProfileHistoryHTML,
 	renderVoiceRealCallProfileHistoryMarkdown,
+	runVoiceRealCallProfileRecoveryLoop,
 	resolveVoiceRealCallProfileProviderRoute
 } from './proofTrends';
 export {
@@ -398,6 +399,12 @@ export type {
 	VoiceRealCallProfileRecoveryJobStatus,
 	VoiceRealCallProfileRecoveryJobStore,
 	VoiceRealCallProfileRecoveryJobUpdate,
+	VoiceRealCallProfileRecoveryLoopAction,
+	VoiceRealCallProfileRecoveryLoopJob,
+	VoiceRealCallProfileRecoveryLoopJobResult,
+	VoiceRealCallProfileRecoveryLoopOptions,
+	VoiceRealCallProfileRecoveryLoopReport,
+	VoiceRealCallProfileRecoveryLoopStartFailure,
 	VoiceSQLiteRealCallProfileRecoveryJobStoreOptions,
 	VoiceRealCallProfileTraceCollector,
 	VoiceRealCallProfileTraceCollectorEvidenceOptions,

@@ -2,7 +2,8 @@ import { Elysia } from 'elysia';
 import type { Database } from 'bun:sqlite';
 import type {
 	VoiceProductionReadinessAction,
-	VoiceProductionReadinessCheck
+	VoiceProductionReadinessCheck,
+	VoiceReadinessRecoveryAction
 } from './productionReadiness';
 import type {
 	StoredVoiceTraceEvent,
@@ -607,6 +608,56 @@ export type VoiceRealCallProfileRecoveryActionRoutesOptions =
 			>;
 			jobStore?: VoiceRealCallProfileRecoveryJobStore;
 		};
+
+export type VoiceRealCallProfileRecoveryLoopAction =
+	Partial<VoiceReadinessRecoveryAction> &
+		Partial<VoiceRealCallProfileRecoveryAction> & {
+			href?: string;
+			method?: string;
+		};
+
+export type VoiceRealCallProfileRecoveryLoopJob = Partial<
+	VoiceRealCallProfileRecoveryJob
+> & {
+	error?: string;
+	id?: string;
+	status?: string;
+};
+
+export type VoiceRealCallProfileRecoveryLoopJobResult = {
+	action: string;
+	jobId?: string;
+	result: VoiceRealCallProfileRecoveryLoopJob;
+};
+
+export type VoiceRealCallProfileRecoveryLoopStartFailure = {
+	action: string;
+	error: string;
+};
+
+export type VoiceRealCallProfileRecoveryLoopReport = {
+	actionCount: number;
+	actions: VoiceRealCallProfileRecoveryLoopAction[];
+	jobs: VoiceRealCallProfileRecoveryLoopJobResult[];
+	ok: boolean;
+	realCallProfileGate: VoiceProductionReadinessCheck | null;
+	startFailures: VoiceRealCallProfileRecoveryLoopStartFailure[];
+};
+
+export type VoiceRealCallProfileRecoveryLoopOptions = {
+	actionFilter?: (action: VoiceRealCallProfileRecoveryLoopAction) => boolean;
+	baseUrl: string;
+	fetch?: typeof fetch;
+	jobHref?: string | ((jobId: string) => string);
+	jobPollMs?: number;
+	jobTimeoutMs?: number;
+	logger?: Pick<Console, 'log'>;
+	readinessCheckLabel?: string;
+	readinessHref?: string;
+	recoveryActionsHref?: string;
+	refreshHref?: false | string;
+	requestTimeoutMs?: number;
+};
 
 export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -2064,6 +2115,231 @@ const appendRealCallRecoveryActionQuery = (
 	const separator = base.includes('?') ? '&' : '?';
 	const search = new URLSearchParams(entries).toString();
 	return `${base}${separator}${search}${hash ? `#${hash}` : ''}`;
+};
+
+const sleepVoiceRealCallProfileRecoveryLoop = (ms: number) =>
+	new Promise((resolve) => setTimeout(resolve, ms));
+
+const describeVoiceRealCallProfileRecoveryLoopAction = (
+	action: VoiceRealCallProfileRecoveryLoopAction
+) =>
+	[
+		action.label ?? action.id ?? 'recovery action',
+		action.profileId ? `profile=${action.profileId}` : undefined,
+		action.href
+	]
+		.filter(Boolean)
+		.join(' ');
+
+const defaultVoiceRealCallProfileRecoveryLoopActionFilter = (
+	action: VoiceRealCallProfileRecoveryLoopAction,
+	readinessCheckLabel: string
+) =>
+	action.method?.toUpperCase() === 'POST' &&
+	action.sourceCheckLabel === readinessCheckLabel &&
+	typeof action.href === 'string' &&
+	action.href.length > 0;
+
+const uniqueVoiceRealCallProfileRecoveryLoopActions = (
+	actions: VoiceRealCallProfileRecoveryLoopAction[]
+) => {
+	const seen = new Set<string>();
+	return actions.filter((action) => {
+		const key = `${action.method?.toUpperCase() ?? 'GET'} ${action.href ?? ''}`;
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+};
+
+export const runVoiceRealCallProfileRecoveryLoop = async (
+	options: VoiceRealCallProfileRecoveryLoopOptions
+): Promise<VoiceRealCallProfileRecoveryLoopReport> => {
+	const baseUrl = options.baseUrl.replace(/\/$/, '');
+	const requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
+	const jobPollMs = options.jobPollMs ?? 1_200;
+	const jobTimeoutMs = options.jobTimeoutMs ?? 600_000;
+	const readinessCheckLabel =
+		options.readinessCheckLabel ?? 'Real-call profile history';
+	const fetchImpl = options.fetch ?? fetch;
+	const recoveryActionsHref =
+		options.recoveryActionsHref ?? '/api/production-readiness/recovery-actions';
+	const readinessHref = options.readinessHref ?? '/api/production-readiness';
+	const refreshHref =
+		options.refreshHref === undefined
+			? '/api/voice/real-call-profile-history/refresh'
+			: options.refreshHref;
+	const jobHref = options.jobHref ?? '/api/voice/real-call-profile-history/actions';
+	const toAbsoluteUrl = (href: string) => new URL(href, baseUrl).toString();
+	const parseJson = async <Value>(response: Response): Promise<Value> => {
+		const text = await response.text();
+		try {
+			return JSON.parse(text) as Value;
+		} catch (error) {
+			throw new Error(
+				`Expected JSON from ${response.url}, got: ${text.slice(0, 300)}`,
+				{ cause: error }
+			);
+		}
+	};
+	const fetchJson = async <Value>(href: string, init?: RequestInit) => {
+		const response = await fetchImpl(toAbsoluteUrl(href), {
+			headers: { accept: 'application/json', ...init?.headers },
+			...init,
+			signal: init?.signal ?? AbortSignal.timeout(requestTimeoutMs)
+		});
+		if (!response.ok) {
+			throw new Error(`${href} returned HTTP ${String(response.status)}.`);
+		}
+		return parseJson<Value>(response);
+	};
+	const resolveJobHref = (jobId: string) =>
+		typeof jobHref === 'function'
+			? jobHref(jobId)
+			: `${jobHref.replace(/\/$/, '')}/${jobId}`;
+	const getGate = async (fresh = false) => {
+		const href = fresh
+			? `${readinessHref}${readinessHref.includes('?') ? '&' : '?'}voiceRecoveryLoopFresh=${String(Date.now())}`
+			: readinessHref;
+		const readiness = await fetchJson<{ checks?: VoiceProductionReadinessCheck[] }>(
+			href
+		);
+		return (
+			readiness.checks?.find((check) => check.label === readinessCheckLabel) ??
+			null
+		);
+	};
+	const actionsResponse = await fetchJson<{
+		actions?: VoiceRealCallProfileRecoveryLoopAction[];
+	}>(recoveryActionsHref);
+	const actionFilter =
+		options.actionFilter ??
+		((action: VoiceRealCallProfileRecoveryLoopAction) =>
+			defaultVoiceRealCallProfileRecoveryLoopActionFilter(
+				action,
+				readinessCheckLabel
+			));
+	const actions = uniqueVoiceRealCallProfileRecoveryLoopActions(
+		(actionsResponse.actions ?? []).filter(actionFilter)
+	);
+
+	if (actions.length === 0) {
+		const realCallProfileGate = await getGate();
+		return {
+			actionCount: 0,
+			actions,
+			jobs: [],
+			ok: realCallProfileGate?.status === 'pass',
+			realCallProfileGate,
+			startFailures: []
+		};
+	}
+
+	options.logger?.log(
+		`Running ${String(actions.length)} real-call profile recovery action(s) in parallel.`
+	);
+	for (const action of actions) {
+		options.logger?.log(
+			`- ${describeVoiceRealCallProfileRecoveryLoopAction(action)}`
+		);
+	}
+
+	const starts = await Promise.allSettled(
+		actions.map(async (action) => {
+			if (!action.href) {
+				throw new Error('Recovery action is missing href.');
+			}
+			const body = await fetchJson<{
+				jobId?: string;
+				jobStatus?: string;
+				message?: string;
+			}>(action.href, { method: 'POST' });
+			return { action, ...body };
+		})
+	);
+	const startedJobs = starts.flatMap((result) => {
+		if (result.status === 'rejected') {
+			return [];
+		}
+		return result.value.jobId ? [result.value] : [];
+	});
+	const startFailures = starts.flatMap((result, index) =>
+		result.status === 'rejected'
+			? [
+					{
+						action: describeVoiceRealCallProfileRecoveryLoopAction(
+							actions[index] ?? {}
+						),
+						error:
+							result.reason instanceof Error
+								? result.reason.message
+								: String(result.reason)
+					}
+				]
+			: []
+	);
+
+	const pollJob = async (jobId: string) => {
+		const deadline = Date.now() + jobTimeoutMs;
+		while (Date.now() < deadline) {
+			const body = await fetchJson<{
+				job?: VoiceRealCallProfileRecoveryLoopJob;
+				ok?: boolean;
+			}>(resolveJobHref(jobId));
+			const job = body.job;
+			if (!job) {
+				throw new Error(`Recovery job ${jobId} was not found.`);
+			}
+			if (job.status === 'pass' || job.status === 'fail') {
+				return job;
+			}
+			await sleepVoiceRealCallProfileRecoveryLoop(jobPollMs);
+		}
+		throw new Error(
+			`Timed out waiting ${String(jobTimeoutMs)}ms for recovery job ${jobId}.`
+		);
+	};
+
+	options.logger?.log(
+		`Polling ${String(startedJobs.length)} recovery job(s) in parallel.`
+	);
+	const jobResults = await Promise.allSettled(
+		startedJobs.map((start) => pollJob(start.jobId as string))
+	);
+	const jobs = jobResults.map((result, index) => ({
+		action: describeVoiceRealCallProfileRecoveryLoopAction(
+			startedJobs[index]?.action ?? {}
+		),
+		jobId: startedJobs[index]?.jobId,
+		result:
+			result.status === 'fulfilled'
+				? result.value
+				: {
+						error:
+							result.reason instanceof Error
+								? result.reason.message
+								: String(result.reason),
+						status: 'fail' as const
+					}
+	}));
+
+	if (refreshHref !== false) {
+		await fetchJson<unknown>(refreshHref, { method: 'POST' });
+	}
+	const realCallProfileGate = await getGate(true);
+	return {
+		actionCount: actions.length,
+		actions,
+		jobs,
+		ok:
+			startFailures.length === 0 &&
+			jobs.every((job) => job.result.status === 'pass') &&
+			realCallProfileGate?.status === 'pass',
+		realCallProfileGate,
+		startFailures
+	};
 };
 
 export const buildVoiceRealCallProfileRecoveryActions = (
