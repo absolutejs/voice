@@ -78,6 +78,31 @@ export type VoiceProofPackStaleWhileRefreshSourceOptions = {
 		| Promise<VoiceProofPackSourceValue | void>;
 };
 
+export type VoiceProofPackRefreshState =
+	| 'failed'
+	| 'fresh'
+	| 'missing'
+	| 'refreshing'
+	| 'stale';
+
+export type VoiceProofPackRefreshStatus = {
+	ageMs?: number;
+	error?: string;
+	generatedAt?: string;
+	lastRefreshCompletedAt?: number;
+	lastRefreshStartedAt?: number;
+	maxAgeMs: number;
+	refreshing: boolean;
+	runId?: string;
+	state: VoiceProofPackRefreshState;
+};
+
+export type VoiceProofPackStaleWhileRefreshSource = ((
+	...args: []
+) => Promise<VoiceProofPackSourceValue>) & {
+	getStatus: () => VoiceProofPackRefreshStatus;
+};
+
 export type VoiceProofPackRoutesOptions = {
 	headers?: HeadersInit;
 	jsonPath?: false | string;
@@ -95,10 +120,15 @@ const toGeneratedAt = (value: number | string | undefined) =>
 			? new Date(value).toISOString()
 			: value;
 
-const getProofPackGeneratedAtMs = (proofPack: VoiceProofPackSourceValue) => {
-	const generatedAt = buildVoiceProofPack(proofPack).generatedAt;
+const getProofPackMetadata = (proofPack: VoiceProofPackSourceValue) => {
+	const built = buildVoiceProofPack(proofPack);
+	const generatedAt = built.generatedAt;
 	const generatedAtMs = Date.parse(generatedAt);
-	return Number.isFinite(generatedAtMs) ? generatedAtMs : 0;
+	return {
+		generatedAt,
+		generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : 0,
+		runId: built.runId
+	};
 };
 
 const summarizeProofPackSections = (sections: VoiceProofPackSection[]) => {
@@ -424,38 +454,111 @@ export const buildVoiceProofPack = (
 
 export const createVoiceProofPackStaleWhileRefreshSource = (
 	options: VoiceProofPackStaleWhileRefreshSourceOptions
-) => {
+): VoiceProofPackStaleWhileRefreshSource => {
 	const maxAgeMs = options.maxAgeMs ?? 5 * 60_000;
 	const now = options.now ?? Date.now;
 	let refreshPromise: Promise<VoiceProofPackSourceValue> | undefined;
+	let status: VoiceProofPackRefreshStatus = {
+		maxAgeMs,
+		refreshing: false,
+		state: 'missing'
+	};
+
+	const updateStatusFromProofPack = (
+		proofPack: VoiceProofPackSourceValue,
+		refreshing = Boolean(refreshPromise)
+	) => {
+		const metadata = getProofPackMetadata(proofPack);
+		const ageMs = Math.max(0, now() - metadata.generatedAtMs);
+		status = {
+			ageMs,
+			generatedAt: metadata.generatedAt,
+			lastRefreshCompletedAt: status.lastRefreshCompletedAt,
+			lastRefreshStartedAt: status.lastRefreshStartedAt,
+			maxAgeMs,
+			refreshing,
+			runId: metadata.runId,
+			state: refreshing ? 'refreshing' : ageMs <= maxAgeMs ? 'fresh' : 'stale'
+		};
+		return { ageMs, metadata };
+	};
 
 	const refresh = async () => {
 		const refreshed = await options.refresh();
-		return refreshed ?? options.read();
+		const proofPack = refreshed ?? (await options.read());
+		updateStatusFromProofPack(proofPack, false);
+		status = {
+			...status,
+			lastRefreshCompletedAt: now(),
+			lastRefreshStartedAt: status.lastRefreshStartedAt,
+			refreshing: false,
+			state: 'fresh'
+		};
+		return proofPack;
 	};
 
 	const startRefresh = () => {
+		if (!refreshPromise) {
+			status = {
+				...status,
+				lastRefreshStartedAt: now(),
+				refreshing: true,
+				state: 'refreshing'
+			};
+		}
 		refreshPromise ??= refresh().finally(() => {
 			refreshPromise = undefined;
 		});
 		return refreshPromise;
 	};
 
-	return async () => {
+	const source = async () => {
 		let current: VoiceProofPackSourceValue | undefined;
 		try {
 			current = await options.read();
-		} catch {
-			return startRefresh();
+		} catch (error) {
+			status = {
+				...status,
+				error: error instanceof Error ? error.message : String(error),
+				refreshing: Boolean(refreshPromise),
+				state: refreshPromise ? 'refreshing' : 'missing'
+			};
+			return startRefresh().catch((refreshError) => {
+				status = {
+					...status,
+					error:
+						refreshError instanceof Error
+							? refreshError.message
+							: String(refreshError),
+					lastRefreshCompletedAt: now(),
+					refreshing: false,
+					state: 'failed'
+				};
+				throw refreshError;
+			});
 		}
 
-		if (now() - getProofPackGeneratedAtMs(current) <= maxAgeMs) {
+		const { ageMs } = updateStatusFromProofPack(current);
+		if (ageMs <= maxAgeMs) {
 			return current;
 		}
 
-		void startRefresh().catch((error) => options.onRefreshError?.(error));
+		void startRefresh().catch((error) => {
+			status = {
+				...status,
+				error: error instanceof Error ? error.message : String(error),
+				lastRefreshCompletedAt: now(),
+				refreshing: false,
+				state: 'failed'
+			};
+			options.onRefreshError?.(error);
+		});
 		return current;
 	};
+
+	source.getStatus = () => status;
+
+	return source;
 };
 
 export const buildVoiceProofPackFromObservabilityExport = (

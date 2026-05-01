@@ -213,12 +213,22 @@ test('createVoiceProofPackStaleWhileRefreshSource returns stale proof while refr
 	});
 
 	await expect(source()).resolves.toMatchObject({ runId: 'stale-run' });
+	expect(source.getStatus()).toMatchObject({
+		refreshing: true,
+		runId: 'stale-run',
+		state: 'refreshing'
+	});
 	await expect(source()).resolves.toMatchObject({ runId: 'stale-run' });
 	expect(refreshes).toBe(1);
 
 	releaseRefresh?.();
 	await Bun.sleep(1);
 	await expect(source()).resolves.toMatchObject({ runId: 'fresh-run' });
+	expect(source.getStatus()).toMatchObject({
+		refreshing: false,
+		runId: 'fresh-run',
+		state: 'fresh'
+	});
 });
 
 test('createVoiceProofPackStaleWhileRefreshSource waits for refresh when no proof exists', async () => {
@@ -240,4 +250,9 @@ test('createVoiceProofPackStaleWhileRefreshSource waits for refresh when no proo
 	});
 
 	await expect(source()).resolves.toMatchObject({ runId: 'created-run' });
+	expect(source.getStatus()).toMatchObject({
+		refreshing: false,
+		runId: 'created-run',
+		state: 'fresh'
+	});
 });

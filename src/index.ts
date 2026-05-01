@@ -2186,10 +2186,13 @@ export type {
 	VoiceProofPack,
 	VoiceProofPackEvidence,
 	VoiceProofPackInput,
+	VoiceProofPackRefreshState,
+	VoiceProofPackRefreshStatus,
 	VoiceProofPackRoutesOptions,
 	VoiceProofPackSection,
 	VoiceProofPackSourceValue,
 	VoiceProofPackStatus,
+	VoiceProofPackStaleWhileRefreshSource,
 	VoiceProofPackStaleWhileRefreshSourceOptions,
 	VoiceProofPackWriteResult
 } from './proofPack';
