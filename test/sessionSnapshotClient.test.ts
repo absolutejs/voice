@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import {
+	createVoiceSessionSnapshotViewModel,
 	createVoiceSessionSnapshotStore,
-	fetchVoiceSessionSnapshot
+	fetchVoiceSessionSnapshot,
+	renderVoiceSessionSnapshotHTML
 } from '../src/client';
 import type { VoiceSessionSnapshot } from '../src';
 
@@ -51,4 +53,32 @@ test('createVoiceSessionSnapshotStore refreshes and exports snapshot blobs', asy
 	});
 	expect(JSON.parse(await store.download().text())).toEqual(snapshot);
 	store.close();
+});
+
+test('session snapshot widget summarizes support/debug signals', () => {
+	const model = createVoiceSessionSnapshotViewModel({
+		error: null,
+		isLoading: false,
+		snapshot,
+		updatedAt: 456
+	});
+
+	expect(model).toMatchObject({
+		label: 'pass · session-1',
+		showDownload: true,
+		status: 'ready'
+	});
+	expect(model.rows.map((row) => row.label)).toEqual([
+		'Media graphs',
+		'Media warnings',
+		'Timing warnings',
+		'Backpressure drops',
+		'Proof failures',
+		'Quality warnings',
+		'Provider routing',
+		'Telephony outcomes'
+	]);
+	expect(renderVoiceSessionSnapshotHTML({ error: null, isLoading: false, snapshot })).toContain(
+		'Download snapshot'
+	);
 });

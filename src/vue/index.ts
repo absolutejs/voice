@@ -3,6 +3,7 @@ export { VoiceOpsActionCenter } from './VoiceOpsActionCenter';
 export { VoiceDeliveryRuntime } from './VoiceDeliveryRuntime';
 export { VoicePlatformCoverage } from './VoicePlatformCoverage';
 export { VoiceProofTrends } from './VoiceProofTrends';
+export { VoiceSessionSnapshot } from './VoiceSessionSnapshot';
 export { VoiceReadinessFailures } from './VoiceReadinessFailures';
 export { VoiceProviderSimulationControls } from './VoiceProviderSimulationControls';
 export { VoiceProviderCapabilities } from './VoiceProviderCapabilities';

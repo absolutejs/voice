@@ -25,10 +25,20 @@ export {
 	createVoiceSessionSnapshotStore,
 	fetchVoiceSessionSnapshot
 } from './sessionSnapshot';
+export {
+	createVoiceSessionSnapshotViewModel,
+	defineVoiceSessionSnapshotElement,
+	mountVoiceSessionSnapshot,
+	renderVoiceSessionSnapshotHTML
+} from './sessionSnapshotWidget';
 export type {
 	VoiceSessionSnapshotClientOptions,
 	VoiceSessionSnapshotClientState
 } from './sessionSnapshot';
+export type {
+	VoiceSessionSnapshotViewModel,
+	VoiceSessionSnapshotWidgetOptions
+} from './sessionSnapshotWidget';
 export {
 	createVoiceProfileComparisonStore,
 	fetchVoiceProfileComparison
