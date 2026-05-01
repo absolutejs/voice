@@ -3,6 +3,7 @@ import {
 	applyVoiceCampaignTelephonyOutcome,
 	buildVoiceCampaignObservabilityReport,
 	createVoiceCampaign,
+	createVoiceCampaignTelephonyOutcomeRecorder,
 	createVoiceCampaignRoutes,
 	createVoiceCampaignWorker,
 	createVoiceCampaignWorkerLoop,
@@ -819,6 +820,106 @@ test('applyVoiceCampaignTelephonyOutcome can resolve campaign attempts from webh
 		applied: true,
 		status: 'succeeded'
 	});
+	expect((await runtime.get(campaign.campaign.id))?.attempts[0]).toMatchObject({
+		status: 'succeeded'
+	});
+});
+
+test('createVoiceCampaignTelephonyOutcomeRecorder applies outcomes and keeps capped snapshots', async () => {
+	const store = createVoiceMemoryCampaignStore();
+	const runtime = createVoiceCampaign({
+		store
+	});
+	const campaign = await runtime.create({
+		id: 'campaign-recorder-proof',
+		name: 'Recorder proof'
+	});
+	await runtime.addRecipients(campaign.campaign.id, [
+		{
+			id: 'recipient-1',
+			phone: '+15550001001'
+		}
+	]);
+	await runtime.enqueue(campaign.campaign.id);
+	const tick = await runtime.tick(campaign.campaign.id);
+	const attempt = tick.started[0]!;
+	const recorder = createVoiceCampaignTelephonyOutcomeRecorder({
+		maxSnapshots: 1,
+		now: () => 123,
+		runtime
+	});
+
+	const snapshot = await recorder.record({
+		applied: true,
+		decision: {
+			action: 'complete',
+			confidence: 'high',
+			disposition: 'completed',
+			source: 'status'
+		},
+		event: {
+			metadata: {
+				attemptId: attempt.id,
+				campaignId: campaign.campaign.id
+			},
+			provider: 'twilio',
+			status: 'completed'
+		},
+		provider: 'twilio',
+		routeResult: {
+			complete: true
+		},
+		sessionId: 'session-recorder'
+	});
+	await recorder.handler('twilio')({
+		applied: false,
+		decision: {
+			action: 'complete',
+			confidence: 'high',
+			disposition: 'completed',
+			source: 'status'
+		},
+		duplicate: true,
+		event: {
+			metadata: {
+				attemptId: attempt.id,
+				campaignId: campaign.campaign.id
+			},
+			provider: 'twilio',
+			status: 'completed'
+		},
+		idempotencyKey: 'duplicate-key',
+		routeResult: {
+			complete: true
+		},
+		sessionId: 'session-recorder'
+	});
+
+	expect(snapshot).toMatchObject({
+		action: 'complete',
+		at: 123,
+		campaignOutcome: {
+			applied: true,
+			attemptId: attempt.id,
+			campaignId: campaign.campaign.id,
+			status: 'succeeded'
+		},
+		disposition: 'completed',
+		provider: 'twilio',
+		sessionId: 'session-recorder',
+		source: 'status'
+	});
+	expect(recorder.list()).toMatchObject([
+		{
+			campaignOutcome: {
+				applied: false,
+				reason: 'terminal-attempt'
+			},
+			duplicate: true,
+			idempotencyKey: 'duplicate-key',
+			provider: 'twilio'
+		}
+	]);
 	expect((await runtime.get(campaign.campaign.id))?.attempts[0]).toMatchObject({
 		status: 'succeeded'
 	});

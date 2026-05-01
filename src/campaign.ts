@@ -489,6 +489,41 @@ export type VoiceCampaignTelephonyOutcomeResult = {
 	attemptId?: string;
 };
 
+export type VoiceCampaignTelephonyOutcomeSnapshot<TResult = unknown> = {
+	action: VoiceTelephonyOutcomeDecision['action'];
+	at: number;
+	campaignOutcome: VoiceCampaignTelephonyOutcomeResult;
+	disposition?: VoiceTelephonyOutcomeDecision['disposition'];
+	duplicate?: boolean;
+	idempotencyKey?: string;
+	provider?: string;
+	routeResult?: TResult;
+	sessionId?: string;
+	source?: VoiceTelephonyOutcomeDecision['source'];
+};
+
+export type VoiceCampaignTelephonyOutcomeRecorderOptions<TResult = unknown> =
+	VoiceCampaignTelephonyOutcomeOptions<TResult> & {
+		maxSnapshots?: number;
+		now?: () => number;
+	};
+
+export type VoiceCampaignTelephonyOutcomeRecorderRecordInput<TResult = unknown> =
+	VoiceTelephonyWebhookDecision<TResult> & {
+		provider?: string;
+	};
+
+export type VoiceCampaignTelephonyOutcomeRecorder<TResult = unknown> = {
+	clear: () => void;
+	handler: (
+		provider?: string
+	) => (input: VoiceTelephonyWebhookDecision<TResult>) => Promise<void>;
+	list: () => VoiceCampaignTelephonyOutcomeSnapshot<TResult>[];
+	record: (
+		input: VoiceCampaignTelephonyOutcomeRecorderRecordInput<TResult>
+	) => Promise<VoiceCampaignTelephonyOutcomeSnapshot<TResult>>;
+};
+
 const createId = () => crypto.randomUUID();
 
 const cloneRecord = (record: VoiceCampaignRecord): VoiceCampaignRecord => ({
@@ -1555,6 +1590,60 @@ export const createVoiceCampaignTelephonyOutcomeHandler = <TResult = unknown>(
 		},
 		options
 	);
+
+export const createVoiceCampaignTelephonyOutcomeRecorder = <TResult = unknown>(
+	options: VoiceCampaignTelephonyOutcomeRecorderOptions<TResult> = {}
+): VoiceCampaignTelephonyOutcomeRecorder<TResult> => {
+	const snapshots: VoiceCampaignTelephonyOutcomeSnapshot<TResult>[] = [];
+	const maxSnapshots = Math.max(0, options.maxSnapshots ?? 20);
+	const now = options.now ?? Date.now;
+
+	const record = async (
+		input: VoiceCampaignTelephonyOutcomeRecorderRecordInput<TResult>
+	) => {
+		const campaignOutcome = await applyVoiceCampaignTelephonyOutcome(
+			{
+				decision: input.decision,
+				event: input.event,
+				routeResult: input.routeResult as TResult,
+				sessionId: input.sessionId
+			},
+			options
+		);
+		const snapshot: VoiceCampaignTelephonyOutcomeSnapshot<TResult> = {
+			action: input.decision.action,
+			at: now(),
+			campaignOutcome,
+			disposition: input.decision.disposition,
+			duplicate: input.duplicate,
+			idempotencyKey: input.idempotencyKey,
+			provider: input.provider ?? input.event.provider,
+			routeResult: input.routeResult as TResult,
+			sessionId: input.sessionId,
+			source: input.decision.source
+		};
+
+		if (maxSnapshots > 0) {
+			snapshots.unshift(snapshot);
+			snapshots.splice(maxSnapshots);
+		}
+		return snapshot;
+	};
+
+	return {
+		clear: () => {
+			snapshots.splice(0);
+		},
+		handler: (provider) => async (input) => {
+			await record({
+				...input,
+				provider: provider ?? input.event.provider
+			});
+		},
+		list: () => snapshots.map((snapshot) => ({ ...snapshot })),
+		record
+	};
+};
 
 const defaultProofRecipients = (): VoiceCampaignRecipientInput[] => [
 	{

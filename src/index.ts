@@ -4,6 +4,7 @@ export {
 	assertVoiceCampaignReadinessEvidence,
 	buildVoiceCampaignObservabilityReport,
 	createVoiceCampaignTelephonyOutcomeHandler,
+	createVoiceCampaignTelephonyOutcomeRecorder,
 	createVoiceCampaign,
 	createVoiceCampaignRoutes,
 	createVoiceCampaignWorker,
@@ -1120,6 +1121,14 @@ export type {
 	VoiceCampaignStatus,
 	VoiceCampaignStore,
 	VoiceCampaignSummary,
+	VoiceCampaignTelephonyOutcomeInput,
+	VoiceCampaignTelephonyOutcomeOptions,
+	VoiceCampaignTelephonyOutcomeRecorder,
+	VoiceCampaignTelephonyOutcomeRecorderOptions,
+	VoiceCampaignTelephonyOutcomeRecorderRecordInput,
+	VoiceCampaignTelephonyOutcomeResult,
+	VoiceCampaignTelephonyOutcomeSnapshot,
+	VoiceCampaignTelephonyOutcomeStatus,
 	VoiceCampaignTimeWindow,
 	VoiceCampaignTickResult
 } from './campaign';
