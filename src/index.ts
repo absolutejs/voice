@@ -2166,4 +2166,21 @@ export type {
 	TelephonyResponseShapeMode,
 	TelephonyResponseShapeOptions
 } from './telephony/response';
+export {
+	buildVoiceProofPack,
+	buildVoiceProofPackFromObservabilityExport,
+	createVoiceProofPackArtifacts,
+	createVoiceProofPackRoutes,
+	renderVoiceProofPackMarkdown,
+	writeVoiceProofPack
+} from './proofPack';
+export type {
+	VoiceProofPack,
+	VoiceProofPackEvidence,
+	VoiceProofPackInput,
+	VoiceProofPackRoutesOptions,
+	VoiceProofPackSection,
+	VoiceProofPackStatus,
+	VoiceProofPackWriteResult
+} from './proofPack';
 export * from './types';

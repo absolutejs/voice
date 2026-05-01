@@ -1456,6 +1456,34 @@ app.use(
 );
 ```
 
+Use `buildVoiceProofPack(...)` and `writeVoiceProofPack(...)` when the app needs a customer-owned proof artifact instead of demo-only file glue. Proof packs render JSON and Markdown, expose route helpers, and can be converted into observability export artifacts:
+
+```ts
+import {
+	buildVoiceProofPackFromObservabilityExport,
+	createVoiceProofPackRoutes,
+	writeVoiceProofPack
+} from '@absolutejs/voice';
+
+const exportReport = await buildVoiceObservabilityExport({
+	store: runtime.traces,
+	audit: runtime.audit
+});
+const proofPack = buildVoiceProofPackFromObservabilityExport(exportReport, {
+	runId: 'release-proof'
+});
+const written = await writeVoiceProofPack(proofPack, {
+	outputDir: '.voice-runtime/proof-pack'
+});
+
+app.use(createVoiceProofPackRoutes({ source: proofPack }));
+
+const exportWithProofPack = await buildVoiceObservabilityExport({
+	artifacts: written.artifacts,
+	store: runtime.traces
+});
+```
+
 This primitive does not start workers, create persistent storage, mount a dashboard, or prescribe a deploy workflow. It only gives self-hosted apps one clean readiness-proof runtime so JSON, HTML, gate checks, proof packs, and trend artifacts agree on the same fresh evidence window.
 
 Use `buildVoiceRealCallProfileEvidenceFromTraceEvents(...)` or `loadVoiceRealCallProfileEvidenceFromTraceStore(...)` when repeated real browser/phone sessions should drive profile defaults and provider/runtime recommendations. These helpers read ordinary trace events such as `session.error`, `provider.decision`, `client.live_latency`, `client.browser_media`, `client.telephony_media`, `client.barge_in`, and `turn_latency.stage`, then emit `VoiceProofTrendRealCallProfileEvidence[]` for `buildVoiceRealCallProfileHistoryReport(...)`.
