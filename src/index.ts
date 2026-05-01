@@ -311,6 +311,11 @@ export {
 	createVoiceSessionSnapshotRoutes,
 	parseVoiceSessionSnapshot
 } from './sessionSnapshot';
+export {
+	buildVoiceCallDebuggerReport,
+	createVoiceCallDebuggerRoutes,
+	renderVoiceCallDebuggerHTML
+} from './callDebugger';
 export type {
 	VoiceEvidenceAssertionInput,
 	VoiceProofAssertionInput,
@@ -328,6 +333,10 @@ export type {
 	VoiceSessionSnapshotRouteSourceInput,
 	VoiceSessionSnapshotStatus
 } from './sessionSnapshot';
+export type {
+	VoiceCallDebuggerReport,
+	VoiceCallDebuggerRoutesOptions
+} from './callDebugger';
 export {
 	fetchVoiceProofTarget,
 	getVoiceProofTargetLogicalFailure,
