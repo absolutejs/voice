@@ -5,7 +5,7 @@
     "": {
       "name": "@absolutejs/voice",
       "dependencies": {
-        "@absolutejs/media": "0.0.1-beta.13",
+        "@absolutejs/media": "0.0.1-beta.14",
       },
       "devDependencies": {
         "@absolutejs/absolute": "0.19.0-beta.646",
@@ -34,7 +34,7 @@
   "packages": {
     "@absolutejs/absolute": ["@absolutejs/absolute@0.19.0-beta.646", "", { "dependencies": { "@angular/compiler": "^21.0.0", "zustand": "^5.0.12" }, "optionalDependencies": { "@absolutejs/native-darwin-arm64": "0.19.0-beta.646", "@absolutejs/native-darwin-x64": "0.19.0-beta.646", "@absolutejs/native-linux-arm64": "0.19.0-beta.646", "@absolutejs/native-linux-x64": "0.19.0-beta.646", "@absolutejs/native-windows-arm64": "0.19.0-beta.646", "@absolutejs/native-windows-x64": "0.19.0-beta.646" }, "peerDependencies": { "@angular/common": "^21.0.0", "@angular/compiler-cli": "^21.0.0", "@angular/core": "^21.0.0", "@angular/platform-browser": "^21.0.0", "@angular/platform-server": "^21.0.0", "@angular/ssr": "^21.0.0", "elysia": "^1.4.0", "react": "^19.2.0", "react-dom": "^19.2.0", "react-refresh": "^0.18.0", "sharp": ">=0.33.0", "svelte": "^5.35.2", "vue": "^3.5.27", "zone.js": "^0.15.0" }, "optionalPeers": ["@angular/common", "@angular/compiler-cli", "@angular/core", "@angular/platform-browser", "@angular/platform-server", "@angular/ssr", "react", "react-dom", "react-refresh", "sharp", "svelte", "vue", "zone.js"], "bin": { "absolute": "dist/cli/index.js" } }, "sha512-2IhVy2MpWdJinSih4LZeePuW8eEfEX9oHTq85U/fdpntpmK4N+RYMm5e208QMwsoygu/1KJ4/yf0BXfiMCzwvA=="],
 
-    "@absolutejs/media": ["@absolutejs/media@0.0.1-beta.13", "", {}, "sha512-+CR4267+oZZU+yEimlJRvZP6lL6LENmuX98XEWmUYdxUsPI+fTWfxbZX+kYekYeCcFa/QUD/ccy8oK1kFJX+Gw=="],
+    "@absolutejs/media": ["@absolutejs/media@0.0.1-beta.14", "", {}, "sha512-4Tc3eA/jZ+HH6warivCrOakJgXus92wMa2Yzz52md0MZpH9aYZDBS87w0KfmvPq26t5vgZQyX6lhAQcf2dtuLg=="],
 
     "@absolutejs/native-darwin-arm64": ["@absolutejs/native-darwin-arm64@0.19.0-beta.646", "", { "os": "darwin", "cpu": "arm64" }, "sha512-3axr9/i93ZMmuSMPz2qD/aVeYsbMSU8TF3x0r8Rk0dlOXl47doEf9au+Gsv299nZyeNoj1kNnaMc+GwN7pm5cg=="],
 
