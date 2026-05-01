@@ -42,6 +42,14 @@ test('buildVoiceSessionSnapshot captures media, routing, proof, quality, and tel
 		turnId: 'turn-1'
 	});
 	const snapshot = buildVoiceSessionSnapshot({
+		artifacts: [
+			{
+				href: '/voice-operations/session-1',
+				kind: 'operations-record',
+				label: 'Operations record',
+				status: 'pass'
+			}
+		],
 		media: [mediaGraph.snapshot()],
 		name: 'support-bundle',
 		proofAssertions: [
@@ -87,6 +95,14 @@ test('buildVoiceSessionSnapshot captures media, routing, proof, quality, and tel
 		total: 1
 	});
 	expect(snapshot.media[0]?.report.timing.overBudgetFrames).toBe(1);
+	expect(snapshot.artifacts).toEqual([
+		{
+			href: '/voice-operations/session-1',
+			kind: 'operations-record',
+			label: 'Operations record',
+			status: 'pass'
+		}
+	]);
 	expect(snapshot.providerRoutingEvents).toEqual([routingEvent]);
 	expect(snapshot.telephonyOutcomes).toHaveLength(1);
 	expect(parseVoiceSessionSnapshot(snapshot)).toEqual(snapshot);
@@ -107,6 +123,21 @@ test('buildVoiceSessionSnapshot fails when proof assertions fail', () => {
 
 	expect(snapshot.status).toBe('fail');
 	expect(snapshot.proofSummary.failed).toBe(1);
+});
+
+test('buildVoiceSessionSnapshot warns when linked artifacts warn', () => {
+	const snapshot = buildVoiceSessionSnapshot({
+		artifacts: [
+			{
+				kind: 'provider-fallback',
+				label: 'Provider fallback replay',
+				status: 'warn'
+			}
+		],
+		sessionId: 'session-1'
+	});
+
+	expect(snapshot.status).toBe('warn');
 });
 
 test('createVoiceSessionSnapshotRoutes exposes JSON and downloadable snapshot artifacts', async () => {

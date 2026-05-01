@@ -16,7 +16,24 @@ export type VoiceSessionSnapshotQualityEvidence = {
 	status?: VoiceSessionSnapshotStatus;
 };
 
+export type VoiceSessionSnapshotArtifactKind =
+	| 'failure-replay'
+	| 'incident-bundle'
+	| 'operations-record'
+	| 'provider-fallback'
+	| 'trace'
+	| 'custom';
+
+export type VoiceSessionSnapshotArtifact = {
+	href?: string;
+	kind: VoiceSessionSnapshotArtifactKind;
+	label: string;
+	report?: unknown;
+	status?: VoiceSessionSnapshotStatus;
+};
+
 export type VoiceSessionSnapshot = {
+	artifacts: readonly VoiceSessionSnapshotArtifact[];
 	capturedAt: number;
 	media: readonly MediaProcessorGraphSnapshot[];
 	name?: string;
@@ -33,6 +50,7 @@ export type VoiceSessionSnapshot = {
 };
 
 export type VoiceSessionSnapshotInput = {
+	artifacts?: readonly VoiceSessionSnapshotArtifact[];
 	media?: readonly MediaProcessorGraphSnapshot[];
 	name?: string;
 	proofAssertions?: readonly VoiceProofAssertionResult[];
@@ -89,6 +107,7 @@ const maxStatus = (
 	);
 
 export const buildVoiceSessionSnapshotStatus = (input: {
+	artifacts?: readonly Pick<VoiceSessionSnapshotArtifact, 'status'>[];
 	media?: readonly Pick<MediaProcessorGraphSnapshot, 'report'>[];
 	proofSummary?: Pick<VoiceProofAssertionSummary, 'ok'>;
 	quality?: readonly Pick<VoiceSessionSnapshotQualityEvidence, 'status'>[];
@@ -99,6 +118,11 @@ export const buildVoiceSessionSnapshotStatus = (input: {
 }): VoiceSessionSnapshotStatus => {
 	const statuses: VoiceSessionSnapshotStatus[] = [];
 
+	for (const artifact of input.artifacts ?? []) {
+		if (artifact.status !== undefined) {
+			statuses.push(artifact.status);
+		}
+	}
 	for (const media of input.media ?? []) {
 		statuses.push(media.report.status);
 	}
@@ -124,6 +148,7 @@ export const buildVoiceSessionSnapshotStatus = (input: {
 export const buildVoiceSessionSnapshot = (
 	input: VoiceSessionSnapshotInput
 ): VoiceSessionSnapshot => {
+	const artifacts = [...(input.artifacts ?? [])];
 	const proofAssertions = [...(input.proofAssertions ?? [])];
 	const proofSummary = summarizeVoiceProofAssertions(proofAssertions);
 	const media = [...(input.media ?? [])];
@@ -132,6 +157,7 @@ export const buildVoiceSessionSnapshot = (
 	const telephonyOutcomes = [...(input.telephonyOutcomes ?? [])];
 
 	return {
+		artifacts,
 		capturedAt: Date.now(),
 		media,
 		name: input.name,
@@ -143,6 +169,7 @@ export const buildVoiceSessionSnapshot = (
 		schema: 'absolute.voice.session.snapshot.v1',
 		sessionId: input.sessionId,
 		status: buildVoiceSessionSnapshotStatus({
+			artifacts,
 			media,
 			proofSummary,
 			quality,
@@ -193,6 +220,7 @@ const resolveVoiceSessionSnapshot = async (
 			? await options.source(input)
 			: (options.source ?? {
 					media: options.media,
+					artifacts: options.artifacts,
 					name: options.name,
 					proofAssertions: options.proofAssertions,
 					providerRoutingEvents: options.providerRoutingEvents,

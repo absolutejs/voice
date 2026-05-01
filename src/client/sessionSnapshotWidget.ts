@@ -5,6 +5,7 @@ import {
 } from './sessionSnapshot';
 
 export type VoiceSessionSnapshotViewModel = {
+	artifacts: Array<{ href?: string; label: string; status: string }>;
 	description: string;
 	error: string | null;
 	isLoading: boolean;
@@ -58,8 +59,18 @@ export const createVoiceSessionSnapshotViewModel = (
 		) ?? 0;
 	const qualityWarnings =
 		snapshot?.quality.filter((quality) => quality.status !== 'pass').length ?? 0;
+	const artifactWarnings =
+		snapshot?.artifacts.filter(
+			(artifact) => artifact.status !== undefined && artifact.status !== 'pass'
+		).length ?? 0;
 
 	return {
+		artifacts:
+			snapshot?.artifacts.map((artifact) => ({
+				href: artifact.href,
+				label: artifact.label,
+				status: formatStatus(artifact.status)
+			})) ?? [],
 		description: options.description ?? DEFAULT_DESCRIPTION,
 		error: state.error,
 		isLoading: state.isLoading,
@@ -78,6 +89,8 @@ export const createVoiceSessionSnapshotViewModel = (
 					{ label: 'Backpressure drops', value: String(backpressureDrops) },
 					{ label: 'Proof failures', value: String(failedProofs) },
 					{ label: 'Quality warnings', value: String(qualityWarnings) },
+					{ label: 'Debug artifacts', value: String(snapshot.artifacts.length) },
+					{ label: 'Artifact warnings', value: String(artifactWarnings) },
 					{
 						label: 'Provider routing',
 						value: String(snapshot.providerRoutingEvents.length)
@@ -118,6 +131,16 @@ export const renderVoiceSessionSnapshotHTML = (
 				)
 				.join('')}</dl>`
 		: '<p class="absolute-voice-session-snapshot__empty">Load a session snapshot to see support diagnostics.</p>';
+	const artifacts = model.artifacts.length
+		? `<div class="absolute-voice-session-snapshot__artifacts">${model.artifacts
+				.map((artifact) => {
+					const body = `<strong>${escapeHtml(artifact.label)}</strong><span>${escapeHtml(artifact.status)}</span>`;
+					return artifact.href
+						? `<a href="${escapeHtml(artifact.href)}">${body}</a>`
+						: `<div>${body}</div>`;
+				})
+				.join('')}</div>`
+		: '';
 
 	return `<section class="absolute-voice-session-snapshot absolute-voice-session-snapshot--${escapeHtml(model.status)}">
   <header class="absolute-voice-session-snapshot__header">
@@ -131,6 +154,7 @@ export const renderVoiceSessionSnapshotHTML = (
 			: ''
 	}
   ${rows}
+  ${artifacts}
   ${model.error ? `<p class="absolute-voice-session-snapshot__error">${escapeHtml(model.error)}</p>` : ''}
 </section>`;
 };

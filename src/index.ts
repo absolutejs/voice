@@ -319,6 +319,8 @@ export type {
 } from './proofAssertions';
 export type {
 	VoiceSessionSnapshot,
+	VoiceSessionSnapshotArtifact,
+	VoiceSessionSnapshotArtifactKind,
 	VoiceSessionSnapshotInput,
 	VoiceSessionSnapshotQualityEvidence,
 	VoiceSessionSnapshotRoutesOptions,
