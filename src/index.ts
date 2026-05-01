@@ -1498,6 +1498,7 @@ export type {
 	VoiceProductionReadinessRouteInput,
 	VoiceProductionReadinessRoutesOptions,
 	VoiceProductionReadinessTraceDeliverySummary,
+	VoiceProductionReadinessTiming,
 	VoiceReadinessRecoveryAction,
 	VoiceReadinessRecoveryActionOptions,
 	VoiceReadinessRecoveryActionPlan,

@@ -151,6 +151,25 @@ test('buildVoiceProductionReadinessReport warns when deployment has no runtime p
 	);
 });
 
+test('buildVoiceProductionReadinessReport reports section timings', async () => {
+	const timings: string[] = [];
+	await buildVoiceProductionReadinessReport({
+		llmProviders: ['openai'],
+		onTiming: (timing) => {
+			expect(timing.durationMs).toBeGreaterThanOrEqual(0);
+			expect(timing.endedAt).toBeGreaterThanOrEqual(timing.startedAt);
+			timings.push(timing.label);
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(timings).toContain('traceEvents');
+	expect(timings).toContain('quality');
+	expect(timings).toContain('providers');
+	expect(timings).toContain('sessions');
+	expect(timings).toContain('additionalChecks');
+});
+
 test('evaluateVoiceProductionReadinessEvidence verifies gate status and required checks', async () => {
 	const report = await buildVoiceProductionReadinessReport({
 		llmProviders: ['openai'],

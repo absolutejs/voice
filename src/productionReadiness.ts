@@ -689,6 +689,13 @@ export type VoiceProductionReadinessRouteInput = {
 	request: Request;
 };
 
+export type VoiceProductionReadinessTiming = {
+	durationMs: number;
+	endedAt: number;
+	label: string;
+	startedAt: number;
+};
+
 export type VoiceProductionReadinessRoutesOptions = {
 	agentSquadContracts?:
 		| false
@@ -754,6 +761,7 @@ export type VoiceProductionReadinessRoutesOptions = {
 	links?: VoiceProductionReadinessReport['links'];
 	llmProviders?: readonly string[];
 	name?: string;
+	onTiming?: (timing: VoiceProductionReadinessTiming) => void;
 	monitoring?:
 		| false
 		| VoiceMonitorRunReport
@@ -2445,7 +2453,24 @@ export const buildVoiceProductionReadinessReport = async (
 ): Promise<VoiceProductionReadinessReport> => {
 	const request = input.request ?? new Request('http://localhost/');
 	const query = input.query ?? {};
-	const events = await options.store.list();
+	const time = async <Result>(
+		label: string,
+		run: () => Promise<Result> | Result
+	): Promise<Result> => {
+		const startedAt = Date.now();
+		try {
+			return await run();
+		} finally {
+			const endedAt = Date.now();
+			options.onTiming?.({
+				durationMs: Math.max(0, endedAt - startedAt),
+				endedAt,
+				label,
+				startedAt
+			});
+		}
+	};
+	const events = await time('traceEvents', () => options.store.list());
 	const minTraceAt =
 		typeof options.traceMaxAgeMs === 'number' &&
 		Number.isFinite(options.traceMaxAgeMs) &&
@@ -2495,52 +2520,82 @@ export const buildVoiceProductionReadinessReport = async (
 		proofSources,
 		additionalChecks
 	] = await Promise.all([
-		evaluateVoiceQuality({ events: readinessEvents }),
-		Promise.all([
-			summarizeVoiceProviderHealth({
-				events: readinessEvents,
-				providers: options.llmProviders ?? []
-			}),
-			summarizeVoiceProviderHealth({
-				events: readinessEvents.filter((event) => event.payload.kind === 'stt'),
-				providers: options.sttProviders ?? []
-			}),
-			summarizeVoiceProviderHealth({
-				events: readinessEvents.filter((event) => event.payload.kind === 'tts'),
-				providers: options.ttsProviders ?? []
-			})
-		]).then((groups) => groups.flat()),
-		summarizeVoiceSessions({ events: readinessEvents, status: 'all' }),
-		summarizeVoiceHandoffHealth({ events: readinessEvents }),
-		summarizeAuditEvidence(options),
-		summarizeAuditDeliveries(options),
-		summarizeOpsActionHistory(options),
-		summarizeTraceDeliveries(options),
-		resolveDeliveryRuntime(options, { query, request }),
-		resolveCarriers(options, { query, request }),
-		resolveAgentSquadContracts(options, { query, request }),
-		resolveProviderRoutingContracts(options, { query, request }),
-		resolveProviderSlo(options, { query, request }),
-		resolveProviderOrchestration(options, { query, request }),
-		resolveProfileSwitchReadiness(options, { query, request }),
-		resolveProviderStack(options, { query, request }),
-		resolveProviderContractMatrix(options, { query, request }),
-		resolvePhoneAgentSmokes(options, { query, request }),
-		resolveMonitoring(options, { query, request }),
-		resolveMonitoringNotifierDelivery(options, { query, request }),
-		resolveMediaPipeline(options, { query, request }),
-		resolveBrowserMedia(options, { query, request }),
-		resolveTelephonyMedia(options, { query, request }),
-		resolveTelephonyWebhookSecurity(options, { query, request }),
-		resolveReconnectContracts(options, { query, request }),
-		resolveBargeInReports(options, { query, request }),
-		resolveCampaignReadiness(options, { query, request }),
-		resolveOpsRecovery(options, { query, request }),
-		resolveObservabilityExport(options, { query, request }),
-		resolveObservabilityExportDeliveryHistory(options, { query, request }),
-		resolveObservabilityExportReplay(options, { query, request }),
-		resolveProofSources(options, { query, request }),
-		resolveAdditionalChecks(options, { query, request })
+		time('quality', () => evaluateVoiceQuality({ events: readinessEvents })),
+		time('providers', () =>
+			Promise.all([
+				summarizeVoiceProviderHealth({
+					events: readinessEvents,
+					providers: options.llmProviders ?? []
+				}),
+				summarizeVoiceProviderHealth({
+					events: readinessEvents.filter((event) => event.payload.kind === 'stt'),
+					providers: options.sttProviders ?? []
+				}),
+				summarizeVoiceProviderHealth({
+					events: readinessEvents.filter((event) => event.payload.kind === 'tts'),
+					providers: options.ttsProviders ?? []
+				})
+			]).then((groups) => groups.flat())
+		),
+		time('sessions', () =>
+			summarizeVoiceSessions({ events: readinessEvents, status: 'all' })
+		),
+		time('handoffs', () => summarizeVoiceHandoffHealth({ events: readinessEvents })),
+		time('audit', () => summarizeAuditEvidence(options)),
+		time('auditDeliveries', () => summarizeAuditDeliveries(options)),
+		time('opsActionHistory', () => summarizeOpsActionHistory(options)),
+		time('traceDeliveries', () => summarizeTraceDeliveries(options)),
+		time('deliveryRuntime', () => resolveDeliveryRuntime(options, { query, request })),
+		time('carriers', () => resolveCarriers(options, { query, request })),
+		time('agentSquadContracts', () =>
+			resolveAgentSquadContracts(options, { query, request })
+		),
+		time('providerRoutingContracts', () =>
+			resolveProviderRoutingContracts(options, { query, request })
+		),
+		time('providerSlo', () => resolveProviderSlo(options, { query, request })),
+		time('providerOrchestration', () =>
+			resolveProviderOrchestration(options, { query, request })
+		),
+		time('profileSwitchReadiness', () =>
+			resolveProfileSwitchReadiness(options, { query, request })
+		),
+		time('providerStack', () => resolveProviderStack(options, { query, request })),
+		time('providerContractMatrix', () =>
+			resolveProviderContractMatrix(options, { query, request })
+		),
+		time('phoneAgentSmokes', () =>
+			resolvePhoneAgentSmokes(options, { query, request })
+		),
+		time('monitoring', () => resolveMonitoring(options, { query, request })),
+		time('monitoringNotifierDelivery', () =>
+			resolveMonitoringNotifierDelivery(options, { query, request })
+		),
+		time('mediaPipeline', () => resolveMediaPipeline(options, { query, request })),
+		time('browserMedia', () => resolveBrowserMedia(options, { query, request })),
+		time('telephonyMedia', () => resolveTelephonyMedia(options, { query, request })),
+		time('telephonyWebhookSecurity', () =>
+			resolveTelephonyWebhookSecurity(options, { query, request })
+		),
+		time('reconnectContracts', () =>
+			resolveReconnectContracts(options, { query, request })
+		),
+		time('bargeInReports', () => resolveBargeInReports(options, { query, request })),
+		time('campaignReadiness', () =>
+			resolveCampaignReadiness(options, { query, request })
+		),
+		time('opsRecovery', () => resolveOpsRecovery(options, { query, request })),
+		time('observabilityExport', () =>
+			resolveObservabilityExport(options, { query, request })
+		),
+		time('observabilityExportDeliveryHistory', () =>
+			resolveObservabilityExportDeliveryHistory(options, { query, request })
+		),
+		time('observabilityExportReplay', () =>
+			resolveObservabilityExportReplay(options, { query, request })
+		),
+		time('proofSources', () => resolveProofSources(options, { query, request })),
+		time('additionalChecks', () => resolveAdditionalChecks(options, { query, request }))
 	]);
 	const deliveryRuntime = summarizeDeliveryRuntime(deliveryRuntimeSummary);
 	const degradedProviders = providers.filter(
