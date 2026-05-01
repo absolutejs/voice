@@ -992,6 +992,7 @@ describe('proof trends', () => {
 				status: 'pass'
 			},
 			sessionId: 'real-session-1',
+			surfaces: ['browser', 'live'],
 			turnP95Ms: 670
 		});
 		expect(evidence[0]?.providers?.map((provider) => provider.id)).toEqual([
@@ -1098,14 +1099,18 @@ describe('proof trends', () => {
 				samples: 1,
 				status: 'pass'
 			},
-			sessionId: 'auto-real-session'
+			sessionId: 'auto-real-session',
+			surfaces: ['browser']
 		});
 		expect(
 			history.summary.profiles?.find((profile) => profile.id === 'support-agent')
 		).toMatchObject({
+			cycles: 1,
 			id: 'support-agent',
 			label: 'Support agent',
 			maxProviderP95Ms: 360,
+			sessionCount: 1,
+			surfaces: ['browser'],
 			status: 'pass'
 		});
 		expect(history.defaults.profiles[0]?.providerRoutes).toMatchObject({
@@ -1200,7 +1205,10 @@ describe('proof trends', () => {
 			buildVoiceRealCallProfileReadinessCheck(history, {
 				minActionableProfiles: 2,
 				minCycles: 2,
+				minProfileCycles: 1,
+				minProfileSessions: 1,
 				requiredProfileIds: ['meeting-recorder', 'support-agent'],
+				requiredProfileSurfaces: ['live'],
 				requiredProviderRoles: ['llm', 'stt', 'tts']
 			})
 		).toMatchObject({
@@ -1211,7 +1219,9 @@ describe('proof trends', () => {
 		expect(
 			buildVoiceRealCallProfileReadinessCheck(history, {
 				failOnWarnings: true,
-				requiredProfileIds: ['custom-profile']
+				minProfileCycles: 3,
+				requiredProfileIds: ['meeting-recorder'],
+				requiredProfileSurfaces: ['browser']
 			})
 		).toMatchObject({
 			status: 'fail'

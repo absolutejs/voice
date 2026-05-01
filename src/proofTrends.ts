@@ -22,6 +22,7 @@ export type VoiceProofTrendSummary = {
 };
 
 export type VoiceProofTrendProfileSummary = {
+	cycles?: number;
 	description?: string;
 	id: string;
 	label?: string;
@@ -30,7 +31,9 @@ export type VoiceProofTrendProfileSummary = {
 	maxTurnP95Ms?: number;
 	providers?: VoiceProofTrendProviderSummary[];
 	runtimeChannel?: VoiceProofTrendRuntimeChannelSummary;
+	sessionCount?: number;
 	status?: string;
+	surfaces?: string[];
 };
 
 export type VoiceProofTrendProfileDefinition = {
@@ -152,6 +155,7 @@ export type VoiceProofTrendRealCallProfileEvidence = {
 	providers?: VoiceProofTrendProviderSummary[];
 	runtimeChannel?: VoiceProofTrendRuntimeChannelSummary;
 	sessionId: string;
+	surfaces?: string[];
 	turnP95Ms?: number;
 };
 
@@ -468,8 +472,13 @@ export type VoiceRealCallProfileReadinessCheckOptions = {
 	maxAgeMs?: number;
 	minActionableProfiles?: number;
 	minCycles?: number;
+	minProfileCycles?: number;
+	minProfileSessions?: number;
 	minProfiles?: number;
 	requiredProfileIds?: readonly string[];
+	requiredProfileSurfaces?:
+		| readonly string[]
+		| Record<string, readonly string[]>;
 	requiredProviderRoles?: readonly string[];
 	operationsRecordsHref?: string;
 	phoneProofHref?: string;
@@ -1121,6 +1130,28 @@ const summarizeRuntimeChannelTraceEvidence = (
 	};
 };
 
+const readRealCallProfileTraceSurfaces = (
+	events: readonly StoredVoiceTraceEvent[]
+) => {
+	const surfaces = new Set<string>();
+	for (const event of events) {
+		if (event.type === 'client.browser_media') {
+			surfaces.add('browser');
+		}
+		if (event.type === 'client.telephony_media') {
+			surfaces.add('phone');
+			surfaces.add('telephony');
+		}
+		if (event.type === 'client.live_latency') {
+			surfaces.add('live');
+		}
+		if (event.type === 'client.barge_in') {
+			surfaces.add('barge-in');
+		}
+	}
+	return [...surfaces].sort();
+};
+
 export const buildVoiceRealCallProfileEvidenceFromTraceEvents = (
 	events: readonly StoredVoiceTraceEvent[],
 	options: VoiceRealCallProfileTraceEvidenceOptions = {}
@@ -1160,6 +1191,7 @@ export const buildVoiceRealCallProfileEvidenceFromTraceEvents = (
 			const turnP95Ms = summarizeTurnTraceP95(sessionEvents);
 			const providerP95Ms = maxNumber(providers.map((provider) => provider.p95Ms));
 			const runtimeChannel = summarizeRuntimeChannelTraceEvidence(sessionEvents);
+			const surfaces = readRealCallProfileTraceSurfaces(sessionEvents);
 
 			return {
 				generatedAt: new Date(
@@ -1181,6 +1213,7 @@ export const buildVoiceRealCallProfileEvidenceFromTraceEvents = (
 				providers,
 				runtimeChannel,
 				sessionId,
+				surfaces: surfaces.length > 0 ? surfaces : undefined,
 				turnP95Ms
 			} satisfies VoiceProofTrendRealCallProfileEvidence;
 		})
@@ -1437,6 +1470,10 @@ export const buildVoiceProofTrendProfileSummaries = (
 					: [];
 			const profiles = [...historicalProfiles, ...derivedProfiles];
 			const aggregatedProfile = {
+				cycles: profiles.reduce(
+					(total, profile) => total + (profile.cycles ?? 0),
+					0
+				),
 				description:
 					definition.description ?? profiles.find(Boolean)?.description,
 				id: definition.id,
@@ -1462,7 +1499,14 @@ export const buildVoiceProofTrendProfileSummaries = (
 							): channel is VoiceProofTrendRuntimeChannelSummary =>
 								channel !== undefined
 						)
-				)
+				),
+				sessionCount: profiles.reduce(
+					(total, profile) => total + (profile.sessionCount ?? 0),
+					0
+				),
+				surfaces: [
+					...new Set(profiles.flatMap((profile) => profile.surfaces ?? []))
+				].sort()
 			};
 
 			return {
@@ -1582,6 +1626,7 @@ export const buildVoiceProofTrendReportFromRealCallProfiles = (
 			}
 
 			const profile: VoiceProofTrendProfileSummary = {
+				cycles: matchingEvidence.length,
 				description:
 					definition.description ??
 					matchingEvidence.find((evidence) => evidence.profileDescription)
@@ -1612,7 +1657,15 @@ export const buildVoiceProofTrendReportFromRealCallProfiles = (
 							): channel is VoiceProofTrendRuntimeChannelSummary =>
 								channel !== undefined
 						)
-				)
+				),
+				sessionCount: new Set(
+					matchingEvidence.map((evidence) => evidence.sessionId)
+				).size,
+				surfaces: [
+					...new Set(
+						matchingEvidence.flatMap((evidence) => evidence.surfaces ?? [])
+					)
+				].sort()
 			};
 			profiles.push({
 				...profile,
@@ -1883,6 +1936,9 @@ const buildRealCallProfileReadinessIssues = (
 	const defaultsByProfile = new Map(
 		report.defaults.profiles.map((profile) => [profile.profileId, profile])
 	);
+	const summariesByProfile = new Map(
+		(report.summary.profiles ?? []).map((profile) => [profile.id, profile])
+	);
 	const issues: string[] = [];
 	const warnings: string[] = [];
 
@@ -1917,6 +1973,7 @@ const buildRealCallProfileReadinessIssues = (
 	}
 	for (const profileId of options.requiredProfileIds ?? []) {
 		const profile = defaultsByProfile.get(profileId);
+		const summaryProfile = summariesByProfile.get(profileId);
 		if (!profile) {
 			issues.push(`Missing required real-call profile: ${profileId}.`);
 			continue;
@@ -1930,6 +1987,39 @@ const buildRealCallProfileReadinessIssues = (
 			if (!profile.providerRoutes[role]) {
 				warnings.push(
 					`Required real-call profile ${profileId} is missing ${role} provider default evidence.`
+				);
+			}
+		}
+		if (
+			options.minProfileCycles !== undefined &&
+			(summaryProfile?.cycles ?? 0) < options.minProfileCycles
+		) {
+			warnings.push(
+				`Required real-call profile ${profileId} has ${String(summaryProfile?.cycles ?? 0)} cycle(s), expected at least ${String(options.minProfileCycles)}.`
+			);
+		}
+		if (
+			options.minProfileSessions !== undefined &&
+			(summaryProfile?.sessionCount ?? 0) < options.minProfileSessions
+		) {
+			warnings.push(
+				`Required real-call profile ${profileId} has ${String(summaryProfile?.sessionCount ?? 0)} session(s), expected at least ${String(options.minProfileSessions)}.`
+			);
+		}
+		const requiredProfileSurfaces = options.requiredProfileSurfaces;
+		const requiredSurfaces =
+			requiredProfileSurfaces === undefined
+				? []
+				: Array.isArray(requiredProfileSurfaces)
+					? requiredProfileSurfaces
+					: ((requiredProfileSurfaces as Record<string, readonly string[]>)[
+							profileId
+						] ?? []);
+		const observedSurfaces = new Set(summaryProfile?.surfaces ?? []);
+		for (const surface of requiredSurfaces) {
+			if (!observedSurfaces.has(surface)) {
+				warnings.push(
+					`Required real-call profile ${profileId} is missing ${surface} surface evidence.`
 				);
 			}
 		}
@@ -1995,6 +2085,35 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 			(role) => !profile.providerRoutes[role]
 		)
 	);
+	const summariesByProfile = new Map(
+		(report.summary.profiles ?? []).map((profile) => [profile.id, profile])
+	);
+	const missingDepthProfiles = [...requiredProfiles].filter((profileId) => {
+		const summaryProfile = summariesByProfile.get(profileId);
+		if (
+			options.minProfileCycles !== undefined &&
+			(summaryProfile?.cycles ?? 0) < options.minProfileCycles
+		) {
+			return true;
+		}
+		if (
+			options.minProfileSessions !== undefined &&
+			(summaryProfile?.sessionCount ?? 0) < options.minProfileSessions
+		) {
+			return true;
+		}
+		const requiredProfileSurfaces = options.requiredProfileSurfaces;
+		const requiredSurfaces =
+			requiredProfileSurfaces === undefined
+				? []
+				: Array.isArray(requiredProfileSurfaces)
+					? requiredProfileSurfaces
+					: ((requiredProfileSurfaces as Record<string, readonly string[]>)[
+							profileId
+						] ?? []);
+		const observedSurfaces = new Set(summaryProfile?.surfaces ?? []);
+		return requiredSurfaces.some((surface) => !observedSurfaces.has(surface));
+	});
 	const ageMs =
 		report.trend.ageMs ??
 		(report.generatedAt ? Date.now() - new Date(report.generatedAt).getTime() : undefined);
@@ -2003,6 +2122,7 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 		missingProfiles.length > 0 ||
 		warningProfiles.length > 0 ||
 		missingRoleProfiles.length > 0 ||
+		missingDepthProfiles.length > 0 ||
 		(options.minCycles !== undefined &&
 			(report.summary.cycles ?? 0) < options.minCycles) ||
 		(options.minActionableProfiles !== undefined &&
