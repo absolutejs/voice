@@ -904,6 +904,11 @@ export type VoiceObservabilityExportRoutesOptions =
 	VoiceObservabilityExportOptions & {
 		headers?: HeadersInit;
 		artifactDownloadPath?: false | string;
+		artifactIndex?:
+			| VoiceObservabilityExportArtifactIndex
+			| (() =>
+					| VoiceObservabilityExportArtifactIndex
+					| Promise<VoiceObservabilityExportArtifactIndex>);
 		artifactIndexPath?: false | string;
 		deliveryDestinations?: VoiceObservabilityExportDeliveryDestination[];
 		deliveryPath?: false | string;
@@ -917,6 +922,14 @@ export type VoiceObservabilityExportRoutesOptions =
 		) => string | Promise<string>;
 		title?: string;
 	};
+
+const resolveVoiceObservabilityArtifactIndex = async (
+	source:
+		| VoiceObservabilityExportArtifactIndex
+		| (() =>
+				| VoiceObservabilityExportArtifactIndex
+				| Promise<VoiceObservabilityExportArtifactIndex>)
+) => (typeof source === 'function' ? await source() : source);
 
 const isDeliveryStore = <TDelivery>(
 	value: TDelivery[] | { list: () => TDelivery[] | Promise<TDelivery[]> }
@@ -2820,7 +2833,9 @@ export const createVoiceObservabilityExportRoutes = (
 	if (artifactIndexPath !== false) {
 		app.get(artifactIndexPath, async () =>
 			Response.json(
-				buildVoiceObservabilityArtifactIndex(await buildReport()),
+				options.artifactIndex
+					? await resolveVoiceObservabilityArtifactIndex(options.artifactIndex)
+					: buildVoiceObservabilityArtifactIndex(await buildReport()),
 				{ headers }
 			)
 		);

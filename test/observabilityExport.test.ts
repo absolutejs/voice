@@ -1227,6 +1227,59 @@ test('createVoiceObservabilityExportRoutes exposes artifact index and downloads'
 	expect(await artifact.text()).toContain('artifact download');
 });
 
+test('createVoiceObservabilityExportRoutes can serve a supplied artifact index without rebuilding the report', async () => {
+	const app = createVoiceObservabilityExportRoutes({
+		artifactIndex: {
+			artifacts: [
+				{
+					id: 'proof-pack',
+					kind: 'proof-pack',
+					label: 'Proof pack',
+					status: 'pass'
+				}
+			],
+			checkedAt: 2_000,
+			schema: {
+				id: voiceObservabilityExportSchemaId,
+				version: voiceObservabilityExportSchemaVersion
+			},
+			status: 'pass',
+			summary: {
+				downloadable: 0,
+				failed: 0,
+				required: 0,
+				total: 1,
+				warn: 0
+			}
+		},
+		store: {
+			append: async (event) => createVoiceTraceEvent(event),
+			get: async () => undefined,
+			list: async () => {
+				throw new Error('report should not be built for supplied artifact index');
+			},
+			remove: async () => {}
+		}
+	});
+
+	const index = await app.handle(
+		new Request('http://localhost/api/voice/observability-export/artifacts')
+	);
+
+	expect(index.status).toBe(200);
+	expect(await index.json()).toMatchObject({
+		artifacts: [
+			{
+				id: 'proof-pack',
+				status: 'pass'
+			}
+		],
+		summary: {
+			total: 1
+		}
+	});
+});
+
 test('deliverVoiceObservabilityExport writes manifest, index, and artifacts to file destination', async () => {
 	const dir = await mkdtemp(join(tmpdir(), 'voice-observability-delivery-'));
 	const artifactPath = join(dir, 'proof-pack.md');
