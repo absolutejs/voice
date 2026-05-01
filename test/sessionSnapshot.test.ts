@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import {
 	buildVoiceProviderRouterTraceEvent,
 	buildVoiceSessionSnapshot,
+	createVoiceSessionSnapshotRoutes,
 	createVoiceProofAssertion,
 	parseVoiceSessionSnapshot
 } from '../src';
@@ -106,4 +107,44 @@ test('buildVoiceSessionSnapshot fails when proof assertions fail', () => {
 
 	expect(snapshot.status).toBe('fail');
 	expect(snapshot.proofSummary.failed).toBe(1);
+});
+
+test('createVoiceSessionSnapshotRoutes exposes JSON and downloadable snapshot artifacts', async () => {
+	const app = createVoiceSessionSnapshotRoutes({
+		source: ({ sessionId, turnId }) =>
+			buildVoiceSessionSnapshot({
+				name: 'route-snapshot',
+				proofAssertions: [
+					createVoiceProofAssertion({
+						name: 'route-proof',
+						ok: true
+					})
+				],
+				sessionId,
+				turnId
+			})
+	});
+
+	const json = await app.handle(
+		new Request('http://localhost/api/voice/session-snapshot/session-1?turnId=turn-1')
+	);
+	expect(json.status).toBe(200);
+	const snapshot = await json.json();
+	expect(snapshot).toMatchObject({
+		name: 'route-snapshot',
+		schema: 'absolute.voice.session.snapshot.v1',
+		sessionId: 'session-1',
+		status: 'pass',
+		turnId: 'turn-1'
+	});
+
+	const download = await app.handle(
+		new Request(
+			'http://localhost/api/voice/session-snapshot/session-1/download?turnId=turn-1'
+		)
+	);
+	expect(download.headers.get('content-disposition')).toBe(
+		'attachment; filename="voice-session-session-1.snapshot.json"'
+	);
+	expect((await download.json()).sessionId).toBe('session-1');
 });

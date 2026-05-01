@@ -308,6 +308,7 @@ export {
 export {
 	buildVoiceSessionSnapshot,
 	buildVoiceSessionSnapshotStatus,
+	createVoiceSessionSnapshotRoutes,
 	parseVoiceSessionSnapshot
 } from './sessionSnapshot';
 export type {
@@ -320,6 +321,9 @@ export type {
 	VoiceSessionSnapshot,
 	VoiceSessionSnapshotInput,
 	VoiceSessionSnapshotQualityEvidence,
+	VoiceSessionSnapshotRoutesOptions,
+	VoiceSessionSnapshotRouteSource,
+	VoiceSessionSnapshotRouteSourceInput,
 	VoiceSessionSnapshotStatus
 } from './sessionSnapshot';
 export {
