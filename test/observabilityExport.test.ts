@@ -202,13 +202,19 @@ test('observability export includes session snapshot and call debugger artifacts
 			href: '/api/voice/session-snapshot/session-debug-export',
 			id: 'session-snapshot:session-debug-export',
 			kind: 'session-snapshot',
-			status: 'warn'
+			metadata: {
+				snapshotStatus: 'warn'
+			},
+			status: 'pass'
 		}),
 		expect.objectContaining({
 			href: '/voice-call-debugger/session-debug-export',
 			id: 'call-debugger:session-debug-export',
 			kind: 'call-debugger',
-			status: 'warn'
+			metadata: expect.objectContaining({
+				callDebuggerStatus: 'warning'
+			}),
+			status: 'pass'
 		})
 	]);
 	expect(artifactIndex.artifacts.map((artifact) => artifact.kind)).toEqual([
@@ -217,8 +223,22 @@ test('observability export includes session snapshot and call debugger artifacts
 	]);
 	expect(artifactIndex.summary).toMatchObject({
 		total: 2,
-		warn: 2
+		warn: 0
 	});
+	expect(artifactIndex.artifacts).toEqual([
+		expect.objectContaining({
+			metadata: {
+				snapshotStatus: 'warn'
+			},
+			status: 'pass'
+		}),
+		expect.objectContaining({
+			metadata: expect.objectContaining({
+				callDebuggerStatus: 'warning'
+			}),
+			status: 'pass'
+		})
+	]);
 });
 
 test('observability export resolves latest support artifacts lazily', async () => {

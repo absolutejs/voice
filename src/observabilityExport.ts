@@ -492,6 +492,7 @@ export type VoiceObservabilityExportArtifact = {
 	kind: VoiceObservabilityExportArtifactKind;
 	label: string;
 	maxAgeMs?: number;
+	metadata?: Record<string, unknown>;
 	path?: string;
 	required?: boolean;
 	sessionId?: string;
@@ -570,6 +571,7 @@ export type VoiceObservabilityExportArtifactIndexItem = {
 	id: string;
 	kind: VoiceObservabilityExportArtifactKind;
 	label: string;
+	metadata?: Record<string, unknown>;
 	required?: boolean;
 	sessionId?: string;
 	status?: VoiceObservabilityExportStatus;
@@ -973,11 +975,6 @@ const createOperationArtifact = (
 				: 'pass'
 });
 
-const toSnapshotArtifactStatus = (
-	status: VoiceSessionSnapshot['status']
-): VoiceObservabilityExportStatus =>
-	status === 'fail' ? 'fail' : status === 'warn' ? 'warn' : 'pass';
-
 const createSessionSnapshotArtifact = (
 	snapshot: VoiceSessionSnapshot,
 	href?: string
@@ -987,8 +984,11 @@ const createSessionSnapshotArtifact = (
 	id: `session-snapshot:${snapshot.sessionId}`,
 	kind: 'session-snapshot',
 	label: `Session snapshot ${snapshot.sessionId}`,
+	metadata: {
+		snapshotStatus: snapshot.status
+	},
 	sessionId: snapshot.sessionId,
-	status: toSnapshotArtifactStatus(snapshot.status)
+	status: 'pass'
 });
 
 const createCallDebuggerArtifact = (
@@ -1000,12 +1000,13 @@ const createCallDebuggerArtifact = (
 	id: `call-debugger:${report.sessionId}`,
 	kind: 'call-debugger',
 	label: `Call debugger ${report.sessionId}`,
+	metadata: {
+		callDebuggerStatus: report.status,
+		operationsRecordStatus: report.operationsRecord?.status,
+		snapshotStatus: report.snapshot?.status
+	},
 	sessionId: report.sessionId,
-	status: report.status === 'failed'
-		? 'fail'
-		: report.status === 'warning'
-			? 'warn'
-			: 'pass'
+	status: 'pass'
 });
 
 const unique = (values: string[]) => [...new Set(values)].sort();
@@ -2498,6 +2499,7 @@ export const buildVoiceObservabilityArtifactIndex = (
 		id: artifact.id,
 		kind: artifact.kind,
 		label: artifact.label,
+		metadata: artifact.metadata,
 		required: artifact.required,
 		sessionId: artifact.sessionId,
 		status: artifact.status
