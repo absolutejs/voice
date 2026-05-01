@@ -305,12 +305,23 @@ export {
 	createVoiceProofAssertion,
 	summarizeVoiceProofAssertions
 } from './proofAssertions';
+export {
+	buildVoiceSessionSnapshot,
+	buildVoiceSessionSnapshotStatus,
+	parseVoiceSessionSnapshot
+} from './sessionSnapshot';
 export type {
 	VoiceEvidenceAssertionInput,
 	VoiceProofAssertionInput,
 	VoiceProofAssertionResult,
 	VoiceProofAssertionSummary
 } from './proofAssertions';
+export type {
+	VoiceSessionSnapshot,
+	VoiceSessionSnapshotInput,
+	VoiceSessionSnapshotQualityEvidence,
+	VoiceSessionSnapshotStatus
+} from './sessionSnapshot';
 export {
 	fetchVoiceProofTarget,
 	getVoiceProofTargetLogicalFailure,
