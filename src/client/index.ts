@@ -26,6 +26,24 @@ export {
 	fetchVoiceSessionSnapshot
 } from './sessionSnapshot';
 export {
+	createVoiceCallDebuggerStore,
+	fetchVoiceCallDebugger
+} from './callDebugger';
+export {
+	createVoiceCallDebuggerLaunchViewModel,
+	defineVoiceCallDebuggerLaunchElement,
+	mountVoiceCallDebuggerLaunch,
+	renderVoiceCallDebuggerLaunchHTML
+} from './callDebuggerWidget';
+export type {
+	VoiceCallDebuggerClientOptions,
+	VoiceCallDebuggerClientState
+} from './callDebugger';
+export type {
+	VoiceCallDebuggerLaunchOptions,
+	VoiceCallDebuggerLaunchViewModel
+} from './callDebuggerWidget';
+export {
 	createVoiceSessionSnapshotViewModel,
 	defineVoiceSessionSnapshotElement,
 	mountVoiceSessionSnapshot,

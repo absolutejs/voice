@@ -55,6 +55,11 @@ import {
 	createVoiceTraceTimelineViewModel,
 	renderVoiceTraceTimelineWidgetHTML
 } from '../src/client/traceTimelineWidget';
+import { createVoiceCallDebuggerStore } from '../src/client/callDebugger';
+import {
+	createVoiceCallDebuggerLaunchViewModel,
+	renderVoiceCallDebuggerLaunchHTML
+} from '../src/client/callDebuggerWidget';
 import { createVoiceWorkflowStatusStore } from '../src/client/workflowStatus';
 import { createVoiceStreamStore } from '../src/client/store';
 
@@ -1004,4 +1009,95 @@ test('voice readiness failures widget renders gate explanations', () => {
 	expect(html).toContain('Live latency proof');
 	expect(html).toContain('/voice/slo-readiness-thresholds');
 	expect(html).toContain('Inspect the slow turn');
+});
+
+test('voice call debugger store fetches latest support report', async () => {
+	const report = {
+		checkedAt: 100,
+		operationsRecord: {
+			providerDecisionSummary: {
+				fallbacks: 1,
+				recoveryStatus: 'recovered'
+			},
+			summary: {
+				errorCount: 0,
+				eventCount: 7,
+				turnCount: 2
+			}
+		},
+		sessionId: 'session-debug-latest',
+		snapshot: {
+			status: 'pass'
+		},
+		status: 'healthy'
+	};
+	const store = createVoiceCallDebuggerStore('/api/voice-call-debugger/latest', {
+		fetch: async (input) => {
+			expect(String(input)).toBe('/api/voice-call-debugger/latest');
+			return new Response(JSON.stringify(report));
+		}
+	});
+
+	const loaded = await store.refresh();
+
+	expect(loaded?.sessionId).toBe('session-debug-latest');
+	expect(store.getSnapshot()).toMatchObject({
+		error: null,
+		isLoading: false,
+		report: {
+			sessionId: 'session-debug-latest',
+			status: 'healthy'
+		}
+	});
+	store.close();
+});
+
+test('voice call debugger launch renders latest debugger link', () => {
+	const snapshot = {
+		error: null,
+		isLoading: false,
+		report: {
+			checkedAt: 100,
+			operationsRecord: {
+				providerDecisionSummary: {
+					fallbacks: 2,
+					recoveryStatus: 'degraded'
+				},
+				summary: {
+					errorCount: 1,
+					eventCount: 12,
+					turnCount: 3
+				}
+			},
+			sessionId: 'session-debug-launch',
+			snapshot: {
+				status: 'warn'
+			},
+			status: 'warning'
+		},
+		updatedAt: 120
+	};
+
+	const model = createVoiceCallDebuggerLaunchViewModel(
+		'/api/voice-call-debugger/latest',
+		snapshot
+	);
+	const html = renderVoiceCallDebuggerLaunchHTML(
+		'/api/voice-call-debugger/latest',
+		snapshot
+	);
+
+	expect(model.href).toBe('/voice-call-debugger/latest');
+	expect(model.label).toBe('warning · session-debug-launch');
+	expect(model.rows).toEqual([
+		{ label: 'Events', value: '12' },
+		{ label: 'Turns', value: '3' },
+		{ label: 'Errors', value: '1' },
+		{ label: 'Provider recovery', value: 'degraded' },
+		{ label: 'Fallbacks', value: '2' },
+		{ label: 'Snapshot', value: 'warn' }
+	]);
+	expect(html).toContain('Open debugger');
+	expect(html).toContain('/voice-call-debugger/latest');
+	expect(html).toContain('Provider recovery');
 });
