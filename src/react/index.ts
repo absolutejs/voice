@@ -18,6 +18,7 @@ export { VoiceTurnQuality } from './VoiceTurnQuality';
 export { useVoiceOpsStatus } from './useVoiceOpsStatus';
 export { useVoicePlatformCoverage } from './useVoicePlatformCoverage';
 export { useVoiceProofTrends } from './useVoiceProofTrends';
+export { useVoiceSessionSnapshot } from './useVoiceSessionSnapshot';
 export { useVoiceProfileComparison } from './useVoiceProfileComparison';
 export { useVoiceProfileSwitchRecommendation } from './useVoiceProfileSwitchRecommendation';
 export { useVoiceReadinessFailures } from './useVoiceReadinessFailures';

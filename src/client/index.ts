@@ -22,6 +22,14 @@ export {
 	fetchVoiceProofTrends
 } from './proofTrends';
 export {
+	createVoiceSessionSnapshotStore,
+	fetchVoiceSessionSnapshot
+} from './sessionSnapshot';
+export type {
+	VoiceSessionSnapshotClientOptions,
+	VoiceSessionSnapshotClientState
+} from './sessionSnapshot';
+export {
 	createVoiceProfileComparisonStore,
 	fetchVoiceProfileComparison
 } from './profileComparison';

@@ -15,6 +15,7 @@ export { VoiceTurnQuality } from './VoiceTurnQuality';
 export { useVoiceOpsStatus } from './useVoiceOpsStatus';
 export { useVoicePlatformCoverage } from './useVoicePlatformCoverage';
 export { useVoiceProofTrends } from './useVoiceProofTrends';
+export { useVoiceSessionSnapshot } from './useVoiceSessionSnapshot';
 export { useVoiceProfileComparison } from './useVoiceProfileComparison';
 export { useVoiceReadinessFailures } from './useVoiceReadinessFailures';
 export { useVoiceOpsActionCenter } from './useVoiceOpsActionCenter';
