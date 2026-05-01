@@ -883,11 +883,15 @@ export type VoiceObservabilityExportOptions = {
 		operationsRecord?: (sessionId: string) => string;
 		sessionSnapshot?: (sessionId: string) => string;
 	};
-	callDebuggerReports?: VoiceCallDebuggerReport[];
+	callDebuggerReports?:
+		| VoiceCallDebuggerReport[]
+		| (() => VoiceCallDebuggerReport[] | Promise<VoiceCallDebuggerReport[]>);
 	operationsRecords?: VoiceOperationsRecord[];
 	redact?: VoiceTraceRedactionConfig;
 	sessionIds?: string[];
-	sessionSnapshots?: VoiceSessionSnapshot[];
+	sessionSnapshots?:
+		| VoiceSessionSnapshot[]
+		| (() => VoiceSessionSnapshot[] | Promise<VoiceSessionSnapshot[]>);
 	store?: VoiceTraceEventStore;
 	traceDeliveries?:
 		| VoiceTraceSinkDeliveryRecord[]
@@ -2272,14 +2276,20 @@ const buildAuditEnvelope = (
 	traceId: event.traceId
 });
 
+const resolveObservabilityExportList = async <T>(
+	value: T[] | (() => T[] | Promise<T[]>) | undefined
+) => (typeof value === 'function' ? await value() : (value ?? []));
+
 export const buildVoiceObservabilityExport = async (
 	options: VoiceObservabilityExportOptions = {}
 ): Promise<VoiceObservabilityExportReport> => {
 	const events = options.events ?? (await options.store?.list()) ?? [];
 	const auditEvents = options.audit ? await options.audit.list() : [];
 	const baseOperationsRecords = options.operationsRecords ?? [];
-	const sessionSnapshots = options.sessionSnapshots ?? [];
-	const callDebuggerReports = options.callDebuggerReports ?? [];
+	const [sessionSnapshots, callDebuggerReports] = await Promise.all([
+		resolveObservabilityExportList(options.sessionSnapshots),
+		resolveObservabilityExportList(options.callDebuggerReports)
+	]);
 	const sessionIds = collectSessionIds({
 		auditEvents,
 		callDebuggerReports,

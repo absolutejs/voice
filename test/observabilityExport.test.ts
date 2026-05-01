@@ -221,6 +221,53 @@ test('observability export includes session snapshot and call debugger artifacts
 	});
 });
 
+test('observability export resolves latest support artifacts lazily', async () => {
+	const sessionSnapshot: VoiceSessionSnapshot = {
+		artifacts: [],
+		capturedAt: 1_710_000_000_000,
+		media: [],
+		proofAssertions: [],
+		proofSummary: {
+			failed: 0,
+			failures: [],
+			ok: true,
+			passed: 0,
+			total: 0
+		},
+		providerRoutingEvents: [],
+		quality: [],
+		schema: 'absolute.voice.session.snapshot.v1',
+		sessionId: 'session-lazy-export',
+		status: 'pass',
+		telephonyOutcomes: []
+	};
+	const callDebuggerReport = {
+		checkedAt: 1_710_000_000_100,
+		sessionId: 'session-lazy-export',
+		status: 'pass'
+	} as VoiceCallDebuggerReport;
+	const report = await buildVoiceObservabilityExport({
+		callDebuggerReports: async () => [callDebuggerReport],
+		links: {
+			callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
+			sessionSnapshot: (sessionId) => `/api/voice/session-snapshot/${sessionId}`
+		},
+		sessionSnapshots: async () => [sessionSnapshot]
+	});
+	const artifactIndex = buildVoiceObservabilityArtifactIndex(report);
+
+	expect(report.sessionIds).toEqual(['session-lazy-export']);
+	expect(artifactIndex.artifacts.map((artifact) => artifact.kind)).toEqual([
+		'session-snapshot',
+		'call-debugger'
+	]);
+	expect(artifactIndex.summary).toMatchObject({
+		failed: 0,
+		total: 2,
+		warn: 0
+	});
+});
+
 test('validateVoiceObservabilityExportRecord validates customer-ingested export records', async () => {
 	const manifest = await readObservabilityExportFixture('manifest.json');
 	const artifactIndex = await readObservabilityExportFixture('artifact-index.json');
