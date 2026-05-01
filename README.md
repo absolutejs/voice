@@ -2193,6 +2193,124 @@ For custom elements:
 </script>
 ```
 
+### Call Debugger Launch Widgets
+
+Mount `createVoiceCallDebuggerRoutes(...)` on the server, then expose a small framework-native launcher anywhere operators or developers need the latest support artifact. The launcher opens the full debugger with session snapshot, operations record, failure replay, provider path, transcript, user-heard output, linked artifacts, and incident markdown.
+
+React:
+
+```tsx
+import { VoiceCallDebuggerLaunch } from '@absolutejs/voice/react';
+
+export function DebugLatestCall() {
+	return (
+		<VoiceCallDebuggerLaunch
+			description="Open snapshot, replay, provider path, transcript, and incident markdown."
+			intervalMs={5000}
+			path="/api/voice-call-debugger/latest"
+			title="Debug Latest Call"
+		/>
+	);
+}
+```
+
+Vue:
+
+```vue
+<script setup lang="ts">
+import { VoiceCallDebuggerLaunch } from '@absolutejs/voice/vue';
+</script>
+
+<template>
+	<VoiceCallDebuggerLaunch
+		description="Open snapshot, replay, provider path, transcript, and incident markdown."
+		:interval-ms="5000"
+		path="/api/voice-call-debugger/latest"
+		title="Debug Latest Call"
+	/>
+</template>
+```
+
+Svelte:
+
+```svelte
+<script lang="ts">
+	import { onDestroy, onMount } from 'svelte';
+	import { createVoiceCallDebugger } from '@absolutejs/voice/svelte';
+
+	const debuggerLaunch = createVoiceCallDebugger('/api/voice-call-debugger/latest', {
+		description: 'Open snapshot, replay, provider path, transcript, and incident markdown.',
+		intervalMs: 5000,
+		title: 'Debug Latest Call'
+	});
+	let html = debuggerLaunch.getHTML();
+	let unsubscribe = () => {};
+
+	onMount(() => {
+		unsubscribe = debuggerLaunch.subscribe(() => {
+			html = debuggerLaunch.getHTML();
+		});
+		void debuggerLaunch.refresh().catch(() => {});
+	});
+	onDestroy(() => {
+		unsubscribe();
+		debuggerLaunch.close();
+	});
+</script>
+
+{@html html}
+```
+
+Angular:
+
+```ts
+import { Component, computed, inject } from '@angular/core';
+import { createVoiceCallDebuggerLaunchViewModel } from '@absolutejs/voice/client';
+import { VoiceCallDebuggerService } from '@absolutejs/voice/angular';
+
+@Component({
+	selector: 'app-debug-latest-call',
+	template: `
+		<a [href]="model().href">{{ model().label }}</a>
+		<p>{{ model().description }}</p>
+	`
+})
+export class DebugLatestCallComponent {
+	private readonly callDebugger = inject(VoiceCallDebuggerService).connect(
+		'/api/voice-call-debugger/latest',
+		{ intervalMs: 5000 }
+	);
+	readonly model = computed(() =>
+		createVoiceCallDebuggerLaunchViewModel(
+			'/api/voice-call-debugger/latest',
+			{
+				error: this.callDebugger.error(),
+				isLoading: this.callDebugger.isLoading(),
+				report: this.callDebugger.report(),
+				updatedAt: this.callDebugger.updatedAt()
+			},
+			{ title: 'Debug Latest Call' }
+		)
+	);
+}
+```
+
+HTML or HTMX:
+
+```html
+<absolute-voice-call-debugger-launch
+	interval-ms="5000"
+	path="/api/voice-call-debugger/latest"
+	title="Debug Latest Call"
+></absolute-voice-call-debugger-launch>
+
+<script type="module">
+	import { defineVoiceCallDebuggerLaunchElement } from '@absolutejs/voice/client';
+
+	defineVoiceCallDebuggerLaunchElement();
+</script>
+```
+
 ## Delivery Runtime Widgets
 
 After mounting `createVoiceDeliveryRuntimeRoutes(...)`, apps can expose audit and trace worker health through the same framework-native primitives:
