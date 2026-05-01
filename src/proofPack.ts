@@ -5,6 +5,11 @@ import type {
 	VoiceObservabilityExportArtifact,
 	VoiceObservabilityExportReport
 } from './observabilityExport';
+import type { VoiceCallDebuggerReport } from './callDebugger';
+import type { VoiceOperationsRecord } from './operationsRecord';
+import type { VoiceProductionReadinessReport } from './productionReadiness';
+import type { VoiceProviderSloReport } from './providerSlo';
+import type { VoiceSessionSnapshot } from './sessionSnapshot';
 
 export type VoiceProofPackStatus = 'fail' | 'pass' | 'warn';
 
@@ -41,10 +46,16 @@ export type VoiceProofPack = {
 
 export type VoiceProofPackInput = {
 	artifacts?: VoiceObservabilityExportArtifact[];
+	callDebuggerReports?: VoiceCallDebuggerReport[];
 	generatedAt?: number | string;
+	observabilityExport?: VoiceObservabilityExportReport;
+	operationsRecords?: VoiceOperationsRecord[];
 	outputDir?: string;
+	productionReadiness?: VoiceProductionReadinessReport;
+	providerSlo?: VoiceProviderSloReport;
 	runId?: string;
 	sections?: VoiceProofPackSection[];
+	sessionSnapshots?: VoiceSessionSnapshot[];
 };
 
 export type VoiceProofPackWriteResult = {
@@ -94,6 +105,269 @@ const summarizeProofPackSections = (sections: VoiceProofPackSection[]) => {
 	return { fail, pass, sections: sections.length, warn };
 };
 
+const toProofPackStatus = (status: string | undefined): VoiceProofPackStatus => {
+	if (status === 'fail' || status === 'failed') {
+		return 'fail';
+	}
+	if (
+		status === 'warn' ||
+		status === 'warning' ||
+		status === 'degraded' ||
+		status === 'stale'
+	) {
+		return 'warn';
+	}
+	return 'pass';
+};
+
+const numberEvidence = (
+	label: string,
+	value: number | undefined,
+	options: {
+		failWhenPositive?: boolean;
+		passWhenPositive?: boolean;
+	} = {}
+): VoiceProofPackEvidence => {
+	const safeValue = value ?? 0;
+	const status = options.failWhenPositive
+		? safeValue > 0
+			? 'fail'
+			: 'pass'
+		: options.passWhenPositive
+			? safeValue > 0
+				? 'pass'
+				: 'warn'
+			: 'pass';
+
+	return {
+		label,
+		status,
+		value: safeValue
+	};
+};
+
+export const createVoiceProofPackProviderSloSection = (
+	report: VoiceProviderSloReport,
+	options: {
+		href?: string;
+		title?: string;
+	} = {}
+): VoiceProofPackSection => ({
+	evidence: [
+		{
+			href: options.href,
+			label: 'Provider SLO status',
+			status: toProofPackStatus(report.status),
+			value: report.status
+		},
+		numberEvidence('Provider routing events', report.events, {
+			passWhenPositive: true
+		}),
+		numberEvidence('Latency samples', report.eventsWithLatency, {
+			passWhenPositive: true
+		}),
+		numberEvidence('Provider SLO issues', report.issues.length, {
+			failWhenPositive: true
+		})
+	],
+	status: toProofPackStatus(report.status),
+	summary:
+		'Provider latency, timeout, fallback, and unresolved error evidence.',
+	title: options.title ?? 'Provider SLO'
+});
+
+export const createVoiceProofPackProductionReadinessSection = (
+	report: VoiceProductionReadinessReport,
+	options: {
+		title?: string;
+	} = {}
+): VoiceProofPackSection => {
+	const checkFailures = report.checks.filter(
+		(check) => check.status === 'fail'
+	).length;
+	const checkWarnings = report.checks.filter(
+		(check) => check.status === 'warn'
+	).length;
+
+	return {
+		evidence: [
+			{
+				label: 'Production readiness status',
+				status: toProofPackStatus(report.status),
+				value: report.status
+			},
+			numberEvidence('Readiness checks', report.checks.length, {
+				passWhenPositive: true
+			}),
+			numberEvidence('Failed readiness checks', checkFailures, {
+				failWhenPositive: true
+			}),
+			{
+				label: 'Warning readiness checks',
+				status: checkWarnings > 0 ? 'warn' : 'pass',
+				value: checkWarnings
+			},
+			...(report.summary.providerSlo
+				? [
+						{
+							href: report.links.providerSlo,
+							label: 'Provider SLO samples',
+							status: toProofPackStatus(report.summary.providerSlo.status),
+							value: report.summary.providerSlo.eventsWithLatency
+						}
+					]
+				: []),
+			...(report.summary.traceDeliveries
+				? [
+						{
+							href: report.links.traceDeliveries,
+							label: 'Trace delivery status',
+							status: toProofPackStatus(report.summary.traceDeliveries.status),
+							value: report.summary.traceDeliveries.pending
+						}
+					]
+				: [])
+		],
+		status: toProofPackStatus(report.status),
+		summary: 'Production readiness gates and linked proof surfaces.',
+		title: options.title ?? 'Production readiness'
+	};
+};
+
+export const createVoiceProofPackOperationsRecordSection = (
+	records: readonly VoiceOperationsRecord[],
+	options: {
+		href?: (sessionId: string) => string | undefined;
+		title?: string;
+	} = {}
+): VoiceProofPackSection => {
+	const failed = records.filter((record) => record.status === 'failed').length;
+	const warnings = records.filter((record) => record.status === 'warning').length;
+	const errors = records.reduce(
+		(total, record) => total + record.summary.errorCount,
+		0
+	);
+	const fallbacks = records.reduce(
+		(total, record) => total + record.providerDecisionSummary.fallbacks,
+		0
+	);
+
+	return {
+		evidence: [
+			numberEvidence('Operations records', records.length, {
+				passWhenPositive: true
+			}),
+			numberEvidence('Failed operations records', failed, {
+				failWhenPositive: true
+			}),
+			{
+				label: 'Warning operations records',
+				status: warnings > 0 ? 'warn' : 'pass',
+				value: warnings
+			},
+			numberEvidence('Trace errors', errors, { failWhenPositive: true }),
+			{
+				label: 'Provider fallbacks',
+				status: fallbacks > 0 ? 'warn' : 'pass',
+				value: fallbacks
+			},
+			...records.slice(0, 5).map((record) => ({
+				href: options.href?.(record.sessionId),
+				label: `Session ${record.sessionId}`,
+				status: toProofPackStatus(record.status),
+				value: record.status
+			}))
+		],
+		status: failed > 0 || errors > 0 ? 'fail' : warnings > 0 || fallbacks > 0 ? 'warn' : 'pass',
+		summary: 'Per-call operations records, trace errors, and provider recovery.',
+		title: options.title ?? 'Operations records'
+	};
+};
+
+export const createVoiceProofPackSupportBundleSection = (input: {
+	callDebuggerReports?: readonly VoiceCallDebuggerReport[];
+	sessionSnapshots?: readonly VoiceSessionSnapshot[];
+	title?: string;
+}): VoiceProofPackSection => {
+	const snapshots = input.sessionSnapshots ?? [];
+	const debuggerReports = input.callDebuggerReports ?? [];
+	const failedSnapshots = snapshots.filter(
+		(snapshot) => snapshot.status === 'fail'
+	).length;
+	const failedDebuggerReports = debuggerReports.filter(
+		(report) => report.status === 'failed'
+	).length;
+	const warnings =
+		snapshots.filter((snapshot) => snapshot.status === 'warn').length +
+		debuggerReports.filter((report) => report.status === 'warning').length;
+
+	return {
+		evidence: [
+			numberEvidence('Session snapshots', snapshots.length, {
+				passWhenPositive: true
+			}),
+			numberEvidence('Call debugger reports', debuggerReports.length, {
+				passWhenPositive: true
+			}),
+			numberEvidence('Failed snapshots', failedSnapshots, {
+				failWhenPositive: true
+			}),
+			numberEvidence('Failed debugger reports', failedDebuggerReports, {
+				failWhenPositive: true
+			}),
+			{
+				label: 'Warning support artifacts',
+				status: warnings > 0 ? 'warn' : 'pass',
+				value: warnings
+			}
+		],
+		status:
+			failedSnapshots > 0 || failedDebuggerReports > 0
+				? 'fail'
+				: warnings > 0
+					? 'warn'
+					: 'pass',
+		summary: 'Support artifacts that make the latest call debuggable.',
+		title: input.title ?? 'Support bundle'
+	};
+};
+
+const buildDerivedProofPackSections = (
+	input: VoiceProofPackInput
+): VoiceProofPackSection[] => [
+	...(input.productionReadiness
+		? [createVoiceProofPackProductionReadinessSection(input.productionReadiness)]
+		: []),
+	...(input.providerSlo
+		? [
+				createVoiceProofPackProviderSloSection(input.providerSlo, {
+					href: input.productionReadiness?.links.providerSlo
+				})
+			]
+		: []),
+	...(input.operationsRecords && input.operationsRecords.length > 0
+		? [
+				createVoiceProofPackOperationsRecordSection(input.operationsRecords, {
+					href: (sessionId) =>
+						input.productionReadiness?.links.operationsRecords
+							? `${input.productionReadiness.links.operationsRecords}/${encodeURIComponent(sessionId)}`
+							: undefined
+				})
+			]
+		: []),
+	...(input.sessionSnapshots?.length || input.callDebuggerReports?.length
+		? [
+				createVoiceProofPackSupportBundleSection({
+					callDebuggerReports: input.callDebuggerReports,
+					sessionSnapshots: input.sessionSnapshots
+				})
+			]
+		: []),
+	...(input.observabilityExport
+		? buildVoiceProofPackFromObservabilityExport(input.observabilityExport).sections
+		: [])
+];
+
 const resolveProofPack = async (
 	source: VoiceProofPackRoutesOptions['source']
 ): Promise<VoiceProofPack> => {
@@ -113,7 +387,7 @@ export const buildVoiceProofPack = (
 		return input;
 	}
 
-	const sections = input.sections ?? [];
+	const sections = [...buildDerivedProofPackSections(input), ...(input.sections ?? [])];
 	const summary = summarizeProofPackSections(sections);
 	const status: VoiceProofPackStatus =
 		summary.fail > 0 ? 'fail' : summary.warn > 0 ? 'warn' : 'pass';

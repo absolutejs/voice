@@ -2170,7 +2170,11 @@ export {
 	buildVoiceProofPack,
 	buildVoiceProofPackFromObservabilityExport,
 	createVoiceProofPackArtifacts,
+	createVoiceProofPackOperationsRecordSection,
+	createVoiceProofPackProductionReadinessSection,
+	createVoiceProofPackProviderSloSection,
 	createVoiceProofPackRoutes,
+	createVoiceProofPackSupportBundleSection,
 	renderVoiceProofPackMarkdown,
 	writeVoiceProofPack
 } from './proofPack';

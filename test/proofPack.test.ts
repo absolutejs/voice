@@ -7,9 +7,18 @@ import {
 	buildVoiceObservabilityExport,
 	buildVoiceProofPack,
 	buildVoiceProofPackFromObservabilityExport,
+	createVoiceProofPackOperationsRecordSection,
+	createVoiceProofPackProviderSloSection,
+	createVoiceProofPackSupportBundleSection,
 	createVoiceProofPackRoutes,
 	renderVoiceProofPackMarkdown,
 	writeVoiceProofPack
+} from '../src';
+import type {
+	VoiceCallDebuggerReport,
+	VoiceOperationsRecord,
+	VoiceProviderSloReport,
+	VoiceSessionSnapshot
 } from '../src';
 
 test('buildVoiceProofPack summarizes sections and renders Markdown', () => {
@@ -60,6 +69,60 @@ test('writeVoiceProofPack writes JSON and Markdown plus export artifacts', async
 		'latest-proof-pack',
 		'latest-proof-pack-json'
 	]);
+});
+
+test('proof pack builds rich sections from provider, operation, and support reports', () => {
+	const providerSlo = {
+		checkedAt: 1,
+		events: 18,
+		eventsWithLatency: 18,
+		issues: [],
+		status: 'pass'
+	} as VoiceProviderSloReport;
+	const operation = {
+		checkedAt: 1,
+		providerDecisionSummary: {
+			fallbacks: 1
+		},
+		sessionId: 'session-rich-proof',
+		status: 'warning',
+		summary: {
+			errorCount: 0
+		}
+	} as VoiceOperationsRecord;
+	const snapshot = {
+		capturedAt: 1,
+		sessionId: 'session-rich-proof',
+		status: 'pass'
+	} as VoiceSessionSnapshot;
+	const debuggerReport = {
+		checkedAt: 1,
+		sessionId: 'session-rich-proof',
+		status: 'healthy'
+	} as VoiceCallDebuggerReport;
+	const proofPack = buildVoiceProofPack({
+		callDebuggerReports: [debuggerReport],
+		operationsRecords: [operation],
+		providerSlo,
+		sessionSnapshots: [snapshot]
+	});
+
+	expect(createVoiceProofPackProviderSloSection(providerSlo).status).toBe('pass');
+	expect(createVoiceProofPackOperationsRecordSection([operation]).status).toBe(
+		'warn'
+	);
+	expect(
+		createVoiceProofPackSupportBundleSection({
+			callDebuggerReports: [debuggerReport],
+			sessionSnapshots: [snapshot]
+		}).status
+	).toBe('pass');
+	expect(proofPack.sections.map((section) => section.title)).toEqual([
+		'Provider SLO',
+		'Operations records',
+		'Support bundle'
+	]);
+	expect(proofPack.status).toBe('warn');
 });
 
 test('buildVoiceProofPackFromObservabilityExport feeds artifact exports', async () => {
