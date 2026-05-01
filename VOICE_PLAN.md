@@ -515,7 +515,7 @@ Closed deliverables:
 Remaining work:
 
 - Keep adding operations-record and call-debugger links as new proof surfaces are introduced.
-- Fold call-debugger/session-snapshot artifacts into the customer-owned observability export manifest so support bundles, SIEM exports, and warehouse delivery share one artifact index.
+- Fold call-debugger/session-snapshot artifacts into the customer-owned observability export manifest so support bundles, SIEM exports, and warehouse delivery share one artifact index. Status: done in `@absolutejs/voice@0.0.22-beta.407` via `sessionSnapshots`, `callDebuggerReports`, `links.sessionSnapshot`, and `links.callDebugger`.
 
 Acceptance criteria:
 
@@ -1008,6 +1008,7 @@ We are ahead of Vapi-style hosted platforms for AbsoluteJS users when:
   - `0.0.22-beta.404`: client store, renderer, mounter, and custom element expose a "Debug Latest Call" launcher.
   - `0.0.22-beta.405`: React, Vue, Svelte, and Angular wrappers expose the same call-debugger primitive.
   - `0.0.22-beta.406`: README examples and `test/frameworkWrappers.test.ts` lock wrapper exports.
+  - `0.0.22-beta.407`: observability export manifests and artifact indexes include first-class session snapshot and call-debugger report artifacts.
 - Provider-stage latency/SLO gates are now package-proven:
   - `buildVoiceLatencySLOGate(...)` evaluates turn waterfall, provider, live latency, and barge-in trace timings.
   - `assertVoiceLatencySLOGate(...)` throws with a full report when release budgets fail.

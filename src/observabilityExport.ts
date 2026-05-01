@@ -15,11 +15,13 @@ import type {
 	VoiceAuditEventStore,
 	VoiceAuditEventType
 } from './audit';
+import type { VoiceCallDebuggerReport } from './callDebugger';
 import {
 	buildVoiceOperationsRecord,
 	type VoiceOperationsRecord,
 	type VoiceOperationsRecordOptions
 } from './operationsRecord';
+import type { VoiceSessionSnapshot } from './sessionSnapshot';
 import {
 	summarizeVoiceTraceSinkDeliveries,
 	type VoiceTraceSinkDeliveryQueueSummary
@@ -452,12 +454,14 @@ export const assertVoiceObservabilityExportRecord = (
 };
 
 export type VoiceObservabilityExportArtifactKind =
+	| 'call-debugger'
 	| 'incident'
 	| 'markdown'
 	| 'operations-record'
 	| 'proof-pack'
 	| 'readiness'
 	| 'screenshot'
+	| 'session-snapshot'
 	| 'slo'
 	| 'trace'
 	| 'audit'
@@ -875,11 +879,15 @@ export type VoiceObservabilityExportOptions = {
 	includeOperationsRecords?: boolean;
 	links?: {
 		artifactDownload?: (artifact: VoiceObservabilityExportArtifact) => string;
+		callDebugger?: (sessionId: string) => string;
 		operationsRecord?: (sessionId: string) => string;
+		sessionSnapshot?: (sessionId: string) => string;
 	};
+	callDebuggerReports?: VoiceCallDebuggerReport[];
 	operationsRecords?: VoiceOperationsRecord[];
 	redact?: VoiceTraceRedactionConfig;
 	sessionIds?: string[];
+	sessionSnapshots?: VoiceSessionSnapshot[];
 	store?: VoiceTraceEventStore;
 	traceDeliveries?:
 		| VoiceTraceSinkDeliveryRecord[]
@@ -959,6 +967,41 @@ const createOperationArtifact = (
 			: record.status === 'warning'
 				? 'warn'
 				: 'pass'
+});
+
+const toSnapshotArtifactStatus = (
+	status: VoiceSessionSnapshot['status']
+): VoiceObservabilityExportStatus =>
+	status === 'fail' ? 'fail' : status === 'warn' ? 'warn' : 'pass';
+
+const createSessionSnapshotArtifact = (
+	snapshot: VoiceSessionSnapshot,
+	href?: string
+): VoiceObservabilityExportArtifact => ({
+	generatedAt: snapshot.capturedAt,
+	href,
+	id: `session-snapshot:${snapshot.sessionId}`,
+	kind: 'session-snapshot',
+	label: `Session snapshot ${snapshot.sessionId}`,
+	sessionId: snapshot.sessionId,
+	status: toSnapshotArtifactStatus(snapshot.status)
+});
+
+const createCallDebuggerArtifact = (
+	report: VoiceCallDebuggerReport,
+	href?: string
+): VoiceObservabilityExportArtifact => ({
+	generatedAt: report.checkedAt,
+	href,
+	id: `call-debugger:${report.sessionId}`,
+	kind: 'call-debugger',
+	label: `Call debugger ${report.sessionId}`,
+	sessionId: report.sessionId,
+	status: report.status === 'failed'
+		? 'fail'
+		: report.status === 'warning'
+			? 'warn'
+			: 'pass'
 });
 
 const unique = (values: string[]) => [...new Set(values)].sort();
@@ -2082,9 +2125,11 @@ const verifyArtifacts = (
 
 const collectSessionIds = (input: {
 	auditEvents: StoredVoiceAuditEvent[];
+	callDebuggerReports: VoiceCallDebuggerReport[];
 	events: StoredVoiceTraceEvent[];
 	operationsRecords: VoiceOperationsRecord[];
 	sessionIds?: string[];
+	sessionSnapshots: VoiceSessionSnapshot[];
 }) =>
 	unique([
 		...(input.sessionIds ?? []),
@@ -2092,7 +2137,9 @@ const collectSessionIds = (input: {
 		...input.auditEvents
 			.map((event) => event.sessionId)
 			.filter((sessionId): sessionId is string => Boolean(sessionId)),
-		...input.operationsRecords.map((record) => record.sessionId)
+		...input.operationsRecords.map((record) => record.sessionId),
+		...input.sessionSnapshots.map((snapshot) => snapshot.sessionId),
+		...input.callDebuggerReports.map((report) => report.sessionId)
 	]);
 
 const collectIssues = (input: {
@@ -2231,11 +2278,15 @@ export const buildVoiceObservabilityExport = async (
 	const events = options.events ?? (await options.store?.list()) ?? [];
 	const auditEvents = options.audit ? await options.audit.list() : [];
 	const baseOperationsRecords = options.operationsRecords ?? [];
+	const sessionSnapshots = options.sessionSnapshots ?? [];
+	const callDebuggerReports = options.callDebuggerReports ?? [];
 	const sessionIds = collectSessionIds({
 		auditEvents,
+		callDebuggerReports,
 		events,
 		operationsRecords: baseOperationsRecords,
-		sessionIds: options.sessionIds
+		sessionIds: options.sessionIds,
+		sessionSnapshots
 	});
 	const shouldBuildOperationsRecords =
 		options.includeOperationsRecords === true && options.store;
@@ -2282,9 +2333,26 @@ export const buildVoiceObservabilityExport = async (
 			options.links?.operationsRecord?.(record.sessionId)
 		)
 	);
+	const sessionSnapshotArtifacts = sessionSnapshots.map((snapshot) =>
+		createSessionSnapshotArtifact(
+			snapshot,
+			options.links?.sessionSnapshot?.(snapshot.sessionId)
+		)
+	);
+	const callDebuggerArtifacts = callDebuggerReports.map((report) =>
+		createCallDebuggerArtifact(
+			report,
+			options.links?.callDebugger?.(report.sessionId)
+		)
+	);
 	const artifacts = addArtifactDownloadHrefs(
 		await verifyArtifacts(
-			[...operationArtifacts, ...(options.artifacts ?? [])],
+			[
+				...operationArtifacts,
+				...sessionSnapshotArtifacts,
+				...callDebuggerArtifacts,
+				...(options.artifacts ?? [])
+			],
 			options.artifactIntegrity
 		),
 		options.links

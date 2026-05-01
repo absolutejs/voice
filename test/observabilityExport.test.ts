@@ -32,7 +32,11 @@ import {
 	voiceObservabilityExportSchemaId,
 	voiceObservabilityExportSchemaVersion
 } from '../src';
-import type { VoicePostgresClient } from '../src';
+import type {
+	VoiceCallDebuggerReport,
+	VoicePostgresClient,
+	VoiceSessionSnapshot
+} from '../src';
 
 const createFakeObservabilityS3Client = () => {
 	const objects = new Map<string, { data: string | Uint8Array; type?: string }>();
@@ -154,6 +158,67 @@ test('observability export v1.0.0 fixture stays stable for customer ingestion', 
 	} finally {
 		Date.now = originalNow;
 	}
+});
+
+test('observability export includes session snapshot and call debugger artifacts', async () => {
+	const sessionSnapshot: VoiceSessionSnapshot = {
+		artifacts: [],
+		capturedAt: 1_710_000_000_000,
+		media: [],
+		proofAssertions: [],
+		proofSummary: {
+			failed: 0,
+			failures: [],
+			ok: true,
+			passed: 0,
+			total: 0
+		},
+		providerRoutingEvents: [],
+		quality: [],
+		schema: 'absolute.voice.session.snapshot.v1',
+		sessionId: 'session-debug-export',
+		status: 'warn',
+		telephonyOutcomes: []
+	};
+	const callDebuggerReport = {
+		checkedAt: 1_710_000_000_100,
+		sessionId: 'session-debug-export',
+		status: 'warning'
+	} as VoiceCallDebuggerReport;
+	const report = await buildVoiceObservabilityExport({
+		callDebuggerReports: [callDebuggerReport],
+		links: {
+			callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
+			sessionSnapshot: (sessionId) => `/api/voice/session-snapshot/${sessionId}`
+		},
+		sessionSnapshots: [sessionSnapshot]
+	});
+	const artifactIndex = buildVoiceObservabilityArtifactIndex(report);
+
+	expect(report.status).toBe('pass');
+	expect(report.sessionIds).toEqual(['session-debug-export']);
+	expect(report.artifacts).toEqual([
+		expect.objectContaining({
+			href: '/api/voice/session-snapshot/session-debug-export',
+			id: 'session-snapshot:session-debug-export',
+			kind: 'session-snapshot',
+			status: 'warn'
+		}),
+		expect.objectContaining({
+			href: '/voice-call-debugger/session-debug-export',
+			id: 'call-debugger:session-debug-export',
+			kind: 'call-debugger',
+			status: 'warn'
+		})
+	]);
+	expect(artifactIndex.artifacts.map((artifact) => artifact.kind)).toEqual([
+		'session-snapshot',
+		'call-debugger'
+	]);
+	expect(artifactIndex.summary).toMatchObject({
+		total: 2,
+		warn: 2
+	});
 });
 
 test('validateVoiceObservabilityExportRecord validates customer-ingested export records', async () => {

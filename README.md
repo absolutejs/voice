@@ -3174,7 +3174,7 @@ Readiness emits the stable `voice.readiness.ops_recovery` gate code when unresol
 
 ## Customer-Owned Observability Export
 
-Use observability exports when a buyer wants the hosted-dashboard evidence graph, but inside their own storage, warehouse, SIEM, incident flow, or release notes. The export manifest links traces, audits, operations records, delivery queues, provider SLOs, readiness reports, screenshots, and proof-pack artifacts without making AbsoluteJS Voice the dashboard.
+Use observability exports when a buyer wants the hosted-dashboard evidence graph, but inside their own storage, warehouse, SIEM, incident flow, or release notes. The export manifest links traces, audits, operations records, session snapshots, call-debugger reports, delivery queues, provider SLOs, readiness reports, screenshots, and proof-pack artifacts without making AbsoluteJS Voice the dashboard.
 
 Every export manifest and artifact index includes a stable schema contract:
 
@@ -3287,7 +3287,10 @@ app.use(
 		audit: runtimeStorage.audit,
 		auditDeliveries: runtimeStorage.auditDeliveries,
 		links: {
-			operationsRecord: (sessionId) => `/voice-operations/${sessionId}`
+			callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
+			operationsRecord: (sessionId) => `/voice-operations/${sessionId}`,
+			sessionSnapshot: (sessionId) =>
+				`/api/voice/session-snapshot/${sessionId}`
 		},
 		redact: true,
 		store: runtimeStorage.traces,
@@ -3312,16 +3315,20 @@ const exportReport = await buildVoiceObservabilityExport({
 	},
 	audit: runtimeStorage.audit,
 	auditDeliveries: runtimeStorage.auditDeliveries,
+	callDebuggerReports: [latestCallDebuggerReport],
 	links: {
-		operationsRecord: (sessionId) => `/voice-operations/${sessionId}`
+		callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
+		operationsRecord: (sessionId) => `/voice-operations/${sessionId}`,
+		sessionSnapshot: (sessionId) => `/api/voice/session-snapshot/${sessionId}`
 	},
 	redact: true,
+	sessionSnapshots: [latestSessionSnapshot],
 	store: runtimeStorage.traces,
 	traceDeliveries: runtimeStorage.traceDeliveries
 });
 ```
 
-The route helper exposes JSON at `/api/voice/observability-export`, an artifact index at `/api/voice/observability-export/artifacts`, per-artifact downloads at `/api/voice/observability-export/artifacts/:artifactId`, delivery at `POST /api/voice/observability-export/deliveries`, delivery history at `GET /api/voice/observability-export/deliveries`, Markdown at `/voice/observability-export.md`, and HTML at `/voice/observability-export`. `createVoiceObservabilityExportReplayRoutes(...)` adds JSON replay proof at `/api/voice/observability-export/replay` and a readable replay proof page at `/voice/observability-export/replay`. Path-backed artifacts are hashed with SHA-256 by default, include byte size and freshness metadata, and can fail the export when required evidence is missing or stale. File delivery writes `manifest.json`, `artifact-index.json`, and artifact files into a customer-owned archive directory; webhook delivery posts the manifest and artifact index to a buyer-owned collector, SIEM bridge, or warehouse endpoint; S3 delivery writes the same manifest, index, and artifact files through Bun's native S3 client; SQLite and Postgres delivery persist the schema id/version, manifest, artifact index, checksum metadata, status, run id, and timestamps into buyer-owned database tables. Delivery receipt stores persist run id, destinations, status, schema, and target history so operators can prove exports have been continuously healthy. Failed trace/audit deliveries fail the export report, pending deliveries warn, and every trace/audit envelope includes the linked operations-record URL when one is configured. This is the primitive to use when customers ask how voice evidence leaves the app without going through a hosted vendor dashboard.
+The route helper exposes JSON at `/api/voice/observability-export`, an artifact index at `/api/voice/observability-export/artifacts`, per-artifact downloads at `/api/voice/observability-export/artifacts/:artifactId`, delivery at `POST /api/voice/observability-export/deliveries`, delivery history at `GET /api/voice/observability-export/deliveries`, Markdown at `/voice/observability-export.md`, and HTML at `/voice/observability-export`. `createVoiceObservabilityExportReplayRoutes(...)` adds JSON replay proof at `/api/voice/observability-export/replay` and a readable replay proof page at `/voice/observability-export/replay`. Path-backed artifacts are hashed with SHA-256 by default, include byte size and freshness metadata, and can fail the export when required evidence is missing or stale. File delivery writes `manifest.json`, `artifact-index.json`, and artifact files into a customer-owned archive directory; webhook delivery posts the manifest and artifact index to a buyer-owned collector, SIEM bridge, or warehouse endpoint; S3 delivery writes the same manifest, index, and artifact files through Bun's native S3 client; SQLite and Postgres delivery persist the schema id/version, manifest, artifact index, checksum metadata, status, run id, and timestamps into buyer-owned database tables. Delivery receipt stores persist run id, destinations, status, schema, and target history so operators can prove exports have been continuously healthy. Failed trace/audit deliveries fail the export report, pending deliveries warn, and every trace/audit envelope includes the linked operations-record URL when one is configured. Session snapshots and call-debugger reports become first-class artifact-index rows when passed through `sessionSnapshots` and `callDebuggerReports`, so support bundles, incident handoffs, SIEM records, and warehouse exports share one customer-owned evidence graph. This is the primitive to use when customers ask how voice evidence leaves the app without going through a hosted vendor dashboard.
 
 Pass the same report into production readiness when export health should block deploys:
 
