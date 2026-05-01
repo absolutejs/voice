@@ -312,6 +312,19 @@ export type {
 	VoiceProofAssertionSummary
 } from './proofAssertions';
 export {
+	fetchVoiceProofTarget,
+	getVoiceProofTargetLogicalFailure,
+	mapVoiceProofTargetsWithConcurrency,
+	runVoiceProofTargets
+} from './proofRunner';
+export type {
+	VoiceProofTarget,
+	VoiceProofTargetMethod,
+	VoiceProofTargetResult,
+	VoiceProofTargetRunnerOptions,
+	VoiceProofTargetRunOptions
+} from './proofRunner';
+export {
 	applyVoiceProfileSwitchGuard,
 	buildVoiceProfileSwitchReadinessReport,
 	buildVoiceProfileSwitchLiveDecisionReport,
