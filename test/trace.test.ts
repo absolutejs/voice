@@ -3,6 +3,7 @@ import {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceEventStore,
 	createVoiceProfileTraceTagger,
+	createVoiceScopedTraceEventStore,
 	createVoiceTraceHTTPSink,
 	createVoiceTraceEvent,
 	createVoiceTraceS3Sink,
@@ -113,6 +114,35 @@ const createTraceEvents = (): StoredVoiceTraceEvent[] => [
 		type: 'call.lifecycle'
 	})
 ];
+
+test('createVoiceScopedTraceEventStore enforces scope after listing', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append({
+		at: 100,
+		payload: { status: 'started' },
+		scenarioId: 'proof-a',
+		sessionId: 'session-a',
+		type: 'call.lifecycle'
+	});
+	await store.append({
+		at: 101,
+		payload: { status: 'started' },
+		scenarioId: 'proof-b',
+		sessionId: 'session-b',
+		type: 'call.lifecycle'
+	});
+
+	const scoped = createVoiceScopedTraceEventStore(store, {
+		scenarioId: 'proof-a'
+	});
+
+	await expect(scoped.list()).resolves.toMatchObject([
+		{ scenarioId: 'proof-a', sessionId: 'session-a' }
+	]);
+	await expect(scoped.list({ scenarioId: 'proof-b' })).resolves.toMatchObject([
+		{ scenarioId: 'proof-a', sessionId: 'session-a' }
+	]);
+});
 
 test('summarizeVoiceTrace reports replay metrics', () => {
 	const summary = summarizeVoiceTrace(createTraceEvents());

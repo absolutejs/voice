@@ -65,6 +65,8 @@ export type VoiceAuditEventStore<
 	list: (filter?: VoiceAuditEventFilter) => Promise<TEvent[]> | TEvent[];
 };
 
+export type VoiceScopedAuditEventStoreOptions = VoiceAuditEventFilter;
+
 export type VoiceAuditLogger = {
 	handoff: (
 		input: Omit<VoiceHandoffAuditEventInput, 'store'>
@@ -238,6 +240,55 @@ export const filterVoiceAuditEvents = <
 	return typeof filter.limit === 'number' && filter.limit >= 0
 		? sorted.slice(0, filter.limit)
 		: sorted;
+};
+
+export const createVoiceScopedAuditEventStore = <
+	TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent
+>(
+	store: VoiceAuditEventStore<TEvent>,
+	scope: VoiceScopedAuditEventStoreOptions
+): VoiceAuditEventStore<TEvent> => {
+	const upstreamFilter = (filter: VoiceAuditEventFilter = {}) => {
+		const next = { ...filter };
+		delete next.limit;
+		if (scope.actorId !== undefined) {
+			delete next.actorId;
+		}
+		if (scope.outcome !== undefined) {
+			delete next.outcome;
+		}
+		if (scope.resourceId !== undefined) {
+			delete next.resourceId;
+		}
+		if (scope.resourceType !== undefined) {
+			delete next.resourceType;
+		}
+		if (scope.sessionId !== undefined) {
+			delete next.sessionId;
+		}
+		if (scope.traceId !== undefined) {
+			delete next.traceId;
+		}
+		if (scope.type !== undefined) {
+			delete next.type;
+		}
+
+		return next;
+	};
+	const scopedFilter = (filter: VoiceAuditEventFilter = {}) => ({
+		...filter,
+		...scope
+	});
+
+	return {
+		append: (event) => store.append(event),
+		get: (id) => store.get(id),
+		list: async (filter) =>
+			filterVoiceAuditEvents(
+				await store.list(upstreamFilter(filter)),
+				scopedFilter(filter)
+			)
+	};
 };
 
 export const createVoiceMemoryAuditEventStore = <

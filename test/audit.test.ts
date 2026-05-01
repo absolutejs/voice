@@ -7,6 +7,7 @@ import {
 	createVoiceAuditLogger,
 	createVoiceFileRuntimeStorage,
 	createVoiceMemoryAuditEventStore,
+	createVoiceScopedAuditEventStore,
 	recordVoiceProviderAuditEvent,
 	type StoredVoiceOpsTask
 } from '../src';
@@ -62,6 +63,33 @@ test('voice audit logger records and filters provider tool handoff and operator 
 	]);
 	expect(await store.list({ actorId: 'operator-1' })).toHaveLength(1);
 	expect(await store.list({ resourceType: 'provider' })).toHaveLength(1);
+});
+
+test('createVoiceScopedAuditEventStore enforces session scope after listing', async () => {
+	const store = createVoiceMemoryAuditEventStore();
+	await store.append({
+		action: 'proof.generated',
+		outcome: 'success',
+		sessionId: 'session-a',
+		type: 'operator.action'
+	});
+	await store.append({
+		action: 'proof.generated',
+		outcome: 'success',
+		sessionId: 'session-b',
+		type: 'operator.action'
+	});
+
+	const scoped = createVoiceScopedAuditEventStore(store, {
+		sessionId: 'session-a'
+	});
+
+	await expect(scoped.list()).resolves.toMatchObject([
+		{ sessionId: 'session-a' }
+	]);
+	await expect(scoped.list({ sessionId: 'session-b' })).resolves.toMatchObject([
+		{ sessionId: 'session-a' }
+	]);
 });
 
 test('retention policy can append audit evidence for dry-runs and deletes', async () => {

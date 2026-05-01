@@ -64,6 +64,8 @@ export type VoiceTraceEventStore<
 	remove: (id: string) => Promise<void>;
 };
 
+export type VoiceScopedTraceEventStoreOptions = VoiceTraceEventFilter;
+
 export type VoiceTracePruneFilter = Omit<VoiceTraceEventFilter, 'limit'>;
 
 export type VoiceTracePruneOptions = {
@@ -398,6 +400,50 @@ export const filterVoiceTraceEvents = <
 	return typeof filter.limit === 'number' && filter.limit >= 0
 		? sorted.slice(0, filter.limit)
 		: sorted;
+};
+
+export const createVoiceScopedTraceEventStore = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	store: VoiceTraceEventStore<TEvent>,
+	scope: VoiceScopedTraceEventStoreOptions
+): VoiceTraceEventStore<TEvent> => {
+	const upstreamFilter = (filter: VoiceTraceEventFilter = {}) => {
+		const next = { ...filter };
+		delete next.limit;
+		if (scope.scenarioId !== undefined) {
+			delete next.scenarioId;
+		}
+		if (scope.sessionId !== undefined) {
+			delete next.sessionId;
+		}
+		if (scope.traceId !== undefined) {
+			delete next.traceId;
+		}
+		if (scope.turnId !== undefined) {
+			delete next.turnId;
+		}
+		if (scope.type !== undefined) {
+			delete next.type;
+		}
+
+		return next;
+	};
+	const scopedFilter = (filter: VoiceTraceEventFilter = {}) => ({
+		...filter,
+		...scope
+	});
+
+	return {
+		append: (event) => store.append(event),
+		get: (id) => store.get(id),
+		list: async (filter) =>
+			filterVoiceTraceEvents(
+				await store.list(upstreamFilter(filter)),
+				scopedFilter(filter)
+			),
+		remove: (id) => store.remove(id)
+	};
 };
 
 const isPruneTimeMatch = (
