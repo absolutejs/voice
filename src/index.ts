@@ -1632,6 +1632,7 @@ export type {
 	VoiceObservabilityExportRoutesOptions,
 	VoiceObservabilityExportSchema,
 	VoiceObservabilityExportStatus,
+	VoiceObservabilityExportTiming,
 	VoiceObservabilityExportValidationIssue,
 	VoiceObservabilityExportValidationResult
 } from './observabilityExport';

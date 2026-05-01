@@ -889,6 +889,7 @@ export type VoiceObservabilityExportOptions = {
 		| VoiceCallDebuggerReport[]
 		| (() => VoiceCallDebuggerReport[] | Promise<VoiceCallDebuggerReport[]>);
 	operationsRecords?: VoiceOperationsRecord[];
+	onTiming?: (timing: VoiceObservabilityExportTiming) => void;
 	redact?: VoiceTraceRedactionConfig;
 	sessionIds?: string[];
 	sessionSnapshots?:
@@ -898,6 +899,13 @@ export type VoiceObservabilityExportOptions = {
 	traceDeliveries?:
 		| VoiceTraceSinkDeliveryRecord[]
 		| VoiceTraceSinkDeliveryStore;
+};
+
+export type VoiceObservabilityExportTiming = {
+	durationMs: number;
+	endedAt: number;
+	label: string;
+	startedAt: number;
 };
 
 export type VoiceObservabilityExportRoutesOptions =
@@ -2087,12 +2095,12 @@ const verifyArtifact = async (
 		const isStale =
 			maxAgeMs !== undefined && ageMs !== undefined && ageMs > maxAgeMs;
 		const checksum =
-			options.checksum === false
-				? artifact.checksum
-				: {
+			options.checksum === 'sha256'
+				? {
 						algorithm: 'sha256' as const,
 						value: await checksumFile(filePath)
-					};
+					}
+				: artifact.checksum;
 
 		return {
 			...artifact,
@@ -2297,35 +2305,63 @@ const resolveObservabilityExportList = async <T>(
 export const buildVoiceObservabilityExport = async (
 	options: VoiceObservabilityExportOptions = {}
 ): Promise<VoiceObservabilityExportReport> => {
-	const events = options.events ?? (await options.store?.list()) ?? [];
-	const auditEvents = options.audit ? await options.audit.list() : [];
+	const time = async <Result>(
+		label: string,
+		run: () => Promise<Result> | Result
+	): Promise<Result> => {
+		const startedAt = Date.now();
+		try {
+			return await run();
+		} finally {
+			const endedAt = Date.now();
+			options.onTiming?.({
+				durationMs: Math.max(0, endedAt - startedAt),
+				endedAt,
+				label,
+				startedAt
+			});
+		}
+	};
+	const events = await time(
+		'events',
+		async () => options.events ?? (await options.store?.list()) ?? []
+	);
+	const auditEvents = await time('auditEvents', async () =>
+		options.audit ? await options.audit.list() : []
+	);
 	const baseOperationsRecords = options.operationsRecords ?? [];
-	const [sessionSnapshots, callDebuggerReports] = await Promise.all([
-		resolveObservabilityExportList(options.sessionSnapshots),
-		resolveObservabilityExportList(options.callDebuggerReports)
-	]);
-	const sessionIds = collectSessionIds({
+	const [sessionSnapshots, callDebuggerReports] = await time(
+		'supportArtifacts',
+		() =>
+			Promise.all([
+				resolveObservabilityExportList(options.sessionSnapshots),
+				resolveObservabilityExportList(options.callDebuggerReports)
+			])
+	);
+	const sessionIds = await time('sessionIds', () => collectSessionIds({
 		auditEvents,
 		callDebuggerReports,
 		events,
 		operationsRecords: baseOperationsRecords,
 		sessionIds: options.sessionIds,
 		sessionSnapshots
-	});
+	}));
 	const shouldBuildOperationsRecords =
 		options.includeOperationsRecords === true && options.store;
-	const builtOperationsRecords = shouldBuildOperationsRecords
-		? await Promise.all(
-				sessionIds.map((sessionId) =>
-					buildVoiceOperationsRecord({
-						audit: options.audit,
-						redact: options.redact,
-						sessionId,
-						store: options.store
-					} satisfies VoiceOperationsRecordOptions)
+	const builtOperationsRecords = await time('operationsRecords', () =>
+		shouldBuildOperationsRecords
+			? Promise.all(
+					sessionIds.map((sessionId) =>
+						buildVoiceOperationsRecord({
+							audit: options.audit,
+							redact: options.redact,
+							sessionId,
+							store: options.store
+						} satisfies VoiceOperationsRecordOptions)
+					)
 				)
-			)
-		: [];
+			: []
+	);
 	const operationsRecords = [
 		...baseOperationsRecords,
 		...builtOperationsRecords.filter(
@@ -2333,53 +2369,65 @@ export const buildVoiceObservabilityExport = async (
 				!baseOperationsRecords.some(
 					(existing) => existing.sessionId === record.sessionId
 				)
-		)
+			)
 	];
-	const traceDeliveries = options.traceDeliveries
-		? isDeliveryStore(options.traceDeliveries)
-			? await options.traceDeliveries.list()
-			: options.traceDeliveries
-		: undefined;
-	const auditDeliveries = options.auditDeliveries
-		? isDeliveryStore(options.auditDeliveries)
-			? await options.auditDeliveries.list()
-			: options.auditDeliveries
-		: undefined;
-	const traceDeliverySummary = traceDeliveries
-		? await summarizeVoiceTraceSinkDeliveries(traceDeliveries)
-		: undefined;
-	const auditDeliverySummary = auditDeliveries
-		? await summarizeVoiceAuditSinkDeliveries(auditDeliveries)
-		: undefined;
-	const operationArtifacts = operationsRecords.map((record) =>
+	const [traceDeliveries, auditDeliveries] = await time('deliveries', () =>
+		Promise.all([
+			options.traceDeliveries
+				? isDeliveryStore(options.traceDeliveries)
+					? options.traceDeliveries.list()
+					: options.traceDeliveries
+				: undefined,
+			options.auditDeliveries
+				? isDeliveryStore(options.auditDeliveries)
+					? options.auditDeliveries.list()
+					: options.auditDeliveries
+				: undefined
+		])
+	);
+	const [traceDeliverySummary, auditDeliverySummary] = await time(
+		'deliverySummaries',
+		() =>
+			Promise.all([
+				traceDeliveries
+					? summarizeVoiceTraceSinkDeliveries(traceDeliveries)
+					: undefined,
+				auditDeliveries
+					? summarizeVoiceAuditSinkDeliveries(auditDeliveries)
+					: undefined
+			])
+	);
+	const operationArtifacts = await time('operationArtifacts', () => operationsRecords.map((record) =>
 		createOperationArtifact(
 			record,
 			options.links?.operationsRecord?.(record.sessionId)
 		)
-	);
-	const sessionSnapshotArtifacts = sessionSnapshots.map((snapshot) =>
+	));
+	const sessionSnapshotArtifacts = await time('sessionSnapshotArtifacts', () => sessionSnapshots.map((snapshot) =>
 		createSessionSnapshotArtifact(
 			snapshot,
 			options.links?.sessionSnapshot?.(snapshot.sessionId)
 		)
-	);
-	const callDebuggerArtifacts = callDebuggerReports.map((report) =>
+	));
+	const callDebuggerArtifacts = await time('callDebuggerArtifacts', () => callDebuggerReports.map((report) =>
 		createCallDebuggerArtifact(
 			report,
 			options.links?.callDebugger?.(report.sessionId)
 		)
-	);
-	const artifacts = addArtifactDownloadHrefs(
-		await verifyArtifacts(
-			[
-				...operationArtifacts,
-				...sessionSnapshotArtifacts,
-				...callDebuggerArtifacts,
-				...(options.artifacts ?? [])
-			],
-			options.artifactIntegrity
+	));
+	const artifacts = await time('artifacts', async () =>
+		addArtifactDownloadHrefs(
+			await verifyArtifacts(
+				[
+					...operationArtifacts,
+					...sessionSnapshotArtifacts,
+					...callDebuggerArtifacts,
+					...(options.artifacts ?? [])
+				],
+				options.artifactIntegrity
+			),
+			options.links
 		),
-		options.links
 	);
 	const operationHrefBySessionId = new Map(
 		sessionIds.map((sessionId) => [
@@ -2387,7 +2435,7 @@ export const buildVoiceObservabilityExport = async (
 			options.links?.operationsRecord?.(sessionId)
 		])
 	);
-	const envelopes = [
+	const envelopes = await time('envelopes', () => [
 		...events.map((event) =>
 			buildTraceEnvelope(event, operationHrefBySessionId.get(event.sessionId))
 		),
@@ -2397,17 +2445,17 @@ export const buildVoiceObservabilityExport = async (
 				event.sessionId
 					? operationHrefBySessionId.get(event.sessionId)
 					: undefined
-			)
+				)
 		)
-	].sort((left, right) => left.at - right.at);
-	const issues = collectIssues({
+	].sort((left, right) => left.at - right.at));
+	const issues = await time('issues', () => collectIssues({
 		artifacts,
 		auditDeliveries: auditDeliverySummary,
 		operationsRecords,
 		totalEvidence:
 			events.length + auditEvents.length + operationsRecords.length + artifacts.length,
 		traceDeliveries: traceDeliverySummary
-	});
+	}));
 	const status = issues.some((issue) => issue.severity === 'fail')
 		? 'fail'
 		: issues.some((issue) => issue.severity === 'warn')

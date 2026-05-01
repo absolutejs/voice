@@ -1025,6 +1025,7 @@ test('buildVoiceObservabilityExport adds artifact checksum and freshness proof',
 
 	const report = await buildVoiceObservabilityExport({
 		artifactIntegrity: {
+			checksum: 'sha256',
 			maxAgeMs: 60_000,
 			now: 2_000
 		},
@@ -1099,6 +1100,40 @@ test('buildVoiceObservabilityExport fails stale required artifact proof', async 
 			})
 		])
 	);
+});
+
+test('buildVoiceObservabilityExport skips artifact checksums unless requested', async () => {
+	const dir = await mkdtemp(join(tmpdir(), 'voice-observability-export-'));
+	const path = join(dir, 'proof-pack.md');
+	await writeFile(path, '# Proof Pack\n\nfresh evidence\n');
+
+	const report = await buildVoiceObservabilityExport({
+		artifactIntegrity: {
+			maxAgeMs: 60_000,
+			now: 2_000
+		},
+		artifacts: [
+			{
+				generatedAt: 1_000,
+				id: 'proof-pack',
+				kind: 'proof-pack',
+				label: 'Proof pack',
+				path,
+				required: true
+			}
+		]
+	});
+
+	expect(report.status).toBe('pass');
+	expect(report.artifacts[0]).toMatchObject({
+		bytes: expect.any(Number),
+		freshness: {
+			ageMs: 1_000,
+			maxAgeMs: 60_000,
+			status: 'pass'
+		}
+	});
+	expect(report.artifacts[0]?.checksum).toBeUndefined();
 });
 
 test('buildVoiceObservabilityExport fails missing required artifact proof', async () => {
@@ -1179,6 +1214,7 @@ test('createVoiceObservabilityExportRoutes exposes artifact index and downloads'
 
 	const app = createVoiceObservabilityExportRoutes({
 		artifactIntegrity: {
+			checksum: 'sha256',
 			maxAgeMs: 60_000,
 			now: 2_000
 		},
