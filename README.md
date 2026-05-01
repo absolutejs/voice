@@ -1555,6 +1555,12 @@ additionalChecks: async () => [
 ];
 ```
 
+Use `buildVoiceReadinessRecoveryActions(...)` when a UI or API needs a compact plan of actions attached to failed or warning readiness checks:
+
+```ts
+const recoveryPlan = buildVoiceReadinessRecoveryActions(readinessReport);
+```
+
 Use `createVoiceProfileTraceTagger(...)` when the app already has a trace store and needs every appended trace to carry a benchmark profile label. It wraps any `VoiceTraceEventStore`, preserves the underlying store behavior, and adds `profileId`/`benchmarkProfileId` metadata and payload fields that real-call profile history can ingest later.
 
 ```ts

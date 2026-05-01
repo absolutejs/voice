@@ -4,6 +4,7 @@ import {
 	buildVoiceMediaPipelineReport,
 	buildVoiceProductionReadinessGate,
 	buildVoiceProductionReadinessReport,
+	buildVoiceReadinessRecoveryActions,
 	buildVoiceProviderOrchestrationReport,
 	buildVoiceObservabilityArtifactIndex,
 	buildVoiceOpsRecoveryReport,
@@ -33,6 +34,78 @@ import {
 	summarizeVoiceProductionReadinessGate
 } from '../src';
 import { createMediaFrame } from '@absolutejs/media';
+
+test('buildVoiceReadinessRecoveryActions normalizes failing and warning check actions', () => {
+	const plan = buildVoiceReadinessRecoveryActions(
+		[
+			{
+				actions: [
+					{
+						href: '/api/voice/real-call-profile-history/collect-phone-proof',
+						label: 'Run phone proof',
+						method: 'POST'
+					}
+				],
+				detail: 'Phone proof is missing.',
+				href: '/production-readiness',
+				label: 'Real-call profile history',
+				status: 'fail'
+			},
+			{
+				actions: [
+					{
+						href: '/api/voice/real-call-profile-history/collect-phone-proof',
+						label: 'Run phone proof',
+						method: 'POST'
+					},
+					{
+						href: '/voice/real-call-profile-recovery',
+						label: 'Open recovery jobs'
+					}
+				],
+				label: 'Real-call recovery job history',
+				status: 'warn'
+			},
+			{
+				actions: [
+					{
+						href: '/ignored',
+						label: 'Ignored'
+					}
+				],
+				label: 'Passing check',
+				status: 'pass'
+			}
+		],
+		{
+			now: () => new Date('2026-04-30T12:00:00.000Z')
+		}
+	);
+
+	expect(plan).toMatchObject({
+		generatedAt: '2026-04-30T12:00:00.000Z',
+		sourceChecks: 2
+	});
+	expect(plan.actions).toHaveLength(3);
+	expect(plan.actions).toContainEqual(
+		expect.objectContaining({
+			href: '/api/voice/real-call-profile-history/collect-phone-proof',
+			key:
+				'POST:/api/voice/real-call-profile-history/collect-phone-proof:Real-call profile history',
+			method: 'POST',
+			sourceCheckLabel: 'Real-call profile history',
+			sourceStatus: 'fail'
+		})
+	);
+	expect(plan.actions).toContainEqual(
+		expect.objectContaining({
+			href: '/voice/real-call-profile-recovery',
+			method: 'GET',
+			sourceCheckLabel: 'Real-call recovery job history',
+			sourceStatus: 'warn'
+		})
+	);
+});
 
 const raw24k = {
 	channels: 1,

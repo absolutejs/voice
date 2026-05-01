@@ -123,6 +123,25 @@ export type VoiceProductionReadinessCheck = {
 	value?: number | string;
 };
 
+export type VoiceReadinessRecoveryAction = VoiceProductionReadinessAction & {
+	key: string;
+	sourceCheckDetail?: string;
+	sourceCheckHref?: string;
+	sourceCheckLabel: string;
+	sourceStatus: Exclude<VoiceProductionReadinessStatus, 'pass'>;
+};
+
+export type VoiceReadinessRecoveryActionPlan = {
+	actions: VoiceReadinessRecoveryAction[];
+	generatedAt: string;
+	sourceChecks: number;
+};
+
+export type VoiceReadinessRecoveryActionOptions = {
+	includeWarnings?: boolean;
+	now?: () => Date;
+};
+
 export type VoiceProductionReadinessGateIssue = {
 	code: string;
 	detail?: string;
@@ -134,6 +153,52 @@ export type VoiceProductionReadinessGateIssue = {
 
 export type VoiceProductionReadinessGateOptions = {
 	failOnWarnings?: boolean;
+};
+
+export const buildVoiceReadinessRecoveryActions = (
+	input:
+		| VoiceProductionReadinessReport
+		| readonly VoiceProductionReadinessCheck[],
+	options: VoiceReadinessRecoveryActionOptions = {}
+): VoiceReadinessRecoveryActionPlan => {
+	const checks: readonly VoiceProductionReadinessCheck[] =
+		'checks' in input ? input.checks : input;
+	const includeWarnings = options.includeWarnings ?? true;
+	const sourceChecks = checks.filter(
+		(check) =>
+			check.status === 'fail' || (includeWarnings && check.status === 'warn')
+	);
+	const seen = new Set<string>();
+	const actions = sourceChecks.flatMap((check) =>
+		(check.actions ?? []).flatMap((action) => {
+			const method = action.method ?? 'GET';
+			const key = `${method}:${action.href}:${check.label}`;
+			if (seen.has(key)) {
+				return [];
+			}
+			seen.add(key);
+			return [
+				{
+					...action,
+					key,
+					method,
+					sourceCheckDetail: check.detail,
+					sourceCheckHref: check.href,
+					sourceCheckLabel: check.label,
+					sourceStatus: check.status as Exclude<
+						VoiceProductionReadinessStatus,
+						'pass'
+					>
+				}
+			];
+		})
+	);
+
+	return {
+		actions,
+		generatedAt: (options.now ?? (() => new Date()))().toISOString(),
+		sourceChecks: sourceChecks.length
+	};
 };
 
 export type VoiceProductionReadinessGateReport = {
