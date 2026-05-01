@@ -137,3 +137,32 @@ test('createVoiceTurnQualityRoutes reads recent sessions from a store', async ()
 	expect(html.status).toBe(200);
 	expect(await html.text()).toContain('Voice Turn Quality');
 });
+
+test('summarizeVoiceTurnQuality hydrates explicit session ids without listing the store', async () => {
+	const session = createVoiceSessionRecord('session-explicit-quality');
+	session.turns.push({
+		committedAt: 100,
+		id: 'turn-explicit',
+		text: 'explicit session quality',
+		transcripts: []
+	});
+
+	const report = await summarizeVoiceTurnQuality({
+		sessionIds: [session.id],
+		store: {
+			get: async (id) => (id === session.id ? session : undefined),
+			getOrCreate: async () => session,
+			list: async () => {
+				throw new Error('list should not be called for explicit session ids');
+			},
+			remove: async () => {},
+			set: async () => {}
+		}
+	});
+
+	expect(report).toMatchObject({
+		sessions: 1,
+		total: 1
+	});
+	expect(report.turns[0]?.sessionId).toBe(session.id);
+});

@@ -138,8 +138,11 @@ const resolveSessions = async <
 	if (!options.store) {
 		return [];
 	}
-	const summaries = (await options.store.list()) as VoiceSessionSummary[];
-	const ids = options.sessionIds ?? summaries.map((summary) => summary.id);
+	const ids =
+		options.sessionIds ??
+		((await options.store.list()) as VoiceSessionSummary[]).map(
+			(summary) => summary.id
+		);
 	const hydrated = await Promise.all(
 		ids.slice(0, options.limit ?? 25).map((id) => options.store?.get(id))
 	);
