@@ -266,6 +266,7 @@ export type {
 } from './platformCoverage';
 export {
 	assertVoiceProofTrendEvidence,
+	appendVoiceRealCallProfileRecoveryEvidence,
 	buildEmptyVoiceProofTrendReport,
 	buildVoiceProofTrendProfileSummaries,
 	buildVoiceProofTrendRecommendationReport,
@@ -405,6 +406,10 @@ export type {
 	VoiceRealCallProfileRecoveryLoopOptions,
 	VoiceRealCallProfileRecoveryLoopReport,
 	VoiceRealCallProfileRecoveryLoopStartFailure,
+	VoiceRealCallProfileRecoveryEvidenceOptions,
+	VoiceRealCallProfileRecoveryEvidenceProvider,
+	VoiceRealCallProfileRecoveryEvidenceProviderRole,
+	VoiceRealCallProfileRecoveryEvidenceResult,
 	VoiceSQLiteRealCallProfileRecoveryJobStoreOptions,
 	VoiceRealCallProfileTraceCollector,
 	VoiceRealCallProfileTraceCollectorEvidenceOptions,

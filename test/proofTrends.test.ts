@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
 	assertVoiceProofTrendEvidence,
+	appendVoiceRealCallProfileRecoveryEvidence,
 	buildEmptyVoiceProofTrendReport,
 	buildVoiceProofTrendProfileSummaries,
 	buildVoiceProofTrendRecommendationReport,
@@ -1227,6 +1228,40 @@ describe('proof trends', () => {
 		).toMatchObject({
 			status: 'fail'
 		});
+		const historyWithNonRequiredWarning = {
+			...history,
+			recommendations: {
+				...history.recommendations,
+				profiles: [
+					...history.recommendations.profiles,
+					{
+						bestProviders: [],
+						id: 'appointment-scheduler',
+						nextMove: 'Collect more profile evidence.',
+						providerComparisonCount: 0,
+						recommendation: 'Collect more profile evidence.',
+						status: 'warn' as const
+					}
+				]
+			}
+		};
+		expect(
+			buildVoiceRealCallProfileReadinessCheck(historyWithNonRequiredWarning, {
+				minActionableProfiles: 2,
+				minCycles: 2,
+				requiredProfileIds: ['meeting-recorder', 'support-agent']
+			})
+		).toMatchObject({
+			status: 'pass'
+		});
+		expect(
+			buildVoiceRealCallProfileReadinessCheck(historyWithNonRequiredWarning, {
+				minActionableProfiles: 2,
+				minCycles: 2
+			})
+		).toMatchObject({
+			status: 'warn'
+		});
 		expect(
 			buildVoiceRealCallProfileRecoveryActions(history, {
 				minActionableProfiles: 5,
@@ -2037,6 +2072,188 @@ describe('proof trends', () => {
 		expect(
 			calls.filter((call) => call.startsWith('POST /recover/browser'))
 		).toHaveLength(2);
+	});
+
+	test('runVoiceRealCallProfileRecoveryLoop repeats bounded passes until the gate passes', async () => {
+		const calls: string[] = [];
+		let readinessCalls = 0;
+		const fakeFetch: typeof fetch = async (input, init) => {
+			const url = new URL(String(input));
+			calls.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`);
+			if (url.pathname === '/api/production-readiness/recovery-actions') {
+				return Response.json({
+					actions: [
+						{
+							href: '/recover/browser?profileId=meeting-recorder',
+							label: 'Browser meeting',
+							method: 'POST',
+							profileId: 'meeting-recorder',
+							sourceCheckLabel: 'Real-call profile history'
+						},
+						{
+							href: '/recover/phone?profileId=meeting-recorder',
+							label: 'Phone meeting',
+							method: 'POST',
+							profileId: 'meeting-recorder',
+							sourceCheckLabel: 'Real-call profile history'
+						}
+					]
+				});
+			}
+			if (url.pathname === '/recover/browser' || url.pathname === '/recover/phone') {
+				return Response.json({
+					jobId: `job-${url.pathname.split('/').at(-1)}-${readinessCalls}`
+				});
+			}
+			if (url.pathname.startsWith('/api/voice/real-call-profile-history/actions')) {
+				return Response.json({
+					job: { id: url.pathname.split('/').at(-1), status: 'pass' }
+				});
+			}
+			if (url.pathname === '/api/voice/real-call-profile-history/refresh') {
+				return Response.json({ ok: true });
+			}
+			if (url.pathname === '/api/production-readiness') {
+				readinessCalls += 1;
+				return Response.json({
+					checks: [
+						{
+							detail:
+								readinessCalls === 1
+									? 'Expected at least 10 real-call cycle(s), found 4.'
+									: '2 profile(s), 10 cycle(s), 2 actionable default(s).',
+							label: 'Real-call profile history',
+							status: readinessCalls === 1 ? 'fail' : 'pass',
+							value: '2/2 actionable'
+						}
+					]
+				});
+			}
+			return new Response('missing', { status: 404 });
+		};
+
+		const report = await runVoiceRealCallProfileRecoveryLoop({
+			baseUrl: 'http://localhost',
+			fetch: fakeFetch,
+			interPassDelayMs: 1,
+			jobPollMs: 1,
+			maxPasses: 3
+		});
+
+		expect(report.ok).toBe(true);
+		expect(report.actionCount).toBe(4);
+		expect(report.jobs).toHaveLength(4);
+		expect(report.passes).toBe(2);
+		expect(readinessCalls).toBe(2);
+		expect(
+			calls.filter((call) => call.startsWith('POST /recover/'))
+		).toHaveLength(4);
+	});
+
+	test('appendVoiceRealCallProfileRecoveryEvidence emits profiled provider and runtime traces', async () => {
+		const collector = createVoiceRealCallProfileTraceCollector({
+			store: createVoiceMemoryTraceEventStore()
+		});
+
+		const result = await appendVoiceRealCallProfileRecoveryEvidence({
+			at: Date.UTC(2026, 3, 29, 16, 0, 0),
+			browser: {
+				firstAudioLatencyMs: 360,
+				messageCount: 12,
+				openSockets: 2,
+				receivedBytes: 1024,
+				sentBytes: 2048
+			},
+			live: { latencyMs: 390 },
+			profileId: 'support-agent',
+			providers: {
+				llm: { elapsedMs: 280, provider: 'openai' },
+				stt: 'deepgram',
+				tts: 'elevenlabs'
+			},
+			sessionId: 'profile-recovery-session',
+			store: collector
+		});
+		const evidence = await collector.listEvidence();
+		const history = await collector.buildHistoryReport({
+			generatedAt: '2026-04-29T16:01:00.000Z',
+			now: '2026-04-29T16:01:15.000Z',
+			source: 'real-call-profile-recovery'
+		});
+
+		expect(result.sessionId).toBe('profile-recovery-session');
+		expect(result.events.map((event) => event.type)).toEqual([
+			'provider.decision',
+			'provider.decision',
+			'provider.decision',
+			'client.browser_media',
+			'client.live_latency'
+		]);
+		expect(result.events.every((event) => event.metadata?.profileId === 'support-agent')).toBe(true);
+		expect(collector.listCapturedSessionIds()).toEqual([
+			'profile-recovery-session'
+		]);
+		expect(evidence[0]).toMatchObject({
+			liveP95Ms: 390,
+			profileId: 'support-agent',
+			providerP95Ms: 280,
+			runtimeChannel: {
+				maxFirstAudioLatencyMs: 360,
+				samples: 1,
+				status: 'pass'
+			},
+			sessionId: 'profile-recovery-session',
+			surfaces: ['browser', 'live']
+		});
+		expect(evidence[0]?.providers?.map((provider) => provider.id)).toEqual([
+			'llm:openai',
+			'stt:deepgram',
+			'tts:elevenlabs'
+		]);
+		expect(
+			history.defaults.profiles.find(
+				(profile) => profile.profileId === 'support-agent'
+			)
+		).toMatchObject({
+			providerRoutes: {
+				llm: 'llm:openai',
+				stt: 'stt:deepgram',
+				tts: 'tts:elevenlabs'
+			},
+			status: 'pass'
+		});
+	});
+
+	test('buildVoiceRealCallProfileEvidenceFromTraceEvents ignores turn-only profiled sessions', () => {
+		const evidence = buildVoiceRealCallProfileEvidenceFromTraceEvents([
+			createVoiceTraceEvent({
+				at: Date.UTC(2026, 3, 29, 17, 0, 0),
+				metadata: { profileId: 'meeting-recorder' },
+				payload: { stage: 'committed' },
+				sessionId: 'turn-only-profiled-session',
+				turnId: 'turn-1',
+				type: 'turn_latency.stage'
+			}),
+			createVoiceTraceEvent({
+				at: Date.UTC(2026, 3, 29, 17, 0, 1),
+				metadata: { profileId: 'meeting-recorder' },
+				payload: { stage: 'assistant_audio_started' },
+				sessionId: 'turn-only-profiled-session',
+				turnId: 'turn-1',
+				type: 'turn_latency.stage'
+			}),
+			createVoiceTraceEvent({
+				at: Date.UTC(2026, 3, 29, 17, 1, 0),
+				metadata: { profileId: 'meeting-recorder' },
+				payload: { latencyMs: 420 },
+				sessionId: 'runtime-profiled-session',
+				type: 'client.live_latency'
+			})
+		]);
+
+		expect(evidence.map((item) => item.sessionId)).toEqual([
+			'runtime-profiled-session'
+		]);
 	});
 
 	test('buildVoiceRealCallProfileRecoveryJobHistoryCheck gates persisted recovery job history', async () => {
