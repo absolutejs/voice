@@ -354,6 +354,18 @@ export type {
 	VoiceProviderDecisionTraceReportOptions,
 	VoiceProviderDecisionTraceRoutesOptions
 } from './providerDecisionTraces';
+export {
+	appendVoiceIOProviderRouterTraceEvent,
+	appendVoiceProviderRouterTraceEvent,
+	buildVoiceIOProviderRouterTraceEvent,
+	buildVoiceProviderRouterTraceEvent
+} from './providerRouterTraces';
+export type {
+	VoiceIOProviderRouterTraceAppendOptions,
+	VoiceIOProviderRouterTraceEventOptions,
+	VoiceProviderRouterTraceAppendOptions,
+	VoiceProviderRouterTraceEventOptions
+} from './providerRouterTraces';
 export type {
 	VoiceProofTrendAssertionInput,
 	VoiceProofTrendAssertionReport,
