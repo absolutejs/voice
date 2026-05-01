@@ -65,6 +65,31 @@ export type VoiceProofPackWriteResult = {
 	proofPack: VoiceProofPack;
 };
 
+export type VoiceProofPackBuildTiming = {
+	durationMs: number;
+	endedAt: number;
+	label: string;
+	startedAt: number;
+};
+
+export type VoiceProofPackBuildContext = {
+	cache: <TValue>(
+		key: string,
+		loader: () => Promise<TValue> | TValue
+	) => Promise<TValue>;
+	clear: (key?: string) => void;
+	getTimings: () => VoiceProofPackBuildTiming[];
+	time: <TValue>(
+		label: string,
+		run: () => Promise<TValue> | TValue
+	) => Promise<TValue>;
+};
+
+export type VoiceProofPackBuildContextOptions = {
+	now?: () => number;
+	onTiming?: (timing: VoiceProofPackBuildTiming) => void;
+};
+
 export type VoiceProofPackSourceValue = VoiceProofPack | VoiceProofPackInput;
 
 export type VoiceProofPackStaleWhileRefreshSourceOptions = {
@@ -151,6 +176,55 @@ const summarizeProofPackSections = (sections: VoiceProofPackSection[]) => {
 	}
 
 	return { fail, pass, sections: sections.length, warn };
+};
+
+export const createVoiceProofPackBuildContext = (
+	options: VoiceProofPackBuildContextOptions = {}
+): VoiceProofPackBuildContext => {
+	const now = options.now ?? Date.now;
+	const cachedValues = new Map<string, Promise<unknown>>();
+	const timings: VoiceProofPackBuildTiming[] = [];
+
+	const time: VoiceProofPackBuildContext['time'] = async (label, run) => {
+		const startedAt = now();
+		try {
+			return await run();
+		} finally {
+			const endedAt = now();
+			const timing = {
+				durationMs: Math.max(0, endedAt - startedAt),
+				endedAt,
+				label,
+				startedAt
+			};
+			timings.push(timing);
+			options.onTiming?.(timing);
+		}
+	};
+
+	const cache: VoiceProofPackBuildContext['cache'] = (key, loader) => {
+		const cached = cachedValues.get(key);
+		if (cached) {
+			return cached as Promise<Awaited<ReturnType<typeof loader>>>;
+		}
+
+		const value = Promise.resolve(loader());
+		cachedValues.set(key, value);
+		return value as Promise<Awaited<ReturnType<typeof loader>>>;
+	};
+
+	return {
+		cache,
+		clear: (key) => {
+			if (key === undefined) {
+				cachedValues.clear();
+				return;
+			}
+			cachedValues.delete(key);
+		},
+		getTimings: () => [...timings],
+		time
+	};
 };
 
 const toProofPackStatus = (status: string | undefined): VoiceProofPackStatus => {

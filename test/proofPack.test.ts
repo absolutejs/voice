@@ -7,6 +7,7 @@ import {
 	buildVoiceObservabilityExport,
 	buildVoiceProofPack,
 	buildVoiceProofPackFromObservabilityExport,
+	createVoiceProofPackBuildContext,
 	createVoiceProofPackOperationsRecordSection,
 	createVoiceProofPackProviderSloSection,
 	createVoiceProofPackSupportBundleSection,
@@ -70,6 +71,54 @@ test('writeVoiceProofPack writes JSON and Markdown plus export artifacts', async
 		'latest-proof-pack',
 		'latest-proof-pack-json'
 	]);
+});
+
+test('createVoiceProofPackBuildContext shares subreports and records timings', async () => {
+	let now = 1_000;
+	let loads = 0;
+	const observed: string[] = [];
+	const context = createVoiceProofPackBuildContext({
+		now: () => now,
+		onTiming: (timing) => observed.push(`${timing.label}:${timing.durationMs}`)
+	});
+
+	const first = await context.time('provider-slo', async () => {
+		now += 25;
+		return context.cache('provider-slo', () => {
+			loads += 1;
+			return { status: 'pass' };
+		});
+	});
+	const second = await context.cache('provider-slo', () => {
+		loads += 1;
+		return { status: 'fail' };
+	});
+
+	expect(first).toBe(second);
+	expect(loads).toBe(1);
+	expect(context.getTimings()).toEqual([
+		{
+			durationMs: 25,
+			endedAt: 1_025,
+			label: 'provider-slo',
+			startedAt: 1_000
+		}
+	]);
+	expect(observed).toEqual(['provider-slo:25']);
+
+	context.clear('provider-slo');
+	await context.cache('provider-slo', () => {
+		loads += 1;
+		return { status: 'pass' };
+	});
+	expect(loads).toBe(2);
+
+	context.clear();
+	await context.cache('provider-slo', () => {
+		loads += 1;
+		return { status: 'pass' };
+	});
+	expect(loads).toBe(3);
 });
 
 test('proof pack builds rich sections from provider, operation, and support reports', () => {
