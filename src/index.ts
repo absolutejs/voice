@@ -315,9 +315,16 @@ export {
 	fetchVoiceProofTarget,
 	getVoiceProofTargetLogicalFailure,
 	mapVoiceProofTargetsWithConcurrency,
+	runVoiceCommandProofTarget,
+	runVoiceCommandProofTargets,
 	runVoiceProofTargets
 } from './proofRunner';
 export type {
+	VoiceCommandProofExecutionResult,
+	VoiceCommandProofTarget,
+	VoiceCommandProofTargetResult,
+	VoiceCommandProofTargetRunnerOptions,
+	VoiceCommandProofTargetRunOptions,
 	VoiceProofTarget,
 	VoiceProofTargetMethod,
 	VoiceProofTargetResult,

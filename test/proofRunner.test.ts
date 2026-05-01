@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test';
 import {
 	fetchVoiceProofTarget,
 	mapVoiceProofTargetsWithConcurrency,
+	runVoiceCommandProofTarget,
+	runVoiceCommandProofTargets,
 	runVoiceProofTargets
 } from '../src';
 
@@ -110,4 +112,71 @@ test('mapVoiceProofTargetsWithConcurrency handles empty lists', async () => {
 	expect(
 		await mapVoiceProofTargetsWithConcurrency([], 3, async (item: string) => item)
 	).toEqual([]);
+});
+
+test('runVoiceCommandProofTarget parses command stdout and writes artifacts', async () => {
+	const artifacts: Record<string, string> = {};
+	const result = await runVoiceCommandProofTarget(
+		{
+			command: ['bun', 'run', 'smoke:voice'],
+			kind: 'command',
+			name: 'voiceSmoke'
+		},
+		{
+			execute: async () => ({
+				status: 0,
+				stderr: '',
+				stdout: 'log line\n{"ok":true,"status":"pass","total":2}'
+			}),
+			now: () => 200,
+			writeArtifact: ({ content, name }) => {
+				artifacts[name] = content;
+			}
+		}
+	);
+
+	expect(result).toMatchObject({
+		body: {
+			ok: true,
+			status: 'pass',
+			total: 2
+		},
+		command: ['bun', 'run', 'smoke:voice'],
+		kind: 'command',
+		name: 'voiceSmoke',
+		ok: true,
+		status: 0,
+		summary: {
+			ok: true,
+			status: 'pass',
+			total: 2
+		}
+	});
+	expect(artifacts['voiceSmoke.json']).toContain('"command"');
+});
+
+test('runVoiceCommandProofTargets reports command logical failures', async () => {
+	const results = await runVoiceCommandProofTargets(
+		[
+			{
+				command: ['bun', 'run', 'failing'],
+				kind: 'command',
+				name: 'failingCommand'
+			}
+		],
+		{
+			execute: async () => ({
+				status: 0,
+				stdout: '{"ok":false}'
+			})
+		}
+	);
+
+	expect(results).toMatchObject([
+		{
+			error: 'Response ok is false.',
+			ok: false,
+			status: 0
+		}
+	]);
 });

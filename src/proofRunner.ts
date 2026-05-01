@@ -26,6 +26,31 @@ export type VoiceProofTargetResult = {
 	url: string;
 };
 
+export type VoiceCommandProofTarget = {
+	command: string[];
+	kind: 'command';
+	name: string;
+};
+
+export type VoiceCommandProofExecutionResult = {
+	status: number;
+	stderr?: string;
+	stdout?: string;
+};
+
+export type VoiceCommandProofTargetResult = {
+	body?: unknown;
+	bytes: number;
+	command: string[];
+	elapsedMs: number;
+	error?: string;
+	kind: 'command';
+	name: string;
+	ok: boolean;
+	status?: number;
+	summary?: Record<string, unknown>;
+};
+
 export type VoiceProofTargetRunnerOptions = {
 	baseUrl: string;
 	fetch?: typeof fetch;
@@ -41,6 +66,25 @@ export type VoiceProofTargetRunnerOptions = {
 export type VoiceProofTargetRunOptions = VoiceProofTargetRunnerOptions & {
 	concurrency?: number;
 };
+
+export type VoiceCommandProofTargetRunnerOptions = {
+	execute: (
+		target: VoiceCommandProofTarget
+	) =>
+		| Promise<VoiceCommandProofExecutionResult>
+		| VoiceCommandProofExecutionResult;
+	now?: () => number;
+	writeArtifact?: (input: {
+		content: string;
+		name: string;
+		target: VoiceCommandProofTarget;
+	}) => Promise<void> | void;
+};
+
+export type VoiceCommandProofTargetRunOptions =
+	VoiceCommandProofTargetRunnerOptions & {
+		concurrency?: number;
+	};
 
 const encoder = new TextEncoder();
 
@@ -269,4 +313,79 @@ export const runVoiceProofTargets = (
 		targets,
 		options.concurrency ?? 2,
 		(target) => fetchVoiceProofTarget(target, options)
+	);
+
+export const runVoiceCommandProofTarget = async (
+	target: VoiceCommandProofTarget,
+	options: VoiceCommandProofTargetRunnerOptions
+): Promise<VoiceCommandProofTargetResult> => {
+	const now = options.now ?? performance.now.bind(performance);
+	const startedAt = now();
+	const execution = await options.execute(target);
+	const stdout = execution.stdout ?? '';
+	const stderr = execution.stderr ?? '';
+	const status = execution.status;
+	const text = stdout.trim();
+	const bytes = encoder.encode(`${stdout}${stderr}`).byteLength;
+	let body: unknown = text;
+	let parseError: string | undefined;
+
+	if (text) {
+		const jsonStart = text.indexOf('{');
+		const jsonText = jsonStart >= 0 ? text.slice(jsonStart) : text;
+		try {
+			body = JSON.parse(jsonText) as unknown;
+		} catch (error) {
+			parseError = error instanceof Error ? error.message : String(error);
+		}
+	}
+
+	await options.writeArtifact?.({
+		content: `${JSON.stringify(
+			{
+				command: target.command,
+				parseError,
+				stderr,
+				stdout,
+				status,
+				summary: parseError ? undefined : body
+			},
+			null,
+			2
+		)}\n`,
+		name: `${safeArtifactName(target.name)}.json`,
+		target
+	});
+
+	const logicalFailure = !parseError
+		? getVoiceProofTargetLogicalFailure(body)
+		: undefined;
+
+	return {
+		body,
+		bytes,
+		command: target.command,
+		elapsedMs: Math.round(now() - startedAt),
+		error:
+			parseError ??
+			logicalFailure ??
+			(status === 0 ? undefined : stderr.trim() || `Command exited ${status}`),
+		kind: 'command',
+		name: target.name,
+		ok: status === 0 && !parseError && !logicalFailure,
+		status,
+		summary: parseError
+			? { bytes, parseError }
+			: (summarizeValue(body) as Record<string, unknown>)
+	};
+};
+
+export const runVoiceCommandProofTargets = (
+	targets: VoiceCommandProofTarget[],
+	options: VoiceCommandProofTargetRunOptions
+) =>
+	mapVoiceProofTargetsWithConcurrency(
+		targets,
+		options.concurrency ?? targets.length,
+		(target) => runVoiceCommandProofTarget(target, options)
 	);
