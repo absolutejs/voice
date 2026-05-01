@@ -1254,6 +1254,81 @@ describe('proof trends', () => {
 		});
 	});
 
+	test('buildVoiceRealCallProfileHistoryReport keeps fresh profile depth when evidence is not passing', () => {
+		const historical = buildVoiceProofTrendReport({
+			generatedAt: '2026-04-29T12:00:00.000Z',
+			maxAgeMs: 60_000,
+			now: '2026-04-29T12:00:30.000Z',
+			ok: true,
+			summary: {
+				cycles: 1,
+				profiles: [
+					{
+						cycles: 0,
+						id: 'support-agent',
+						label: 'Support agent',
+						providers: [
+							{
+								id: 'llm:openai',
+								label: 'LLM openai',
+								p95Ms: 400,
+								role: 'llm',
+								samples: 1,
+								status: 'pass'
+							}
+						],
+						sessionCount: 0,
+						status: 'pass',
+						surfaces: []
+					}
+				]
+			}
+		});
+		const history = buildVoiceRealCallProfileHistoryReport({
+			evidence: [
+				{
+					generatedAt: '2026-04-29T12:01:00.000Z',
+					ok: false,
+					profileId: 'support-agent',
+					profileLabel: 'Support agent',
+					providers: [
+						{
+							id: 'llm:openai',
+							label: 'LLM openai',
+							p95Ms: 400,
+							role: 'llm',
+							samples: 1,
+							status: 'pass'
+						}
+					],
+					sessionId: 'fresh-support-session',
+					surfaces: ['browser', 'live']
+				}
+			],
+			generatedAt: '2026-04-29T12:01:30.000Z',
+			now: '2026-04-29T12:02:00.000Z',
+			reports: [historical],
+			source: 'real-call-profile-history'
+		});
+		const supportProfile = history.summary.profiles?.find(
+			(profile) => profile.id === 'support-agent'
+		);
+		const readiness = buildVoiceRealCallProfileReadinessCheck(history, {
+			minProfileCycles: 1,
+			minProfileSessions: 1,
+			requiredProfileIds: ['support-agent'],
+			requiredProfileSurfaces: ['browser', 'live']
+		});
+
+		expect(supportProfile).toMatchObject({
+			cycles: 1,
+			sessionCount: 1,
+			surfaces: ['browser', 'live']
+		});
+		expect(readiness.detail).not.toContain('has 0 cycle');
+		expect(readiness.detail).not.toContain('missing browser surface evidence');
+	});
+
 	test('buildVoiceProofTrendRecommendationReport recommends provider switches from sustained comparisons', () => {
 		const report = buildVoiceProofTrendReport({
 			generatedAt: '2026-04-29T12:00:00.000Z',

@@ -2613,29 +2613,30 @@ export const buildVoiceRealCallProfileHistoryReport = (
 	];
 	const passingHistory = history.filter((report) => report.ok === true);
 	const recommendationHistory = passingHistory.length > 0 ? passingHistory : history;
+	const profileHistory = history.length > 0 ? history : recommendationHistory;
 	const profiles = buildVoiceProofTrendProfileSummaries(
-		recommendationHistory,
+		profileHistory,
 		options
 	);
 	const summary: VoiceProofTrendSummary & {
 		failedReports: number;
 		profileCount: number;
 	} = {
-		cycles: recommendationHistory.reduce(
+		cycles: profileHistory.reduce(
 			(total, report) => total + (report.summary.cycles ?? report.cycles.length),
 			0
 		),
 		failedReports: history.filter((report) => report.ok !== true).length,
-		maxLiveP95Ms: maxNumber(recommendationHistory.map(readProofTrendMaxLiveP95)),
+		maxLiveP95Ms: maxNumber(profileHistory.map(readProofTrendMaxLiveP95)),
 		maxProviderP95Ms: maxNumber(
-			recommendationHistory.map(readProofTrendMaxProviderP95)
+			profileHistory.map(readProofTrendMaxProviderP95)
 		),
-		maxTurnP95Ms: maxNumber(recommendationHistory.map(readProofTrendMaxTurnP95)),
+		maxTurnP95Ms: maxNumber(profileHistory.map(readProofTrendMaxTurnP95)),
 		profileCount: profiles.length,
 		profiles,
-		providers: readProofTrendProviders(recommendationHistory),
+		providers: readProofTrendProviders(profileHistory),
 		runtimeChannel: aggregateProofTrendRuntimeChannel(
-			recommendationHistory
+			profileHistory
 				.map(readProofTrendRuntimeChannel)
 				.filter(
 					(channel): channel is VoiceProofTrendRuntimeChannelSummary =>
@@ -2645,7 +2646,7 @@ export const buildVoiceRealCallProfileHistoryReport = (
 	};
 	const trend = buildVoiceProofTrendReport({
 		baseUrl: options.baseUrl,
-		cycles: flattenProofTrendCycles(recommendationHistory),
+		cycles: flattenProofTrendCycles(profileHistory),
 		generatedAt,
 		maxAgeMs: options.maxAgeMs,
 		now: options.now,
