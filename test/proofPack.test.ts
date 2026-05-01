@@ -10,6 +10,7 @@ import {
 	createVoiceProofPackOperationsRecordSection,
 	createVoiceProofPackProviderSloSection,
 	createVoiceProofPackSupportBundleSection,
+	createVoiceProofPackStaleWhileRefreshSource,
 	createVoiceProofPackRoutes,
 	renderVoiceProofPackMarkdown,
 	writeVoiceProofPack
@@ -182,4 +183,61 @@ test('createVoiceProofPackRoutes exposes JSON and Markdown', async () => {
 	expect(await json.json()).toMatchObject({ runId: 'proof-run-4' });
 	expect(markdown.status).toBe(200);
 	expect(await markdown.text()).toContain('Support bundle');
+});
+
+test('createVoiceProofPackStaleWhileRefreshSource returns stale proof while refreshing once', async () => {
+	let now = Date.parse('2026-05-01T00:10:00.000Z');
+	let refreshes = 0;
+	let current = buildVoiceProofPack({
+		generatedAt: '2026-05-01T00:00:00.000Z',
+		runId: 'stale-run',
+		sections: [{ title: 'Stale proof', status: 'pass' }]
+	});
+	let releaseRefresh: (() => void) | undefined;
+	const refreshBlocked = new Promise<void>((resolve) => {
+		releaseRefresh = resolve;
+	});
+	const source = createVoiceProofPackStaleWhileRefreshSource({
+		maxAgeMs: 60_000,
+		now: () => now,
+		read: () => current,
+		refresh: async () => {
+			refreshes += 1;
+			await refreshBlocked;
+			current = buildVoiceProofPack({
+				generatedAt: new Date(now).toISOString(),
+				runId: 'fresh-run',
+				sections: [{ title: 'Fresh proof', status: 'pass' }]
+			});
+		}
+	});
+
+	await expect(source()).resolves.toMatchObject({ runId: 'stale-run' });
+	await expect(source()).resolves.toMatchObject({ runId: 'stale-run' });
+	expect(refreshes).toBe(1);
+
+	releaseRefresh?.();
+	await Bun.sleep(1);
+	await expect(source()).resolves.toMatchObject({ runId: 'fresh-run' });
+});
+
+test('createVoiceProofPackStaleWhileRefreshSource waits for refresh when no proof exists', async () => {
+	let current: ReturnType<typeof buildVoiceProofPack> | undefined;
+	const source = createVoiceProofPackStaleWhileRefreshSource({
+		read: () => {
+			if (!current) {
+				throw new Error('missing proof pack');
+			}
+			return current;
+		},
+		refresh: () => {
+			current = buildVoiceProofPack({
+				generatedAt: '2026-05-01T00:00:00.000Z',
+				runId: 'created-run',
+				sections: [{ title: 'Created proof', status: 'pass' }]
+			});
+		}
+	});
+
+	await expect(source()).resolves.toMatchObject({ runId: 'created-run' });
 });

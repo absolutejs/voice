@@ -65,15 +65,27 @@ export type VoiceProofPackWriteResult = {
 	proofPack: VoiceProofPack;
 };
 
+export type VoiceProofPackSourceValue = VoiceProofPack | VoiceProofPackInput;
+
+export type VoiceProofPackStaleWhileRefreshSourceOptions = {
+	maxAgeMs?: number;
+	now?: () => number;
+	onRefreshError?: (error: unknown) => void;
+	read: () => VoiceProofPackSourceValue | Promise<VoiceProofPackSourceValue>;
+	refresh: () =>
+		| VoiceProofPackSourceValue
+		| void
+		| Promise<VoiceProofPackSourceValue | void>;
+};
+
 export type VoiceProofPackRoutesOptions = {
 	headers?: HeadersInit;
 	jsonPath?: false | string;
 	markdownPath?: false | string;
 	name?: string;
 	source:
-		| VoiceProofPack
-		| VoiceProofPackInput
-		| (() => VoiceProofPack | VoiceProofPackInput | Promise<VoiceProofPack | VoiceProofPackInput>);
+		| VoiceProofPackSourceValue
+		| (() => VoiceProofPackSourceValue | Promise<VoiceProofPackSourceValue>);
 };
 
 const toGeneratedAt = (value: number | string | undefined) =>
@@ -82,6 +94,12 @@ const toGeneratedAt = (value: number | string | undefined) =>
 		: typeof value === 'number'
 			? new Date(value).toISOString()
 			: value;
+
+const getProofPackGeneratedAtMs = (proofPack: VoiceProofPackSourceValue) => {
+	const generatedAt = buildVoiceProofPack(proofPack).generatedAt;
+	const generatedAtMs = Date.parse(generatedAt);
+	return Number.isFinite(generatedAtMs) ? generatedAtMs : 0;
+};
 
 const summarizeProofPackSections = (sections: VoiceProofPackSection[]) => {
 	let pass = 0;
@@ -401,6 +419,42 @@ export const buildVoiceProofPack = (
 		sections,
 		status,
 		summary
+	};
+};
+
+export const createVoiceProofPackStaleWhileRefreshSource = (
+	options: VoiceProofPackStaleWhileRefreshSourceOptions
+) => {
+	const maxAgeMs = options.maxAgeMs ?? 5 * 60_000;
+	const now = options.now ?? Date.now;
+	let refreshPromise: Promise<VoiceProofPackSourceValue> | undefined;
+
+	const refresh = async () => {
+		const refreshed = await options.refresh();
+		return refreshed ?? options.read();
+	};
+
+	const startRefresh = () => {
+		refreshPromise ??= refresh().finally(() => {
+			refreshPromise = undefined;
+		});
+		return refreshPromise;
+	};
+
+	return async () => {
+		let current: VoiceProofPackSourceValue | undefined;
+		try {
+			current = await options.read();
+		} catch {
+			return startRefresh();
+		}
+
+		if (now() - getProofPackGeneratedAtMs(current) <= maxAgeMs) {
+			return current;
+		}
+
+		void startRefresh().catch((error) => options.onRefreshError?.(error));
+		return current;
 	};
 };
 
