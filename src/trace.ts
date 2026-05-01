@@ -66,6 +66,14 @@ export type VoiceTraceEventStore<
 
 export type VoiceScopedTraceEventStoreOptions = VoiceTraceEventFilter;
 
+export type VoiceProofTraceStoreOptions<
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+> = {
+	mirrorStore?: VoiceTraceEventStore<TEvent>;
+	proofStore?: VoiceTraceEventStore<TEvent>;
+	scope?: VoiceScopedTraceEventStoreOptions;
+};
+
 export type VoiceTracePruneFilter = Omit<VoiceTraceEventFilter, 'limit'>;
 
 export type VoiceTracePruneOptions = {
@@ -443,6 +451,34 @@ export const createVoiceScopedTraceEventStore = <
 				scopedFilter(filter)
 			),
 		remove: (id) => store.remove(id)
+	};
+};
+
+export const createVoiceProofTraceStore = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	options: VoiceProofTraceStoreOptions<TEvent> = {}
+): VoiceTraceEventStore<TEvent> => {
+	const proofStore = options.proofStore ?? createVoiceMemoryTraceEventStore<TEvent>();
+	const scopedProofStore = options.scope
+		? createVoiceScopedTraceEventStore(proofStore, options.scope)
+		: proofStore;
+
+	return {
+		append: async (event) => {
+			const stored = await proofStore.append(event);
+			await options.mirrorStore?.append(stored);
+			return stored;
+		},
+		get: async (id) =>
+			(await proofStore.get(id)) ?? (await options.mirrorStore?.get(id)),
+		list: (filter) => scopedProofStore.list(filter),
+		remove: async (id) => {
+			await Promise.all([
+				proofStore.remove(id),
+				options.mirrorStore?.remove(id) ?? Promise.resolve()
+			]);
+		}
 	};
 };
 

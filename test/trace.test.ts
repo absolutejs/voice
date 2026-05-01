@@ -3,6 +3,7 @@ import {
 	buildVoiceTraceReplay,
 	createVoiceMemoryTraceEventStore,
 	createVoiceProfileTraceTagger,
+	createVoiceProofTraceStore,
 	createVoiceScopedTraceEventStore,
 	createVoiceTraceHTTPSink,
 	createVoiceTraceEvent,
@@ -142,6 +143,44 @@ test('createVoiceScopedTraceEventStore enforces scope after listing', async () =
 	await expect(scoped.list({ scenarioId: 'proof-b' })).resolves.toMatchObject([
 		{ scenarioId: 'proof-a', sessionId: 'session-a' }
 	]);
+});
+
+test('createVoiceProofTraceStore keeps proof reads scoped while mirroring app traces', async () => {
+	const proofStore = createVoiceMemoryTraceEventStore();
+	const mirrorStore = createVoiceMemoryTraceEventStore();
+	const store = createVoiceProofTraceStore({
+		mirrorStore,
+		proofStore,
+		scope: {
+			scenarioId: 'provider-slo-proof'
+		}
+	});
+
+	const stored = await store.append({
+		at: 100,
+		payload: { kind: 'llm', providerStatus: 'success' },
+		scenarioId: 'provider-slo-proof',
+		sessionId: 'proof-session',
+		type: 'session.error'
+	});
+	await proofStore.append({
+		at: 101,
+		payload: { kind: 'llm', providerStatus: 'success' },
+		scenarioId: 'other-proof',
+		sessionId: 'other-session',
+		type: 'session.error'
+	});
+
+	await expect(store.list()).resolves.toMatchObject([
+		{ scenarioId: 'provider-slo-proof', sessionId: 'proof-session' }
+	]);
+	await expect(mirrorStore.list()).resolves.toMatchObject([
+		{ id: stored.id, scenarioId: 'provider-slo-proof' }
+	]);
+
+	await store.remove(stored.id);
+	await expect(proofStore.get(stored.id)).resolves.toBeUndefined();
+	await expect(mirrorStore.get(stored.id)).resolves.toBeUndefined();
 });
 
 test('summarizeVoiceTrace reports replay metrics', () => {

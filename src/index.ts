@@ -939,6 +939,7 @@ export {
 	createVoiceTraceHTTPSink,
 	createVoiceTraceS3Sink,
 	createVoiceMemoryTraceEventStore,
+	createVoiceProofTraceStore,
 	createVoiceScopedTraceEventStore,
 	createVoiceTraceSinkDeliveryId,
 	createVoiceTraceSinkDeliveryRecord,
