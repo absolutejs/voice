@@ -127,6 +127,52 @@ export type VoiceProofRefreshSnapshot = {
 	traceStore: VoiceTraceEventStore;
 };
 
+export type VoiceProofPackInputBuilderSupportBundle = {
+	callDebuggerReports?: VoiceCallDebuggerReport[];
+	sessionSnapshots?: VoiceSessionSnapshot[];
+};
+
+export type VoiceProofPackInputBuilderLoaderInput = {
+	context: VoiceProofPackBuildContext;
+};
+
+export type VoiceProofPackInputBuilderOperationsLoaderInput =
+	VoiceProofPackInputBuilderLoaderInput & {
+		supportBundle?: VoiceProofPackInputBuilderSupportBundle;
+	};
+
+export type VoiceProofPackInputBuilderOptions = Omit<
+	VoiceProofPackInput,
+	| 'callDebuggerReports'
+	| 'observabilityExport'
+	| 'operationsRecords'
+	| 'productionReadiness'
+	| 'providerSlo'
+	| 'sessionSnapshots'
+> & {
+	callDebuggerReports?: VoiceCallDebuggerReport[];
+	context?: VoiceProofPackBuildContext;
+	loadObservabilityExport?: (
+		input: VoiceProofPackInputBuilderLoaderInput
+	) => Promise<VoiceObservabilityExportReport> | VoiceObservabilityExportReport;
+	loadOperationsRecords?: (
+		input: VoiceProofPackInputBuilderOperationsLoaderInput
+	) => Promise<VoiceOperationsRecord[]> | VoiceOperationsRecord[];
+	loadProductionReadiness?: (
+		input: VoiceProofPackInputBuilderLoaderInput
+	) => Promise<VoiceProductionReadinessReport> | VoiceProductionReadinessReport;
+	loadProviderSlo?: (
+		input: VoiceProofPackInputBuilderLoaderInput
+	) => Promise<VoiceProviderSloReport> | VoiceProviderSloReport;
+	loadSupportBundle?: (
+		input: VoiceProofPackInputBuilderLoaderInput
+	) =>
+		| Promise<VoiceProofPackInputBuilderSupportBundle>
+		| VoiceProofPackInputBuilderSupportBundle;
+	operationsRecords?: VoiceOperationsRecord[];
+	sessionSnapshots?: VoiceSessionSnapshot[];
+};
+
 export type VoiceProofPackSourceValue = VoiceProofPack | VoiceProofPackInput;
 
 export type VoiceProofPackStaleWhileRefreshSourceOptions = {
@@ -322,6 +368,57 @@ export const createVoiceProofRefreshSnapshot = async (
 		traceDeliveryStore: createSnapshotTraceDeliveryStore(traceDeliveries),
 		traceEvents,
 		traceStore: createSnapshotTraceStore(traceEvents)
+	};
+};
+
+export const buildVoiceProofPackInput = async (
+	options: VoiceProofPackInputBuilderOptions
+): Promise<VoiceProofPackInput> => {
+	const context = options.context ?? createVoiceProofPackBuildContext();
+	const loaderInput = { context };
+	const [productionReadiness, providerSlo, supportBundle, observabilityExport] =
+		await Promise.all([
+			options.loadProductionReadiness
+				? context.time('productionReadiness', () =>
+						options.loadProductionReadiness?.(loaderInput)
+					)
+				: undefined,
+			options.loadProviderSlo
+				? context.time('providerSlo', () => options.loadProviderSlo?.(loaderInput))
+				: undefined,
+			options.loadSupportBundle
+				? context.time('supportBundle', () =>
+						options.loadSupportBundle?.(loaderInput)
+					)
+				: undefined,
+			options.loadObservabilityExport
+				? context.time('observabilityExport', () =>
+						options.loadObservabilityExport?.(loaderInput)
+					)
+				: undefined
+		]);
+	const operationsRecords = options.loadOperationsRecords
+		? await context.time('operationsRecords', () =>
+				options.loadOperationsRecords?.({
+					context,
+					supportBundle
+				})
+			)
+		: options.operationsRecords;
+
+	return {
+		artifacts: options.artifacts,
+		callDebuggerReports:
+			supportBundle?.callDebuggerReports ?? options.callDebuggerReports,
+		generatedAt: options.generatedAt,
+		observabilityExport,
+		operationsRecords,
+		outputDir: options.outputDir,
+		productionReadiness,
+		providerSlo,
+		runId: options.runId,
+		sections: options.sections,
+		sessionSnapshots: supportBundle?.sessionSnapshots ?? options.sessionSnapshots
 	};
 };
 

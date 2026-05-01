@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
 	buildVoiceObservabilityArtifactIndex,
 	buildVoiceObservabilityExport,
+	buildVoiceProofPackInput,
 	buildVoiceProofPack,
 	buildVoiceProofPackFromObservabilityExport,
 	createVoiceProofPackBuildContext,
@@ -20,6 +21,7 @@ import {
 import type {
 	VoiceCallDebuggerReport,
 	VoiceOperationsRecord,
+	VoiceProductionReadinessReport,
 	VoiceProviderSloReport,
 	VoiceSessionSnapshot
 } from '../src';
@@ -193,6 +195,85 @@ test('createVoiceProofRefreshSnapshot captures read-only proof inputs once', asy
 			type: 'call.lifecycle'
 		})
 	).rejects.toThrow('read-only');
+});
+
+test('buildVoiceProofPackInput assembles common proof inputs with shared context timing', async () => {
+	let now = 2_000;
+	const context = createVoiceProofPackBuildContext({
+		now: () => now
+	});
+	const productionReadiness = {
+		checkedAt: 1,
+		checks: [],
+		links: {},
+		status: 'pass',
+		summary: {
+			handoffs: { failed: 0, total: 0 },
+			liveLatency: { failed: 0, status: 'pass', total: 0, warnings: 0 },
+			quality: { status: 'pass' },
+			routing: { events: 0, sessions: 0 },
+			sessions: { failed: 0, total: 0 }
+		}
+	} as VoiceProductionReadinessReport;
+	const providerSlo = {
+		checkedAt: 1,
+		events: 1,
+		eventsWithLatency: 1,
+		issues: [],
+		status: 'pass'
+	} as VoiceProviderSloReport;
+	const operation = {
+		checkedAt: 1,
+		providerDecisionSummary: { fallbacks: 0 },
+		sessionId: 'builder-session',
+		status: 'healthy',
+		summary: { errorCount: 0 }
+	} as VoiceOperationsRecord;
+	const snapshot = {
+		capturedAt: 1,
+		sessionId: 'builder-session',
+		status: 'pass'
+	} as VoiceSessionSnapshot;
+
+	const input = await buildVoiceProofPackInput({
+		context,
+		generatedAt: '2026-05-01T00:00:00.000Z',
+		loadOperationsRecords: ({ supportBundle }) => {
+			expect(supportBundle?.sessionSnapshots?.[0]?.sessionId).toBe(
+				'builder-session'
+			);
+			now += 3;
+			return [operation];
+		},
+		loadProductionReadiness: () => {
+			now += 5;
+			return productionReadiness;
+		},
+		loadProviderSlo: () => {
+			now += 7;
+			return providerSlo;
+		},
+		loadSupportBundle: () => {
+			now += 11;
+			return { sessionSnapshots: [snapshot] };
+		},
+		runId: 'builder-run'
+	});
+
+	expect(input).toMatchObject({
+		generatedAt: '2026-05-01T00:00:00.000Z',
+		runId: 'builder-run'
+	});
+	expect(input.productionReadiness).toBe(productionReadiness);
+	expect(input.providerSlo).toBe(providerSlo);
+	expect(input.operationsRecords).toEqual([operation]);
+	expect(input.sessionSnapshots).toEqual([snapshot]);
+	expect(context.getTimings().map((timing) => timing.label)).toEqual([
+		'productionReadiness',
+		'providerSlo',
+		'supportBundle',
+		'operationsRecords'
+	]);
 });
 
 test('proof pack builds rich sections from provider, operation, and support reports', () => {

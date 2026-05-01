@@ -2170,6 +2170,7 @@ export type {
 	TelephonyResponseShapeOptions
 } from './telephony/response';
 export {
+	buildVoiceProofPackInput,
 	buildVoiceProofPack,
 	buildVoiceProofPackFromObservabilityExport,
 	createVoiceProofPackBuildContext,
@@ -2191,6 +2192,10 @@ export type {
 	VoiceProofPackBuildTiming,
 	VoiceProofPackEvidence,
 	VoiceProofPackInput,
+	VoiceProofPackInputBuilderLoaderInput,
+	VoiceProofPackInputBuilderOperationsLoaderInput,
+	VoiceProofPackInputBuilderOptions,
+	VoiceProofPackInputBuilderSupportBundle,
 	VoiceProofPackRefreshState,
 	VoiceProofPackRefreshStatus,
 	VoiceProofPackRoutesOptions,
