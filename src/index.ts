@@ -301,6 +301,17 @@ export {
 	resolveVoiceRealCallProfileProviderRoute
 } from './proofTrends';
 export {
+	createVoiceEvidenceAssertion,
+	createVoiceProofAssertion,
+	summarizeVoiceProofAssertions
+} from './proofAssertions';
+export type {
+	VoiceEvidenceAssertionInput,
+	VoiceProofAssertionInput,
+	VoiceProofAssertionResult,
+	VoiceProofAssertionSummary
+} from './proofAssertions';
+export {
 	applyVoiceProfileSwitchGuard,
 	buildVoiceProfileSwitchReadinessReport,
 	buildVoiceProfileSwitchLiveDecisionReport,
