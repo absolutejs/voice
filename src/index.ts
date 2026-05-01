@@ -550,6 +550,11 @@ export {
 	renderVoiceDeliveryRuntimeHTML
 } from './deliveryRuntime';
 export {
+	buildVoiceOperationalStatusReport,
+	createVoiceOperationalStatusRoutes,
+	renderVoiceOperationalStatusHTML
+} from './operationalStatus';
+export {
 	applyVoiceDataRetentionPolicy,
 	assertVoiceDataControlEvidence,
 	buildVoiceDataControlReport,
@@ -611,6 +616,14 @@ export type {
 	VoiceDeliveryRuntimeTraceConfig,
 	VoiceDeliveryRuntimeWebhookPresetOptions
 } from './deliveryRuntime';
+export type {
+	VoiceOperationalStatus,
+	VoiceOperationalStatusCheck,
+	VoiceOperationalStatusOptions,
+	VoiceOperationalStatusReport,
+	VoiceOperationalStatusRoutesOptions,
+	VoiceOperationalStatusValue
+} from './operationalStatus';
 export {
 	compareVoiceEvalBaseline,
 	createVoiceFileEvalBaselineStore,
