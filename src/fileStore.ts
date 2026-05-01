@@ -119,33 +119,7 @@ const listRecentJsonFiles = async (directory: string, limit: number) => {
 
 	const indexedFiles = await readRecentJsonFileIndex(directory);
 	if (indexedFiles.length >= limit) {
-		const existingFiles: RecentJsonFileIndexEntry[] = [];
-		const missingPaths = new Set<string>();
-		for (const entry of indexedFiles) {
-			try {
-				await stat(entry.path);
-				existingFiles.push(entry);
-				if (existingFiles.length === limit) {
-					break;
-				}
-			} catch (error) {
-				if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-					missingPaths.add(entry.path);
-					continue;
-				}
-
-				throw error;
-			}
-		}
-		if (missingPaths.size > 0) {
-			await writeRecentJsonFileIndex(
-				directory,
-				indexedFiles.filter((entry) => !missingPaths.has(entry.path))
-			);
-		}
-		if (existingFiles.length === limit) {
-			return existingFiles.map((entry) => entry.path);
-		}
+		return indexedFiles.slice(0, limit).map((entry) => entry.path);
 	}
 
 	return (await rebuildRecentJsonFileIndex(directory))
@@ -246,6 +220,59 @@ const removeRecentJsonFileIndexEntry = async (directory: string, path: string) =
 		(entry) => entry.path !== path
 	);
 	await writeRecentJsonFileIndex(directory, files);
+};
+
+const isDefined = <T>(value: T | undefined): value is T => value !== undefined;
+
+const readRecentJsonFiles = async <T>(directory: string, limit: number) => {
+	const indexedFiles = await readRecentJsonFileIndex(directory);
+	const files =
+		indexedFiles.length >= limit
+			? indexedFiles.map((entry) => entry.path)
+			: await listRecentJsonFiles(directory, limit);
+	const missingPaths = new Set<string>();
+	const readRecentFile = async (file: string) => {
+		try {
+			return await readJsonFile<T>(file);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				missingPaths.add(file);
+				return undefined;
+			}
+
+			throw error;
+		}
+	};
+	const existingRecords: T[] = [];
+	for (let index = 0; index < files.length && existingRecords.length < limit; ) {
+		const window = files.slice(index, index + limit - existingRecords.length);
+		const records: Array<T | undefined> = await Promise.all(
+			window.map((file) => readRecentFile(file))
+		);
+		existingRecords.push(...records.filter(isDefined<T>));
+		index += window.length;
+	}
+
+	if (missingPaths.size > 0) {
+		await writeRecentJsonFileIndex(
+			directory,
+			(await readRecentJsonFileIndex(directory)).filter(
+				(entry) => !missingPaths.has(entry.path)
+			)
+		);
+	}
+
+	if (existingRecords.length === limit || missingPaths.size === 0) {
+		return existingRecords;
+	}
+
+	const rebuiltFiles = (await rebuildRecentJsonFileIndex(directory))
+		.slice(0, limit)
+		.map((entry) => entry.path);
+	const rebuiltRecords: Array<T | undefined> = await Promise.all(
+		rebuiltFiles.map((file) => readRecentFile(file))
+	);
+	return rebuiltRecords.filter(isDefined<T>);
 };
 
 const shouldUseRecentReadWindow = (
@@ -617,12 +644,13 @@ export const createVoiceFileTraceEventStore = <
 	};
 
 	const list: VoiceTraceEventStore<TEvent>['list'] = async (filter = {}) => {
-		const files = shouldUseRecentReadWindow(filter)
-			? await listRecentJsonFiles(options.directory, filter.limit)
-			: await listJsonFiles(options.directory);
-		const events = await Promise.all(
-			files.map((file) => readJsonFile<TEvent>(file))
-		);
+		const events = shouldUseRecentReadWindow(filter)
+			? await readRecentJsonFiles<TEvent>(options.directory, filter.limit)
+			: await Promise.all(
+					(await listJsonFiles(options.directory)).map((file) =>
+						readJsonFile<TEvent>(file)
+					)
+				);
 
 		return filterVoiceTraceEvents(events, omitReadWindow(filter));
 	};
@@ -717,10 +745,13 @@ export const createVoiceFileAuditEventStore = <
 
 	const list = async (filter?: Parameters<VoiceAuditEventStore['list']>[0]) => {
 		const resolvedFilter = filter ?? {};
-		const files = shouldUseRecentReadWindow(resolvedFilter)
-			? await listRecentJsonFiles(options.directory, resolvedFilter.limit)
-			: await listJsonFiles(options.directory);
-		const events = await Promise.all(files.map((file) => readJsonFile<TEvent>(file)));
+		const events = shouldUseRecentReadWindow(resolvedFilter)
+			? await readRecentJsonFiles<TEvent>(options.directory, resolvedFilter.limit)
+			: await Promise.all(
+					(await listJsonFiles(options.directory)).map((file) =>
+						readJsonFile<TEvent>(file)
+					)
+				);
 
 		return filterVoiceAuditEvents(events, omitReadWindow(resolvedFilter));
 	};
