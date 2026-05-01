@@ -16,6 +16,7 @@ import {
 	buildVoiceRealCallProfileRecoveryJobHistoryCheck,
 	buildVoiceRealCallProfileRecoveryActions,
 	createVoiceInMemoryRealCallProfileRecoveryJobStore,
+	createVoiceRealCallProfileTraceCollector,
 	createVoiceSQLiteRealCallProfileRecoveryJobStore,
 	createVoiceProofTrendRecommendationRoutes,
 	createVoiceProofTrendRoutes,
@@ -1045,6 +1046,109 @@ describe('proof trends', () => {
 				tts: 'tts:openai'
 			},
 			status: 'warn'
+		});
+	});
+
+	test('createVoiceRealCallProfileTraceCollector turns appended real traffic into profile history', async () => {
+		const collector = createVoiceRealCallProfileTraceCollector({
+			defaultProfileId: 'support-agent',
+			defaultProfileLabel: 'Support agent',
+			store: createVoiceMemoryTraceEventStore()
+		});
+
+		await collector.append({
+			at: Date.UTC(2026, 3, 29, 14, 0, 0),
+			payload: {
+				elapsedMs: 360,
+				kind: 'llm',
+				provider: 'openai',
+				status: 'success'
+			},
+			sessionId: 'auto-real-session',
+			type: 'provider.decision'
+		});
+		await collector.append({
+			at: Date.UTC(2026, 3, 29, 14, 0, 1),
+			payload: {
+				firstAudioLatencyMs: 390,
+				jitterMs: 9,
+				status: 'pass'
+			},
+			sessionId: 'auto-real-session',
+			type: 'client.browser_media'
+		});
+
+		const evidence = await collector.listEvidence();
+		const history = await collector.buildHistoryReport({
+			generatedAt: '2026-04-29T14:01:00.000Z',
+			now: '2026-04-29T14:01:15.000Z',
+			source: 'real-call-trace-collector'
+		});
+
+		expect(collector.listCapturedSessionIds()).toEqual(['auto-real-session']);
+		expect(evidence).toHaveLength(1);
+		expect(evidence[0]).toMatchObject({
+			ok: true,
+			profileId: 'support-agent',
+			profileLabel: 'Support agent',
+			providerP95Ms: 360,
+			runtimeChannel: {
+				maxFirstAudioLatencyMs: 390,
+				maxJitterMs: 9,
+				samples: 1,
+				status: 'pass'
+			},
+			sessionId: 'auto-real-session'
+		});
+		expect(
+			history.summary.profiles?.find((profile) => profile.id === 'support-agent')
+		).toMatchObject({
+			id: 'support-agent',
+			label: 'Support agent',
+			maxProviderP95Ms: 360,
+			status: 'pass'
+		});
+		expect(history.defaults.profiles[0]?.providerRoutes).toMatchObject({
+			llm: 'llm:openai'
+		});
+	});
+
+	test('createVoiceRealCallProfileTraceCollector ignores unprofiled traffic until a profile is present', async () => {
+		const collector = createVoiceRealCallProfileTraceCollector({
+			store: createVoiceMemoryTraceEventStore()
+		});
+
+		await collector.append({
+			at: Date.UTC(2026, 3, 29, 15, 0, 0),
+			payload: {
+				elapsedMs: 420,
+				kind: 'stt',
+				provider: 'deepgram',
+				status: 'success'
+			},
+			sessionId: 'unprofiled-session',
+			type: 'provider.decision'
+		});
+		await collector.append({
+			at: Date.UTC(2026, 3, 29, 15, 1, 0),
+			metadata: { profileId: 'meeting-recorder' },
+			payload: {
+				elapsedMs: 280,
+				kind: 'stt',
+				provider: 'deepgram',
+				status: 'success'
+			},
+			sessionId: 'profiled-session',
+			type: 'provider.decision'
+		});
+
+		const evidence = await collector.listEvidence();
+
+		expect(collector.listCapturedSessionIds()).toEqual(['profiled-session']);
+		expect(evidence.map((item) => item.sessionId)).toEqual(['profiled-session']);
+		expect(evidence[0]).toMatchObject({
+			profileId: 'meeting-recorder',
+			providerP95Ms: 280
 		});
 	});
 

@@ -170,6 +170,31 @@ export type VoiceRealCallProfileTraceStoreEvidenceOptions =
 		store: VoiceTraceEventStore;
 	};
 
+export type VoiceRealCallProfileTraceCollectorEvidenceOptions =
+	VoiceRealCallProfileTraceEvidenceOptions & {
+		limit?: number;
+	};
+
+export type VoiceRealCallProfileTraceCollectorOptions<
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+> = VoiceRealCallProfileTraceCollectorEvidenceOptions & {
+	store: VoiceTraceEventStore<TEvent>;
+};
+
+export type VoiceRealCallProfileTraceCollector<
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+> = VoiceTraceEventStore<TEvent> & {
+	buildHistoryReport: (
+		options?: Omit<VoiceRealCallProfileHistoryOptions, 'evidence'> & {
+			evidenceOptions?: VoiceRealCallProfileTraceCollectorEvidenceOptions;
+		}
+	) => Promise<VoiceRealCallProfileHistoryReport>;
+	listCapturedSessionIds: () => string[];
+	listEvidence: (
+		options?: VoiceRealCallProfileTraceCollectorEvidenceOptions
+	) => Promise<VoiceProofTrendRealCallProfileEvidence[]>;
+};
+
 export type VoiceProofTrendRealCallProfileReportOptions =
 	VoiceProofTrendProfileSummaryOptions & {
 		baseUrl?: string;
@@ -1174,6 +1199,108 @@ export const loadVoiceRealCallProfileEvidenceFromTraceStore = async (
 		await options.store.list({ limit: options.limit ?? 5000 }),
 		options
 	);
+
+const realCallProfileTraceSignalTypes = new Set([
+	'client.barge_in',
+	'client.browser_media',
+	'client.live_latency',
+	'client.telephony_media',
+	'provider.decision',
+	'session.error',
+	'turn_latency.stage'
+]);
+
+const hasTraceProfileMetadata = (
+	event: StoredVoiceTraceEvent,
+	options: VoiceRealCallProfileTraceEvidenceOptions
+) => Boolean(readTraceProfileId([event], options));
+
+const mergeRealCallProfileCollectorOptions = (
+	base: VoiceRealCallProfileTraceCollectorEvidenceOptions,
+	override: VoiceRealCallProfileTraceCollectorEvidenceOptions = {}
+): VoiceRealCallProfileTraceCollectorEvidenceOptions => ({
+	defaultProfileId: override.defaultProfileId ?? base.defaultProfileId,
+	defaultProfileLabel: override.defaultProfileLabel ?? base.defaultProfileLabel,
+	limit: override.limit ?? base.limit,
+	maxProviderP95Ms: override.maxProviderP95Ms ?? base.maxProviderP95Ms,
+	profileDescriptions: {
+		...(base.profileDescriptions ?? {}),
+		...(override.profileDescriptions ?? {})
+	},
+	profileLabels: {
+		...(base.profileLabels ?? {}),
+		...(override.profileLabels ?? {})
+	},
+	sessionIds: override.sessionIds ?? base.sessionIds
+});
+
+export const createVoiceRealCallProfileTraceCollector = <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	options: VoiceRealCallProfileTraceCollectorOptions<TEvent>
+): VoiceRealCallProfileTraceCollector<TEvent> => {
+	const capturedSessionIds = new Set(options.sessionIds ?? []);
+	const capture = (event: TEvent) => {
+		if (
+			realCallProfileTraceSignalTypes.has(event.type) &&
+			hasTraceProfileMetadata(event, options)
+		) {
+			capturedSessionIds.add(event.sessionId);
+		}
+	};
+
+	return {
+		append: async (event) => {
+			const stored = await options.store.append(event);
+			capture(stored);
+			return stored;
+		},
+		buildHistoryReport: async (historyOptions = {}) => {
+			const evidence = await buildRealCallProfileCollectorEvidence(
+				options,
+				capturedSessionIds,
+				historyOptions.evidenceOptions
+			);
+			return buildVoiceRealCallProfileHistoryReport({
+				...historyOptions,
+				evidence
+			});
+		},
+		get: (id) => options.store.get(id),
+		list: (filter) => options.store.list(filter),
+		listCapturedSessionIds: () => [...capturedSessionIds],
+		listEvidence: (evidenceOptions) =>
+			buildRealCallProfileCollectorEvidence(
+				options,
+				capturedSessionIds,
+				evidenceOptions
+			),
+		remove: async (id) => {
+			await options.store.remove(id);
+		}
+	};
+};
+
+const buildRealCallProfileCollectorEvidence = async <
+	TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent
+>(
+	baseOptions: VoiceRealCallProfileTraceCollectorOptions<TEvent>,
+	capturedSessionIds: ReadonlySet<string>,
+	evidenceOptions?: VoiceRealCallProfileTraceCollectorEvidenceOptions
+) => {
+	const merged = mergeRealCallProfileCollectorOptions(
+		baseOptions,
+		evidenceOptions
+	);
+	const requestedSessionIds = merged.sessionIds ?? [...capturedSessionIds];
+	return buildVoiceRealCallProfileEvidenceFromTraceEvents(
+		await baseOptions.store.list({ limit: merged.limit ?? 5000 }),
+		{
+			...merged,
+			sessionIds: requestedSessionIds
+		}
+	);
+};
 
 const readProofTrendProviders = (reports: readonly VoiceProofTrendReport[]) =>
 	aggregateProofTrendProviders(

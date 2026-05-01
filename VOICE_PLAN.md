@@ -248,6 +248,7 @@ Verified:
 - `@absolutejs/voice@0.0.22-beta.376` adds optional recovery job history listing and `GET /actions/jobs`, so persisted proof repair runs are inspectable without copying job IDs.
 - `@absolutejs/voice@0.0.22-beta.377` adds `buildVoiceRealCallProfileRecoveryJobHistoryCheck(...)`, making persisted recovery job history part of production readiness instead of only a side UI.
 - `@absolutejs/voice@0.0.22-beta.378` adds `buildVoiceReadinessRecoveryActions(...)`, turning failed/warn readiness checks into a normalized recovery action plan for UI/API surfaces.
+- `@absolutejs/voice@0.0.22-beta.379` adds `createVoiceRealCallProfileTraceCollector(...)`, making ordinary profiled trace traffic self-reporting for real-call profile evidence/history instead of requiring app-specific trace-store loading glue.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 
