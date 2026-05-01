@@ -1,6 +1,12 @@
 import { Elysia } from 'elysia';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import {
+	filterVoiceAuditEvents,
+	type StoredVoiceAuditEvent,
+	type VoiceAuditEventFilter,
+	type VoiceAuditEventStore
+} from './audit';
 import type {
 	VoiceObservabilityExportArtifact,
 	VoiceObservabilityExportReport
@@ -10,6 +16,14 @@ import type { VoiceOperationsRecord } from './operationsRecord';
 import type { VoiceProductionReadinessReport } from './productionReadiness';
 import type { VoiceProviderSloReport } from './providerSlo';
 import type { VoiceSessionSnapshot } from './sessionSnapshot';
+import {
+	filterVoiceTraceEvents,
+	type StoredVoiceTraceEvent,
+	type VoiceTraceEventFilter,
+	type VoiceTraceEventStore,
+	type VoiceTraceSinkDeliveryRecord,
+	type VoiceTraceSinkDeliveryStore
+} from './trace';
 
 export type VoiceProofPackStatus = 'fail' | 'pass' | 'warn';
 
@@ -88,6 +102,29 @@ export type VoiceProofPackBuildContext = {
 export type VoiceProofPackBuildContextOptions = {
 	now?: () => number;
 	onTiming?: (timing: VoiceProofPackBuildTiming) => void;
+};
+
+export type VoiceProofRefreshSnapshotOptions = {
+	audit?: VoiceAuditEventStore;
+	auditFilter?: VoiceAuditEventFilter;
+	auditSinkDeliveries?: {
+		list: () => Promise<unknown[]> | unknown[];
+	};
+	events?: StoredVoiceTraceEvent[];
+	traceDeliveries?: VoiceTraceSinkDeliveryStore;
+	traceFilter?: VoiceTraceEventFilter;
+	traceStore?: VoiceTraceEventStore;
+};
+
+export type VoiceProofRefreshSnapshot = {
+	auditEvents: StoredVoiceAuditEvent[];
+	auditStore: VoiceAuditEventStore;
+	auditSinkDeliveries: unknown[];
+	capturedAt: number;
+	traceDeliveries: VoiceTraceSinkDeliveryRecord[];
+	traceDeliveryStore: VoiceTraceSinkDeliveryStore;
+	traceEvents: StoredVoiceTraceEvent[];
+	traceStore: VoiceTraceEventStore;
 };
 
 export type VoiceProofPackSourceValue = VoiceProofPack | VoiceProofPackInput;
@@ -224,6 +261,67 @@ export const createVoiceProofPackBuildContext = (
 		},
 		getTimings: () => [...timings],
 		time
+	};
+};
+
+const createSnapshotTraceStore = (
+	events: StoredVoiceTraceEvent[]
+): VoiceTraceEventStore => ({
+	append: async () => {
+		throw new Error('Voice proof refresh snapshot trace store is read-only.');
+	},
+	get: async (id) => events.find((event) => event.id === id),
+	list: async (filter) => filterVoiceTraceEvents([...events], filter),
+	remove: async () => {
+		throw new Error('Voice proof refresh snapshot trace store is read-only.');
+	}
+});
+
+const createSnapshotAuditStore = (
+	events: StoredVoiceAuditEvent[]
+): VoiceAuditEventStore => ({
+	append: async () => {
+		throw new Error('Voice proof refresh snapshot audit store is read-only.');
+	},
+	get: async (id) => events.find((event) => event.id === id),
+	list: async (filter) => filterVoiceAuditEvents([...events], filter)
+});
+
+const createSnapshotTraceDeliveryStore = (
+	deliveries: VoiceTraceSinkDeliveryRecord[]
+): VoiceTraceSinkDeliveryStore => ({
+	get: async (id) => deliveries.find((delivery) => delivery.id === id),
+	list: async () => [...deliveries],
+	remove: async () => {
+		throw new Error('Voice proof refresh snapshot delivery store is read-only.');
+	},
+	set: async () => {
+		throw new Error('Voice proof refresh snapshot delivery store is read-only.');
+	}
+});
+
+export const createVoiceProofRefreshSnapshot = async (
+	options: VoiceProofRefreshSnapshotOptions = {}
+): Promise<VoiceProofRefreshSnapshot> => {
+	const [traceEvents, auditEvents, traceDeliveries, auditSinkDeliveries] =
+		await Promise.all([
+			options.events ??
+				(await options.traceStore?.list(options.traceFilter)) ??
+				[],
+			options.audit ? await options.audit.list(options.auditFilter) : [],
+			options.traceDeliveries ? await options.traceDeliveries.list() : [],
+			options.auditSinkDeliveries ? await options.auditSinkDeliveries.list() : []
+		]);
+
+	return {
+		auditEvents,
+		auditSinkDeliveries,
+		auditStore: createSnapshotAuditStore(auditEvents),
+		capturedAt: Date.now(),
+		traceDeliveries,
+		traceDeliveryStore: createSnapshotTraceDeliveryStore(traceDeliveries),
+		traceEvents,
+		traceStore: createSnapshotTraceStore(traceEvents)
 	};
 };
 

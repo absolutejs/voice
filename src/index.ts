@@ -2173,6 +2173,7 @@ export {
 	buildVoiceProofPack,
 	buildVoiceProofPackFromObservabilityExport,
 	createVoiceProofPackBuildContext,
+	createVoiceProofRefreshSnapshot,
 	createVoiceProofPackStaleWhileRefreshSource,
 	createVoiceProofPackArtifacts,
 	createVoiceProofPackOperationsRecordSection,
@@ -2198,6 +2199,8 @@ export type {
 	VoiceProofPackStatus,
 	VoiceProofPackStaleWhileRefreshSource,
 	VoiceProofPackStaleWhileRefreshSourceOptions,
-	VoiceProofPackWriteResult
+	VoiceProofPackWriteResult,
+	VoiceProofRefreshSnapshot,
+	VoiceProofRefreshSnapshotOptions
 } from './proofPack';
 export * from './types';

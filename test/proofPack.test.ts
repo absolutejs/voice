@@ -12,6 +12,7 @@ import {
 	createVoiceProofPackProviderSloSection,
 	createVoiceProofPackSupportBundleSection,
 	createVoiceProofPackStaleWhileRefreshSource,
+	createVoiceProofRefreshSnapshot,
 	createVoiceProofPackRoutes,
 	renderVoiceProofPackMarkdown,
 	writeVoiceProofPack
@@ -119,6 +120,79 @@ test('createVoiceProofPackBuildContext shares subreports and records timings', a
 		return { status: 'pass' };
 	});
 	expect(loads).toBe(3);
+});
+
+test('createVoiceProofRefreshSnapshot captures read-only proof inputs once', async () => {
+	let traceLists = 0;
+	let auditLists = 0;
+	const snapshot = await createVoiceProofRefreshSnapshot({
+		audit: {
+			append: (event) => ({
+				...event,
+				at: 1,
+				id: event.id ?? 'audit-1'
+			}),
+			get: () => undefined,
+			list: () => {
+				auditLists += 1;
+				return [
+					{
+						action: 'provider.call',
+						at: 1,
+						id: 'audit-1',
+						outcome: 'success',
+						type: 'provider.call'
+					}
+				];
+			}
+		},
+		traceStore: {
+			append: async (event) => ({
+				...event,
+				id: event.id ?? 'trace-new'
+			}),
+			get: async () => undefined,
+			list: async () => {
+				traceLists += 1;
+				return [
+					{
+						at: 1,
+						id: 'trace-1',
+						payload: {},
+						sessionId: 'session-1',
+						traceId: 'trace-1',
+						type: 'call.lifecycle'
+					},
+					{
+						at: 2,
+						id: 'trace-2',
+						payload: {},
+						sessionId: 'session-2',
+						traceId: 'trace-2',
+						type: 'call.lifecycle'
+					}
+				];
+			},
+			remove: async () => {}
+		}
+	});
+
+	expect(traceLists).toBe(1);
+	expect(auditLists).toBe(1);
+	expect(await snapshot.traceStore.list({ sessionId: 'session-2' })).toEqual([
+		expect.objectContaining({ id: 'trace-2' })
+	]);
+	expect(await snapshot.auditStore.list({ type: 'provider.call' })).toEqual([
+		expect.objectContaining({ id: 'audit-1' })
+	]);
+	await expect(
+		snapshot.traceStore.append({
+			at: 3,
+			payload: {},
+			sessionId: 'session-3',
+			type: 'call.lifecycle'
+		})
+	).rejects.toThrow('read-only');
 });
 
 test('proof pack builds rich sections from provider, operation, and support reports', () => {
