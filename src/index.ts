@@ -314,7 +314,8 @@ export {
 export {
 	buildVoiceCallDebuggerReport,
 	createVoiceCallDebuggerRoutes,
-	renderVoiceCallDebuggerHTML
+	renderVoiceCallDebuggerHTML,
+	resolveLatestVoiceCallDebuggerSessionId
 } from './callDebugger';
 export type {
 	VoiceEvidenceAssertionInput,

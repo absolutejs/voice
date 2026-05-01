@@ -5,7 +5,8 @@ import {
 	createVoiceMemoryTraceEventStore,
 	createVoiceProviderDecisionTraceEvent,
 	createVoiceTraceEvent,
-	renderVoiceCallDebuggerHTML
+	renderVoiceCallDebuggerHTML,
+	resolveLatestVoiceCallDebuggerSessionId
 } from '../src';
 
 const createEvents = () => [
@@ -104,4 +105,65 @@ test('createVoiceCallDebuggerRoutes exposes json html and incident markdown', as
 	);
 	expect(markdown.headers.get('content-type')).toContain('text/markdown');
 	expect(await markdown.text()).toContain('session-debug');
+});
+
+test('voice call debugger latest resolves the newest failing meaningful session', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	await store.append(
+		createVoiceTraceEvent({
+			at: 200,
+			payload: { text: 'healthy call' },
+			sessionId: 'session-healthy-newer',
+			turnId: 'turn-1',
+			type: 'turn.committed'
+		})
+	);
+	await store.append(
+		createVoiceTraceEvent({
+			at: 100,
+			payload: { text: 'failed call' },
+			sessionId: 'session-failed-older',
+			turnId: 'turn-1',
+			type: 'turn.committed'
+		})
+	);
+	await store.append(
+		createVoiceTraceEvent({
+			at: 110,
+			payload: { error: 'provider failed' },
+			sessionId: 'session-failed-older',
+			type: 'session.error'
+		})
+	);
+
+	expect(resolveLatestVoiceCallDebuggerSessionId(await store.list())).toBe(
+		'session-failed-older'
+	);
+
+	const routes = createVoiceCallDebuggerRoutes({
+		snapshot: ({ sessionId }) => ({ sessionId }),
+		store
+	});
+	const json = await routes.handle(
+		new Request('http://localhost/api/voice-call-debugger/latest')
+	);
+
+	expect((await json.json()).sessionId).toBe('session-failed-older');
+});
+
+test('voice call debugger latest accepts a custom resolver', async () => {
+	const store = createVoiceMemoryTraceEventStore();
+	for (const event of createEvents()) {
+		await store.append(event);
+	}
+	const routes = createVoiceCallDebuggerRoutes({
+		resolveSessionId: () => 'session-debug',
+		snapshot: ({ sessionId }) => ({ sessionId }),
+		store
+	});
+	const html = await routes.handle(
+		new Request('http://localhost/voice-call-debugger/latest')
+	);
+
+	expect(await html.text()).toContain('session-debug');
 });

@@ -8,6 +8,12 @@ import {
 	type VoiceOperationsRecordOptions
 } from './operationsRecord';
 import {
+	filterVoiceTraceEvents,
+	summarizeVoiceTrace,
+	type StoredVoiceTraceEvent,
+	type VoiceTraceEventStore
+} from './trace';
+import {
 	buildVoiceSessionSnapshot,
 	parseVoiceSessionSnapshot,
 	type VoiceSessionSnapshot,
@@ -38,6 +44,12 @@ export type VoiceCallDebuggerRoutesOptions = Omit<
 		| ((input: { sessionId: string }) => string | undefined);
 	path?: string;
 	render?: (report: VoiceCallDebuggerReport) => string | Promise<string>;
+	resolveSessionId?: (input: {
+		events: readonly StoredVoiceTraceEvent[];
+		request: Request;
+		requestedSessionId: string;
+		store?: VoiceTraceEventStore;
+	}) => Promise<string | undefined> | string | undefined;
 	snapshot?: VoiceSessionSnapshotRouteSource;
 	title?: string;
 };
@@ -63,6 +75,70 @@ const resolveOperationsRecordHref = (
 		return href({ sessionId });
 	}
 	return href?.replaceAll(':sessionId', encodeURIComponent(sessionId));
+};
+
+export const resolveLatestVoiceCallDebuggerSessionId = (
+	events: readonly StoredVoiceTraceEvent[]
+) => {
+	const bySession = new Map<string, StoredVoiceTraceEvent[]>();
+	for (const event of events) {
+		if (!event.sessionId) {
+			continue;
+		}
+		bySession.set(event.sessionId, [
+			...(bySession.get(event.sessionId) ?? []),
+			event
+		]);
+	}
+	const candidates = [...bySession.entries()]
+		.map(([sessionId, sessionEvents]) => {
+			const sorted = filterVoiceTraceEvents([...sessionEvents]);
+			const summary = summarizeVoiceTrace(sorted);
+			const latestAt = sorted.at(-1)?.at ?? 0;
+			const meaningful =
+				summary.turnCount > 0 ||
+				summary.transcriptCount > 0 ||
+				summary.assistantReplyCount > 0 ||
+				sorted.some((event) => event.type === 'call.lifecycle');
+			const failed =
+				summary.failed ||
+				summary.errorCount > 0 ||
+				sorted.some(
+					(event) =>
+						event.type.includes('provider') &&
+						(event.payload.status === 'error' ||
+							event.payload.status === 'degraded')
+				);
+
+			return { failed, latestAt, meaningful, sessionId };
+		})
+		.filter((candidate) => candidate.meaningful)
+		.sort(
+			(left, right) =>
+				Number(right.failed) - Number(left.failed) ||
+				right.latestAt - left.latestAt ||
+				left.sessionId.localeCompare(right.sessionId)
+		);
+
+	return candidates[0]?.sessionId;
+};
+
+const resolveCallDebuggerSessionId = async (
+	options: VoiceCallDebuggerRoutesOptions,
+	input: { request: Request; requestedSessionId: string }
+) => {
+	if (input.requestedSessionId !== 'latest') {
+		return input.requestedSessionId;
+	}
+	const events = options.events ?? (await options.store?.list({ limit: 1000 })) ?? [];
+	const resolved = await options.resolveSessionId?.({
+		events,
+		request: input.request,
+		requestedSessionId: input.requestedSessionId,
+		store: options.store
+	});
+
+	return resolved ?? resolveLatestVoiceCallDebuggerSessionId(events) ?? 'latest';
 };
 
 const isVoiceSessionSnapshot = (
@@ -210,8 +286,14 @@ export const createVoiceCallDebuggerRoutes = (
 	const app = new Elysia({
 		name: options.name ?? 'absolutejs-voice-call-debugger'
 	});
-	const build = (request: Request, sessionId: string) =>
-		buildVoiceCallDebuggerReport(options, { request, sessionId });
+	const build = async (request: Request, requestedSessionId: string) =>
+		buildVoiceCallDebuggerReport(options, {
+			request,
+			sessionId: await resolveCallDebuggerSessionId(options, {
+				request,
+				requestedSessionId
+			})
+		});
 
 	app.get(path, async ({ params, request }) =>
 		Response.json(await build(request, resolveSessionId(params)), {
