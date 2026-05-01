@@ -1,4 +1,12 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import {
+	mkdir,
+	readFile,
+	readdir,
+	rename,
+	rm,
+	stat,
+	writeFile
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import {
 	createVoiceExternalObjectMap,
@@ -102,6 +110,156 @@ const listJsonFiles = async (directory: string) => {
 
 		throw error;
 	}
+};
+
+const listRecentJsonFiles = async (directory: string, limit: number) => {
+	if (limit === 0) {
+		return [];
+	}
+
+	const indexedFiles = await readRecentJsonFileIndex(directory);
+	if (indexedFiles.length >= limit) {
+		const existingFiles: RecentJsonFileIndexEntry[] = [];
+		const missingPaths = new Set<string>();
+		for (const entry of indexedFiles) {
+			try {
+				await stat(entry.path);
+				existingFiles.push(entry);
+				if (existingFiles.length === limit) {
+					break;
+				}
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					missingPaths.add(entry.path);
+					continue;
+				}
+
+				throw error;
+			}
+		}
+		if (missingPaths.size > 0) {
+			await writeRecentJsonFileIndex(
+				directory,
+				indexedFiles.filter((entry) => !missingPaths.has(entry.path))
+			);
+		}
+		if (existingFiles.length === limit) {
+			return existingFiles.map((entry) => entry.path);
+		}
+	}
+
+	return (await rebuildRecentJsonFileIndex(directory))
+		.slice(0, limit)
+		.map((entry) => entry.path);
+};
+
+type RecentJsonFileIndexEntry = {
+	path: string;
+	updatedAt: number;
+};
+
+const recentJsonFileIndexPath = (directory: string) =>
+	join(directory, '.recent-index');
+
+const sortRecentJsonFileIndexEntries = (entries: RecentJsonFileIndexEntry[]) =>
+	entries.sort((left, right) => right.updatedAt - left.updatedAt);
+
+const readRecentJsonFileIndex = async (directory: string) => {
+	try {
+		const payload = (await readJsonFile<{
+			files?: RecentJsonFileIndexEntry[];
+			version?: number;
+		}>(recentJsonFileIndexPath(directory))) ?? { files: [] };
+		return sortRecentJsonFileIndexEntries(
+			Array.isArray(payload.files) ? payload.files : []
+		);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			return [];
+		}
+
+		throw error;
+	}
+};
+
+const writeRecentJsonFileIndex = async (
+	directory: string,
+	files: RecentJsonFileIndexEntry[]
+) => {
+	await mkdir(directory, {
+		recursive: true
+	});
+	const path = recentJsonFileIndexPath(directory);
+	const tempPath = `${path}.${crypto.randomUUID()}.tmp`;
+	await writeFile(
+		tempPath,
+		JSON.stringify({
+			files: sortRecentJsonFileIndexEntries(files).slice(0, 5_000),
+			version: 1
+		})
+	);
+	await rename(tempPath, path);
+};
+
+const rebuildRecentJsonFileIndex = async (directory: string) => {
+	const files = await listJsonFiles(directory);
+	const candidates = await Promise.all(
+		files.map(async (path) => {
+			try {
+				return {
+					path,
+					updatedAt: (await stat(path)).mtimeMs
+				};
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					return undefined;
+				}
+
+				throw error;
+			}
+		})
+	);
+
+	const entries = sortRecentJsonFileIndexEntries(
+		candidates
+			.filter((candidate): candidate is { path: string; updatedAt: number } =>
+				Boolean(candidate)
+			)
+	);
+	await writeRecentJsonFileIndex(directory, entries);
+	return entries;
+};
+
+const updateRecentJsonFileIndex = async (directory: string, path: string) => {
+	const files = (await readRecentJsonFileIndex(directory)).filter(
+		(entry) => entry.path !== path
+	);
+	files.push({
+		path,
+		updatedAt: Date.now()
+	});
+	await writeRecentJsonFileIndex(directory, files);
+};
+
+const removeRecentJsonFileIndexEntry = async (directory: string, path: string) => {
+	const files = (await readRecentJsonFileIndex(directory)).filter(
+		(entry) => entry.path !== path
+	);
+	await writeRecentJsonFileIndex(directory, files);
+};
+
+const shouldUseRecentReadWindow = (
+	filter: { limit?: number; readWindow?: string }
+): filter is { limit: number; readWindow: 'recent' } =>
+	filter.readWindow === 'recent' &&
+	typeof filter.limit === 'number' &&
+	filter.limit >= 0;
+
+const omitReadWindow = <TFilter extends { readWindow?: string }>(
+	filter: TFilter
+) => {
+	const { readWindow: _readWindow, ...next } = filter;
+	return next;
 };
 
 const encodeStoreId = (id: string) => `${encodeURIComponent(id)}.json`;
@@ -438,7 +596,9 @@ export const createVoiceFileTraceEventStore = <
 ): VoiceTraceEventStore<TEvent> => {
 	const append: VoiceTraceEventStore<TEvent>['append'] = async (event) => {
 		const stored = createVoiceTraceEvent(event as VoiceTraceEvent) as TEvent;
-		await writeJsonFile(resolveFilePath(options.directory, stored.id), stored, options);
+		const path = resolveFilePath(options.directory, stored.id);
+		await writeJsonFile(path, stored, options);
+		await updateRecentJsonFileIndex(options.directory, path);
 		return stored;
 	};
 
@@ -456,19 +616,23 @@ export const createVoiceFileTraceEventStore = <
 		}
 	};
 
-	const list = async (filter = {}) => {
-		const files = await listJsonFiles(options.directory);
+	const list: VoiceTraceEventStore<TEvent>['list'] = async (filter = {}) => {
+		const files = shouldUseRecentReadWindow(filter)
+			? await listRecentJsonFiles(options.directory, filter.limit)
+			: await listJsonFiles(options.directory);
 		const events = await Promise.all(
 			files.map((file) => readJsonFile<TEvent>(file))
 		);
 
-		return filterVoiceTraceEvents(events, filter);
+		return filterVoiceTraceEvents(events, omitReadWindow(filter));
 	};
 
 	const remove = async (id: string) => {
-		await rm(resolveFilePath(options.directory, id), {
+		const path = resolveFilePath(options.directory, id);
+		await rm(path, {
 			force: true
 		});
+		await removeRecentJsonFileIndexEntry(options.directory, path);
 	};
 
 	return { append, get, list, remove };
@@ -545,15 +709,20 @@ export const createVoiceFileAuditEventStore = <
 
 	const append = async (event: VoiceAuditEvent | TEvent) => {
 		const stored = createVoiceAuditEvent(event) as TEvent;
-		await writeJsonFile(resolveFilePath(options.directory, stored.id), stored, options);
+		const path = resolveFilePath(options.directory, stored.id);
+		await writeJsonFile(path, stored, options);
+		await updateRecentJsonFileIndex(options.directory, path);
 		return stored;
 	};
 
 	const list = async (filter?: Parameters<VoiceAuditEventStore['list']>[0]) => {
-		const files = await listJsonFiles(options.directory);
+		const resolvedFilter = filter ?? {};
+		const files = shouldUseRecentReadWindow(resolvedFilter)
+			? await listRecentJsonFiles(options.directory, resolvedFilter.limit)
+			: await listJsonFiles(options.directory);
 		const events = await Promise.all(files.map((file) => readJsonFile<TEvent>(file)));
 
-		return filterVoiceAuditEvents(events, filter);
+		return filterVoiceAuditEvents(events, omitReadWindow(resolvedFilter));
 	};
 
 	return { append, get, list };

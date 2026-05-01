@@ -48,6 +48,7 @@ export type StoredVoiceTraceEvent<
 
 export type VoiceTraceEventFilter = {
 	limit?: number;
+	readWindow?: 'recent';
 	scenarioId?: string;
 	sessionId?: string;
 	traceId?: string;

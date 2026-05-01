@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -10,6 +10,7 @@ import {
 	createVoiceAuditEvent,
 	createVoiceFileExternalObjectMapStore,
 	createVoiceFileAssistantMemoryStore,
+	createVoiceFileAuditEventStore,
 	createVoiceFileIncidentBundleStore,
 	createVoiceFileIntegrationEventStore,
 	createVoiceFileAuditSinkDeliveryStore,
@@ -516,6 +517,82 @@ test('createVoiceFileTraceEventStore persists and filters trace events', async (
 	expect(await secondStore.get(events[0]!.id)).toMatchObject({
 		type: 'agent.tool'
 	});
+});
+
+test('createVoiceFileTraceEventStore can read a bounded recent file window', async () => {
+	const directory = await createTempDirectory();
+	const store = createVoiceFileTraceEventStore({
+		directory
+	});
+
+	const oldEvent = await store.append({
+		at: 100,
+		payload: {},
+		sessionId: 'session-recent',
+		type: 'turn.user'
+	});
+	const newEvent = await store.append({
+		at: 200,
+		payload: {},
+		sessionId: 'session-recent',
+		type: 'turn.assistant'
+	});
+	await utimes(
+		join(directory, `${encodeURIComponent(oldEvent.id)}.json`),
+		new Date(1_000),
+		new Date(1_000)
+	);
+	await utimes(
+		join(directory, `${encodeURIComponent(newEvent.id)}.json`),
+		new Date(2_000),
+		new Date(2_000)
+	);
+
+	expect(
+		(await store.list({ limit: 1, readWindow: 'recent' })).map(
+			(event) => event.id
+		)
+	).toEqual([newEvent.id]);
+	expect((await store.list({ limit: 1 })).map((event) => event.id)).toEqual([
+		oldEvent.id
+	]);
+});
+
+test('createVoiceFileAuditEventStore can read a bounded recent file window', async () => {
+	const directory = await createTempDirectory();
+	const store = createVoiceFileAuditEventStore({
+		directory
+	});
+
+	const oldEvent = await store.append({
+		action: 'old',
+		at: 100,
+		type: 'operator.action'
+	});
+	const newEvent = await store.append({
+		action: 'new',
+		at: 200,
+		type: 'operator.action'
+	});
+	await utimes(
+		join(directory, `${encodeURIComponent(oldEvent.id)}.json`),
+		new Date(1_000),
+		new Date(1_000)
+	);
+	await utimes(
+		join(directory, `${encodeURIComponent(newEvent.id)}.json`),
+		new Date(2_000),
+		new Date(2_000)
+	);
+
+	expect(
+		(await store.list({ limit: 1, readWindow: 'recent' })).map(
+			(event) => event.id
+		)
+	).toEqual([newEvent.id]);
+	expect((await store.list({ limit: 1 })).map((event) => event.id)).toEqual([
+		oldEvent.id
+	]);
 });
 
 test('createVoiceFileTraceSinkDeliveryStore persists queued trace deliveries', async () => {

@@ -50,6 +50,7 @@ export type VoiceAuditEventFilter = {
 	beforeOrAt?: number;
 	limit?: number;
 	outcome?: VoiceAuditOutcome | VoiceAuditOutcome[];
+	readWindow?: 'recent';
 	resourceId?: string;
 	resourceType?: string;
 	sessionId?: string;
