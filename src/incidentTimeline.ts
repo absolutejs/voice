@@ -17,6 +17,38 @@ export type VoiceIncidentTimelineAction = {
 	method?: 'GET' | 'POST';
 };
 
+export type VoiceIncidentRecoveryAction = {
+	detail?: string;
+	disabled?: boolean;
+	eventId?: string;
+	href?: string;
+	id: string;
+	label: string;
+	method?: 'GET' | 'POST';
+	sessionId?: string;
+};
+
+export type VoiceIncidentRecoveryActionResult = {
+	actionId: string;
+	detail?: string;
+	href?: string;
+	ok: boolean;
+	status?: string;
+};
+
+export type VoiceIncidentRecoveryActionHandlerInput = {
+	action: VoiceIncidentRecoveryAction;
+	actionId: string;
+	report: VoiceIncidentTimelineReport;
+	request: Request;
+};
+
+export type VoiceIncidentRecoveryActionHandler = (
+	input: VoiceIncidentRecoveryActionHandlerInput
+) =>
+	| Promise<VoiceIncidentRecoveryActionResult>
+	| VoiceIncidentRecoveryActionResult;
+
 export type VoiceIncidentTimelineEvent = {
 	action?: VoiceIncidentTimelineAction;
 	at: number;
@@ -39,6 +71,7 @@ export type VoiceIncidentTimelineEvent = {
 };
 
 export type VoiceIncidentTimelineReport = {
+	actions: VoiceIncidentRecoveryAction[];
 	events: VoiceIncidentTimelineEvent[];
 	generatedAt: number;
 	links: VoiceIncidentTimelineLinks;
@@ -81,11 +114,21 @@ export type VoiceIncidentTimelineOptions = {
 		readonly VoiceOperationsRecord[]
 	>;
 	opsRecovery?: VoiceIncidentTimelineValue<VoiceOpsRecoveryReport>;
+	recoveryActions?:
+		| readonly VoiceIncidentRecoveryAction[]
+		| ((input: {
+				events: readonly VoiceIncidentTimelineEvent[];
+				report: Omit<VoiceIncidentTimelineReport, 'actions'>;
+		  }) =>
+				| Promise<readonly VoiceIncidentRecoveryAction[]>
+				| readonly VoiceIncidentRecoveryAction[]);
 	windowMs?: number;
 };
 
 export type VoiceIncidentTimelineRoutesOptions =
 	VoiceIncidentTimelineOptions & {
+		actionHandlers?: Record<string, VoiceIncidentRecoveryActionHandler>;
+		actionPath?: false | string;
 		headers?: HeadersInit;
 		htmlPath?: false | string;
 		markdownPath?: false | string;
@@ -149,6 +192,75 @@ const eventStatus = (
 		: event.severity === 'warn'
 			? 'warn'
 			: 'pass';
+
+const defaultIncidentRecoveryActions = (
+	events: readonly VoiceIncidentTimelineEvent[],
+	links: VoiceIncidentTimelineLinks
+): VoiceIncidentRecoveryAction[] => {
+	const actions: VoiceIncidentRecoveryAction[] = [];
+	const add = (action: VoiceIncidentRecoveryAction) => {
+		const key = `${action.id}:${action.sessionId ?? ''}:${action.href ?? ''}`;
+		if (
+			actions.some(
+				(existing) =>
+					`${existing.id}:${existing.sessionId ?? ''}:${existing.href ?? ''}` === key
+			)
+		) {
+			return;
+		}
+		actions.push(action);
+	};
+
+	for (const event of events) {
+		if (event.category === 'delivery') {
+			add({
+				detail: 'Ask the app to tick delivery workers or retry failed delivery queue work.',
+				eventId: event.id,
+				href: links.deliveryRuntime,
+				id: 'delivery.retry',
+				label: 'Retry delivery work',
+				method: 'POST',
+				sessionId: event.sessionId
+			});
+		}
+		if (event.category === 'readiness' || event.category === 'operational-status') {
+			add({
+				detail: 'Refresh production readiness and proof freshness before declaring the incident resolved.',
+				eventId: event.id,
+				href: links.productionReadiness ?? links.operationalStatus,
+				id: 'readiness.refresh',
+				label: 'Refresh readiness proof',
+				method: 'POST',
+				sessionId: event.sessionId
+			});
+		}
+		if (event.sessionId) {
+			add({
+				detail: 'Generate or open a support/debug artifact for the affected call.',
+				eventId: event.id,
+				href:
+					linkForSession(links.supportBundle, event.sessionId) ??
+					linkForSession(links.callDebugger, event.sessionId),
+				id: 'support.bundle',
+				label: 'Generate support bundle',
+				method: 'POST',
+				sessionId: event.sessionId
+			});
+		}
+	}
+
+	if (events.some((event) => event.severity !== 'info')) {
+		add({
+			detail: 'Rerun the app proof pack to confirm the current release evidence is fresh.',
+			href: links.proofPack,
+			id: 'proof.rerun',
+			label: 'Rerun proof pack',
+			method: 'POST'
+		});
+	}
+
+	return actions;
+};
 
 const worstStatus = (
 	statuses: readonly VoiceIncidentTimelineStatus[]
@@ -410,13 +522,28 @@ export const buildVoiceIncidentTimelineReport = async (
 		warn: filtered.filter((event) => event.severity === 'warn').length
 	};
 
-	return {
+	const baseReport: Omit<VoiceIncidentTimelineReport, 'actions'> = {
 		events: filtered,
 		generatedAt: now,
 		links,
 		status: worstStatus(filtered.map(eventStatus)),
 		summary,
 		windowMs: options.windowMs
+	};
+	const configuredActions =
+		typeof options.recoveryActions === 'function'
+			? await options.recoveryActions({
+					events: filtered,
+					report: baseReport
+				})
+			: options.recoveryActions;
+
+	return {
+		...baseReport,
+		actions:
+			configuredActions === undefined
+				? defaultIncidentRecoveryActions(filtered, links)
+				: [...configuredActions]
 	};
 };
 
@@ -447,14 +574,19 @@ Summary: ${report.summary.critical} critical, ${report.summary.warn} warn, ${rep
 ## Events
 
 ${rows || '- No incident timeline events.'}
+
+## Recovery Actions
+
+${report.actions.map((action) => `- ${action.method ?? 'GET'} ${action.id}: ${action.label}${action.href ? ` (${action.href})` : ''}${action.detail ? ` - ${action.detail}` : ''}`).join('\n') || '- No recovery actions.'}
 `;
 };
 
 export const renderVoiceIncidentTimelineHTML = (
 	report: VoiceIncidentTimelineReport,
-	options: { title?: string } = {}
+	options: { actionPath?: string; title?: string } = {}
 ) => {
 	const title = options.title ?? 'AbsoluteJS Voice Incident Timeline';
+	const actionPath = options.actionPath ?? '/api/voice/incident-timeline/actions';
 	const events = report.events
 		.map(
 			(event) => `<article class="${escapeHtml(event.severity)}">
@@ -467,8 +599,23 @@ export const renderVoiceIncidentTimelineHTML = (
 </article>`
 		)
 		.join('');
+	const actions = report.actions
+		.map((action) => {
+			const label = escapeHtml(action.label);
+			const detail = action.detail ? `<p>${escapeHtml(action.detail)}</p>` : '';
+			const href = action.href
+				? `<a href="${escapeHtml(action.href)}">Open target</a>`
+				: '';
+			const control =
+				action.method === 'POST'
+					? `<button type="button" data-voice-incident-action="${escapeHtml(action.id)}" ${action.disabled ? 'disabled' : ''}>${label}</button>`
+					: href;
 
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#11110d;color:#faf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero{background:linear-gradient(135deg,rgba(248,113,113,.2),rgba(245,158,11,.13),rgba(34,197,94,.12));border:1px solid #39301d;border-radius:30px;margin-bottom:18px;padding:28px}.eyebrow{color:#fcd34d;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #575030;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.status.pass{border-color:rgba(34,197,94,.65)}.status.warn{border-color:rgba(245,158,11,.75)}.status.fail{border-color:rgba(239,68,68,.85)}.grid{display:grid;gap:14px}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{background:#181711;border:1px solid #39301d;border-radius:999px;padding:8px 12px}article{background:#181711;border:1px solid #39301d;border-radius:22px;padding:18px}article.critical{border-color:rgba(239,68,68,.85)}article.warn{border-color:rgba(245,158,11,.75)}article.info{border-color:rgba(34,197,94,.55)}article span{color:#fcd34d;font-size:.78rem;font-weight:900;letter-spacing:.08em}article h2{margin:.35rem 0}.muted,article p{color:#cfc5a8}article strong{display:block;font-size:1.3rem;margin:.5rem 0}a{color:#fde68a;margin-right:12px}</style></head><body><main><section class="hero"><p class="eyebrow">Operational triage</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p class="muted">Generated ${escapeHtml(new Date(report.generatedAt).toLocaleString())}</p><div class="summary"><span>${String(report.summary.critical)} critical</span><span>${String(report.summary.warn)} warn</span><span>${String(report.summary.info)} info</span><span>${String(report.summary.total)} total</span></div></section><section class="grid">${events || '<article class="info"><span>INFO</span><h2>No incident events</h2><p>No non-pass operational events were found in this window.</p></article>'}</section></main></body></html>`;
+			return `<article class="action"><span>${escapeHtml(action.method ?? 'GET')}</span><h2>${label}</h2>${detail}<div>${control}${href && action.method === 'POST' ? href : ''}</div></article>`;
+		})
+		.join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#11110d;color:#faf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero{background:linear-gradient(135deg,rgba(248,113,113,.2),rgba(245,158,11,.13),rgba(34,197,94,.12));border:1px solid #39301d;border-radius:30px;margin-bottom:18px;padding:28px}.eyebrow{color:#fcd34d;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #575030;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.status.pass{border-color:rgba(34,197,94,.65)}.status.warn{border-color:rgba(245,158,11,.75)}.status.fail{border-color:rgba(239,68,68,.85)}.grid{display:grid;gap:14px}.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:0 0 18px}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{background:#181711;border:1px solid #39301d;border-radius:999px;padding:8px 12px}article{background:#181711;border:1px solid #39301d;border-radius:22px;padding:18px}article.critical{border-color:rgba(239,68,68,.85)}article.warn{border-color:rgba(245,158,11,.75)}article.info{border-color:rgba(34,197,94,.55)}article.action{border-color:#5b4a22}article span{color:#fcd34d;font-size:.78rem;font-weight:900;letter-spacing:.08em}article h2{margin:.35rem 0}.muted,article p{color:#cfc5a8}article strong{display:block;font-size:1.3rem;margin:.5rem 0}a{color:#fde68a;margin-right:12px}button{background:#fcd34d;border:0;border-radius:999px;color:#171307;cursor:pointer;font-weight:900;padding:10px 14px}button:disabled{cursor:not-allowed;opacity:.55}</style></head><body><main><section class="hero"><p class="eyebrow">Operational triage</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p class="muted">Generated ${escapeHtml(new Date(report.generatedAt).toLocaleString())}</p><div class="summary"><span>${String(report.summary.critical)} critical</span><span>${String(report.summary.warn)} warn</span><span>${String(report.summary.info)} info</span><span>${String(report.summary.total)} total</span></div></section><h2>Recovery actions</h2><section class="actions">${actions || '<article class="action"><span>NONE</span><h2>No recovery actions</h2><p>No executable actions are available for this report.</p></article>'}</section><h2>Timeline</h2><section class="grid">${events || '<article class="info"><span>INFO</span><h2>No incident events</h2><p>No non-pass operational events were found in this window.</p></article>'}</section></main><script>const voiceIncidentActionPath=${JSON.stringify(actionPath)};document.querySelectorAll("[data-voice-incident-action]").forEach((button)=>{button.addEventListener("click",async()=>{const id=button.getAttribute("data-voice-incident-action");if(!id)return;button.disabled=true;const original=button.textContent;button.textContent="Running...";try{const response=await fetch(voiceIncidentActionPath+"/"+encodeURIComponent(id),{method:"POST"});button.textContent=response.ok?"Done":"Failed";if(response.ok)setTimeout(()=>location.reload(),700)}catch{button.textContent="Failed"}finally{setTimeout(()=>{button.disabled=false;button.textContent=original},1600)}})});</script></body></html>`;
 };
 
 export const createVoiceIncidentTimelineRoutes = (
@@ -481,6 +628,10 @@ export const createVoiceIncidentTimelineRoutes = (
 		options.markdownPath === undefined
 			? '/voice/incident-timeline.md'
 			: options.markdownPath;
+	const actionPath =
+		options.actionPath === undefined
+			? '/api/voice/incident-timeline/actions'
+			: options.actionPath;
 	const routes = new Elysia({
 		name: options.name ?? 'absolutejs-voice-incident-timeline'
 	}).get(path, async () => {
@@ -499,7 +650,10 @@ export const createVoiceIncidentTimelineRoutes = (
 		routes.get(htmlPath, async () => {
 			const report = await buildVoiceIncidentTimelineReport(options);
 			const body = await (options.render ?? ((input) =>
-				renderVoiceIncidentTimelineHTML(input, { title: options.title })))(report);
+				renderVoiceIncidentTimelineHTML(input, {
+					actionPath: actionPath === false ? undefined : actionPath,
+					title: options.title
+				})))(report);
 
 			return new Response(body, {
 				headers: {
@@ -526,6 +680,81 @@ export const createVoiceIncidentTimelineRoutes = (
 				}
 			);
 		});
+	}
+
+	if (actionPath !== false) {
+		routes
+			.get(actionPath, async () => {
+				const report = await buildVoiceIncidentTimelineReport(options);
+
+				return new Response(
+					JSON.stringify({
+						actions: report.actions,
+						generatedAt: report.generatedAt,
+						status: report.status
+					}),
+					{
+						headers: {
+							'Content-Type': 'application/json; charset=utf-8',
+							...options.headers
+						}
+					}
+				);
+			})
+			.post(`${actionPath}/:actionId`, async ({ params, request }) => {
+				const actionId = params.actionId;
+				const report = await buildVoiceIncidentTimelineReport(options);
+				const action = report.actions.find((item) => item.id === actionId);
+				const handler = options.actionHandlers?.[actionId];
+
+				if (!action) {
+					return new Response(
+						JSON.stringify({
+							actionId,
+							ok: false,
+							status: 'not_found'
+						} satisfies VoiceIncidentRecoveryActionResult),
+						{
+							headers: {
+								'Content-Type': 'application/json; charset=utf-8',
+								...options.headers
+							},
+							status: 404
+						}
+					);
+				}
+				if (action.disabled || action.method !== 'POST' || !handler) {
+					return new Response(
+						JSON.stringify({
+							actionId,
+							ok: false,
+							status: action.disabled ? 'disabled' : 'not_executable'
+						} satisfies VoiceIncidentRecoveryActionResult),
+						{
+							headers: {
+								'Content-Type': 'application/json; charset=utf-8',
+								...options.headers
+							},
+							status: 409
+						}
+					);
+				}
+
+				const result = await handler({
+					action,
+					actionId,
+					report,
+					request
+				});
+
+				return new Response(JSON.stringify(result), {
+					headers: {
+						'Content-Type': 'application/json; charset=utf-8',
+						...options.headers
+					},
+					status: result.ok ? 200 : 500
+				});
+			});
 	}
 
 	return routes;

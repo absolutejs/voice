@@ -223,9 +223,9 @@ The biggest gaps versus Vapi/Retell/Bland are not raw code count. They are produ
 
 ## Latest Proof Status
 
-Current verified proof: core `@absolutejs/voice@0.0.22-beta.432` and the voice example were verified on May 2, 2026.
+Current verified proof: core `@absolutejs/voice@0.0.22-beta.434` and the voice example were verified on May 2, 2026.
 
-Latest full proof-pack output remains `.voice-runtime/proof-pack/2026-04-30T15-34-16.230Z` from April 30, 2026. The May 2 verification covered the new incident-timeline primitive, the operational-status primitive, and the updated Absolute standalone build path; rerun `bun run proof:pack:server` when a fresh end-to-end proof artifact is needed.
+Latest full proof-pack output remains `.voice-runtime/proof-pack/2026-04-30T15-34-16.230Z` from April 30, 2026. The May 2 verification covered the incident-timeline primitive, executable incident recovery actions, the operational-status primitive, and the updated Absolute standalone build path; rerun `bun run proof:pack:server` when a fresh end-to-end proof artifact is needed.
 
 Verified:
 
@@ -233,7 +233,8 @@ Verified:
 - Operational status combines proof-pack freshness, delivery runtime health, and production-readiness posture into one JSON/HTML surface with links back to the relevant proof routes.
 - `@absolutejs/voice@0.0.22-beta.432` exposes `buildVoiceIncidentTimelineReport(...)`, `renderVoiceIncidentTimelineHTML(...)`, `renderVoiceIncidentTimelineMarkdown(...)`, and `createVoiceIncidentTimelineRoutes(...)`.
 - Incident timeline combines operational status, ops recovery issues, monitor issues, operations records, and failure replay into one chronological JSON/HTML/Markdown triage surface.
-- The voice example installs `@absolutejs/voice@0.0.22-beta.432`, mounts `/api/voice/operational-status`, `/voice/operational-status`, `/api/voice/incident-timeline`, `/voice/incident-timeline`, and `/voice/incident-timeline.md`, installs `@absolutejs/absolute@0.19.0-beta.816`, and defines `"build": "absolute build"`.
+- `@absolutejs/voice@0.0.22-beta.434` adds incident recovery action descriptors plus `GET /api/voice/incident-timeline/actions` and `POST /api/voice/incident-timeline/actions/:actionId` execution through app-supplied handlers.
+- The voice example installs `@absolutejs/voice@0.0.22-beta.434`, mounts `/api/voice/operational-status`, `/voice/operational-status`, `/api/voice/incident-timeline`, `/voice/incident-timeline`, and `/voice/incident-timeline.md`, wires safe handlers for delivery retry, proof rerun, readiness refresh, and support bundle generation, installs `@absolutejs/absolute@0.19.0-beta.816`, and defines `"build": "absolute build"`.
 - May 2 verification passed: core `bun test test/incidentTimeline.test.ts`, core `bun run typecheck`, core `bun run build`, example `bun run typecheck`, and example `bun run build`.
 - Platform coverage passes across 13 hosted-platform replacement surfaces.
 - Production readiness evidence assertion passes.
@@ -262,10 +263,11 @@ Verified:
 - `@absolutejs/voice@0.0.22-beta.383` marks profile-proof recovery actions as POST actions so readiness recovery UIs can run them directly instead of opening proof surfaces.
 - `@absolutejs/voice@0.0.22-beta.431` adds the operational-status surface that buyers expect from hosted dashboards, but as app-owned routes and reports.
 - `@absolutejs/voice@0.0.22-beta.432` adds the incident timeline/operational triage surface that answers what changed recently, which calls were affected, what failed or recovered, and where to investigate next.
+- `@absolutejs/voice@0.0.22-beta.434` adds executable incident recovery actions without owning the recovery workflow; apps provide the safe handlers.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 
-Next core-product wedge: executable incident recovery. `buildVoiceIncidentTimelineReport(...)` now answers "what broke, when, who was affected, what recovered, and where do I investigate next?" The next buyer question is "can I safely run the recommended recovery from here?" Hosted platforms sell dashboard buttons. AbsoluteJS Voice should answer with primitive-owned action metadata and app-supplied safe handlers that can re-run proof, retry deliveries, open recovery jobs, refresh readiness, or generate support bundles without becoming an opinionated app kit.
+Next core-product wedge: incident recovery audit and action history. `createVoiceIncidentTimelineRoutes(...)` can now expose and execute safe app-owned recovery actions. The next buyer question is "who ran what recovery action, what changed afterward, and did the incident resolve?" AbsoluteJS Voice should connect incident actions to operator-action audit, trace evidence, readiness refresh results, and incident timeline deltas.
 
 ## Competitive Coverage And Depth Scorecard
 

@@ -151,6 +151,8 @@ test('buildVoiceIncidentTimelineReport merges operational status calls and repla
 		'operational:Proof pack freshness'
 	]);
 	expect(report.events[1]?.action?.href).toBe('/voice-call-debugger/session-1');
+	expect(report.actions.map((action) => action.id)).toContain('support.bundle');
+	expect(report.actions.map((action) => action.id)).toContain('proof.rerun');
 });
 
 test('buildVoiceIncidentTimelineReport filters old events and resolved monitor issues', async () => {
@@ -209,8 +211,77 @@ test('createVoiceIncidentTimelineRoutes exposes json html and markdown', async (
 	await expect(json.json()).resolves.toMatchObject({
 		status: 'fail'
 	});
-	expect(await html.text()).toContain('Incident Timeline');
-	expect(await markdown.text()).toContain('Failure replay failed');
+	const htmlText = await html.text();
+	const markdownText = await markdown.text();
+
+	expect(htmlText).toContain('Incident Timeline');
+	expect(htmlText).toContain('Recovery actions');
+	expect(markdownText).toContain('Failure replay failed');
+	expect(markdownText).toContain('Recovery Actions');
+});
+
+test('createVoiceIncidentTimelineRoutes exposes and executes recovery actions', async () => {
+	const calls: string[] = [];
+	const routes = createVoiceIncidentTimelineRoutes({
+		actionHandlers: {
+			'proof.rerun': ({ actionId }) => {
+				calls.push(actionId);
+
+				return {
+					actionId,
+					ok: true,
+					status: 'queued'
+				};
+			}
+		},
+		failureReplays: [failureReplay],
+		now: 5_000,
+		recoveryActions: [
+			{
+				id: 'proof.rerun',
+				label: 'Rerun proof pack',
+				method: 'POST'
+			},
+			{
+				id: 'support.open',
+				label: 'Open support bundle',
+				method: 'GET'
+			}
+		]
+	});
+
+	const actions = await routes.handle(
+		new Request('http://localhost/api/voice/incident-timeline/actions')
+	);
+	const run = await routes.handle(
+		new Request('http://localhost/api/voice/incident-timeline/actions/proof.rerun', {
+			method: 'POST'
+		})
+	);
+	const blocked = await routes.handle(
+		new Request('http://localhost/api/voice/incident-timeline/actions/support.open', {
+			method: 'POST'
+		})
+	);
+
+	expect(actions.status).toBe(200);
+	await expect(actions.json()).resolves.toMatchObject({
+		actions: [
+			{
+				id: 'proof.rerun'
+			},
+			{
+				id: 'support.open'
+			}
+		]
+	});
+	expect(run.status).toBe(200);
+	await expect(run.json()).resolves.toMatchObject({
+		ok: true,
+		status: 'queued'
+	});
+	expect(blocked.status).toBe(409);
+	expect(calls).toEqual(['proof.rerun']);
 });
 
 test('renderVoiceIncidentTimelineMarkdown renders empty reports', async () => {

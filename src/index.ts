@@ -631,6 +631,10 @@ export type {
 	VoiceOperationalStatusValue
 } from './operationalStatus';
 export type {
+	VoiceIncidentRecoveryAction,
+	VoiceIncidentRecoveryActionHandler,
+	VoiceIncidentRecoveryActionHandlerInput,
+	VoiceIncidentRecoveryActionResult,
 	VoiceIncidentTimelineAction,
 	VoiceIncidentTimelineEvent,
 	VoiceIncidentTimelineLinks,
