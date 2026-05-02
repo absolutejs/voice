@@ -555,8 +555,10 @@ export {
 	renderVoiceOperationalStatusHTML
 } from './operationalStatus';
 export {
+	buildVoiceIncidentRecoveryOutcomeReport,
 	buildVoiceIncidentTimelineReport,
 	createVoiceIncidentTimelineRoutes,
+	renderVoiceIncidentRecoveryOutcomeHTML,
 	renderVoiceIncidentTimelineHTML,
 	renderVoiceIncidentTimelineMarkdown
 } from './incidentTimeline';
@@ -635,6 +637,10 @@ export type {
 	VoiceIncidentRecoveryActionHandler,
 	VoiceIncidentRecoveryActionHandlerInput,
 	VoiceIncidentRecoveryActionResult,
+	VoiceIncidentRecoveryOutcome,
+	VoiceIncidentRecoveryOutcomeEntry,
+	VoiceIncidentRecoveryOutcomeOptions,
+	VoiceIncidentRecoveryOutcomeReport,
 	VoiceIncidentTimelineAction,
 	VoiceIncidentTimelineEvent,
 	VoiceIncidentTimelineLinks,

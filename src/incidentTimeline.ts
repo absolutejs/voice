@@ -6,7 +6,7 @@ import type {
 } from './operationsRecord';
 import type { VoiceOperationalStatusReport } from './operationalStatus';
 import type { VoiceOpsRecoveryReport } from './opsRecovery';
-import type { VoiceAuditEventStore } from './audit';
+import type { StoredVoiceAuditEvent, VoiceAuditEventStore } from './audit';
 import type { VoiceTraceEventStore } from './trace';
 import type { VoiceMonitorIssue } from './voiceMonitoring';
 
@@ -53,6 +53,39 @@ export type VoiceIncidentRecoveryActionHandler = (
 ) =>
 	| Promise<VoiceIncidentRecoveryActionResult>
 	| VoiceIncidentRecoveryActionResult;
+
+export type VoiceIncidentRecoveryOutcome =
+	| 'failed'
+	| 'improved'
+	| 'regressed'
+	| 'unchanged';
+
+export type VoiceIncidentRecoveryOutcomeEntry = {
+	actionId: string;
+	afterStatus?: VoiceIncidentTimelineStatus;
+	at: number;
+	beforeStatus?: VoiceIncidentTimelineStatus;
+	detail?: string;
+	eventId: string;
+	outcome: VoiceIncidentRecoveryOutcome;
+	status?: number;
+	traceId?: string;
+};
+
+export type VoiceIncidentRecoveryOutcomeReport = {
+	checkedAt: number;
+	entries: VoiceIncidentRecoveryOutcomeEntry[];
+	failed: number;
+	improved: number;
+	regressed: number;
+	total: number;
+	unchanged: number;
+};
+
+export type VoiceIncidentRecoveryOutcomeOptions = {
+	audit?: VoiceAuditEventStore;
+	limit?: number;
+};
 
 export type VoiceIncidentTimelineEvent = {
 	action?: VoiceIncidentTimelineAction;
@@ -141,6 +174,8 @@ export type VoiceIncidentTimelineRoutesOptions =
 		name?: string;
 		path?: string;
 		render?: (report: VoiceIncidentTimelineReport) => string | Promise<string>;
+		recoveryOutcomeHtmlPath?: false | string;
+		recoveryOutcomePath?: false | string;
 		title?: string;
 		trace?: VoiceTraceEventStore;
 	};
@@ -277,6 +312,103 @@ const worstStatus = (
 		: statuses.includes('warn')
 			? 'warn'
 			: 'pass';
+
+const statusRank = (status: VoiceIncidentTimelineStatus | undefined) =>
+	status === 'fail' ? 3 : status === 'warn' ? 2 : status === 'pass' ? 1 : 0;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const getIncidentRecoveryBody = (event: StoredVoiceAuditEvent) => {
+	const payload = isRecord(event.payload) ? event.payload : {};
+	return isRecord(payload.body) ? payload.body : {};
+};
+
+const getIncidentRecoveryStatus = (
+	value: unknown
+): VoiceIncidentTimelineStatus | undefined =>
+	value === 'fail' || value === 'pass' || value === 'warn' ? value : undefined;
+
+const getIncidentRecoveryDetail = (event: StoredVoiceAuditEvent) => {
+	const payload = isRecord(event.payload) ? event.payload : {};
+	const body = getIncidentRecoveryBody(event);
+	const result = isRecord(body.result) ? body.result : {};
+	const detail = result.detail ?? payload.error;
+
+	return typeof detail === 'string' ? detail : undefined;
+};
+
+const toIncidentRecoveryOutcomeEntry = (
+	event: StoredVoiceAuditEvent
+): VoiceIncidentRecoveryOutcomeEntry => {
+	const body = getIncidentRecoveryBody(event);
+	const beforeStatus = getIncidentRecoveryStatus(body.beforeStatus);
+	const afterStatus = getIncidentRecoveryStatus(body.afterStatus);
+	const beforeRank = statusRank(beforeStatus);
+	const afterRank = statusRank(afterStatus);
+	const outcome: VoiceIncidentRecoveryOutcome =
+		event.outcome === 'error'
+			? 'failed'
+			: beforeRank > 0 && afterRank > 0 && afterRank < beforeRank
+				? 'improved'
+				: beforeRank > 0 && afterRank > beforeRank
+					? 'regressed'
+					: 'unchanged';
+	const payload = isRecord(event.payload) ? event.payload : {};
+
+	return {
+		actionId: event.action.replace(/^incident\./, ''),
+		afterStatus,
+		at: event.at,
+		beforeStatus,
+		detail: getIncidentRecoveryDetail(event),
+		eventId: event.id,
+		outcome,
+		status: typeof payload.status === 'number' ? payload.status : undefined,
+		traceId: event.traceId
+	};
+};
+
+export const buildVoiceIncidentRecoveryOutcomeReport = async (
+	options: VoiceIncidentRecoveryOutcomeOptions
+): Promise<VoiceIncidentRecoveryOutcomeReport> => {
+	const events = options.audit
+		? await options.audit.list({
+				limit: options.limit ?? 50,
+				resourceType: 'voice.ops.action',
+				type: 'operator.action'
+			})
+		: [];
+	const entries = events
+		.filter((event) => event.action.startsWith('incident.'))
+		.map(toIncidentRecoveryOutcomeEntry)
+		.sort((left, right) => right.at - left.at);
+
+	return {
+		checkedAt: Date.now(),
+		entries,
+		failed: entries.filter((entry) => entry.outcome === 'failed').length,
+		improved: entries.filter((entry) => entry.outcome === 'improved').length,
+		regressed: entries.filter((entry) => entry.outcome === 'regressed').length,
+		total: entries.length,
+		unchanged: entries.filter((entry) => entry.outcome === 'unchanged').length
+	};
+};
+
+export const renderVoiceIncidentRecoveryOutcomeHTML = (
+	report: VoiceIncidentRecoveryOutcomeReport,
+	options: { title?: string } = {}
+) => {
+	const title = options.title ?? 'AbsoluteJS Voice Incident Recovery Outcomes';
+	const rows = report.entries
+		.map(
+			(entry) =>
+				`<article class="${escapeHtml(entry.outcome)}"><span>${escapeHtml(entry.outcome.toUpperCase())}</span><h2>${escapeHtml(entry.actionId)}</h2><p>${escapeHtml(new Date(entry.at).toLocaleString())}</p><strong>${escapeHtml(entry.beforeStatus ?? 'unknown')} -> ${escapeHtml(entry.afterStatus ?? 'unknown')}</strong>${entry.detail ? `<p>${escapeHtml(entry.detail)}</p>` : ''}</article>`
+		)
+		.join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10120d;color:#fbf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,article{background:#181711;border:1px solid #39301d;border-radius:24px;padding:20px}.hero{margin-bottom:16px}h1{font-size:clamp(2rem,6vw,4.5rem);line-height:.95}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{border:1px solid #4a3f23;border-radius:999px;padding:8px 12px}section{display:grid;gap:12px}article.improved{border-color:rgba(34,197,94,.65)}article.failed,article.regressed{border-color:rgba(239,68,68,.8)}article.unchanged{border-color:rgba(245,158,11,.7)}article span{color:#fcd34d;font-weight:900;letter-spacing:.08em}article strong{display:block;font-size:1.4rem;margin:.5rem 0}p{color:#cfc5a8}</style></head><body><main><section class="hero"><span>Recovery proof</span><h1>${escapeHtml(title)}</h1><div class="summary"><span>${String(report.improved)} improved</span><span>${String(report.unchanged)} unchanged</span><span>${String(report.regressed)} regressed</span><span>${String(report.failed)} failed</span><span>${String(report.total)} total</span></div></section><section>${rows || '<p>No incident recovery actions have been recorded.</p>'}</section></main></body></html>`;
+};
 
 const pushOperationalStatusEvents = (
 	events: VoiceIncidentTimelineEvent[],
@@ -639,6 +771,14 @@ export const createVoiceIncidentTimelineRoutes = (
 		options.actionPath === undefined
 			? '/api/voice/incident-timeline/actions'
 			: options.actionPath;
+	const recoveryOutcomePath =
+		options.recoveryOutcomePath === undefined
+			? '/api/voice/incident-timeline/recovery-outcomes'
+			: options.recoveryOutcomePath;
+	const recoveryOutcomeHtmlPath =
+		options.recoveryOutcomeHtmlPath === undefined
+			? '/voice/incident-recovery-outcomes'
+			: options.recoveryOutcomeHtmlPath;
 	const routes = new Elysia({
 		name: options.name ?? 'absolutejs-voice-incident-timeline'
 	}).get(path, async () => {
@@ -789,6 +929,41 @@ export const createVoiceIncidentTimelineRoutes = (
 					status
 				});
 			});
+	}
+
+	if (recoveryOutcomePath !== false) {
+		routes.get(recoveryOutcomePath, async () => {
+			const report = await buildVoiceIncidentRecoveryOutcomeReport({
+				audit: options.audit
+			});
+
+			return new Response(JSON.stringify(report), {
+				headers: {
+					'Content-Type': 'application/json; charset=utf-8',
+					...options.headers
+				}
+			});
+		});
+	}
+
+	if (recoveryOutcomeHtmlPath !== false) {
+		routes.get(recoveryOutcomeHtmlPath, async () => {
+			const report = await buildVoiceIncidentRecoveryOutcomeReport({
+				audit: options.audit
+			});
+
+			return new Response(
+				renderVoiceIncidentRecoveryOutcomeHTML(report, {
+					title: `${options.title ?? 'AbsoluteJS Voice Incident Timeline'} Recovery Outcomes`
+				}),
+				{
+					headers: {
+						'Content-Type': 'text/html; charset=utf-8',
+						...options.headers
+					}
+				}
+			);
+		});
 	}
 
 	return routes;

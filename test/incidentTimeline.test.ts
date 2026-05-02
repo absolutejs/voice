@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import {
+	buildVoiceIncidentRecoveryOutcomeReport,
 	buildVoiceIncidentTimelineReport,
 	createVoiceMemoryAuditEventStore,
 	createVoiceMemoryTraceEventStore,
@@ -311,6 +312,92 @@ test('createVoiceIncidentTimelineRoutes exposes and executes recovery actions', 
 			}
 		}
 	]);
+});
+
+test('buildVoiceIncidentRecoveryOutcomeReport summarizes audited incident action impact', async () => {
+	const audit = createVoiceMemoryAuditEventStore();
+	const routes = createVoiceIncidentTimelineRoutes({
+		actionHandlers: {
+			'proof.rerun': ({ actionId }) => ({
+				actionId,
+				afterStatus: 'pass',
+				beforeStatus: 'fail',
+				ok: true,
+				status: 'refreshed'
+			}),
+			'readiness.refresh': ({ actionId }) => ({
+				actionId,
+				afterStatus: 'warn',
+				beforeStatus: 'warn',
+				ok: true,
+				status: 'refreshed'
+			}),
+			'support.bundle': ({ actionId }) => ({
+				actionId,
+				afterStatus: 'fail',
+				beforeStatus: 'warn',
+				ok: true,
+				status: 'generated'
+			})
+		},
+		audit,
+		failureReplays: [failureReplay],
+		now: 5_000,
+		recoveryActions: [
+			{
+				id: 'proof.rerun',
+				label: 'Rerun proof pack',
+				method: 'POST'
+			},
+			{
+				id: 'readiness.refresh',
+				label: 'Refresh readiness',
+				method: 'POST'
+			},
+			{
+				id: 'support.bundle',
+				label: 'Generate support bundle',
+				method: 'POST'
+			}
+		]
+	});
+
+	for (const actionId of ['proof.rerun', 'readiness.refresh', 'support.bundle']) {
+		await routes.handle(
+			new Request(
+				`http://localhost/api/voice/incident-timeline/actions/${actionId}`,
+				{
+					method: 'POST'
+				}
+			)
+		);
+	}
+
+	const report = await buildVoiceIncidentRecoveryOutcomeReport({ audit });
+	const json = await routes.handle(
+		new Request('http://localhost/api/voice/incident-timeline/recovery-outcomes')
+	);
+	const html = await routes.handle(
+		new Request('http://localhost/voice/incident-recovery-outcomes')
+	);
+
+	expect(report).toMatchObject({
+		failed: 0,
+		improved: 1,
+		regressed: 1,
+		total: 3,
+		unchanged: 1
+	});
+	expect(report.entries.map((entry) => entry.outcome).sort()).toEqual([
+		'improved',
+		'regressed',
+		'unchanged'
+	]);
+	expect(json.status).toBe(200);
+	await expect(json.json()).resolves.toMatchObject({
+		total: 3
+	});
+	expect(await html.text()).toContain('Recovery Outcomes');
 });
 
 test('renderVoiceIncidentTimelineMarkdown renders empty reports', async () => {
