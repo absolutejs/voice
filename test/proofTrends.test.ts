@@ -14,11 +14,13 @@ import {
   buildVoiceRealCallProfileDefaults,
   buildVoiceRealCallProfileEvidenceFromTraceEvents,
   buildVoiceRealCallProfileHistoryReport,
+  buildVoiceRealCallProfileHistoryReportFromStore,
   buildVoiceRealCallProfileReadinessCheck,
   buildVoiceRealCallProfileRecoveryJobHistoryCheck,
   buildVoiceRealCallProfileRecoveryActions,
   createVoiceInMemoryRealCallProfileRecoveryJobStore,
   createVoiceRealCallProfileTraceCollector,
+  createVoiceSQLiteRealCallProfileEvidenceStore,
   createVoiceSQLiteRealCallProfileRecoveryJobStore,
   createVoiceProofTrendRecommendationRoutes,
   createVoiceProofTrendRoutes,
@@ -26,6 +28,7 @@ import {
   createVoiceRealCallProfileRecoveryActionRoutes,
   evaluateVoiceProofTrendEvidence,
   formatVoiceProofTrendAge,
+  loadVoiceRealCallProfileEvidenceFromStore,
   loadVoiceRealCallProfileEvidenceFromTraceStore,
   runVoiceRealCallProfileRecoveryLoop,
   resolveVoiceRealCallProfileProviderRoute,
@@ -2509,5 +2512,86 @@ describe("proof trends", () => {
       id: queued.id,
       status: "pass",
     });
+  });
+
+  test("createVoiceSQLiteRealCallProfileEvidenceStore persists profile evidence across instances", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "voice-profile-evidence-"));
+    const path = join(directory, "profiles.sqlite");
+    const firstStore = createVoiceSQLiteRealCallProfileEvidenceStore({
+      idPrefix: "sqlite-profile-evidence",
+      now: () => new Date("2026-04-30T12:00:00.000Z"),
+      path,
+    });
+    const stored = await firstStore.append({
+      generatedAt: "2026-04-30T12:00:00.000Z",
+      liveP95Ms: 420,
+      ok: true,
+      operationsRecordHref: "/voice/operations/session-1",
+      profileDescription: "Browser meeting capture with reconnect resume.",
+      profileId: "meeting-recorder",
+      profileLabel: "Meeting recorder",
+      providerP95Ms: 650,
+      reconnect: {
+        reconnected: true,
+        resumed: true,
+        resumeLatencyP95Ms: 380,
+        samples: 1,
+        snapshotCount: 24,
+        status: "pass",
+      },
+      runtimeChannel: {
+        backpressureEvents: 0,
+        firstAudioLatencyP95Ms: 360,
+        interruptionP95Ms: 190,
+        jitterP95Ms: 11,
+        samples: 1,
+        status: "pass",
+        timestampDriftP95Ms: 8,
+      },
+      sessionId: "session-1",
+      surfaces: ["browser", "reconnect"],
+      turnP95Ms: 510,
+    });
+
+    const secondStore = createVoiceSQLiteRealCallProfileEvidenceStore({
+      path,
+    });
+    const persisted = await secondStore.get(stored.id);
+    const listed = await loadVoiceRealCallProfileEvidenceFromStore({
+      profileId: "meeting-recorder",
+      since: "2026-04-30T11:59:00.000Z",
+      store: secondStore,
+    });
+    const history = await buildVoiceRealCallProfileHistoryReportFromStore({
+      generatedAt: "2026-04-30T12:05:00.000Z",
+      now: "2026-04-30T12:05:00.000Z",
+      store: secondStore,
+    });
+
+    expect(stored.id).toStartWith("sqlite-profile-evidence-");
+    expect(stored.createdAt).toBe("2026-04-30T12:00:00.000Z");
+    expect(persisted).toMatchObject({
+      id: stored.id,
+      profileId: "meeting-recorder",
+      sessionId: "session-1",
+    });
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({
+      id: stored.id,
+      operationsRecordHref: "/voice/operations/session-1",
+    });
+    expect(history.ok).toBe(true);
+    expect(
+      history.summary.profiles?.find(
+        (profile) => profile.id === "meeting-recorder",
+      ),
+    ).toMatchObject({
+      cycles: 1,
+      status: "pass",
+    });
+    expect(history.summary.maxReconnectP95Ms).toBe(380);
+
+    await secondStore.remove(stored.id);
+    expect(await secondStore.get(stored.id)).toBeUndefined();
   });
 });

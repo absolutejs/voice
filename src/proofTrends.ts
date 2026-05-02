@@ -190,6 +190,54 @@ export type VoiceProofTrendRealCallProfileEvidence = {
   turnP95Ms?: number;
 };
 
+export type VoiceRealCallProfileEvidenceRecord =
+  VoiceProofTrendRealCallProfileEvidence & {
+    createdAt: string;
+    id: string;
+  };
+
+export type VoiceRealCallProfileEvidenceCreateInput =
+  VoiceProofTrendRealCallProfileEvidence & {
+    createdAt?: string;
+    id?: string;
+  };
+
+export type VoiceRealCallProfileEvidenceListOptions = {
+  limit?: number;
+  profileId?: string;
+  sessionId?: string;
+  since?: Date | number | string;
+  until?: Date | number | string;
+};
+
+export type VoiceRealCallProfileEvidenceStore = {
+  append(
+    input: VoiceRealCallProfileEvidenceCreateInput,
+  ):
+    | Promise<VoiceRealCallProfileEvidenceRecord>
+    | VoiceRealCallProfileEvidenceRecord;
+  get(
+    id: string,
+  ):
+    | Promise<VoiceRealCallProfileEvidenceRecord | undefined>
+    | VoiceRealCallProfileEvidenceRecord
+    | undefined;
+  list(
+    options?: VoiceRealCallProfileEvidenceListOptions,
+  ):
+    | Promise<VoiceRealCallProfileEvidenceRecord[]>
+    | VoiceRealCallProfileEvidenceRecord[];
+  remove(id: string): Promise<void> | void;
+};
+
+export type VoiceSQLiteRealCallProfileEvidenceStoreOptions = {
+  database?: Database;
+  idPrefix?: string;
+  now?: () => Date;
+  path?: string;
+  tableName?: string;
+};
+
 export type VoiceReconnectRealCallProfileEvidenceOptions = {
   operationsRecordHref?: string | ((report: VoiceReconnectProofReport | VoiceReconnectContractReport, index: number) => string | undefined);
   profileDescription?: string;
@@ -1577,6 +1625,13 @@ export const loadVoiceRealCallProfileEvidenceFromTraceStore = async (
     await options.store.list({ limit: options.limit ?? 5000 }),
     options,
   );
+
+export const loadVoiceRealCallProfileEvidenceFromStore = async (
+  options: VoiceRealCallProfileEvidenceListOptions & {
+    store: VoiceRealCallProfileEvidenceStore;
+  },
+): Promise<VoiceRealCallProfileEvidenceRecord[]> =>
+  options.store.list(options);
 
 const realCallProfileTraceSignalTypes = new Set([
   "client.barge_in",
@@ -3156,6 +3211,152 @@ export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
   };
 };
 
+const normalizeRealCallProfileEvidenceTableName = (value: string) =>
+  value
+    .trim()
+    .replace(/[^a-zA-Z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "voice_real_call_profile_evidence";
+
+const parseRealCallProfileEvidenceBoundary = (
+  value: Date | number | string | undefined,
+) =>
+  value === undefined
+    ? undefined
+    : value instanceof Date
+      ? value.getTime()
+      : typeof value === "number"
+        ? value
+        : Date.parse(value);
+
+const readRealCallProfileEvidenceSortTime = (
+  evidence: VoiceProofTrendRealCallProfileEvidence,
+  fallback: string,
+) => Date.parse(evidence.generatedAt ?? fallback) || Date.parse(fallback);
+
+export const createVoiceSQLiteRealCallProfileEvidenceStore = (
+  options: VoiceSQLiteRealCallProfileEvidenceStoreOptions = {},
+): VoiceRealCallProfileEvidenceStore => {
+  const { Database: SQLiteDatabase } =
+    require("bun:sqlite") as typeof import("bun:sqlite");
+  const database =
+    options.database ??
+    new SQLiteDatabase(options.path ?? ":memory:", {
+      create: true,
+    });
+  const tableName = normalizeRealCallProfileEvidenceTableName(
+    options.tableName ?? "voice_real_call_profile_evidence",
+  );
+  const now = () => (options.now ?? (() => new Date()))().toISOString();
+  const createId = () =>
+    `${options.idPrefix ?? "voice-profile-evidence"}-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+
+  database.exec("PRAGMA journal_mode = WAL;");
+  database.exec("PRAGMA synchronous = NORMAL;");
+  database.exec("PRAGMA busy_timeout = 5000;");
+  database.exec(
+    `CREATE TABLE IF NOT EXISTS "${tableName}" (
+			id TEXT PRIMARY KEY,
+			sort_at INTEGER NOT NULL,
+			profile_id TEXT NOT NULL,
+			session_id TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			payload TEXT NOT NULL
+		)`,
+  );
+
+  const selectStatement = database.query(
+    `SELECT payload FROM "${tableName}" WHERE id = ?1 LIMIT 1`,
+  );
+  const listStatement = database.query(
+    `SELECT payload FROM "${tableName}" ORDER BY sort_at DESC, id DESC`,
+  );
+  const upsertStatement = database.query(
+    `INSERT INTO "${tableName}" (id, sort_at, profile_id, session_id, created_at, payload)
+		 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+		 ON CONFLICT(id) DO UPDATE SET
+			sort_at = excluded.sort_at,
+			profile_id = excluded.profile_id,
+			session_id = excluded.session_id,
+			created_at = excluded.created_at,
+			payload = excluded.payload`,
+  );
+  const deleteStatement = database.query(
+    `DELETE FROM "${tableName}" WHERE id = ?1`,
+  );
+
+  const writeEvidence = (record: VoiceRealCallProfileEvidenceRecord) => {
+    upsertStatement.run(
+      record.id,
+      readRealCallProfileEvidenceSortTime(record, record.createdAt),
+      record.profileId,
+      record.sessionId,
+      record.createdAt,
+      JSON.stringify(record),
+    );
+    return record;
+  };
+  const readEvidence = (id: string) => {
+    const row = selectStatement.get(id) as { payload: string } | null;
+    return row
+      ? (JSON.parse(row.payload) as VoiceRealCallProfileEvidenceRecord)
+      : undefined;
+  };
+  const matchesListOptions = (
+    record: VoiceRealCallProfileEvidenceRecord,
+    input: VoiceRealCallProfileEvidenceListOptions,
+  ) => {
+    const evidenceTime = readRealCallProfileEvidenceSortTime(
+      record,
+      record.createdAt,
+    );
+    const since = parseRealCallProfileEvidenceBoundary(input.since);
+    const until = parseRealCallProfileEvidenceBoundary(input.until);
+    return (
+      (!input.profileId || record.profileId === input.profileId) &&
+      (!input.sessionId || record.sessionId === input.sessionId) &&
+      (since === undefined || Number.isNaN(since) || evidenceTime >= since) &&
+      (until === undefined || Number.isNaN(until) || evidenceTime <= until)
+    );
+  };
+
+  return {
+    append(input) {
+      const createdAt = input.createdAt ?? now();
+      return writeEvidence({
+        ...input,
+        createdAt,
+        id: input.id ?? createId(),
+      });
+    },
+    get(id) {
+      return readEvidence(id);
+    },
+    list(input = {}) {
+      const limit =
+        Number.isFinite(input.limit) &&
+        input.limit !== undefined &&
+        input.limit > 0
+          ? Math.floor(input.limit)
+          : 500;
+      return listStatement
+        .all()
+        .map(
+          (row) =>
+            JSON.parse(
+              (row as { payload: string }).payload,
+            ) as VoiceRealCallProfileEvidenceRecord,
+        )
+        .filter((record) => matchesListOptions(record, input))
+        .slice(0, limit);
+    },
+    remove(id) {
+      deleteStatement.run(id);
+    },
+  };
+};
+
 const normalizeRealCallRecoveryJobTableName = (value: string) =>
   value
     .trim()
@@ -3580,6 +3781,19 @@ export const buildVoiceRealCallProfileHistoryReport = (
     summary,
     trend,
   };
+};
+
+export const buildVoiceRealCallProfileHistoryReportFromStore = async (
+  options: Omit<VoiceRealCallProfileHistoryOptions, "evidence"> &
+    VoiceRealCallProfileEvidenceListOptions & {
+      store: VoiceRealCallProfileEvidenceStore;
+    },
+): Promise<VoiceRealCallProfileHistoryReport> => {
+  const evidence = await options.store.list(options);
+  return buildVoiceRealCallProfileHistoryReport({
+    ...options,
+    evidence,
+  });
 };
 
 const normalizeProviderStatus = (
