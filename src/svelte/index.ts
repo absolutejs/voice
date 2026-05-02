@@ -8,6 +8,7 @@ export { createVoiceProofTrends } from "./createVoiceProofTrends";
 export { createVoiceReconnectProfileEvidence } from "./createVoiceReconnectProfileEvidence";
 export { createVoiceCallDebugger } from "./createVoiceCallDebugger";
 export { createVoiceSessionSnapshot } from "./createVoiceSessionSnapshot";
+export { createVoiceSessionObservability } from "./createVoiceSessionObservability";
 export { createVoiceProfileComparison } from "./createVoiceProfileComparison";
 export { createVoiceReadinessFailures } from "./createVoiceReadinessFailures";
 export { createVoiceProviderSimulationControls } from "./createVoiceProviderSimulationControls";

@@ -4,6 +4,7 @@ export { VoiceProofTrendsService } from "./voice-proof-trends.service";
 export { VoiceReconnectProfileEvidenceService } from "./voice-reconnect-profile-evidence.service";
 export { VoiceCallDebuggerService } from "./voice-call-debugger.service";
 export { VoiceSessionSnapshotService } from "./voice-session-snapshot.service";
+export { VoiceSessionObservabilityService } from "./voice-session-observability.service";
 export { VoiceProfileComparisonService } from "./voice-profile-comparison.service";
 export { VoiceReadinessFailuresService } from "./voice-readiness-failures.service";
 export { VoiceOpsActionCenterService } from "./voice-ops-action-center.service";

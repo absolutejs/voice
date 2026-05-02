@@ -27,6 +27,10 @@ export {
   fetchVoiceSessionSnapshot,
 } from "./sessionSnapshot";
 export {
+  createVoiceSessionObservabilityStore,
+  fetchVoiceSessionObservability,
+} from "./sessionObservability";
+export {
   createVoiceCallDebuggerStore,
   fetchVoiceCallDebugger,
 } from "./callDebugger";
@@ -50,14 +54,30 @@ export {
   mountVoiceSessionSnapshot,
   renderVoiceSessionSnapshotHTML,
 } from "./sessionSnapshotWidget";
+export {
+  createVoiceSessionObservabilityViewModel,
+  defineVoiceSessionObservabilityElement,
+  getVoiceSessionObservabilityCSS,
+  mountVoiceSessionObservability,
+  renderVoiceSessionObservabilityHTML,
+} from "./sessionObservabilityWidget";
 export type {
   VoiceSessionSnapshotClientOptions,
   VoiceSessionSnapshotClientState,
 } from "./sessionSnapshot";
 export type {
+  VoiceSessionObservabilityClientOptions,
+  VoiceSessionObservabilitySnapshot,
+} from "./sessionObservability";
+export type {
   VoiceSessionSnapshotViewModel,
   VoiceSessionSnapshotWidgetOptions,
 } from "./sessionSnapshotWidget";
+export type {
+  VoiceSessionObservabilityTurnView,
+  VoiceSessionObservabilityViewModel,
+  VoiceSessionObservabilityWidgetOptions,
+} from "./sessionObservabilityWidget";
 export {
   createVoiceProfileComparisonStore,
   fetchVoiceProfileComparison,

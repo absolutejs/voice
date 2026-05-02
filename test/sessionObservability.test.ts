@@ -7,6 +7,11 @@ import {
   createVoiceTraceEvent,
   renderVoiceSessionObservabilityMarkdown,
 } from "../src";
+import {
+  createVoiceSessionObservabilityStore,
+  createVoiceSessionObservabilityViewModel,
+  renderVoiceSessionObservabilityHTML as renderVoiceSessionObservabilityWidgetHTML,
+} from "../src/client";
 
 const createSessionEvents = () => [
   createVoiceTraceEvent({
@@ -200,4 +205,36 @@ test("createVoiceSessionObservabilityRoutes exposes JSON HTML and Markdown", asy
   expect(markdown.status).toBe(200);
   expect(markdownText).toContain("Voice session observability");
   expect(markdownText).toContain("Incident Handoff");
+});
+
+test("session observability client primitives expose a reusable view model", async () => {
+  const report = await buildVoiceSessionObservabilityReport({
+    events: createSessionEvents(),
+    sessionId: "session-observable",
+  });
+  const store = createVoiceSessionObservabilityStore(
+    "/api/voice/session-observability/session-observable",
+    {
+      fetch: async () => Response.json(report),
+    },
+  );
+
+  await store.refresh();
+  const snapshot = store.getSnapshot();
+  const model = createVoiceSessionObservabilityViewModel(snapshot);
+  const html = renderVoiceSessionObservabilityWidgetHTML(snapshot);
+
+  expect(model).toMatchObject({
+    label: "1 turns / 1 fallbacks / 0 errors",
+    sessionId: "session-observable",
+    status: "ready",
+  });
+  expect(model.turns[0]).toMatchObject({
+    label: "1 transcripts / 1 tools / 2 provider decisions",
+    turnId: "turn-1",
+  });
+  expect(html).toContain("absolute-voice-session-observability");
+  expect(html).toContain("Session Observability");
+
+  store.close();
 });
