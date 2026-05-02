@@ -1,78 +1,76 @@
 {
-	"artifacts": [
-		{
-			"id": "provider-slo-screenshot",
-			"kind": "screenshot",
-			"label": "Provider SLO screenshot",
-			"href": "/voice/provider-slos",
-			"bytes": 325396,
-			"contentType": "image/png",
-			"status": "pass"
-		}
-	],
-	"checkedAt": 1710000000000,
-	"deliveries": {},
-	"envelopes": [
-		{
-			"at": 1709999999000,
-			"eventId": "trace-session-1-start",
-			"eventType": "call.lifecycle",
-			"kind": "trace",
-			"sessionId": "session-1",
-			"severity": "pass",
-			"traceId": "trace-1"
-		},
-		{
-			"at": 1709999999500,
-			"eventId": "trace-session-1-model",
-			"eventType": "agent.model",
-			"kind": "trace",
-			"provider": "openai",
-			"providerKind": "llm",
-			"sessionId": "session-1",
-			"severity": "pass",
-			"traceId": "trace-1"
-		}
-	],
-	"issues": [],
-	"operationsRecords": [],
-	"redaction": {
-		"enabled": false,
-		"mode": "none"
-	},
-	"schema": {
-		"id": "com.absolutejs.voice.observability-export",
-		"version": "1.0.0"
-	},
-	"sessionIds": [
-		"session-1"
-	],
-	"status": "pass",
-	"summary": {
-		"auditEvents": 0,
-		"events": 2,
-		"failedOperationsRecords": 0,
-		"trace": {
-			"assistantReplyCount": 0,
-			"callDurationMs": 500,
-			"cost": {
-				"estimatedRelativeCostUnits": 0,
-				"totalBillableAudioMs": 0
-			},
-			"endedAt": 1709999999500,
-			"errorCount": 0,
-			"eventCount": 2,
-			"failed": false,
-			"handoffCount": 0,
-			"modelCallCount": 1,
-			"sessionId": "session-1",
-			"startedAt": 1709999999000,
-			"toolCallCount": 0,
-			"toolErrorCount": 0,
-			"traceId": "trace-1",
-			"transcriptCount": 0,
-			"turnCount": 0
-		},
-		"traceEvents": 2
-	}
+  "artifacts": [
+    {
+      "id": "provider-slo-screenshot",
+      "kind": "screenshot",
+      "label": "Provider SLO screenshot",
+      "href": "/voice/provider-slos",
+      "bytes": 325396,
+      "contentType": "image/png",
+      "status": "pass"
+    }
+  ],
+  "checkedAt": 1710000000000,
+  "deliveries": {},
+  "envelopes": [
+    {
+      "at": 1709999999000,
+      "eventId": "trace-session-1-start",
+      "eventType": "call.lifecycle",
+      "kind": "trace",
+      "sessionId": "session-1",
+      "severity": "pass",
+      "traceId": "trace-1"
+    },
+    {
+      "at": 1709999999500,
+      "eventId": "trace-session-1-model",
+      "eventType": "agent.model",
+      "kind": "trace",
+      "provider": "openai",
+      "providerKind": "llm",
+      "sessionId": "session-1",
+      "severity": "pass",
+      "traceId": "trace-1"
+    }
+  ],
+  "issues": [],
+  "operationsRecords": [],
+  "redaction": {
+    "enabled": false,
+    "mode": "none"
+  },
+  "schema": {
+    "id": "com.absolutejs.voice.observability-export",
+    "version": "1.0.0"
+  },
+  "sessionIds": ["session-1"],
+  "status": "pass",
+  "summary": {
+    "auditEvents": 0,
+    "events": 2,
+    "failedOperationsRecords": 0,
+    "trace": {
+      "assistantReplyCount": 0,
+      "callDurationMs": 500,
+      "cost": {
+        "estimatedRelativeCostUnits": 0,
+        "totalBillableAudioMs": 0
+      },
+      "endedAt": 1709999999500,
+      "errorCount": 0,
+      "eventCount": 2,
+      "failed": false,
+      "handoffCount": 0,
+      "modelCallCount": 1,
+      "sessionId": "session-1",
+      "startedAt": 1709999999000,
+      "toolCallCount": 0,
+      "toolErrorCount": 0,
+      "traceId": "trace-1",
+      "transcriptCount": 0,
+      "turnCount": 0
+    },
+    "traceEvents": 2
+  }
 }

@@ -1,37 +1,37 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
-	createVoiceProviderContractsStore,
-	type VoiceProviderContractsClientOptions
-} from '../client/providerContracts';
+  createVoiceProviderContractsStore,
+  type VoiceProviderContractsClientOptions,
+} from "../client/providerContracts";
 
 export const useVoiceProviderContracts = <TProvider extends string = string>(
-	path = '/api/provider-contracts',
-	options: VoiceProviderContractsClientOptions = {}
+  path = "/api/provider-contracts",
+  options: VoiceProviderContractsClientOptions = {},
 ) => {
-	const storeRef = useRef<ReturnType<
-		typeof createVoiceProviderContractsStore<TProvider>
-	> | null>(null);
+  const storeRef = useRef<ReturnType<
+    typeof createVoiceProviderContractsStore<TProvider>
+  > | null>(null);
 
-	if (!storeRef.current) {
-		storeRef.current = createVoiceProviderContractsStore<TProvider>(
-			path,
-			options
-		);
-	}
+  if (!storeRef.current) {
+    storeRef.current = createVoiceProviderContractsStore<TProvider>(
+      path,
+      options,
+    );
+  }
 
-	const store = storeRef.current;
+  const store = storeRef.current;
 
-	useEffect(() => {
-		void store.refresh().catch(() => {});
-		return () => store.close();
-	}, [store]);
+  useEffect(() => {
+    void store.refresh().catch(() => {});
+    return () => store.close();
+  }, [store]);
 
-	return {
-		...useSyncExternalStore(
-			store.subscribe,
-			store.getSnapshot,
-			store.getServerSnapshot
-		),
-		refresh: store.refresh
-	};
+  return {
+    ...useSyncExternalStore(
+      store.subscribe,
+      store.getSnapshot,
+      store.getServerSnapshot,
+    ),
+    refresh: store.refresh,
+  };
 };

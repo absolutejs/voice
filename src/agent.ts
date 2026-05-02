@@ -1,1028 +1,1049 @@
 import type {
-	VoiceOnTurnObjectHandler,
-	VoiceRouteResult,
-	VoiceSessionHandle,
-	VoiceSessionRecord,
-	VoiceTurnRecord
-} from './types';
-import type { VoiceTraceEventStore } from './trace';
-import type { VoiceToolRuntime } from './toolRuntime';
+  VoiceOnTurnObjectHandler,
+  VoiceRouteResult,
+  VoiceSessionHandle,
+  VoiceSessionRecord,
+  VoiceTurnRecord,
+} from "./types";
+import type { VoiceTraceEventStore } from "./trace";
+import type { VoiceToolRuntime } from "./toolRuntime";
 import {
-	createVoiceAuditLogger,
-	type VoiceAuditEventStore,
-	type VoiceAuditLogger,
-	type VoiceAuditOutcome
-} from './audit';
+  createVoiceAuditLogger,
+  type VoiceAuditEventStore,
+  type VoiceAuditLogger,
+  type VoiceAuditOutcome,
+} from "./audit";
 
-export type VoiceAgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
+export type VoiceAgentMessageRole = "assistant" | "system" | "tool" | "user";
 
 export type VoiceAgentMessage = {
-	content: string;
-	metadata?: Record<string, unknown>;
-	name?: string;
-	role: VoiceAgentMessageRole;
-	toolCallId?: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  name?: string;
+  role: VoiceAgentMessageRole;
+  toolCallId?: string;
 };
 
 export type VoiceAgentToolCall<TArgs = Record<string, unknown>> = {
-	args: TArgs;
-	id?: string;
-	name: string;
+  args: TArgs;
+  id?: string;
+  name: string;
 };
 
 export type VoiceAgentToolResult<TResult = unknown> = {
-	content?: string;
-	error?: string;
-	metadata?: Record<string, unknown>;
-	result?: TResult;
-	status: 'error' | 'ok';
-	toolCallId?: string;
-	toolName: string;
+  content?: string;
+  error?: string;
+  metadata?: Record<string, unknown>;
+  result?: TResult;
+  status: "error" | "ok";
+  toolCallId?: string;
+  toolName: string;
 };
 
 export type VoiceAgentTool<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TArgs = Record<string, unknown>,
-	TToolResult = unknown,
-	TRouteResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TArgs = Record<string, unknown>,
+  TToolResult = unknown,
+  TRouteResult = unknown,
 > = {
-	description?: string;
-	execute: (input: {
-		api: VoiceSessionHandle<TContext, TSession, TRouteResult>;
-		args: TArgs;
-		context: TContext;
-		session: TSession;
-		turn: VoiceTurnRecord;
-	}) => Promise<TToolResult> | TToolResult;
-	name: string;
-	parameters?: Record<string, unknown>;
-	resultToMessage?: (result: TToolResult) => string;
+  description?: string;
+  execute: (input: {
+    api: VoiceSessionHandle<TContext, TSession, TRouteResult>;
+    args: TArgs;
+    context: TContext;
+    session: TSession;
+    turn: VoiceTurnRecord;
+  }) => Promise<TToolResult> | TToolResult;
+  name: string;
+  parameters?: Record<string, unknown>;
+  resultToMessage?: (result: TToolResult) => string;
 };
 
 export type VoiceAgentModelInput<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
 > = {
-	agentId: string;
-	context: TContext;
-	messages: VoiceAgentMessage[];
-	session: TSession;
-	system?: string;
-	tools: Array<{
-		description?: string;
-		name: string;
-		parameters?: Record<string, unknown>;
-	}>;
-	turn: VoiceTurnRecord;
+  agentId: string;
+  context: TContext;
+  messages: VoiceAgentMessage[];
+  session: TSession;
+  system?: string;
+  tools: Array<{
+    description?: string;
+    name: string;
+    parameters?: Record<string, unknown>;
+  }>;
+  turn: VoiceTurnRecord;
 };
 
 export type VoiceAgentModelOutput<TResult = unknown> =
-	VoiceRouteResult<TResult> & {
-		handoff?: {
-			metadata?: Record<string, unknown>;
-			reason?: string;
-			targetAgentId: string;
-		};
-		toolCalls?: VoiceAgentToolCall[];
-	};
+  VoiceRouteResult<TResult> & {
+    handoff?: {
+      metadata?: Record<string, unknown>;
+      reason?: string;
+      targetAgentId: string;
+    };
+    toolCalls?: VoiceAgentToolCall[];
+  };
 
 export type VoiceAgentModel<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 > = {
-	generate: (
-		input: VoiceAgentModelInput<TContext, TSession>
-	) =>
-		| Promise<VoiceAgentModelOutput<TResult>>
-		| VoiceAgentModelOutput<TResult>;
+  generate: (
+    input: VoiceAgentModelInput<TContext, TSession>,
+  ) => Promise<VoiceAgentModelOutput<TResult>> | VoiceAgentModelOutput<TResult>;
 };
 
 export type VoiceAgentSquadHandoffStatus =
-	| 'allowed'
-	| 'blocked'
-	| 'max-exceeded'
-	| 'unknown-target';
+  | "allowed"
+  | "blocked"
+  | "max-exceeded"
+  | "unknown-target";
 
 export type VoiceAgentSquadStateHandoff = {
-	at: number;
-	fromAgentId: string;
-	metadata?: Record<string, unknown>;
-	originalTargetAgentId?: string;
-	reason?: string;
-	status: VoiceAgentSquadHandoffStatus;
-	summary?: string;
-	targetAgentId: string;
-	turnId: string;
+  at: number;
+  fromAgentId: string;
+  metadata?: Record<string, unknown>;
+  originalTargetAgentId?: string;
+  reason?: string;
+  status: VoiceAgentSquadHandoffStatus;
+  summary?: string;
+  targetAgentId: string;
+  turnId: string;
 };
 
 export type VoiceAgentSquadState = {
-	agentId: string;
-	handoffCount: number;
-	handoffs: VoiceAgentSquadStateHandoff[];
-	lastHandoff?: VoiceAgentSquadStateHandoff;
-	previousAgentId?: string;
+  agentId: string;
+  handoffCount: number;
+  handoffs: VoiceAgentSquadStateHandoff[];
+  lastHandoff?: VoiceAgentSquadStateHandoff;
+  previousAgentId?: string;
 };
 
-export type VoiceAgentRunResult<TResult = unknown> = VoiceRouteResult<TResult> & {
-	agentId: string;
-	handoff?: VoiceAgentModelOutput<TResult>['handoff'];
-	messages: VoiceAgentMessage[];
-	squad?: VoiceAgentSquadState;
-	toolResults: VoiceAgentToolResult[];
-};
+export type VoiceAgentRunResult<TResult = unknown> =
+  VoiceRouteResult<TResult> & {
+    agentId: string;
+    handoff?: VoiceAgentModelOutput<TResult>["handoff"];
+    messages: VoiceAgentMessage[];
+    squad?: VoiceAgentSquadState;
+    toolResults: VoiceAgentToolResult[];
+  };
 
 export type VoiceAgentSquadHandoffPolicyResult<TResult = unknown> = {
-	allow?: boolean;
-	escalate?: VoiceRouteResult<TResult>['escalate'];
-	metadata?: Record<string, unknown>;
-	reason?: string;
-	summary?: string;
-	targetAgentId?: string;
+  allow?: boolean;
+  escalate?: VoiceRouteResult<TResult>["escalate"];
+  metadata?: Record<string, unknown>;
+  reason?: string;
+  summary?: string;
+  targetAgentId?: string;
 };
 
 export type VoiceAgentSquadContextPolicyResult = {
-	messages?: VoiceAgentMessage[];
-	metadata?: Record<string, unknown>;
-	system?: string;
+  messages?: VoiceAgentMessage[];
+  metadata?: Record<string, unknown>;
+  system?: string;
 };
 
 export type VoiceAgent<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 > = {
-	id: string;
-	onTurn: VoiceOnTurnObjectHandler<TContext, TSession, TResult>;
-	run: (input: {
-		api: VoiceSessionHandle<TContext, TSession, TResult>;
-		context: TContext;
-		messages?: VoiceAgentMessage[];
-		session: TSession;
-		system?: string;
-		turn: VoiceTurnRecord;
-	}) => Promise<VoiceAgentRunResult<TResult>>;
+  id: string;
+  onTurn: VoiceOnTurnObjectHandler<TContext, TSession, TResult>;
+  run: (input: {
+    api: VoiceSessionHandle<TContext, TSession, TResult>;
+    context: TContext;
+    messages?: VoiceAgentMessage[];
+    session: TSession;
+    system?: string;
+    turn: VoiceTurnRecord;
+  }) => Promise<VoiceAgentRunResult<TResult>>;
 };
 
 export type VoiceAgentOptions<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 > = {
-	audit?: VoiceAuditEventStore | VoiceAuditLogger;
-	auditModel?: string;
-	auditProvider?: string;
-	id: string;
-	maxToolRounds?: number;
-	model: VoiceAgentModel<TContext, TSession, TResult>;
-	system?: string | ((input: {
-		context: TContext;
-		session: TSession;
-		turn: VoiceTurnRecord;
-	}) => Promise<string | undefined> | string | undefined);
-	trace?: VoiceTraceEventStore;
-	toolRuntime?: VoiceToolRuntime<TContext, TSession, TResult>;
-	tools?: Array<VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>>;
+  audit?: VoiceAuditEventStore | VoiceAuditLogger;
+  auditModel?: string;
+  auditProvider?: string;
+  id: string;
+  maxToolRounds?: number;
+  model: VoiceAgentModel<TContext, TSession, TResult>;
+  system?:
+    | string
+    | ((input: {
+        context: TContext;
+        session: TSession;
+        turn: VoiceTurnRecord;
+      }) => Promise<string | undefined> | string | undefined);
+  trace?: VoiceTraceEventStore;
+  toolRuntime?: VoiceToolRuntime<TContext, TSession, TResult>;
+  tools?: Array<
+    VoiceAgentTool<
+      TContext,
+      TSession,
+      Record<string, unknown>,
+      unknown,
+      TResult
+    >
+  >;
 };
 
 export type VoiceAgentSquadOptions<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 > = {
-	audit?: VoiceAuditEventStore | VoiceAuditLogger;
-	agents: Array<VoiceAgent<TContext, TSession, TResult>>;
-	defaultAgentId: string;
-	handoffPolicy?: (input: {
-		context: TContext;
-		fromAgentId: string;
-		handoff: NonNullable<VoiceAgentModelOutput<TResult>['handoff']>;
-		messages: VoiceAgentMessage[];
-		session: TSession;
-		targetAgent?: VoiceAgent<TContext, TSession, TResult>;
-		turn: VoiceTurnRecord;
-	}) =>
-		| Promise<VoiceAgentSquadHandoffPolicyResult<TResult> | void>
-		| VoiceAgentSquadHandoffPolicyResult<TResult>
-		| void;
-	contextPolicy?: (input: {
-		context: TContext;
-		fromAgentId: string;
-		handoff: VoiceAgentSquadStateHandoff;
-		messages: VoiceAgentMessage[];
-		session: TSession;
-		summaryMessage: VoiceAgentMessage;
-		targetAgent: VoiceAgent<TContext, TSession, TResult>;
-		turn: VoiceTurnRecord;
-	}) =>
-		| Promise<VoiceAgentSquadContextPolicyResult | void>
-		| VoiceAgentSquadContextPolicyResult
-		| void;
-	id: string;
-	maxHandoffsPerTurn?: number;
-	onHandoff?: (input: {
-		context: TContext;
-		fromAgentId: string;
-		metadata?: Record<string, unknown>;
-		reason?: string;
-		session: TSession;
-		summary?: string;
-		targetAgentId: string;
-		turn: VoiceTurnRecord;
-	}) => Promise<void> | void;
-	trace?: VoiceTraceEventStore;
-	selectAgent?: (input: {
-		context: TContext;
-		session: TSession;
-		turn: VoiceTurnRecord;
-	}) => Promise<string | undefined> | string | undefined;
+  audit?: VoiceAuditEventStore | VoiceAuditLogger;
+  agents: Array<VoiceAgent<TContext, TSession, TResult>>;
+  defaultAgentId: string;
+  handoffPolicy?: (input: {
+    context: TContext;
+    fromAgentId: string;
+    handoff: NonNullable<VoiceAgentModelOutput<TResult>["handoff"]>;
+    messages: VoiceAgentMessage[];
+    session: TSession;
+    targetAgent?: VoiceAgent<TContext, TSession, TResult>;
+    turn: VoiceTurnRecord;
+  }) =>
+    | Promise<VoiceAgentSquadHandoffPolicyResult<TResult> | void>
+    | VoiceAgentSquadHandoffPolicyResult<TResult>
+    | void;
+  contextPolicy?: (input: {
+    context: TContext;
+    fromAgentId: string;
+    handoff: VoiceAgentSquadStateHandoff;
+    messages: VoiceAgentMessage[];
+    session: TSession;
+    summaryMessage: VoiceAgentMessage;
+    targetAgent: VoiceAgent<TContext, TSession, TResult>;
+    turn: VoiceTurnRecord;
+  }) =>
+    | Promise<VoiceAgentSquadContextPolicyResult | void>
+    | VoiceAgentSquadContextPolicyResult
+    | void;
+  id: string;
+  maxHandoffsPerTurn?: number;
+  onHandoff?: (input: {
+    context: TContext;
+    fromAgentId: string;
+    metadata?: Record<string, unknown>;
+    reason?: string;
+    session: TSession;
+    summary?: string;
+    targetAgentId: string;
+    turn: VoiceTurnRecord;
+  }) => Promise<void> | void;
+  trace?: VoiceTraceEventStore;
+  selectAgent?: (input: {
+    context: TContext;
+    session: TSession;
+    turn: VoiceTurnRecord;
+  }) => Promise<string | undefined> | string | undefined;
 };
 
 const normalizeText = (value: unknown) =>
-	typeof value === 'string' ? value.trim() : '';
+  typeof value === "string" ? value.trim() : "";
 
 const toErrorMessage = (error: unknown) =>
-	error instanceof Error ? error.message : String(error);
+  error instanceof Error ? error.message : String(error);
 
 const createHistoryMessages = <TResult>(
-	session: VoiceSessionRecord<Record<string, never>, TResult>,
-	turn: VoiceTurnRecord
+  session: VoiceSessionRecord<Record<string, never>, TResult>,
+  turn: VoiceTurnRecord,
 ): VoiceAgentMessage[] => {
-	const messages: VoiceAgentMessage[] = [];
-	for (const previousTurn of session.turns) {
-		if (previousTurn.id === turn.id) {
-			continue;
-		}
+  const messages: VoiceAgentMessage[] = [];
+  for (const previousTurn of session.turns) {
+    if (previousTurn.id === turn.id) {
+      continue;
+    }
 
-		if (previousTurn.text.trim()) {
-			messages.push({
-				content: previousTurn.text,
-				role: 'user'
-			});
-		}
+    if (previousTurn.text.trim()) {
+      messages.push({
+        content: previousTurn.text,
+        role: "user",
+      });
+    }
 
-		if (previousTurn.assistantText?.trim()) {
-			messages.push({
-				content: previousTurn.assistantText,
-				role: 'assistant'
-			});
-		}
-	}
+    if (previousTurn.assistantText?.trim()) {
+      messages.push({
+        content: previousTurn.assistantText,
+        role: "assistant",
+      });
+    }
+  }
 
-	messages.push({
-		content: turn.text,
-		role: 'user'
-	});
+  messages.push({
+    content: turn.text,
+    role: "user",
+  });
 
-	return messages;
+  return messages;
 };
 
 const formatToolResult = (result: unknown): string => {
-	if (typeof result === 'string') {
-		return result;
-	}
+  if (typeof result === "string") {
+    return result;
+  }
 
-	if (result === undefined) {
-		return '';
-	}
+  if (result === undefined) {
+    return "";
+  }
 
-	try {
-		return JSON.stringify(result);
-	} catch {
-		return String(result);
-	}
+  try {
+    return JSON.stringify(result);
+  } catch {
+    return String(result);
+  }
 };
 
 const appendVoiceAgentTrace = async (input: {
-	agentId: string;
-	event: Record<string, unknown>;
-	session: VoiceSessionRecord;
-	trace?: VoiceTraceEventStore;
-	turn: VoiceTurnRecord;
-	type:
-		| 'agent.context'
-		| 'agent.handoff'
-		| 'agent.model'
-		| 'agent.result'
-		| 'agent.tool';
+  agentId: string;
+  event: Record<string, unknown>;
+  session: VoiceSessionRecord;
+  trace?: VoiceTraceEventStore;
+  turn: VoiceTurnRecord;
+  type:
+    | "agent.context"
+    | "agent.handoff"
+    | "agent.model"
+    | "agent.result"
+    | "agent.tool";
 }) => {
-	await input.trace?.append({
-		at: Date.now(),
-		payload: {
-			agentId: input.agentId,
-			...input.event
-		},
-		scenarioId: input.session.scenarioId,
-		sessionId: input.session.id,
-		turnId: input.turn.id,
-		type: input.type
-	});
+  await input.trace?.append({
+    at: Date.now(),
+    payload: {
+      agentId: input.agentId,
+      ...input.event,
+    },
+    scenarioId: input.session.scenarioId,
+    sessionId: input.session.id,
+    turnId: input.turn.id,
+    type: input.type,
+  });
 };
 
 const resolveVoiceAgentAuditLogger = (
-	audit: VoiceAuditEventStore | VoiceAuditLogger | undefined
+  audit: VoiceAuditEventStore | VoiceAuditLogger | undefined,
 ) => {
-	if (!audit) {
-		return undefined;
-	}
+  if (!audit) {
+    return undefined;
+  }
 
-	return 'append' in audit ? createVoiceAuditLogger(audit) : audit;
+  return "append" in audit ? createVoiceAuditLogger(audit) : audit;
 };
 
 const toAuditOutcome = (status: string): VoiceAuditOutcome =>
-	status === 'allowed' ? 'success' : status === 'blocked' ? 'skipped' : 'error';
+  status === "allowed" ? "success" : status === "blocked" ? "skipped" : "error";
 
 const createVoiceAgentSquadState = (input: {
-	agentId: string;
-	handoffs: VoiceAgentSquadStateHandoff[];
+  agentId: string;
+  handoffs: VoiceAgentSquadStateHandoff[];
 }): VoiceAgentSquadState => {
-	const lastHandoff = input.handoffs.at(-1);
-	return {
-		agentId: input.agentId,
-		handoffCount: input.handoffs.length,
-		handoffs: [...input.handoffs],
-		lastHandoff,
-		previousAgentId:
-			lastHandoff?.status === 'allowed' ? lastHandoff.fromAgentId : undefined
-	};
+  const lastHandoff = input.handoffs.at(-1);
+  return {
+    agentId: input.agentId,
+    handoffCount: input.handoffs.length,
+    handoffs: [...input.handoffs],
+    lastHandoff,
+    previousAgentId:
+      lastHandoff?.status === "allowed" ? lastHandoff.fromAgentId : undefined,
+  };
 };
 
 const appendVoiceAgentSquadHandoff = async (input: {
-	agentId: string;
-	fromAgentId: string;
-	handoffs: VoiceAgentSquadStateHandoff[];
-	metadata?: Record<string, unknown>;
-	originalTargetAgentId?: string;
-	reason?: string;
-	session: VoiceSessionRecord;
-	status: VoiceAgentSquadHandoffStatus;
-	summary?: string;
-	targetAgentId: string;
-	trace?: VoiceTraceEventStore;
-	turn: VoiceTurnRecord;
+  agentId: string;
+  fromAgentId: string;
+  handoffs: VoiceAgentSquadStateHandoff[];
+  metadata?: Record<string, unknown>;
+  originalTargetAgentId?: string;
+  reason?: string;
+  session: VoiceSessionRecord;
+  status: VoiceAgentSquadHandoffStatus;
+  summary?: string;
+  targetAgentId: string;
+  trace?: VoiceTraceEventStore;
+  turn: VoiceTurnRecord;
 }) => {
-	const handoff: VoiceAgentSquadStateHandoff = {
-		at: Date.now(),
-		fromAgentId: input.fromAgentId,
-		metadata: input.metadata,
-		originalTargetAgentId: input.originalTargetAgentId,
-		reason: input.reason,
-		status: input.status,
-		summary: input.summary,
-		targetAgentId: input.targetAgentId,
-		turnId: input.turn.id
-	};
-	input.handoffs.push(handoff);
-	await appendVoiceAgentTrace({
-		agentId: input.agentId,
-		event: {
-			fromAgentId: handoff.fromAgentId,
-			metadata: handoff.metadata,
-			originalTargetAgentId: handoff.originalTargetAgentId,
-			reason: handoff.reason,
-			status: handoff.status,
-			summary: handoff.summary,
-			targetAgentId: handoff.targetAgentId
-		},
-		session: input.session,
-		trace: input.trace,
-		turn: input.turn,
-		type: 'agent.handoff'
-	});
-	return handoff;
+  const handoff: VoiceAgentSquadStateHandoff = {
+    at: Date.now(),
+    fromAgentId: input.fromAgentId,
+    metadata: input.metadata,
+    originalTargetAgentId: input.originalTargetAgentId,
+    reason: input.reason,
+    status: input.status,
+    summary: input.summary,
+    targetAgentId: input.targetAgentId,
+    turnId: input.turn.id,
+  };
+  input.handoffs.push(handoff);
+  await appendVoiceAgentTrace({
+    agentId: input.agentId,
+    event: {
+      fromAgentId: handoff.fromAgentId,
+      metadata: handoff.metadata,
+      originalTargetAgentId: handoff.originalTargetAgentId,
+      reason: handoff.reason,
+      status: handoff.status,
+      summary: handoff.summary,
+      targetAgentId: handoff.targetAgentId,
+    },
+    session: input.session,
+    trace: input.trace,
+    turn: input.turn,
+    type: "agent.handoff",
+  });
+  return handoff;
 };
 
 export const createVoiceAgentTool = <
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TArgs = Record<string, unknown>,
-	TToolResult = unknown,
-	TRouteResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TArgs = Record<string, unknown>,
+  TToolResult = unknown,
+  TRouteResult = unknown,
 >(
-	tool: VoiceAgentTool<TContext, TSession, TArgs, TToolResult, TRouteResult>
+  tool: VoiceAgentTool<TContext, TSession, TArgs, TToolResult, TRouteResult>,
 ): VoiceAgentTool<TContext, TSession, TArgs, TToolResult, TRouteResult> => tool;
 
 export const createVoiceAgent = <
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 >(
-	options: VoiceAgentOptions<TContext, TSession, TResult>
+  options: VoiceAgentOptions<TContext, TSession, TResult>,
 ): VoiceAgent<TContext, TSession, TResult> => {
-	const toolMap = new Map(options.tools?.map((tool) => [tool.name, tool]) ?? []);
-	const maxToolRounds = Math.max(0, options.maxToolRounds ?? 2);
-	const audit = resolveVoiceAgentAuditLogger(options.audit);
+  const toolMap = new Map(
+    options.tools?.map((tool) => [tool.name, tool]) ?? [],
+  );
+  const maxToolRounds = Math.max(0, options.maxToolRounds ?? 2);
+  const audit = resolveVoiceAgentAuditLogger(options.audit);
 
-	const run: VoiceAgent<TContext, TSession, TResult>['run'] = async (input) => {
-		const messages =
-			input.messages ?? createHistoryMessages(input.session, input.turn);
-		const toolResults: VoiceAgentToolResult[] = [];
-		const baseSystem =
-			typeof options.system === 'function'
-				? await options.system({
-						context: input.context,
-						session: input.session,
-						turn: input.turn
-				  })
-				: options.system;
-		const system = [baseSystem, input.system]
-			.filter((value): value is string => Boolean(value?.trim()))
-			.join('\n\n') || undefined;
-		let output: VoiceAgentModelOutput<TResult> = {};
+  const run: VoiceAgent<TContext, TSession, TResult>["run"] = async (input) => {
+    const messages =
+      input.messages ?? createHistoryMessages(input.session, input.turn);
+    const toolResults: VoiceAgentToolResult[] = [];
+    const baseSystem =
+      typeof options.system === "function"
+        ? await options.system({
+            context: input.context,
+            session: input.session,
+            turn: input.turn,
+          })
+        : options.system;
+    const system =
+      [baseSystem, input.system]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .join("\n\n") || undefined;
+    let output: VoiceAgentModelOutput<TResult> = {};
 
-		for (let round = 0; round <= maxToolRounds; round += 1) {
-			const modelStartedAt = Date.now();
-			try {
-				output = await options.model.generate({
-					agentId: options.id,
-					context: input.context,
-					messages,
-					session: input.session,
-					system,
-					tools: [...toolMap.values()].map((tool) => ({
-						description: tool.description,
-						name: tool.name,
-						parameters: tool.parameters
-					})),
-					turn: input.turn
-				});
-				await audit?.providerCall({
-					actor: {
-						id: options.id,
-						kind: 'agent'
-					},
-					elapsedMs: Date.now() - modelStartedAt,
-					kind: 'llm',
-					model: options.auditModel,
-					outcome: 'success',
-					provider: options.auditProvider ?? options.id,
-					sessionId: input.session.id
-				});
-			} catch (error) {
-				await audit?.providerCall({
-					actor: {
-						id: options.id,
-						kind: 'agent'
-					},
-					elapsedMs: Date.now() - modelStartedAt,
-					error: toErrorMessage(error),
-					kind: 'llm',
-					model: options.auditModel,
-					outcome: 'error',
-					provider: options.auditProvider ?? options.id,
-					sessionId: input.session.id
-				});
-				throw error;
-			}
-			await appendVoiceAgentTrace({
-				agentId: options.id,
-				event: {
-					elapsedMs: Date.now() - modelStartedAt,
-					messageCount: messages.length,
-					round,
-					toolCallCount: output.toolCalls?.length ?? 0
-				},
-				session: input.session,
-				trace: options.trace,
-				turn: input.turn,
-				type: 'agent.model'
-			});
+    for (let round = 0; round <= maxToolRounds; round += 1) {
+      const modelStartedAt = Date.now();
+      try {
+        output = await options.model.generate({
+          agentId: options.id,
+          context: input.context,
+          messages,
+          session: input.session,
+          system,
+          tools: [...toolMap.values()].map((tool) => ({
+            description: tool.description,
+            name: tool.name,
+            parameters: tool.parameters,
+          })),
+          turn: input.turn,
+        });
+        await audit?.providerCall({
+          actor: {
+            id: options.id,
+            kind: "agent",
+          },
+          elapsedMs: Date.now() - modelStartedAt,
+          kind: "llm",
+          model: options.auditModel,
+          outcome: "success",
+          provider: options.auditProvider ?? options.id,
+          sessionId: input.session.id,
+        });
+      } catch (error) {
+        await audit?.providerCall({
+          actor: {
+            id: options.id,
+            kind: "agent",
+          },
+          elapsedMs: Date.now() - modelStartedAt,
+          error: toErrorMessage(error),
+          kind: "llm",
+          model: options.auditModel,
+          outcome: "error",
+          provider: options.auditProvider ?? options.id,
+          sessionId: input.session.id,
+        });
+        throw error;
+      }
+      await appendVoiceAgentTrace({
+        agentId: options.id,
+        event: {
+          elapsedMs: Date.now() - modelStartedAt,
+          messageCount: messages.length,
+          round,
+          toolCallCount: output.toolCalls?.length ?? 0,
+        },
+        session: input.session,
+        trace: options.trace,
+        turn: input.turn,
+        type: "agent.model",
+      });
 
-			if (output.assistantText?.trim()) {
-				messages.push({
-					content: output.assistantText,
-					metadata: output.toolCalls?.length
-						? {
-								toolCalls: output.toolCalls
-							}
-						: undefined,
-					role: 'assistant'
-				});
-			} else if (output.toolCalls?.length) {
-				messages.push({
-					content: '',
-					metadata: {
-						toolCalls: output.toolCalls
-					},
-					role: 'assistant'
-				});
-			}
+      if (output.assistantText?.trim()) {
+        messages.push({
+          content: output.assistantText,
+          metadata: output.toolCalls?.length
+            ? {
+                toolCalls: output.toolCalls,
+              }
+            : undefined,
+          role: "assistant",
+        });
+      } else if (output.toolCalls?.length) {
+        messages.push({
+          content: "",
+          metadata: {
+            toolCalls: output.toolCalls,
+          },
+          role: "assistant",
+        });
+      }
 
-			if (!output.toolCalls?.length || round === maxToolRounds) {
-				break;
-			}
+      if (!output.toolCalls?.length || round === maxToolRounds) {
+        break;
+      }
 
-			for (const toolCall of output.toolCalls) {
-				const tool = toolMap.get(toolCall.name);
-				if (!tool) {
-					const missingResult: VoiceAgentToolResult = {
-						error: `Unknown voice agent tool: ${toolCall.name}`,
-						status: 'error',
-						toolCallId: toolCall.id,
-						toolName: toolCall.name
-					};
-					toolResults.push(missingResult);
-					await appendVoiceAgentTrace({
-						agentId: options.id,
-						event: {
-							error: missingResult.error,
-							status: 'error',
-							toolCallId: toolCall.id,
-							toolName: toolCall.name
-						},
-						session: input.session,
-						trace: options.trace,
-						turn: input.turn,
-						type: 'agent.tool'
-					});
-					await audit?.toolCall({
-						actor: {
-							id: options.id,
-							kind: 'agent'
-						},
-						error: missingResult.error,
-						outcome: 'error',
-						sessionId: input.session.id,
-						toolCallId: toolCall.id,
-						toolName: toolCall.name
-					});
-					messages.push({
-						content: missingResult.error ?? '',
-						name: toolCall.name,
-						role: 'tool',
-						toolCallId: toolCall.id
-					});
-					continue;
-				}
+      for (const toolCall of output.toolCalls) {
+        const tool = toolMap.get(toolCall.name);
+        if (!tool) {
+          const missingResult: VoiceAgentToolResult = {
+            error: `Unknown voice agent tool: ${toolCall.name}`,
+            status: "error",
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+          };
+          toolResults.push(missingResult);
+          await appendVoiceAgentTrace({
+            agentId: options.id,
+            event: {
+              error: missingResult.error,
+              status: "error",
+              toolCallId: toolCall.id,
+              toolName: toolCall.name,
+            },
+            session: input.session,
+            trace: options.trace,
+            turn: input.turn,
+            type: "agent.tool",
+          });
+          await audit?.toolCall({
+            actor: {
+              id: options.id,
+              kind: "agent",
+            },
+            error: missingResult.error,
+            outcome: "error",
+            sessionId: input.session.id,
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+          });
+          messages.push({
+            content: missingResult.error ?? "",
+            name: toolCall.name,
+            role: "tool",
+            toolCallId: toolCall.id,
+          });
+          continue;
+        }
 
-				try {
-					const toolStartedAt = Date.now();
-					const runtimeResult = options.toolRuntime
-						? await options.toolRuntime.execute({
-								api: input.api,
-								args: toolCall.args,
-								context: input.context,
-								session: input.session,
-								tool,
-								toolCallId: toolCall.id,
-								turn: input.turn
-							})
-						: undefined;
-					if (runtimeResult?.status === 'error') {
-						throw new Error(runtimeResult.error);
-					}
-					const result =
-						runtimeResult?.result ??
-						(await tool.execute({
-							api: input.api,
-							args: toolCall.args,
-							context: input.context,
-							session: input.session,
-							turn: input.turn
-						}));
-					const content =
-						runtimeResult?.content ??
-						tool.resultToMessage?.(result) ??
-						formatToolResult(result);
-					toolResults.push({
-						content,
-						metadata: runtimeResult
-							? {
-									attempts: runtimeResult.attempts,
-									elapsedMs: runtimeResult.elapsedMs,
-									idempotencyKey: runtimeResult.idempotencyKey,
-									timedOut: runtimeResult.timedOut
-								}
-							: undefined,
-						result,
-						status: 'ok',
-						toolCallId: toolCall.id,
-						toolName: tool.name
-					});
-					await appendVoiceAgentTrace({
-						agentId: options.id,
-						event: {
-							elapsedMs: Date.now() - toolStartedAt,
-							runtimeElapsedMs: runtimeResult?.elapsedMs,
-							attempts: runtimeResult?.attempts,
-							idempotencyKey: runtimeResult?.idempotencyKey,
-							status: 'ok',
-							timedOut: runtimeResult?.timedOut,
-							toolCallId: toolCall.id,
-							toolName: tool.name
-						},
-						session: input.session,
-						trace: options.trace,
-						turn: input.turn,
-						type: 'agent.tool'
-					});
-					await audit?.toolCall({
-						actor: {
-							id: options.id,
-							kind: 'agent'
-						},
-						elapsedMs: Date.now() - toolStartedAt,
-						metadata: runtimeResult
-							? {
-									attempts: runtimeResult.attempts,
-									idempotencyKey: runtimeResult.idempotencyKey,
-									timedOut: runtimeResult.timedOut
-								}
-							: undefined,
-						outcome: 'success',
-						sessionId: input.session.id,
-						toolCallId: toolCall.id,
-						toolName: tool.name
-					});
-					messages.push({
-						content,
-						name: tool.name,
-						role: 'tool',
-						toolCallId: toolCall.id
-					});
-				} catch (error) {
-					const errorMessage = toErrorMessage(error);
-					toolResults.push({
-						error: errorMessage,
-						status: 'error',
-						toolCallId: toolCall.id,
-						toolName: tool.name
-					});
-					await appendVoiceAgentTrace({
-						agentId: options.id,
-						event: {
-							error: errorMessage,
-							status: 'error',
-							toolCallId: toolCall.id,
-							toolName: tool.name
-						},
-						session: input.session,
-						trace: options.trace,
-						turn: input.turn,
-						type: 'agent.tool'
-					});
-					await audit?.toolCall({
-						actor: {
-							id: options.id,
-							kind: 'agent'
-						},
-						error: errorMessage,
-						outcome: 'error',
-						sessionId: input.session.id,
-						toolCallId: toolCall.id,
-						toolName: tool.name
-					});
-					messages.push({
-						content: errorMessage,
-						name: tool.name,
-						role: 'tool',
-						toolCallId: toolCall.id
-					});
-				}
-			}
-		}
+        try {
+          const toolStartedAt = Date.now();
+          const runtimeResult = options.toolRuntime
+            ? await options.toolRuntime.execute({
+                api: input.api,
+                args: toolCall.args,
+                context: input.context,
+                session: input.session,
+                tool,
+                toolCallId: toolCall.id,
+                turn: input.turn,
+              })
+            : undefined;
+          if (runtimeResult?.status === "error") {
+            throw new Error(runtimeResult.error);
+          }
+          const result =
+            runtimeResult?.result ??
+            (await tool.execute({
+              api: input.api,
+              args: toolCall.args,
+              context: input.context,
+              session: input.session,
+              turn: input.turn,
+            }));
+          const content =
+            runtimeResult?.content ??
+            tool.resultToMessage?.(result) ??
+            formatToolResult(result);
+          toolResults.push({
+            content,
+            metadata: runtimeResult
+              ? {
+                  attempts: runtimeResult.attempts,
+                  elapsedMs: runtimeResult.elapsedMs,
+                  idempotencyKey: runtimeResult.idempotencyKey,
+                  timedOut: runtimeResult.timedOut,
+                }
+              : undefined,
+            result,
+            status: "ok",
+            toolCallId: toolCall.id,
+            toolName: tool.name,
+          });
+          await appendVoiceAgentTrace({
+            agentId: options.id,
+            event: {
+              elapsedMs: Date.now() - toolStartedAt,
+              runtimeElapsedMs: runtimeResult?.elapsedMs,
+              attempts: runtimeResult?.attempts,
+              idempotencyKey: runtimeResult?.idempotencyKey,
+              status: "ok",
+              timedOut: runtimeResult?.timedOut,
+              toolCallId: toolCall.id,
+              toolName: tool.name,
+            },
+            session: input.session,
+            trace: options.trace,
+            turn: input.turn,
+            type: "agent.tool",
+          });
+          await audit?.toolCall({
+            actor: {
+              id: options.id,
+              kind: "agent",
+            },
+            elapsedMs: Date.now() - toolStartedAt,
+            metadata: runtimeResult
+              ? {
+                  attempts: runtimeResult.attempts,
+                  idempotencyKey: runtimeResult.idempotencyKey,
+                  timedOut: runtimeResult.timedOut,
+                }
+              : undefined,
+            outcome: "success",
+            sessionId: input.session.id,
+            toolCallId: toolCall.id,
+            toolName: tool.name,
+          });
+          messages.push({
+            content,
+            name: tool.name,
+            role: "tool",
+            toolCallId: toolCall.id,
+          });
+        } catch (error) {
+          const errorMessage = toErrorMessage(error);
+          toolResults.push({
+            error: errorMessage,
+            status: "error",
+            toolCallId: toolCall.id,
+            toolName: tool.name,
+          });
+          await appendVoiceAgentTrace({
+            agentId: options.id,
+            event: {
+              error: errorMessage,
+              status: "error",
+              toolCallId: toolCall.id,
+              toolName: tool.name,
+            },
+            session: input.session,
+            trace: options.trace,
+            turn: input.turn,
+            type: "agent.tool",
+          });
+          await audit?.toolCall({
+            actor: {
+              id: options.id,
+              kind: "agent",
+            },
+            error: errorMessage,
+            outcome: "error",
+            sessionId: input.session.id,
+            toolCallId: toolCall.id,
+            toolName: tool.name,
+          });
+          messages.push({
+            content: errorMessage,
+            name: tool.name,
+            role: "tool",
+            toolCallId: toolCall.id,
+          });
+        }
+      }
+    }
 
-		await appendVoiceAgentTrace({
-			agentId: options.id,
-			event: {
-				complete: output.complete,
-				escalated: Boolean(output.escalate),
-				handoffTarget: output.handoff?.targetAgentId,
-				hasAssistantText: Boolean(output.assistantText?.trim()),
-				noAnswer: Boolean(output.noAnswer),
-				transferred: Boolean(output.transfer),
-				voicemail: Boolean(output.voicemail)
-			},
-			session: input.session,
-			trace: options.trace,
-			turn: input.turn,
-			type: 'agent.result'
-		});
+    await appendVoiceAgentTrace({
+      agentId: options.id,
+      event: {
+        complete: output.complete,
+        escalated: Boolean(output.escalate),
+        handoffTarget: output.handoff?.targetAgentId,
+        hasAssistantText: Boolean(output.assistantText?.trim()),
+        noAnswer: Boolean(output.noAnswer),
+        transferred: Boolean(output.transfer),
+        voicemail: Boolean(output.voicemail),
+      },
+      session: input.session,
+      trace: options.trace,
+      turn: input.turn,
+      type: "agent.result",
+    });
 
-		return {
-			agentId: options.id,
-			assistantText: output.assistantText,
-			complete: output.complete,
-			escalate: output.escalate,
-			handoff: output.handoff,
-			messages,
-			noAnswer: output.noAnswer,
-			result: output.result,
-			toolResults,
-			transfer: output.transfer,
-			voicemail: output.voicemail
-		};
-	};
+    return {
+      agentId: options.id,
+      assistantText: output.assistantText,
+      complete: output.complete,
+      escalate: output.escalate,
+      handoff: output.handoff,
+      messages,
+      noAnswer: output.noAnswer,
+      result: output.result,
+      toolResults,
+      transfer: output.transfer,
+      voicemail: output.voicemail,
+    };
+  };
 
-	return {
-		id: options.id,
-		onTurn: async (input) => run(input),
-		run
-	};
+  return {
+    id: options.id,
+    onTurn: async (input) => run(input),
+    run,
+  };
 };
 
 export const createVoiceAgentSquad = <
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 >(
-	options: VoiceAgentSquadOptions<TContext, TSession, TResult>
+  options: VoiceAgentSquadOptions<TContext, TSession, TResult>,
 ): VoiceAgent<TContext, TSession, TResult> => {
-	const agents = new Map(options.agents.map((agent) => [agent.id, agent]));
-	const defaultAgent = agents.get(options.defaultAgentId);
-	const audit = resolveVoiceAgentAuditLogger(options.audit);
-	if (!defaultAgent) {
-		throw new Error(
-			`createVoiceAgentSquad defaultAgentId not found: ${options.defaultAgentId}`
-		);
-	}
+  const agents = new Map(options.agents.map((agent) => [agent.id, agent]));
+  const defaultAgent = agents.get(options.defaultAgentId);
+  const audit = resolveVoiceAgentAuditLogger(options.audit);
+  if (!defaultAgent) {
+    throw new Error(
+      `createVoiceAgentSquad defaultAgentId not found: ${options.defaultAgentId}`,
+    );
+  }
 
-	const run: VoiceAgent<TContext, TSession, TResult>['run'] = async (input) => {
-		let agentId =
-			normalizeText(
-				await options.selectAgent?.({
-					context: input.context,
-					session: input.session,
-					turn: input.turn
-				})
-			) || options.defaultAgentId;
-		let agent = agents.get(agentId) ?? defaultAgent;
-		const messages = input.messages ?? createHistoryMessages(input.session, input.turn);
-		const toolResults: VoiceAgentToolResult[] = [];
-		const handoffs: VoiceAgentSquadStateHandoff[] = [];
-		const maxHandoffs = Math.max(0, options.maxHandoffsPerTurn ?? 2);
-		let result = await agent.run({
-			...input,
-			messages
-		});
+  const run: VoiceAgent<TContext, TSession, TResult>["run"] = async (input) => {
+    let agentId =
+      normalizeText(
+        await options.selectAgent?.({
+          context: input.context,
+          session: input.session,
+          turn: input.turn,
+        }),
+      ) || options.defaultAgentId;
+    let agent = agents.get(agentId) ?? defaultAgent;
+    const messages =
+      input.messages ?? createHistoryMessages(input.session, input.turn);
+    const toolResults: VoiceAgentToolResult[] = [];
+    const handoffs: VoiceAgentSquadStateHandoff[] = [];
+    const maxHandoffs = Math.max(0, options.maxHandoffsPerTurn ?? 2);
+    let result = await agent.run({
+      ...input,
+      messages,
+    });
 
-		toolResults.push(...result.toolResults);
+    toolResults.push(...result.toolResults);
 
-		for (let handoffCount = 0; result.handoff && handoffCount < maxHandoffs; handoffCount += 1) {
-			const originalTargetAgentId = result.handoff.targetAgentId;
-			const policy = await options.handoffPolicy?.({
-				context: input.context,
-				fromAgentId: agent.id,
-				handoff: result.handoff,
-				messages,
-				session: input.session,
-				targetAgent: agents.get(originalTargetAgentId),
-				turn: input.turn
-			});
-			const targetAgentId =
-				normalizeText(policy?.targetAgentId) || originalTargetAgentId;
-			const nextAgent = agents.get(targetAgentId);
-			const handoffReason =
-				policy?.summary ?? policy?.reason ?? result.handoff.reason;
-			const handoffSummary =
-				policy?.summary ?? result.handoff.reason ?? policy?.reason;
-			const handoffMetadata = {
-				...result.handoff.metadata,
-				...policy?.metadata
-			};
-			const metadata =
-				Object.keys(handoffMetadata).length > 0 ? handoffMetadata : undefined;
+    for (
+      let handoffCount = 0;
+      result.handoff && handoffCount < maxHandoffs;
+      handoffCount += 1
+    ) {
+      const originalTargetAgentId = result.handoff.targetAgentId;
+      const policy = await options.handoffPolicy?.({
+        context: input.context,
+        fromAgentId: agent.id,
+        handoff: result.handoff,
+        messages,
+        session: input.session,
+        targetAgent: agents.get(originalTargetAgentId),
+        turn: input.turn,
+      });
+      const targetAgentId =
+        normalizeText(policy?.targetAgentId) || originalTargetAgentId;
+      const nextAgent = agents.get(targetAgentId);
+      const handoffReason =
+        policy?.summary ?? policy?.reason ?? result.handoff.reason;
+      const handoffSummary =
+        policy?.summary ?? result.handoff.reason ?? policy?.reason;
+      const handoffMetadata = {
+        ...result.handoff.metadata,
+        ...policy?.metadata,
+      };
+      const metadata =
+        Object.keys(handoffMetadata).length > 0 ? handoffMetadata : undefined;
 
-			if (policy?.allow === false) {
-				await appendVoiceAgentSquadHandoff({
-					agentId: options.id,
-					fromAgentId: agent.id,
-					handoffs,
-					metadata,
-					originalTargetAgentId:
-						originalTargetAgentId === targetAgentId
-							? undefined
-							: originalTargetAgentId,
-					reason: handoffReason,
-					session: input.session,
-					status: 'blocked',
-					summary: handoffSummary,
-					targetAgentId,
-					trace: options.trace,
-					turn: input.turn
-				});
-				await audit?.handoff({
-					actor: {
-						id: options.id,
-						kind: 'agent'
-					},
-					fromAgentId: agent.id,
-					metadata,
-					outcome: 'skipped',
-					reason: handoffReason,
-					sessionId: input.session.id,
-					toAgentId: targetAgentId
-				});
-				return {
-					...result,
-					escalate: result.escalate ??
-						policy.escalate ?? {
-					metadata,
-					reason: handoffReason ?? `Blocked handoff to ${targetAgentId}`
-				},
-				handoff: undefined,
-				squad: createVoiceAgentSquadState({
-					agentId: agent.id,
-					handoffs
-				}),
-				toolResults
-			};
-		}
+      if (policy?.allow === false) {
+        await appendVoiceAgentSquadHandoff({
+          agentId: options.id,
+          fromAgentId: agent.id,
+          handoffs,
+          metadata,
+          originalTargetAgentId:
+            originalTargetAgentId === targetAgentId
+              ? undefined
+              : originalTargetAgentId,
+          reason: handoffReason,
+          session: input.session,
+          status: "blocked",
+          summary: handoffSummary,
+          targetAgentId,
+          trace: options.trace,
+          turn: input.turn,
+        });
+        await audit?.handoff({
+          actor: {
+            id: options.id,
+            kind: "agent",
+          },
+          fromAgentId: agent.id,
+          metadata,
+          outcome: "skipped",
+          reason: handoffReason,
+          sessionId: input.session.id,
+          toAgentId: targetAgentId,
+        });
+        return {
+          ...result,
+          escalate: result.escalate ??
+            policy.escalate ?? {
+              metadata,
+              reason: handoffReason ?? `Blocked handoff to ${targetAgentId}`,
+            },
+          handoff: undefined,
+          squad: createVoiceAgentSquadState({
+            agentId: agent.id,
+            handoffs,
+          }),
+          toolResults,
+        };
+      }
 
-			if (!nextAgent) {
-				await appendVoiceAgentSquadHandoff({
-					agentId: options.id,
-					fromAgentId: agent.id,
-					handoffs,
-					metadata,
-					originalTargetAgentId:
-						originalTargetAgentId === targetAgentId
-							? undefined
-							: originalTargetAgentId,
-					reason: handoffReason,
-					session: input.session,
-					status: 'unknown-target',
-					summary: handoffSummary,
-					targetAgentId,
-					trace: options.trace,
-					turn: input.turn
-				});
-				await audit?.handoff({
-					actor: {
-						id: options.id,
-						kind: 'agent'
-					},
-					fromAgentId: agent.id,
-					metadata,
-					outcome: 'error',
-					reason: handoffReason,
-					sessionId: input.session.id,
-					toAgentId: targetAgentId
-				});
-				return {
-					...result,
-					escalate: result.escalate ?? {
-						metadata,
-						reason: `Unknown handoff target: ${targetAgentId}`
-					},
-					handoff: undefined,
-					squad: createVoiceAgentSquadState({
-						agentId: agent.id,
-						handoffs
-					}),
-					toolResults
-				};
-			}
+      if (!nextAgent) {
+        await appendVoiceAgentSquadHandoff({
+          agentId: options.id,
+          fromAgentId: agent.id,
+          handoffs,
+          metadata,
+          originalTargetAgentId:
+            originalTargetAgentId === targetAgentId
+              ? undefined
+              : originalTargetAgentId,
+          reason: handoffReason,
+          session: input.session,
+          status: "unknown-target",
+          summary: handoffSummary,
+          targetAgentId,
+          trace: options.trace,
+          turn: input.turn,
+        });
+        await audit?.handoff({
+          actor: {
+            id: options.id,
+            kind: "agent",
+          },
+          fromAgentId: agent.id,
+          metadata,
+          outcome: "error",
+          reason: handoffReason,
+          sessionId: input.session.id,
+          toAgentId: targetAgentId,
+        });
+        return {
+          ...result,
+          escalate: result.escalate ?? {
+            metadata,
+            reason: `Unknown handoff target: ${targetAgentId}`,
+          },
+          handoff: undefined,
+          squad: createVoiceAgentSquadState({
+            agentId: agent.id,
+            handoffs,
+          }),
+          toolResults,
+        };
+      }
 
-			await options.onHandoff?.({
-				context: input.context,
-				fromAgentId: agent.id,
-				metadata,
-				reason: handoffReason,
-				session: input.session,
-				summary: handoffSummary,
-				targetAgentId: nextAgent.id,
-				turn: input.turn
-			});
-			const handoff = await appendVoiceAgentSquadHandoff({
-				agentId: options.id,
-				fromAgentId: agent.id,
-				handoffs,
-				metadata,
-				originalTargetAgentId:
-					originalTargetAgentId === nextAgent.id
-						? undefined
-						: originalTargetAgentId,
-				reason: handoffReason,
-				session: input.session,
-				status: 'allowed',
-				summary: handoffSummary,
-				targetAgentId: nextAgent.id,
-				trace: options.trace,
-				turn: input.turn
-			});
-			await audit?.handoff({
-				actor: {
-					id: options.id,
-					kind: 'agent'
-				},
-				fromAgentId: agent.id,
-				metadata,
-				outcome: toAuditOutcome('allowed'),
-				reason: handoffReason,
-				sessionId: input.session.id,
-				toAgentId: nextAgent.id
-			});
-			const summaryMessage: VoiceAgentMessage = {
-				content: handoffSummary ?? handoffReason ?? `Handoff to ${nextAgent.id}`,
-				metadata,
-				name: nextAgent.id,
-				role: 'system'
-			};
-			messages.push(summaryMessage);
-			const contextPolicy = await options.contextPolicy?.({
-				context: input.context,
-				fromAgentId: agent.id,
-				handoff,
-				messages,
-				session: input.session,
-				summaryMessage,
-				targetAgent: nextAgent,
-				turn: input.turn
-			});
-			if (contextPolicy?.metadata && Object.keys(contextPolicy.metadata).length > 0) {
-				handoff.metadata = {
-					...handoff.metadata,
-					...contextPolicy.metadata
-				};
-				const latest = handoffs.at(-1);
-				if (latest === handoff) {
-					latest.metadata = handoff.metadata;
-				}
-			}
-			await appendVoiceAgentTrace({
-				agentId: options.id,
-				event: {
-					fromAgentId: handoff.fromAgentId,
-					messageCount: messages.length,
-					nextMessageCount: contextPolicy?.messages?.length ?? messages.length,
-					status: contextPolicy ? 'applied' : 'default',
-					summaryIncluded: (contextPolicy?.messages ?? messages).some(
-						(message) => message === summaryMessage
-					),
-					targetAgentId: nextAgent.id
-				},
-				session: input.session,
-				trace: options.trace,
-				turn: input.turn,
-				type: 'agent.context'
-			});
-			agent = nextAgent;
-			agentId = nextAgent.id;
-			result = await agent.run({
-				...input,
-				messages: contextPolicy?.messages ?? messages,
-				system: contextPolicy?.system ?? input.system
-			});
-			toolResults.push(...result.toolResults);
-		}
+      await options.onHandoff?.({
+        context: input.context,
+        fromAgentId: agent.id,
+        metadata,
+        reason: handoffReason,
+        session: input.session,
+        summary: handoffSummary,
+        targetAgentId: nextAgent.id,
+        turn: input.turn,
+      });
+      const handoff = await appendVoiceAgentSquadHandoff({
+        agentId: options.id,
+        fromAgentId: agent.id,
+        handoffs,
+        metadata,
+        originalTargetAgentId:
+          originalTargetAgentId === nextAgent.id
+            ? undefined
+            : originalTargetAgentId,
+        reason: handoffReason,
+        session: input.session,
+        status: "allowed",
+        summary: handoffSummary,
+        targetAgentId: nextAgent.id,
+        trace: options.trace,
+        turn: input.turn,
+      });
+      await audit?.handoff({
+        actor: {
+          id: options.id,
+          kind: "agent",
+        },
+        fromAgentId: agent.id,
+        metadata,
+        outcome: toAuditOutcome("allowed"),
+        reason: handoffReason,
+        sessionId: input.session.id,
+        toAgentId: nextAgent.id,
+      });
+      const summaryMessage: VoiceAgentMessage = {
+        content:
+          handoffSummary ?? handoffReason ?? `Handoff to ${nextAgent.id}`,
+        metadata,
+        name: nextAgent.id,
+        role: "system",
+      };
+      messages.push(summaryMessage);
+      const contextPolicy = await options.contextPolicy?.({
+        context: input.context,
+        fromAgentId: agent.id,
+        handoff,
+        messages,
+        session: input.session,
+        summaryMessage,
+        targetAgent: nextAgent,
+        turn: input.turn,
+      });
+      if (
+        contextPolicy?.metadata &&
+        Object.keys(contextPolicy.metadata).length > 0
+      ) {
+        handoff.metadata = {
+          ...handoff.metadata,
+          ...contextPolicy.metadata,
+        };
+        const latest = handoffs.at(-1);
+        if (latest === handoff) {
+          latest.metadata = handoff.metadata;
+        }
+      }
+      await appendVoiceAgentTrace({
+        agentId: options.id,
+        event: {
+          fromAgentId: handoff.fromAgentId,
+          messageCount: messages.length,
+          nextMessageCount: contextPolicy?.messages?.length ?? messages.length,
+          status: contextPolicy ? "applied" : "default",
+          summaryIncluded: (contextPolicy?.messages ?? messages).some(
+            (message) => message === summaryMessage,
+          ),
+          targetAgentId: nextAgent.id,
+        },
+        session: input.session,
+        trace: options.trace,
+        turn: input.turn,
+        type: "agent.context",
+      });
+      agent = nextAgent;
+      agentId = nextAgent.id;
+      result = await agent.run({
+        ...input,
+        messages: contextPolicy?.messages ?? messages,
+        system: contextPolicy?.system ?? input.system,
+      });
+      toolResults.push(...result.toolResults);
+    }
 
-		if (result.handoff) {
-			await appendVoiceAgentSquadHandoff({
-				agentId: options.id,
-				fromAgentId: agent.id,
-				handoffs,
-				metadata: result.handoff.metadata,
-				reason: result.handoff.reason,
-				session: input.session,
-				status: 'max-exceeded',
-				summary: result.handoff.reason,
-				targetAgentId: result.handoff.targetAgentId,
-				trace: options.trace,
-				turn: input.turn
-			});
-			await audit?.handoff({
-				actor: {
-					id: options.id,
-					kind: 'agent'
-				},
-				fromAgentId: agent.id,
-				metadata: result.handoff.metadata,
-				outcome: 'error',
-				reason: result.handoff.reason,
-				sessionId: input.session.id,
-				toAgentId: result.handoff.targetAgentId
-			});
-			return {
-				...result,
-				escalate: result.escalate ?? {
-					metadata: result.handoff.metadata,
-					reason: `Max handoffs exceeded: ${maxHandoffs}`
-				},
-				handoff: undefined,
-				squad: createVoiceAgentSquadState({
-					agentId: agent.id,
-					handoffs
-				}),
-				toolResults
-			};
-		}
+    if (result.handoff) {
+      await appendVoiceAgentSquadHandoff({
+        agentId: options.id,
+        fromAgentId: agent.id,
+        handoffs,
+        metadata: result.handoff.metadata,
+        reason: result.handoff.reason,
+        session: input.session,
+        status: "max-exceeded",
+        summary: result.handoff.reason,
+        targetAgentId: result.handoff.targetAgentId,
+        trace: options.trace,
+        turn: input.turn,
+      });
+      await audit?.handoff({
+        actor: {
+          id: options.id,
+          kind: "agent",
+        },
+        fromAgentId: agent.id,
+        metadata: result.handoff.metadata,
+        outcome: "error",
+        reason: result.handoff.reason,
+        sessionId: input.session.id,
+        toAgentId: result.handoff.targetAgentId,
+      });
+      return {
+        ...result,
+        escalate: result.escalate ?? {
+          metadata: result.handoff.metadata,
+          reason: `Max handoffs exceeded: ${maxHandoffs}`,
+        },
+        handoff: undefined,
+        squad: createVoiceAgentSquadState({
+          agentId: agent.id,
+          handoffs,
+        }),
+        toolResults,
+      };
+    }
 
-		return {
-			...result,
-			agentId,
-			squad: createVoiceAgentSquadState({
-				agentId,
-				handoffs
-			}),
-			toolResults
-		};
-	};
+    return {
+      ...result,
+      agentId,
+      squad: createVoiceAgentSquadState({
+        agentId,
+        handoffs,
+      }),
+      toolResults,
+    };
+  };
 
-	return {
-		id: options.id,
-		onTurn: async (input) => run(input),
-		run
-	};
+  return {
+    id: options.id,
+    onTurn: async (input) => run(input),
+    run,
+  };
 };

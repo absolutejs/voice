@@ -1,0 +1,17 @@
+dist/
+src/generated/
+benchmark-results/
+benchmarks/
+fixtures/
+node_modules/
+.venv-corpus/
+*.mp3
+*.wav
+*.pcm
+*.bin
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf

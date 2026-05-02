@@ -31,47 +31,47 @@ Pick the path that matches what you are building:
 
 These are the primitive-first paths a Vapi-style buyer usually needs. Each path stays inside your AbsoluteJS app; the package gives you route handlers, stores, reports, hooks, composables, services, widgets, and contracts instead of a hosted dashboard.
 
-| If you need | Start with | Add proof with | UI entrypoints |
-| --- | --- | --- | --- |
-| Web voice assistant | `voice(...)` or `createVoiceAssistant(...)` | trace timeline, turn quality, live latency, reconnect contract, operations record | React/Vue/Svelte/Angular voice stream helpers, HTML/HTMX/client helpers |
-| Phone voice assistant | `createVoicePhoneAgent(...)` | carrier matrix, setup instructions, phone smoke contract, production readiness, operations record | phone setup HTML/JSON, smoke HTML/JSON, framework status UI |
-| Multi-specialist support flow | `createVoiceAgentSquad(...)` | squad contract, handoff traces, context traces, operations record | Agent Squad status hooks/composables/services/widgets |
-| Business actions and tools | `createVoiceAgentTool(...)` plus agent tool runtime | tool contracts, audit events, integration events, outcome contracts | operations record, action center, contract routes |
-| Guardrails and policy checks | `createVoiceGuardrailPolicy(...)`, `createVoiceGuardrailRuntime(...)`, and `createVoiceGuardrailRoutes(...)` | live assistant/tool enforcement, blocking/warning decisions, redacted content, `assistant.guardrail` trace events | guardrail JSON/Markdown routes and operations record traces |
-| Provider routing and fallback | provider routers, health checks, simulation controls | provider contract matrix, provider-stage traces, latency SLO reports | provider contract hooks/composables/services/widgets |
-| Production operations | ops status, ops recovery, production readiness, delivery runtime | readiness gates, recovery report, incident Markdown, delivery queues | ops action center, delivery runtime UI, operations record |
-| Outbound campaigns | `createVoiceCampaignRoutes(...)` | recipient validation, consent/dedupe, carrier dry-run, campaign readiness | campaign routes and operations-record-linked attempt proof |
-| Simulation before launch | `createVoiceSimulationSuiteRoutes(...)` | scenarios, evals, tool contracts, outcome contracts, baselines | simulation-suite HTML/JSON and linked operations records |
-| Compliance controls | runtime storage, audit logger, data-control routes | retention dry-run, redacted audit export, zero-retention policy, deploy gate | data-control HTML/JSON and audit/export routes |
+| If you need                   | Start with                                                                                                   | Add proof with                                                                                                    | UI entrypoints                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Web voice assistant           | `voice(...)` or `createVoiceAssistant(...)`                                                                  | trace timeline, turn quality, live latency, reconnect contract, operations record                                 | React/Vue/Svelte/Angular voice stream helpers, HTML/HTMX/client helpers |
+| Phone voice assistant         | `createVoicePhoneAgent(...)`                                                                                 | carrier matrix, setup instructions, phone smoke contract, production readiness, operations record                 | phone setup HTML/JSON, smoke HTML/JSON, framework status UI             |
+| Multi-specialist support flow | `createVoiceAgentSquad(...)`                                                                                 | squad contract, handoff traces, context traces, operations record                                                 | Agent Squad status hooks/composables/services/widgets                   |
+| Business actions and tools    | `createVoiceAgentTool(...)` plus agent tool runtime                                                          | tool contracts, audit events, integration events, outcome contracts                                               | operations record, action center, contract routes                       |
+| Guardrails and policy checks  | `createVoiceGuardrailPolicy(...)`, `createVoiceGuardrailRuntime(...)`, and `createVoiceGuardrailRoutes(...)` | live assistant/tool enforcement, blocking/warning decisions, redacted content, `assistant.guardrail` trace events | guardrail JSON/Markdown routes and operations record traces             |
+| Provider routing and fallback | provider routers, health checks, simulation controls                                                         | provider contract matrix, provider-stage traces, latency SLO reports                                              | provider contract hooks/composables/services/widgets                    |
+| Production operations         | ops status, ops recovery, production readiness, delivery runtime                                             | readiness gates, recovery report, incident Markdown, delivery queues                                              | ops action center, delivery runtime UI, operations record               |
+| Outbound campaigns            | `createVoiceCampaignRoutes(...)`                                                                             | recipient validation, consent/dedupe, carrier dry-run, campaign readiness                                         | campaign routes and operations-record-linked attempt proof              |
+| Simulation before launch      | `createVoiceSimulationSuiteRoutes(...)`                                                                      | scenarios, evals, tool contracts, outcome contracts, baselines                                                    | simulation-suite HTML/JSON and linked operations records                |
+| Compliance controls           | runtime storage, audit logger, data-control routes                                                           | retention dry-run, redacted audit export, zero-retention policy, deploy gate                                      | data-control HTML/JSON and audit/export routes                          |
 
 ## Capability Matrix
 
-| Surface | Core package | Example/demo role | Not our lane |
-| --- | --- | --- | --- |
-| Browser voice | WebSocket voice route, client stream/controller/store primitives, reconnect, barge-in, latency, framework helpers | Prove the same mic/transcript/status workflow across React, Vue, Svelte, Angular, HTML, and HTMX | Hosted iframe widget that owns app UX |
-| Telephony | Twilio, Telnyx, Plivo route bridges, phone-agent wrapper, setup instructions, smoke contracts, carrier outcomes | Show setup/smoke/proof surfaces and call lifecycle debugging | Buying/provisioning phone numbers for the user |
-| Agents and tools | assistant, agent, tools, squads, handoff/context policies, contracts, audit hooks | Demonstrate realistic support/sales/workflow flows | Dashboard-only visual bot builder |
-| Provider layer | OpenAI/Anthropic/Gemini model paths, STT/TTS adapter seams, routing, fallback, health, simulation | Show provider switching and health in UI | Reselling provider minutes or hiding provider accounts |
-| Observability | traces, timelines, replay, operations records, incident Markdown, ops recovery, readiness | Make every failing proof link to a call/session record | Vendor dashboard as source of truth |
-| Evals and simulation | fixtures, eval routes, simulation suite, workflow/tool/outcome contracts, baselines | Prove flows before live traffic | Opaque hosted test runner |
-| Data and compliance controls | file/SQLite/Postgres/S3 storage paths, redaction, retention, audit exports, guarded deletion | Show customer-owned storage and export proof | Legal certification or compliance attestation |
+| Surface                      | Core package                                                                                                      | Example/demo role                                                                                | Not our lane                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Browser voice                | WebSocket voice route, client stream/controller/store primitives, reconnect, barge-in, latency, framework helpers | Prove the same mic/transcript/status workflow across React, Vue, Svelte, Angular, HTML, and HTMX | Hosted iframe widget that owns app UX                  |
+| Telephony                    | Twilio, Telnyx, Plivo route bridges, phone-agent wrapper, setup instructions, smoke contracts, carrier outcomes   | Show setup/smoke/proof surfaces and call lifecycle debugging                                     | Buying/provisioning phone numbers for the user         |
+| Agents and tools             | assistant, agent, tools, squads, handoff/context policies, contracts, audit hooks                                 | Demonstrate realistic support/sales/workflow flows                                               | Dashboard-only visual bot builder                      |
+| Provider layer               | OpenAI/Anthropic/Gemini model paths, STT/TTS adapter seams, routing, fallback, health, simulation                 | Show provider switching and health in UI                                                         | Reselling provider minutes or hiding provider accounts |
+| Observability                | traces, timelines, replay, operations records, incident Markdown, ops recovery, readiness                         | Make every failing proof link to a call/session record                                           | Vendor dashboard as source of truth                    |
+| Evals and simulation         | fixtures, eval routes, simulation suite, workflow/tool/outcome contracts, baselines                               | Prove flows before live traffic                                                                  | Opaque hosted test runner                              |
+| Data and compliance controls | file/SQLite/Postgres/S3 storage paths, redaction, retention, audit exports, guarded deletion                      | Show customer-owned storage and export proof                                                     | Legal certification or compliance attestation          |
 
 ## Proof Pack
 
 Use this checklist when a buyer asks, "How do I know this replaces a hosted voice dashboard?" Each artifact is a route, report, contract, or export the app owns. The point is not screenshots; the point is reproducible proof that can live in CI, an internal admin page, or a customer-facing demo.
 
-| Buyer question | Proof artifact | What it proves |
-| --- | --- | --- |
-| Can I launch a browser voice agent quickly? | `/voice`, framework mic/transcript UI, `/traces`, `/production-readiness` | Browser voice route, live transcript, trace persistence, readiness gate |
-| Can I run phone agents without hosted orchestration? | `/voice/phone/setup`, `/voice/phone/smoke-contract`, carrier matrix JSON | Carrier setup instructions, webhook/stream URLs, smoke proof, lifecycle traces |
-| Can I debug a bad call like a hosted call log? | `/voice-operations/:sessionId`, `/voice-operations/:sessionId/incident.md` | Transcript, trace timeline, provider decisions, tools, handoffs, reviews, tasks, audit, deliveries |
-| Can I test before production traffic? | `/voice/simulations`, tool contracts, outcome contracts, workflow contracts | Scenario/eval proof, tool idempotency/retry proof, business outcome proof |
-| Can I prove provider fallback and latency? | provider contract matrix, provider status UI, `/turn-latency`, `/live-latency` | Provider choice, fallback behavior, server turn timing, browser p50/p95 timing |
-| Can operators intervene safely? | live-ops routes, action center, ops action audit routes, operations record | Pause/resume/takeover, injected instructions, operator action audit trail |
-| Can I run outbound campaigns? | `/voice/campaigns`, `/voice/campaigns/observability`, `/api/voice/campaigns/readiness-proof` | Recipient import evidence, consent/dedupe checks, scheduling policy, worker-safe attempts |
-| Can I handle post-call workflow? | `createVoicePostCallAnalysisRoutes(...)`, reviews, tasks, integration events, outcome contracts, operations record | Extracted-field proof, task creation, webhook/sink delivery, matched session proof |
-| Can I keep data in my infrastructure? | `/data-control`, `/data-control/audit.md`, retention dry-run/apply routes | Customer-owned storage, redaction, audit export, guarded deletion, zero-retention planning |
-| Can I prove release readiness? | `/production-readiness`, `/ops-recovery`, delivery runtime, readiness profiles | Deploy gates for session health, audits, delivery queues, provider/campaign/phone proof |
+| Buyer question                                       | Proof artifact                                                                                                     | What it proves                                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Can I launch a browser voice agent quickly?          | `/voice`, framework mic/transcript UI, `/traces`, `/production-readiness`                                          | Browser voice route, live transcript, trace persistence, readiness gate                            |
+| Can I run phone agents without hosted orchestration? | `/voice/phone/setup`, `/voice/phone/smoke-contract`, carrier matrix JSON                                           | Carrier setup instructions, webhook/stream URLs, smoke proof, lifecycle traces                     |
+| Can I debug a bad call like a hosted call log?       | `/voice-operations/:sessionId`, `/voice-operations/:sessionId/incident.md`                                         | Transcript, trace timeline, provider decisions, tools, handoffs, reviews, tasks, audit, deliveries |
+| Can I test before production traffic?                | `/voice/simulations`, tool contracts, outcome contracts, workflow contracts                                        | Scenario/eval proof, tool idempotency/retry proof, business outcome proof                          |
+| Can I prove provider fallback and latency?           | provider contract matrix, provider status UI, `/turn-latency`, `/live-latency`                                     | Provider choice, fallback behavior, server turn timing, browser p50/p95 timing                     |
+| Can operators intervene safely?                      | live-ops routes, action center, ops action audit routes, operations record                                         | Pause/resume/takeover, injected instructions, operator action audit trail                          |
+| Can I run outbound campaigns?                        | `/voice/campaigns`, `/voice/campaigns/observability`, `/api/voice/campaigns/readiness-proof`                       | Recipient import evidence, consent/dedupe checks, scheduling policy, worker-safe attempts          |
+| Can I handle post-call workflow?                     | `createVoicePostCallAnalysisRoutes(...)`, reviews, tasks, integration events, outcome contracts, operations record | Extracted-field proof, task creation, webhook/sink delivery, matched session proof                 |
+| Can I keep data in my infrastructure?                | `/data-control`, `/data-control/audit.md`, retention dry-run/apply routes                                          | Customer-owned storage, redaction, audit export, guarded deletion, zero-retention planning         |
+| Can I prove release readiness?                       | `/production-readiness`, `/ops-recovery`, delivery runtime, readiness profiles                                     | Deploy gates for session health, audits, delivery queues, provider/campaign/phone proof            |
 
 For a demo, the fastest convincing path is:
 
@@ -88,29 +88,29 @@ If those five surfaces are green and linked, the buyer can see the core differen
 Use `createVoicePostCallAnalysisRoutes(...)` when the hosted-platform feature you need is call analysis plus follow-up proof. It validates that required extracted fields exist, expected ops tasks were created, integration/webhook events delivered, and the report links back to `/voice-operations/:sessionId`.
 
 ```ts
-import { createVoicePostCallAnalysisRoutes } from '@absolutejs/voice';
+import { createVoicePostCallAnalysisRoutes } from "@absolutejs/voice";
 
 app.use(
-	createVoicePostCallAnalysisRoutes({
-		path: '/api/voice/post-call-analysis',
-		operationRecordBasePath: '/voice-operations/:sessionId',
-		reviews: runtime.reviews,
-		tasks: runtime.tasks,
-		integrationEvents: runtime.events,
-		source: ({ reviewId, sessionId }) => ({
-			reviewId,
-			sessionId,
-			// Use your own extractor output here, for example fields persisted from an LLM/tool result.
-			extractedFields: loadExtractedPostCallFields(reviewId ?? sessionId)
-		}),
-		fields: [
-			{ path: 'review.postCall.target', label: 'customer target' },
-			{ path: 'customerId' },
-			{ path: 'category' }
-		],
-		requiredTaskKinds: ['support-triage'],
-		requireDeliveredIntegrationEvent: true
-	})
+  createVoicePostCallAnalysisRoutes({
+    path: "/api/voice/post-call-analysis",
+    operationRecordBasePath: "/voice-operations/:sessionId",
+    reviews: runtime.reviews,
+    tasks: runtime.tasks,
+    integrationEvents: runtime.events,
+    source: ({ reviewId, sessionId }) => ({
+      reviewId,
+      sessionId,
+      // Use your own extractor output here, for example fields persisted from an LLM/tool result.
+      extractedFields: loadExtractedPostCallFields(reviewId ?? sessionId),
+    }),
+    fields: [
+      { path: "review.postCall.target", label: "customer target" },
+      { path: "customerId" },
+      { path: "category" },
+    ],
+    requiredTaskKinds: ["support-triage"],
+    requireDeliveredIntegrationEvent: true,
+  }),
 );
 ```
 
@@ -120,35 +120,35 @@ Use `createVoiceGuardrailRuntime(...)` when you need code-owned live enforcement
 
 ```ts
 import {
-	createVoiceGuardrailRuntime,
-	createVoiceGuardrailRoutes,
-	voiceGuardrailPolicyPresets
-} from '@absolutejs/voice';
+  createVoiceGuardrailRuntime,
+  createVoiceGuardrailRoutes,
+  voiceGuardrailPolicyPresets,
+} from "@absolutejs/voice";
 
 const guardrails = createVoiceGuardrailRuntime({
-	blockResult: ({ decision }) => ({
-		assistantText: 'I need to route this to a human specialist.',
-		escalate: {
-			reason: `guardrail-blocked-${decision.stage}`
-		}
-	}),
-	policies: [voiceGuardrailPolicyPresets.supportSafeDefaults],
-	trace: runtime.traces
+  blockResult: ({ decision }) => ({
+    assistantText: "I need to route this to a human specialist.",
+    escalate: {
+      reason: `guardrail-blocked-${decision.stage}`,
+    },
+  }),
+  policies: [voiceGuardrailPolicyPresets.supportSafeDefaults],
+  trace: runtime.traces,
 });
 
 const assistant = createVoiceAssistant({
-	guardrails: guardrails.assistantGuardrails,
-	id: 'support',
-	model,
-	tools: guardrails.wrapTools([lookupCustomerTool, createTicketTool])
+  guardrails: guardrails.assistantGuardrails,
+  id: "support",
+  model,
+  tools: guardrails.wrapTools([lookupCustomerTool, createTicketTool]),
 });
 
 app.use(
-	createVoiceGuardrailRoutes({
-		path: '/api/voice/guardrails',
-		policies: [voiceGuardrailPolicyPresets.supportSafeDefaults],
-		trace: runtime.traces
-	})
+  createVoiceGuardrailRoutes({
+    path: "/api/voice/guardrails",
+    policies: [voiceGuardrailPolicyPresets.supportSafeDefaults],
+    trace: runtime.traces,
+  }),
 );
 ```
 
@@ -165,181 +165,184 @@ The production shape is:
 5. Add outcome, readiness, simulation, audit, and operations-record routes so every failed proof links back to the call.
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	createVoiceAgent,
-	createVoiceAgentSquad,
-	createVoiceAgentTool,
-	createVoiceFileRuntimeStorage,
-	createVoiceOperationsRecordRoutes,
-	createVoiceProductionReadinessRoutes,
-	createVoiceSimulationSuiteRoutes,
-	createVoiceToolContractRoutes,
-	createVoiceToolRuntimeContractDefaults,
-	resolveVoiceOutcomeRecipe,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceAgent,
+  createVoiceAgentSquad,
+  createVoiceAgentTool,
+  createVoiceFileRuntimeStorage,
+  createVoiceOperationsRecordRoutes,
+  createVoiceProductionReadinessRoutes,
+  createVoiceSimulationSuiteRoutes,
+  createVoiceToolContractRoutes,
+  createVoiceToolRuntimeContractDefaults,
+  resolveVoiceOutcomeRecipe,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support-triage'
+  directory: ".voice-runtime/support-triage",
 });
 
 const lookupCustomer = createVoiceAgentTool({
-	name: 'lookup_customer',
-	description: 'Look up a customer and their open support state.',
-	parameters: {
-		type: 'object',
-		properties: {
-			customerId: { type: 'string' }
-		},
-		required: ['customerId']
-	},
-	execute: async ({ args }) => ({
-		customerId: args.customerId,
-		plan: 'business',
-		openTickets: 1,
-		status: 'active'
-	})
+  name: "lookup_customer",
+  description: "Look up a customer and their open support state.",
+  parameters: {
+    type: "object",
+    properties: {
+      customerId: { type: "string" },
+    },
+    required: ["customerId"],
+  },
+  execute: async ({ args }) => ({
+    customerId: args.customerId,
+    plan: "business",
+    openTickets: 1,
+    status: "active",
+  }),
 });
 
 const support = createVoiceAgent({
-	id: 'support',
-	system: 'Triage the caller, use tools for account context, and hand billing questions to billing.',
-	tools: [lookupCustomer],
-	trace: runtime.traces,
-	model: {
-		async generate({ messages, tools }) {
-			const latest = messages.at(-1)?.content.toLowerCase() ?? '';
-			if (latest.includes('billing')) {
-				return {
-					assistantText: 'I am routing you to billing with the context so far.',
-					handoff: { reason: 'billing-request', targetAgentId: 'billing' }
-				};
-			}
+  id: "support",
+  system:
+    "Triage the caller, use tools for account context, and hand billing questions to billing.",
+  tools: [lookupCustomer],
+  trace: runtime.traces,
+  model: {
+    async generate({ messages, tools }) {
+      const latest = messages.at(-1)?.content.toLowerCase() ?? "";
+      if (latest.includes("billing")) {
+        return {
+          assistantText: "I am routing you to billing with the context so far.",
+          handoff: { reason: "billing-request", targetAgentId: "billing" },
+        };
+      }
 
-			return {
-				assistantText: `I can help with that. I can also use ${tools.map((tool) => tool.name).join(', ')} when I need account context.`
-			};
-		}
-	}
+      return {
+        assistantText: `I can help with that. I can also use ${tools.map((tool) => tool.name).join(", ")} when I need account context.`,
+      };
+    },
+  },
 });
 
 const billing = createVoiceAgent({
-	id: 'billing',
-	system: 'Handle billing questions and escalate refund or cancellation risk.',
-	trace: runtime.traces,
-	model: {
-		async generate() {
-			return {
-				assistantText: 'I can help with billing. I have the handoff context from support.'
-			};
-		}
-	}
+  id: "billing",
+  system: "Handle billing questions and escalate refund or cancellation risk.",
+  trace: runtime.traces,
+  model: {
+    async generate() {
+      return {
+        assistantText:
+          "I can help with billing. I have the handoff context from support.",
+      };
+    },
+  },
 });
 
 const supportDesk = createVoiceAgentSquad({
-	id: 'support-desk',
-	defaultAgentId: 'support',
-	agents: [support, billing],
-	trace: runtime.traces,
-	handoffPolicy: ({ handoff }) =>
-		handoff.targetAgentId === 'billing'
-			? {
-					summary: 'Billing specialist receives the support summary and current caller intent.',
-					metadata: { queue: 'billing' }
-				}
-			: {
-					allow: false,
-					reason: 'Only billing handoffs are approved in this recipe.',
-					escalate: { reason: 'unsupported-specialist' }
-				}
+  id: "support-desk",
+  defaultAgentId: "support",
+  agents: [support, billing],
+  trace: runtime.traces,
+  handoffPolicy: ({ handoff }) =>
+    handoff.targetAgentId === "billing"
+      ? {
+          summary:
+            "Billing specialist receives the support summary and current caller intent.",
+          metadata: { queue: "billing" },
+        }
+      : {
+          allow: false,
+          reason: "Only billing handoffs are approved in this recipe.",
+          escalate: { reason: "unsupported-specialist" },
+        },
 });
 
 const toolContractDefinitions = [
-	{
-		id: 'lookup-customer-contract',
-		label: 'Lookup customer returns support state',
-		tool: lookupCustomer,
-		cases: [
-			{
-				id: 'active-business-customer',
-				args: { customerId: 'cus_123' },
-				expect: {
-					expectedResult: {
-						customerId: 'cus_123',
-						openTickets: 1,
-						plan: 'business',
-						status: 'active'
-					},
-					expectStatus: 'ok'
-				}
-			}
-		],
-		defaultRuntime: createVoiceToolRuntimeContractDefaults()
-	}
+  {
+    id: "lookup-customer-contract",
+    label: "Lookup customer returns support state",
+    tool: lookupCustomer,
+    cases: [
+      {
+        id: "active-business-customer",
+        args: { customerId: "cus_123" },
+        expect: {
+          expectedResult: {
+            customerId: "cus_123",
+            openTickets: 1,
+            plan: "business",
+            status: "active",
+          },
+          expectStatus: "ok",
+        },
+      },
+    ],
+    defaultRuntime: createVoiceToolRuntimeContractDefaults(),
+  },
 ];
 
 const app = new Elysia()
-	.use(
-		voice({
-			path: '/voice/support',
-			preset: 'reliability',
-			session: runtime.session,
-			stt: deepgram({
-				apiKey: process.env.DEEPGRAM_API_KEY!,
-				model: 'flux-general-en'
-			}),
-			trace: runtime.traces,
-			onTurn: supportDesk.onTurn,
-			onComplete: async () => {},
-			ops: {
-				...resolveVoiceOutcomeRecipe('support-triage', {
-					assignee: 'support-oncall',
-					queue: 'support-triage'
-				}),
-				events: runtime.events,
-				reviews: runtime.reviews,
-				tasks: runtime.tasks
-			}
-		})
-	)
-	.use(
-		createVoiceToolContractRoutes({
-			contracts: toolContractDefinitions,
-			htmlPath: '/voice/support/tool-contracts',
-			path: '/api/voice/support/tool-contracts'
-		})
-	)
-	.use(
-		createVoiceSimulationSuiteRoutes({
-			htmlPath: '/voice/support/simulations',
-			path: '/api/voice/support/simulations',
-			tools: toolContractDefinitions,
-			operationsRecordHref: '/voice-operations/:sessionId'
-		})
-	)
-	.use(
-		createVoiceOperationsRecordRoutes({
-			htmlPath: '/voice-operations/:sessionId',
-			path: '/api/voice-operations/:sessionId',
-			store: runtime.traces,
-			reviews: runtime.reviews,
-			tasks: runtime.tasks,
-			integrationEvents: runtime.events
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			htmlPath: '/production-readiness',
-			path: '/api/production-readiness',
-			store: runtime.traces,
-			links: {
-				operationsRecords: '/voice-operations/:sessionId',
-				simulations: '/voice/support/simulations'
-			}
-		})
-	);
+  .use(
+    voice({
+      path: "/voice/support",
+      preset: "reliability",
+      session: runtime.session,
+      stt: deepgram({
+        apiKey: process.env.DEEPGRAM_API_KEY!,
+        model: "flux-general-en",
+      }),
+      trace: runtime.traces,
+      onTurn: supportDesk.onTurn,
+      onComplete: async () => {},
+      ops: {
+        ...resolveVoiceOutcomeRecipe("support-triage", {
+          assignee: "support-oncall",
+          queue: "support-triage",
+        }),
+        events: runtime.events,
+        reviews: runtime.reviews,
+        tasks: runtime.tasks,
+      },
+    }),
+  )
+  .use(
+    createVoiceToolContractRoutes({
+      contracts: toolContractDefinitions,
+      htmlPath: "/voice/support/tool-contracts",
+      path: "/api/voice/support/tool-contracts",
+    }),
+  )
+  .use(
+    createVoiceSimulationSuiteRoutes({
+      htmlPath: "/voice/support/simulations",
+      path: "/api/voice/support/simulations",
+      tools: toolContractDefinitions,
+      operationsRecordHref: "/voice-operations/:sessionId",
+    }),
+  )
+  .use(
+    createVoiceOperationsRecordRoutes({
+      htmlPath: "/voice-operations/:sessionId",
+      path: "/api/voice-operations/:sessionId",
+      store: runtime.traces,
+      reviews: runtime.reviews,
+      tasks: runtime.tasks,
+      integrationEvents: runtime.events,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      htmlPath: "/production-readiness",
+      path: "/api/production-readiness",
+      store: runtime.traces,
+      links: {
+        operationsRecords: "/voice-operations/:sessionId",
+        simulations: "/voice/support/simulations",
+      },
+    }),
+  );
 ```
 
 The demo UI should show a mic button, transcript, current specialist badge, readiness link, simulation link, and operations-record link. Use the framework helpers for that surface instead of embedding a dashboard: `VoiceAgentSquadStatus` in React, `useVoiceAgentSquadStatus(...)` in Vue, `createVoiceAgentSquadStatus(...)` in Svelte, `VoiceAgentSquadStatusService` in Angular, or `<absolute-voice-agent-squad-status>` for HTML/HTMX.
@@ -359,217 +362,222 @@ The production shape is:
 5. Mount simulation, outcome-contract, readiness, and operations-record routes so scheduling regressions fail before live calls.
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	createVoiceAgent,
-	createVoiceAgentTool,
-	createVoiceFileRuntimeStorage,
-	createVoiceOperationsRecordRoutes,
-	createVoiceOutcomeContractRoutes,
-	createVoiceProductionReadinessRoutes,
-	createVoiceSimulationSuiteRoutes,
-	createVoiceToolContractRoutes,
-	createVoiceToolRuntimeContractDefaults,
-	resolveVoiceOutcomeRecipe,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceAgent,
+  createVoiceAgentTool,
+  createVoiceFileRuntimeStorage,
+  createVoiceOperationsRecordRoutes,
+  createVoiceOutcomeContractRoutes,
+  createVoiceProductionReadinessRoutes,
+  createVoiceSimulationSuiteRoutes,
+  createVoiceToolContractRoutes,
+  createVoiceToolRuntimeContractDefaults,
+  resolveVoiceOutcomeRecipe,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/appointments'
+  directory: ".voice-runtime/appointments",
 });
 
 const checkAvailability = createVoiceAgentTool({
-	name: 'check_availability',
-	description: 'Return open appointment slots for a service and date.',
-	parameters: {
-		type: 'object',
-		properties: {
-			date: { type: 'string' },
-			service: { type: 'string' }
-		},
-		required: ['date', 'service']
-	},
-	execute: async ({ args }) => ({
-		date: args.date,
-		service: args.service,
-		slots: ['2026-05-04T15:00:00-04:00', '2026-05-04T16:30:00-04:00']
-	})
+  name: "check_availability",
+  description: "Return open appointment slots for a service and date.",
+  parameters: {
+    type: "object",
+    properties: {
+      date: { type: "string" },
+      service: { type: "string" },
+    },
+    required: ["date", "service"],
+  },
+  execute: async ({ args }) => ({
+    date: args.date,
+    service: args.service,
+    slots: ["2026-05-04T15:00:00-04:00", "2026-05-04T16:30:00-04:00"],
+  }),
 });
 
 const bookAppointment = createVoiceAgentTool({
-	name: 'book_appointment',
-	description: 'Book a confirmed appointment slot.',
-	parameters: {
-		type: 'object',
-		properties: {
-			customerName: { type: 'string' },
-			phone: { type: 'string' },
-			service: { type: 'string' },
-			startsAt: { type: 'string' }
-		},
-		required: ['customerName', 'phone', 'service', 'startsAt']
-	},
-	execute: async ({ args }) => ({
-		appointmentId: `appt_${args.startsAt}`,
-		customerName: args.customerName,
-		phone: args.phone,
-		service: args.service,
-		startsAt: args.startsAt,
-		status: 'confirmed'
-	})
+  name: "book_appointment",
+  description: "Book a confirmed appointment slot.",
+  parameters: {
+    type: "object",
+    properties: {
+      customerName: { type: "string" },
+      phone: { type: "string" },
+      service: { type: "string" },
+      startsAt: { type: "string" },
+    },
+    required: ["customerName", "phone", "service", "startsAt"],
+  },
+  execute: async ({ args }) => ({
+    appointmentId: `appt_${args.startsAt}`,
+    customerName: args.customerName,
+    phone: args.phone,
+    service: args.service,
+    startsAt: args.startsAt,
+    status: "confirmed",
+  }),
 });
 
 const scheduler = createVoiceAgent({
-	id: 'scheduler',
-	system: 'Collect caller details, check availability, book an appointment, and summarize the confirmation.',
-	tools: [checkAvailability, bookAppointment],
-	trace: runtime.traces,
-	model: {
-		async generate({ tools }) {
-			return {
-				assistantText: `I can check times and book the appointment. Available tools: ${tools.map((tool) => tool.name).join(', ')}`
-			};
-		}
-	}
+  id: "scheduler",
+  system:
+    "Collect caller details, check availability, book an appointment, and summarize the confirmation.",
+  tools: [checkAvailability, bookAppointment],
+  trace: runtime.traces,
+  model: {
+    async generate({ tools }) {
+      return {
+        assistantText: `I can check times and book the appointment. Available tools: ${tools.map((tool) => tool.name).join(", ")}`,
+      };
+    },
+  },
 });
 
 const toolContractDefinitions = [
-	{
-		id: 'check-availability-contract',
-		label: 'Availability returns bookable slots',
-		tool: checkAvailability,
-		cases: [
-			{
-				id: 'consultation-slots',
-				args: { date: '2026-05-04', service: 'consultation' },
-				expect: { expectStatus: 'ok' }
-			}
-		],
-		defaultRuntime: createVoiceToolRuntimeContractDefaults()
-	},
-	{
-		id: 'book-appointment-contract',
-		label: 'Booking returns a confirmed appointment',
-		tool: bookAppointment,
-		cases: [
-			{
-				id: 'confirmed-consultation',
-				args: {
-					customerName: 'Ada Lovelace',
-					phone: '+15551234567',
-					service: 'consultation',
-					startsAt: '2026-05-04T15:00:00-04:00'
-				},
-				expect: {
-					expectedResult: {
-						appointmentId: 'appt_2026-05-04T15:00:00-04:00',
-						customerName: 'Ada Lovelace',
-						phone: '+15551234567',
-						service: 'consultation',
-						startsAt: '2026-05-04T15:00:00-04:00',
-						status: 'confirmed'
-					},
-					expectStatus: 'ok'
-				}
-			}
-		],
-		defaultRuntime: createVoiceToolRuntimeContractDefaults()
-	}
+  {
+    id: "check-availability-contract",
+    label: "Availability returns bookable slots",
+    tool: checkAvailability,
+    cases: [
+      {
+        id: "consultation-slots",
+        args: { date: "2026-05-04", service: "consultation" },
+        expect: { expectStatus: "ok" },
+      },
+    ],
+    defaultRuntime: createVoiceToolRuntimeContractDefaults(),
+  },
+  {
+    id: "book-appointment-contract",
+    label: "Booking returns a confirmed appointment",
+    tool: bookAppointment,
+    cases: [
+      {
+        id: "confirmed-consultation",
+        args: {
+          customerName: "Ada Lovelace",
+          phone: "+15551234567",
+          service: "consultation",
+          startsAt: "2026-05-04T15:00:00-04:00",
+        },
+        expect: {
+          expectedResult: {
+            appointmentId: "appt_2026-05-04T15:00:00-04:00",
+            customerName: "Ada Lovelace",
+            phone: "+15551234567",
+            service: "consultation",
+            startsAt: "2026-05-04T15:00:00-04:00",
+            status: "confirmed",
+          },
+          expectStatus: "ok",
+        },
+      },
+    ],
+    defaultRuntime: createVoiceToolRuntimeContractDefaults(),
+  },
 ];
 
 const outcomeContractDefinitions = [
-	{
-		id: 'appointment-booked',
-		label: 'Completed appointment call produces follow-up work',
-		expectedDisposition: 'completed',
-		minSessions: 1,
-		minTasks: 1,
-		requireIntegrationEvents: ['call.completed', 'review.saved', 'task.created'],
-		requireReview: true,
-		requireTask: true
-	}
+  {
+    id: "appointment-booked",
+    label: "Completed appointment call produces follow-up work",
+    expectedDisposition: "completed",
+    minSessions: 1,
+    minTasks: 1,
+    requireIntegrationEvents: [
+      "call.completed",
+      "review.saved",
+      "task.created",
+    ],
+    requireReview: true,
+    requireTask: true,
+  },
 ];
 
 const app = new Elysia()
-	.use(
-		voice({
-			path: '/voice/appointments',
-			preset: 'reliability',
-			session: runtime.session,
-			stt: deepgram({
-				apiKey: process.env.DEEPGRAM_API_KEY!,
-				model: 'flux-general-en'
-			}),
-			trace: runtime.traces,
-			onTurn: scheduler.onTurn,
-			onComplete: async () => {},
-			ops: {
-				...resolveVoiceOutcomeRecipe('appointment-booking', {
-					assignee: 'scheduling-oncall',
-					queue: 'appointments'
-				}),
-				events: runtime.events,
-				reviews: runtime.reviews,
-				tasks: runtime.tasks
-			}
-		})
-	)
-	.use(
-		createVoiceToolContractRoutes({
-			contracts: toolContractDefinitions,
-			htmlPath: '/voice/appointments/tool-contracts',
-			path: '/api/voice/appointments/tool-contracts'
-		})
-	)
-	.use(
-		createVoiceOutcomeContractRoutes({
-			contracts: outcomeContractDefinitions,
-			events: runtime.events,
-			htmlPath: '/voice/appointments/outcome-contracts',
-			operationsRecordHref: '/voice-operations/:sessionId',
-			path: '/api/voice/appointments/outcome-contracts',
-			reviews: runtime.reviews,
-			sessions: runtime.session,
-			tasks: runtime.tasks
-		})
-	)
-	.use(
-		createVoiceSimulationSuiteRoutes({
-			htmlPath: '/voice/appointments/simulations',
-			operationsRecordHref: '/voice-operations/:sessionId',
-			outcomes: {
-				contracts: outcomeContractDefinitions,
-				events: runtime.events,
-				reviews: runtime.reviews,
-				sessions: runtime.session,
-				tasks: runtime.tasks
-			},
-			path: '/api/voice/appointments/simulations',
-			tools: toolContractDefinitions
-		})
-	)
-	.use(
-		createVoiceOperationsRecordRoutes({
-			htmlPath: '/voice-operations/:sessionId',
-			integrationEvents: runtime.events,
-			path: '/api/voice-operations/:sessionId',
-			reviews: runtime.reviews,
-			store: runtime.traces,
-			tasks: runtime.tasks
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			htmlPath: '/production-readiness',
-			links: {
-				operationsRecords: '/voice-operations/:sessionId',
-				simulations: '/voice/appointments/simulations'
-			},
-			path: '/api/production-readiness',
-			store: runtime.traces
-		})
-	);
+  .use(
+    voice({
+      path: "/voice/appointments",
+      preset: "reliability",
+      session: runtime.session,
+      stt: deepgram({
+        apiKey: process.env.DEEPGRAM_API_KEY!,
+        model: "flux-general-en",
+      }),
+      trace: runtime.traces,
+      onTurn: scheduler.onTurn,
+      onComplete: async () => {},
+      ops: {
+        ...resolveVoiceOutcomeRecipe("appointment-booking", {
+          assignee: "scheduling-oncall",
+          queue: "appointments",
+        }),
+        events: runtime.events,
+        reviews: runtime.reviews,
+        tasks: runtime.tasks,
+      },
+    }),
+  )
+  .use(
+    createVoiceToolContractRoutes({
+      contracts: toolContractDefinitions,
+      htmlPath: "/voice/appointments/tool-contracts",
+      path: "/api/voice/appointments/tool-contracts",
+    }),
+  )
+  .use(
+    createVoiceOutcomeContractRoutes({
+      contracts: outcomeContractDefinitions,
+      events: runtime.events,
+      htmlPath: "/voice/appointments/outcome-contracts",
+      operationsRecordHref: "/voice-operations/:sessionId",
+      path: "/api/voice/appointments/outcome-contracts",
+      reviews: runtime.reviews,
+      sessions: runtime.session,
+      tasks: runtime.tasks,
+    }),
+  )
+  .use(
+    createVoiceSimulationSuiteRoutes({
+      htmlPath: "/voice/appointments/simulations",
+      operationsRecordHref: "/voice-operations/:sessionId",
+      outcomes: {
+        contracts: outcomeContractDefinitions,
+        events: runtime.events,
+        reviews: runtime.reviews,
+        sessions: runtime.session,
+        tasks: runtime.tasks,
+      },
+      path: "/api/voice/appointments/simulations",
+      tools: toolContractDefinitions,
+    }),
+  )
+  .use(
+    createVoiceOperationsRecordRoutes({
+      htmlPath: "/voice-operations/:sessionId",
+      integrationEvents: runtime.events,
+      path: "/api/voice-operations/:sessionId",
+      reviews: runtime.reviews,
+      store: runtime.traces,
+      tasks: runtime.tasks,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      htmlPath: "/production-readiness",
+      links: {
+        operationsRecords: "/voice-operations/:sessionId",
+        simulations: "/voice/appointments/simulations",
+      },
+      path: "/api/production-readiness",
+      store: runtime.traces,
+    }),
+  );
 ```
 
 The UI should keep the scheduling flow simple: microphone, transcript, selected slot, booking status, confirmation task link, `/voice/appointments/simulations`, `/voice/appointments/outcome-contracts`, `/production-readiness`, and `/voice-operations/:sessionId`. If the booking or confirmation proof fails, the operator should start at the outcome contract and follow the linked operations record.
@@ -589,92 +597,92 @@ The production shape is:
 5. Expose campaign routes, observability, readiness proof, production readiness, and operations-record links for every attempted call.
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	createVoiceCampaignRoutes,
-	createVoiceFileRuntimeStorage,
-	createVoiceOperationsRecordRoutes,
-	createVoiceProductionReadinessRoutes,
-	createVoiceReadinessProfile,
-	createVoiceSQLiteCampaignStore,
-	runVoiceCampaignReadinessProof
-} from '@absolutejs/voice';
+  createVoiceCampaignRoutes,
+  createVoiceFileRuntimeStorage,
+  createVoiceOperationsRecordRoutes,
+  createVoiceProductionReadinessRoutes,
+  createVoiceReadinessProfile,
+  createVoiceSQLiteCampaignStore,
+  runVoiceCampaignReadinessProof,
+} from "@absolutejs/voice";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/campaign-outreach'
+  directory: ".voice-runtime/campaign-outreach",
 });
 
 const campaigns = createVoiceSQLiteCampaignStore({
-	path: '.voice-runtime/campaigns.sqlite'
+  path: ".voice-runtime/campaigns.sqlite",
 });
 
 const app = new Elysia()
-	.use(
-		createVoiceCampaignRoutes({
-			htmlPath: '/voice/campaigns',
-			operationsRecordHref: '/voice-operations/:sessionId',
-			path: '/api/voice/campaigns',
-			store: campaigns,
-			title: 'Renewal Outreach'
-		})
-	)
-	.use(
-		createVoiceOperationsRecordRoutes({
-			htmlPath: '/voice-operations/:sessionId',
-			path: '/api/voice-operations/:sessionId',
-			store: runtime.traces
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			...createVoiceReadinessProfile('phone-agent', {
-				campaignReadiness: () =>
-					runVoiceCampaignReadinessProof({
-						store: campaigns
-					}),
-				explain: true
-			}),
-			links: {
-				campaigns: '/voice/campaigns',
-				operationsRecords: '/voice-operations/:sessionId'
-			},
-			store: runtime.traces
-		})
-	);
+  .use(
+    createVoiceCampaignRoutes({
+      htmlPath: "/voice/campaigns",
+      operationsRecordHref: "/voice-operations/:sessionId",
+      path: "/api/voice/campaigns",
+      store: campaigns,
+      title: "Renewal Outreach",
+    }),
+  )
+  .use(
+    createVoiceOperationsRecordRoutes({
+      htmlPath: "/voice-operations/:sessionId",
+      path: "/api/voice-operations/:sessionId",
+      store: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      ...createVoiceReadinessProfile("phone-agent", {
+        campaignReadiness: () =>
+          runVoiceCampaignReadinessProof({
+            store: campaigns,
+          }),
+        explain: true,
+      }),
+      links: {
+        campaigns: "/voice/campaigns",
+        operationsRecords: "/voice-operations/:sessionId",
+      },
+      store: runtime.traces,
+    }),
+  );
 
-await fetch('/api/voice/campaigns', {
-	body: JSON.stringify({
-		maxAttempts: 3,
-		maxConcurrentAttempts: 10,
-		name: 'Renewal outreach',
-		schedule: {
-			attemptWindow: { startHour: 9, endHour: 17 },
-			quietHours: { startHour: 12, endHour: 13 },
-			rateLimit: { maxAttempts: 60, windowMs: 60_000 },
-			retryPolicy: { backoffMs: [5 * 60_000, 30 * 60_000] }
-		}
-	}),
-	headers: { 'content-type': 'application/json' },
-	method: 'POST'
+await fetch("/api/voice/campaigns", {
+  body: JSON.stringify({
+    maxAttempts: 3,
+    maxConcurrentAttempts: 10,
+    name: "Renewal outreach",
+    schedule: {
+      attemptWindow: { startHour: 9, endHour: 17 },
+      quietHours: { startHour: 12, endHour: 13 },
+      rateLimit: { maxAttempts: 60, windowMs: 60_000 },
+      retryPolicy: { backoffMs: [5 * 60_000, 30 * 60_000] },
+    },
+  }),
+  headers: { "content-type": "application/json" },
+  method: "POST",
 });
 
-await fetch('/api/voice/campaigns/campaign-1/recipients/import', {
-	body: JSON.stringify({
-		csv: `id,name,phone,consent,segment
+await fetch("/api/voice/campaigns/campaign-1/recipients/import", {
+  body: JSON.stringify({
+    csv: `id,name,phone,consent,segment
 recipient-1,Ada,+15550001001,yes,trial
 recipient-2,Grace,+15550001002,true,enterprise
 recipient-3,Linus,not-a-phone,yes,partner
 recipient-4,Barbara,+15550001004,no,trial`,
-		metadataColumns: ['segment'],
-		requireConsent: true,
-		variableColumns: ['segment']
-	}),
-	headers: { 'content-type': 'application/json' },
-	method: 'POST'
+    metadataColumns: ["segment"],
+    requireConsent: true,
+    variableColumns: ["segment"],
+  }),
+  headers: { "content-type": "application/json" },
+  method: "POST",
 });
 
-await fetch('/api/voice/campaigns/campaign-1/enqueue', {
-	method: 'POST'
+await fetch("/api/voice/campaigns/campaign-1/enqueue", {
+  method: "POST",
 });
 ```
 
@@ -699,113 +707,113 @@ The production shape is:
 5. Gate release with the `meeting-recorder` readiness profile so reconnect, barge-in/interruption, provider routing, latency, and session-health proof stay visible.
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	createVoiceDataControlRoutes,
-	createVoiceFileRuntimeStorage,
-	createVoiceOperationsRecordRoutes,
-	createVoiceProductionReadinessRoutes,
-	createVoiceReadinessProfile,
-	createVoiceTraceTimelineRoutes,
-	voice,
-	voiceComplianceRedactionDefaults
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceDataControlRoutes,
+  createVoiceFileRuntimeStorage,
+  createVoiceOperationsRecordRoutes,
+  createVoiceProductionReadinessRoutes,
+  createVoiceReadinessProfile,
+  createVoiceTraceTimelineRoutes,
+  voice,
+  voiceComplianceRedactionDefaults,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/meeting-recorder'
+  directory: ".voice-runtime/meeting-recorder",
 });
 
 const app = new Elysia()
-	.use(
-		voice({
-			path: '/voice/meeting-recorder',
-			preset: 'reliability',
-			session: runtime.session,
-			stt: deepgram({
-				apiKey: process.env.DEEPGRAM_API_KEY!,
-				model: 'flux-general-en'
-			}),
-			trace: runtime.traces,
-			async onTurn({ turn }) {
-				return {
-					assistantText: '',
-					metadata: {
-						recorder: true,
-						transcript: turn.text
-					}
-				};
-			},
-			onComplete: async () => {},
-			ops: {
-				events: runtime.events,
-				reviews: runtime.reviews,
-				tasks: runtime.tasks,
-				buildReview: ({ session }) => ({
-					errors: [],
-					latencyBreakdown: [],
-					notes: ['Generated by the self-hosted meeting recorder path.'],
-					postCall: {
-						label: 'Meeting summary',
-						recommendedAction: 'Review the transcript and share action items.',
-						summary: 'Review transcript, decisions, and follow-up owners.'
-					},
-					summary: {
-						outcome: 'completed',
-						pass: true,
-						turnCount: session.turns.length
-					},
-					title: `Meeting recorder review for ${session.id}`,
-					timeline: [],
-					transcript: {
-						actual: session.turns
-							.map((turn) => turn.text)
-							.filter(Boolean)
-							.join('\n')
-					}
-				})
-			}
-		})
-	)
-	.use(
-		createVoiceTraceTimelineRoutes({
-			htmlPath: '/traces',
-			path: '/api/voice-traces',
-			store: runtime.traces
-		})
-	)
-	.use(
-		createVoiceOperationsRecordRoutes({
-			htmlPath: '/voice-operations/:sessionId',
-			integrationEvents: runtime.events,
-			path: '/api/voice-operations/:sessionId',
-			reviews: runtime.reviews,
-			store: runtime.traces,
-			tasks: runtime.tasks
-		})
-	)
-	.use(
-		createVoiceDataControlRoutes({
-			...runtime,
-			audit: runtime.audit,
-			auditDeliveries: runtime.auditDeliveries,
-			redact: voiceComplianceRedactionDefaults,
-			traceDeliveries: runtime.traceDeliveries
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			...createVoiceReadinessProfile('meeting-recorder', {
-				explain: true
-			}),
-			links: {
-				dataControl: '/data-control',
-				operationsRecords: '/voice-operations/:sessionId',
-				traces: '/traces'
-			},
-			store: runtime.traces
-		})
-	);
+  .use(
+    voice({
+      path: "/voice/meeting-recorder",
+      preset: "reliability",
+      session: runtime.session,
+      stt: deepgram({
+        apiKey: process.env.DEEPGRAM_API_KEY!,
+        model: "flux-general-en",
+      }),
+      trace: runtime.traces,
+      async onTurn({ turn }) {
+        return {
+          assistantText: "",
+          metadata: {
+            recorder: true,
+            transcript: turn.text,
+          },
+        };
+      },
+      onComplete: async () => {},
+      ops: {
+        events: runtime.events,
+        reviews: runtime.reviews,
+        tasks: runtime.tasks,
+        buildReview: ({ session }) => ({
+          errors: [],
+          latencyBreakdown: [],
+          notes: ["Generated by the self-hosted meeting recorder path."],
+          postCall: {
+            label: "Meeting summary",
+            recommendedAction: "Review the transcript and share action items.",
+            summary: "Review transcript, decisions, and follow-up owners.",
+          },
+          summary: {
+            outcome: "completed",
+            pass: true,
+            turnCount: session.turns.length,
+          },
+          title: `Meeting recorder review for ${session.id}`,
+          timeline: [],
+          transcript: {
+            actual: session.turns
+              .map((turn) => turn.text)
+              .filter(Boolean)
+              .join("\n"),
+          },
+        }),
+      },
+    }),
+  )
+  .use(
+    createVoiceTraceTimelineRoutes({
+      htmlPath: "/traces",
+      path: "/api/voice-traces",
+      store: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceOperationsRecordRoutes({
+      htmlPath: "/voice-operations/:sessionId",
+      integrationEvents: runtime.events,
+      path: "/api/voice-operations/:sessionId",
+      reviews: runtime.reviews,
+      store: runtime.traces,
+      tasks: runtime.tasks,
+    }),
+  )
+  .use(
+    createVoiceDataControlRoutes({
+      ...runtime,
+      audit: runtime.audit,
+      auditDeliveries: runtime.auditDeliveries,
+      redact: voiceComplianceRedactionDefaults,
+      traceDeliveries: runtime.traceDeliveries,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      ...createVoiceReadinessProfile("meeting-recorder", {
+        explain: true,
+      }),
+      links: {
+        dataControl: "/data-control",
+        operationsRecords: "/voice-operations/:sessionId",
+        traces: "/traces",
+      },
+      store: runtime.traces,
+    }),
+  );
 ```
 
 The UI should show a clear recording button, elapsed time, live transcript, reconnect state, recording status, a stop/finalize action, and links to `/voice-operations/:sessionId`, `/traces`, `/production-readiness`, and `/data-control`. Use `useVoiceStream(...)`, `useVoiceController(...)`, `createVoiceStream(...)`, `VoiceStreamService`, or the HTML/HTMX client helpers depending on the framework; the route and trace/review stores stay the same.
@@ -827,105 +835,105 @@ The production shape is:
 5. Make audit evidence, recent retention-policy evidence, and audit/trace delivery health part of production readiness.
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	applyVoiceDataRetentionPolicy,
-	buildVoiceDataRetentionPlan,
-	createVoiceAuditLogger,
-	createVoiceDataControlRoutes,
-	createVoiceOperationsRecordRoutes,
-	createVoicePostgresRuntimeStorage,
-	createVoiceProductionReadinessRoutes,
-	createVoiceZeroRetentionPolicy,
-	exportVoiceAuditTrail,
-	renderVoiceAuditMarkdown,
-	voiceComplianceRedactionDefaults
-} from '@absolutejs/voice';
+  applyVoiceDataRetentionPolicy,
+  buildVoiceDataRetentionPlan,
+  createVoiceAuditLogger,
+  createVoiceDataControlRoutes,
+  createVoiceOperationsRecordRoutes,
+  createVoicePostgresRuntimeStorage,
+  createVoiceProductionReadinessRoutes,
+  createVoiceZeroRetentionPolicy,
+  exportVoiceAuditTrail,
+  renderVoiceAuditMarkdown,
+  voiceComplianceRedactionDefaults,
+} from "@absolutejs/voice";
 
 const runtime = createVoicePostgresRuntimeStorage({
-	connectionString: process.env.DATABASE_URL!,
-	schemaName: 'voice_ops',
-	tablePrefix: 'sensitive'
+  connectionString: process.env.DATABASE_URL!,
+  schemaName: "voice_ops",
+  tablePrefix: "sensitive",
 });
 
 const audit = createVoiceAuditLogger(runtime.audit);
 
 const app = new Elysia()
-	.use(
-		createVoiceDataControlRoutes({
-			...runtime,
-			audit: runtime.audit,
-			auditDeliveries: runtime.auditDeliveries,
-			path: '/data-control',
-			redact: voiceComplianceRedactionDefaults,
-			title: 'Sensitive Voice Data Control',
-			traceDeliveries: runtime.traceDeliveries
-		})
-	)
-	.use(
-		createVoiceOperationsRecordRoutes({
-			audit: runtime.audit,
-			htmlPath: '/voice-operations/:sessionId',
-			integrationEvents: runtime.events,
-			path: '/api/voice-operations/:sessionId',
-			reviews: runtime.reviews,
-			store: runtime.traces,
-			tasks: runtime.tasks
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			audit: {
-				require: [
-					{ type: 'provider.call' },
-					{ type: 'operator.action' },
-					{ type: 'retention.policy', maxAgeMs: 7 * 24 * 60 * 60 * 1000 }
-				],
-				store: runtime.audit
-			},
-			auditDeliveries: runtime.auditDeliveries,
-			links: {
-				audit: '/audit',
-				auditDeliveries: '/audit/deliveries',
-				dataControl: '/data-control',
-				operationsRecords: '/voice-operations/:sessionId',
-				traceDeliveries: '/traces/deliveries'
-			},
-			store: runtime.traces,
-			traceDeliveries: runtime.traceDeliveries
-		})
-	);
+  .use(
+    createVoiceDataControlRoutes({
+      ...runtime,
+      audit: runtime.audit,
+      auditDeliveries: runtime.auditDeliveries,
+      path: "/data-control",
+      redact: voiceComplianceRedactionDefaults,
+      title: "Sensitive Voice Data Control",
+      traceDeliveries: runtime.traceDeliveries,
+    }),
+  )
+  .use(
+    createVoiceOperationsRecordRoutes({
+      audit: runtime.audit,
+      htmlPath: "/voice-operations/:sessionId",
+      integrationEvents: runtime.events,
+      path: "/api/voice-operations/:sessionId",
+      reviews: runtime.reviews,
+      store: runtime.traces,
+      tasks: runtime.tasks,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      audit: {
+        require: [
+          { type: "provider.call" },
+          { type: "operator.action" },
+          { type: "retention.policy", maxAgeMs: 7 * 24 * 60 * 60 * 1000 },
+        ],
+        store: runtime.audit,
+      },
+      auditDeliveries: runtime.auditDeliveries,
+      links: {
+        audit: "/audit",
+        auditDeliveries: "/audit/deliveries",
+        dataControl: "/data-control",
+        operationsRecords: "/voice-operations/:sessionId",
+        traceDeliveries: "/traces/deliveries",
+      },
+      store: runtime.traces,
+      traceDeliveries: runtime.traceDeliveries,
+    }),
+  );
 
 await audit.operatorAction({
-	action: 'retention.policy.reviewed',
-	actor: { id: 'ops-admin', type: 'operator' },
-	outcome: 'ok',
-	resource: { id: 'zero-retention-policy', type: 'voice.retention' }
+  action: "retention.policy.reviewed",
+  actor: { id: "ops-admin", type: "operator" },
+  outcome: "ok",
+  resource: { id: "zero-retention-policy", type: "voice.retention" },
 });
 
 const zeroRetentionPolicy = createVoiceZeroRetentionPolicy({
-	...runtime,
-	audit: runtime.audit,
-	auditDeliveries: runtime.auditDeliveries,
-	traceDeliveries: runtime.traceDeliveries
+  ...runtime,
+  audit: runtime.audit,
+  auditDeliveries: runtime.auditDeliveries,
+  traceDeliveries: runtime.traceDeliveries,
 });
 
 const retentionPlan = await buildVoiceDataRetentionPlan(zeroRetentionPolicy);
 
 if (retentionPlan.deletedCount > 0) {
-	await applyVoiceDataRetentionPolicy({
-		...zeroRetentionPolicy,
-		dryRun: false
-	});
+  await applyVoiceDataRetentionPolicy({
+    ...zeroRetentionPolicy,
+    dryRun: false,
+  });
 }
 
 const auditExport = await exportVoiceAuditTrail({
-	redact: voiceComplianceRedactionDefaults,
-	store: runtime.audit
+  redact: voiceComplianceRedactionDefaults,
+  store: runtime.audit,
 });
 
 const redactedAuditMarkdown = renderVoiceAuditMarkdown(auditExport.events, {
-	title: 'Sensitive Voice Audit Export'
+  title: "Sensitive Voice Audit Export",
 });
 ```
 
@@ -968,19 +976,19 @@ That is the Vapi-style call-log workflow without a vendor dashboard becoming the
 
 If a team is already evaluating Vapi, map the dashboard concepts to AbsoluteJS primitives this way:
 
-| Hosted voice-platform concept | AbsoluteJS Voice primitive |
-| --- | --- |
-| Assistant | `createVoiceAssistant(...)`, `createVoiceAgent(...)`, or `voice({ onTurn })` |
-| Web call | `voice(...)` plus React, Vue, Svelte, Angular, HTML, HTMX, or client helpers |
-| Phone call | `createVoicePhoneAgent(...)` with Twilio, Telnyx, or Plivo routes |
-| Squads / multi-assistant routing | `createVoiceAgentSquad(...)` with `handoffPolicy`, `contextPolicy`, specialist tools, traces, and squad contracts |
-| Tools / functions | Agent tools, tool runtime, `runVoiceToolContract(...)`, audit events, and integration events |
-| Call logs | `/voice-operations/:sessionId`, trace timelines, replay links, reviews, tasks, audit, provider decisions, and delivery queues |
-| Post-call analysis | reviews, outcomes, ops tasks, handoff deliveries, integration events, webhook/audit sinks, and outcome contracts |
-| Simulation testing | `createVoiceSimulationSuiteRoutes(...)` with scenarios, fixtures, tool contracts, outcome contracts, and baseline comparison |
-| Production monitoring | `createVoiceProductionReadinessRoutes(...)`, `createVoiceOpsRecoveryRoutes(...)`, ops status, latency SLO gates, provider health, and delivery runtime proof |
-| Campaigns | `createVoiceCampaignRoutes(...)`, recipient import, scheduling controls, carrier dialer proof, and campaign readiness |
-| Compliance controls | self-hosted storage, redaction defaults, retention plans, audit exports, data-control routes, and provider-key ownership |
+| Hosted voice-platform concept    | AbsoluteJS Voice primitive                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Assistant                        | `createVoiceAssistant(...)`, `createVoiceAgent(...)`, or `voice({ onTurn })`                                                                                 |
+| Web call                         | `voice(...)` plus React, Vue, Svelte, Angular, HTML, HTMX, or client helpers                                                                                 |
+| Phone call                       | `createVoicePhoneAgent(...)` with Twilio, Telnyx, or Plivo routes                                                                                            |
+| Squads / multi-assistant routing | `createVoiceAgentSquad(...)` with `handoffPolicy`, `contextPolicy`, specialist tools, traces, and squad contracts                                            |
+| Tools / functions                | Agent tools, tool runtime, `runVoiceToolContract(...)`, audit events, and integration events                                                                 |
+| Call logs                        | `/voice-operations/:sessionId`, trace timelines, replay links, reviews, tasks, audit, provider decisions, and delivery queues                                |
+| Post-call analysis               | reviews, outcomes, ops tasks, handoff deliveries, integration events, webhook/audit sinks, and outcome contracts                                             |
+| Simulation testing               | `createVoiceSimulationSuiteRoutes(...)` with scenarios, fixtures, tool contracts, outcome contracts, and baseline comparison                                 |
+| Production monitoring            | `createVoiceProductionReadinessRoutes(...)`, `createVoiceOpsRecoveryRoutes(...)`, ops status, latency SLO gates, provider health, and delivery runtime proof |
+| Campaigns                        | `createVoiceCampaignRoutes(...)`, recipient import, scheduling controls, carrier dialer proof, and campaign readiness                                        |
+| Compliance controls              | self-hosted storage, redaction defaults, retention plans, audit exports, data-control routes, and provider-key ownership                                     |
 
 The practical difference is ownership. In Vapi-style systems, the assistant, call log, tool execution, and operational dashboard live primarily in the vendor platform. With AbsoluteJS Voice, those same surfaces are route handlers, stores, reports, hooks, and contracts inside the AbsoluteJS app.
 
@@ -998,19 +1006,19 @@ Use simulation and contracts before live traffic. The simulation suite, tool con
 
 Use this checklist when a buyer asks whether AbsoluteJS Voice covers the practical Vapi surface area without becoming a hosted platform:
 
-| Vapi evaluation question | AbsoluteJS proof to show |
-| --- | --- |
-| Can I make a web voice assistant? | Framework page using `voice(...)`, then `/traces` and `/production-readiness` |
-| Can I make phone calls? | `/phone-agent`, `/api/voice/phone/setup`, carrier matrix, and phone smoke proof |
-| Can I use multiple assistants? | `createVoiceAgentSquad(...)`, `/agent-squad-contract`, current-specialist framework helpers, and handoff traces |
-| Can I call tools/functions? | Tool definitions, `/tool-contracts`, audit events, integration events, and operations records |
-| Can I debug a bad call? | `/voice-operations/:sessionId`, session replay, trace timeline, incident Markdown, delivery attempts, and provider decisions |
-| Can I monitor production health? | `/production-readiness`, `/ops-recovery`, `/api/production-readiness/gate`, provider SLOs, and delivery runtime proof |
-| Can I test before live traffic? | `/voice/simulations`, scenario fixtures, tool contracts, outcome contracts, provider routing contracts, and eval baselines |
-| Can I run outbound campaigns? | `createVoiceCampaignRoutes(...)`, campaign readiness proof, carrier dry-run proof, retry/quiet-hours/rate-limit evidence |
-| Can operators intervene? | Live-ops routes, action-center helpers, pause/resume/takeover runtime controls, and operator action audit history |
-| Can I own compliance evidence? | `/data-control`, redacted audit export, retention dry-run/apply routes, provider-key recommendations, and customer-owned storage |
-| Can I export logs to my infrastructure? | `/voice/observability-export`, delivery receipts, artifact index, replay proof, S3/SQLite/Postgres/file/webhook destinations |
+| Vapi evaluation question                | AbsoluteJS proof to show                                                                                                         |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Can I make a web voice assistant?       | Framework page using `voice(...)`, then `/traces` and `/production-readiness`                                                    |
+| Can I make phone calls?                 | `/phone-agent`, `/api/voice/phone/setup`, carrier matrix, and phone smoke proof                                                  |
+| Can I use multiple assistants?          | `createVoiceAgentSquad(...)`, `/agent-squad-contract`, current-specialist framework helpers, and handoff traces                  |
+| Can I call tools/functions?             | Tool definitions, `/tool-contracts`, audit events, integration events, and operations records                                    |
+| Can I debug a bad call?                 | `/voice-operations/:sessionId`, session replay, trace timeline, incident Markdown, delivery attempts, and provider decisions     |
+| Can I monitor production health?        | `/production-readiness`, `/ops-recovery`, `/api/production-readiness/gate`, provider SLOs, and delivery runtime proof            |
+| Can I test before live traffic?         | `/voice/simulations`, scenario fixtures, tool contracts, outcome contracts, provider routing contracts, and eval baselines       |
+| Can I run outbound campaigns?           | `createVoiceCampaignRoutes(...)`, campaign readiness proof, carrier dry-run proof, retry/quiet-hours/rate-limit evidence         |
+| Can operators intervene?                | Live-ops routes, action-center helpers, pause/resume/takeover runtime controls, and operator action audit history                |
+| Can I own compliance evidence?          | `/data-control`, redacted audit export, retention dry-run/apply routes, provider-key recommendations, and customer-owned storage |
+| Can I export logs to my infrastructure? | `/voice/observability-export`, delivery receipts, artifact index, replay proof, S3/SQLite/Postgres/file/webhook destinations     |
 
 The migration path should start by replacing hosted-dashboard concepts with mounted primitives and proof routes. Do not start by copying a hosted dashboard. Start with the voice route, operations record, readiness gate, provider contracts, and customer-owned observability export; then add campaigns, live-ops, or compliance controls only when the app needs those surfaces.
 
@@ -1045,66 +1053,66 @@ Use these paths when you want the smallest useful setup that still proves the ap
 ### Browser Agent In 10 Minutes
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	createVoiceFileRuntimeStorage,
-	createVoiceOperationsRecordRoutes,
-	createVoiceOpsStatusRoutes,
-	createVoiceProductionReadinessRoutes,
-	createVoiceTraceTimelineRoutes,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceFileRuntimeStorage,
+  createVoiceOperationsRecordRoutes,
+  createVoiceOpsStatusRoutes,
+  createVoiceProductionReadinessRoutes,
+  createVoiceTraceTimelineRoutes,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 
 export const app = new Elysia()
-	.use(
-		voice({
-			path: '/voice',
-			session: runtime.session,
-			trace: runtime.traces,
-			stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-			async onTurn({ turn }) {
-				return { assistantText: `I heard: ${turn.text}` };
-			},
-			onComplete: async () => {}
-		})
-	)
-	.use(
-		createVoiceOpsStatusRoutes({
-			path: '/api/voice/ops-status',
-			store: runtime.traces,
-			sttProviders: ['deepgram']
-		})
-	)
-	.use(
-		createVoiceTraceTimelineRoutes({
-			htmlPath: '/traces',
-			path: '/api/voice-traces',
-			store: runtime.traces
-		})
-	)
-	.use(
-		createVoiceOperationsRecordRoutes({
-			audit: runtime.audit,
-			htmlPath: '/voice-operations/:sessionId',
-			path: '/api/voice-operations/:sessionId',
-			store: runtime.traces
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			links: {
-				operationsRecords: '/voice-operations/:sessionId'
-			},
-			path: '/api/production-readiness',
-			htmlPath: '/production-readiness',
-			store: runtime.traces
-		})
-	);
+  .use(
+    voice({
+      path: "/voice",
+      session: runtime.session,
+      trace: runtime.traces,
+      stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+      async onTurn({ turn }) {
+        return { assistantText: `I heard: ${turn.text}` };
+      },
+      onComplete: async () => {},
+    }),
+  )
+  .use(
+    createVoiceOpsStatusRoutes({
+      path: "/api/voice/ops-status",
+      store: runtime.traces,
+      sttProviders: ["deepgram"],
+    }),
+  )
+  .use(
+    createVoiceTraceTimelineRoutes({
+      htmlPath: "/traces",
+      path: "/api/voice-traces",
+      store: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceOperationsRecordRoutes({
+      audit: runtime.audit,
+      htmlPath: "/voice-operations/:sessionId",
+      path: "/api/voice-operations/:sessionId",
+      store: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      links: {
+        operationsRecords: "/voice-operations/:sessionId",
+      },
+      path: "/api/production-readiness",
+      htmlPath: "/production-readiness",
+      store: runtime.traces,
+    }),
+  );
 ```
 
 After one browser call, open:
@@ -1118,89 +1126,89 @@ After one browser call, open:
 ### Phone Agent In 20 Minutes
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	createVoiceFileRuntimeStorage,
-	createVoiceOperationsRecordRoutes,
-	createVoicePhoneAgent,
-	createVoiceProductionReadinessRoutes,
-	createVoiceReadinessProfile,
-	createVoiceTelephonyOutcomePolicy
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceFileRuntimeStorage,
+  createVoiceOperationsRecordRoutes,
+  createVoicePhoneAgent,
+  createVoiceProductionReadinessRoutes,
+  createVoiceReadinessProfile,
+  createVoiceTelephonyOutcomePolicy,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 const outcomePolicy = createVoiceTelephonyOutcomePolicy({
-	transferTarget: process.env.VOICE_TRANSFER_TARGET
+  transferTarget: process.env.VOICE_TRANSFER_TARGET,
 });
 
 export const app = new Elysia()
-	.use(
-		createVoicePhoneAgent({
-			setup: { path: '/api/voice/phone/setup' },
-			matrix: { path: '/api/carriers' },
-			productionSmoke: {
-				maxAgeMs: 24 * 60 * 60 * 1000,
-				required: [
-					'carrier-contract',
-					'media-started',
-					'transcript',
-					'assistant-response',
-					'lifecycle-outcome',
-					'no-session-error',
-					'fresh-trace'
-				],
-				store: runtime.traces
-			},
-			carriers: [
-				{
-					provider: 'twilio',
-					options: {
-						context: {},
-						outcomePolicy,
-						session: runtime.session,
-						stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-						streamPath: '/api/voice/twilio/stream',
-						twiml: {
-							path: '/api/voice/twilio',
-							streamUrl: process.env.TWILIO_STREAM_URL
-						},
-						webhook: {
-							path: '/api/voice/twilio/webhook',
-							signingSecret: process.env.TWILIO_AUTH_TOKEN
-						},
-						async onTurn({ turn }) {
-							return { assistantText: `I heard: ${turn.text}` };
-						},
-						onComplete: async () => {}
-					}
-				}
-			]
-		}).routes
-	)
-	.use(
-		createVoiceOperationsRecordRoutes({
-			audit: runtime.audit,
-			htmlPath: '/voice-operations/:sessionId',
-			path: '/api/voice-operations/:sessionId',
-			store: runtime.traces
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			...createVoiceReadinessProfile('phone-agent', {
-				explain: true
-			}),
-			links: {
-				operationsRecords: '/voice-operations/:sessionId'
-			},
-			path: '/api/production-readiness',
-			htmlPath: '/production-readiness',
-			store: runtime.traces
-		})
-	);
+  .use(
+    createVoicePhoneAgent({
+      setup: { path: "/api/voice/phone/setup" },
+      matrix: { path: "/api/carriers" },
+      productionSmoke: {
+        maxAgeMs: 24 * 60 * 60 * 1000,
+        required: [
+          "carrier-contract",
+          "media-started",
+          "transcript",
+          "assistant-response",
+          "lifecycle-outcome",
+          "no-session-error",
+          "fresh-trace",
+        ],
+        store: runtime.traces,
+      },
+      carriers: [
+        {
+          provider: "twilio",
+          options: {
+            context: {},
+            outcomePolicy,
+            session: runtime.session,
+            stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+            streamPath: "/api/voice/twilio/stream",
+            twiml: {
+              path: "/api/voice/twilio",
+              streamUrl: process.env.TWILIO_STREAM_URL,
+            },
+            webhook: {
+              path: "/api/voice/twilio/webhook",
+              signingSecret: process.env.TWILIO_AUTH_TOKEN,
+            },
+            async onTurn({ turn }) {
+              return { assistantText: `I heard: ${turn.text}` };
+            },
+            onComplete: async () => {},
+          },
+        },
+      ],
+    }).routes,
+  )
+  .use(
+    createVoiceOperationsRecordRoutes({
+      audit: runtime.audit,
+      htmlPath: "/voice-operations/:sessionId",
+      path: "/api/voice-operations/:sessionId",
+      store: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      ...createVoiceReadinessProfile("phone-agent", {
+        explain: true,
+      }),
+      links: {
+        operationsRecords: "/voice-operations/:sessionId",
+      },
+      path: "/api/production-readiness",
+      htmlPath: "/production-readiness",
+      store: runtime.traces,
+    }),
+  );
 ```
 
 Open `/api/voice/phone/setup?format=html`, copy the reported Twilio URLs into the carrier dashboard, run one smoke call, then inspect:
@@ -1213,51 +1221,50 @@ Open `/api/voice/phone/setup?format=html`, copy the reported Twilio URLs into th
 ## Browser Voice Agent
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	voice,
-	createVoiceMemoryStore,
-	createPhraseHintCorrectionHandler
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  voice,
+  createVoiceMemoryStore,
+  createPhraseHintCorrectionHandler,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
-const app = new Elysia()
-	.use(
-		voice({
-			path: '/voice',
-			preset: 'guided-intake',
-			lexicon: [
-				{
-					text: 'AbsoluteJS',
-					aliases: ['absoloot js'],
-					pronunciation: 'ab-so-lute jay ess'
-				}
-			],
-			phraseHints: [
-				{ text: 'AbsoluteJS', aliases: ['absolute js'] },
-				{ text: 'Joe Johnston', aliases: ['joe johnson'] }
-			],
-			correctTurn: createPhraseHintCorrectionHandler(),
-			onComplete: async ({ session }) => {
-				console.log(session.turns);
-			},
-			async onTurn({ turn }) {
-				console.log('turn quality:', {
-					source: turn.quality?.source,
-					fallbackUsed: turn.quality?.fallbackUsed,
-					confidence: turn.quality?.averageConfidence
-				});
-				return {
-					assistantText: `You said: ${turn.text}`
-				};
-			},
-			session: createVoiceMemoryStore(),
-			stt: deepgram({
-				apiKey: process.env.DEEPGRAM_API_KEY!,
-				model: 'nova-3'
-			})
-		})
-	);
+const app = new Elysia().use(
+  voice({
+    path: "/voice",
+    preset: "guided-intake",
+    lexicon: [
+      {
+        text: "AbsoluteJS",
+        aliases: ["absoloot js"],
+        pronunciation: "ab-so-lute jay ess",
+      },
+    ],
+    phraseHints: [
+      { text: "AbsoluteJS", aliases: ["absolute js"] },
+      { text: "Joe Johnston", aliases: ["joe johnson"] },
+    ],
+    correctTurn: createPhraseHintCorrectionHandler(),
+    onComplete: async ({ session }) => {
+      console.log(session.turns);
+    },
+    async onTurn({ turn }) {
+      console.log("turn quality:", {
+        source: turn.quality?.source,
+        fallbackUsed: turn.quality?.fallbackUsed,
+        confidence: turn.quality?.averageConfidence,
+      });
+      return {
+        assistantText: `You said: ${turn.text}`,
+      };
+    },
+    session: createVoiceMemoryStore(),
+    stt: deepgram({
+      apiKey: process.env.DEEPGRAM_API_KEY!,
+      model: "nova-3",
+    }),
+  }),
+);
 ```
 
 `createVoiceMemoryStore()` is dev-only. Real deployments should provide a shared store backed by Redis, Postgres, or equivalent.
@@ -1268,83 +1275,83 @@ Once the basic route works, mount the proof routes you need. These give you the 
 
 ```ts
 import {
-	createVoiceAuditDeliveryRoutes,
-	createVoiceDemoReadyRoutes,
-	createVoiceFileRuntimeStorage,
-	createVoiceLiveLatencyRoutes,
-	createVoiceOpsStatusRoutes,
-	createVoiceProductionReadinessRoutes,
-	createVoiceTraceDeliveryRoutes,
-	createVoiceTraceTimelineRoutes,
-	createVoiceTurnLatencyRoutes,
-	createVoiceTurnQualityRoutes
-} from '@absolutejs/voice';
+  createVoiceAuditDeliveryRoutes,
+  createVoiceDemoReadyRoutes,
+  createVoiceFileRuntimeStorage,
+  createVoiceLiveLatencyRoutes,
+  createVoiceOpsStatusRoutes,
+  createVoiceProductionReadinessRoutes,
+  createVoiceTraceDeliveryRoutes,
+  createVoiceTraceTimelineRoutes,
+  createVoiceTurnLatencyRoutes,
+  createVoiceTurnQualityRoutes,
+} from "@absolutejs/voice";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 
 app
-	.use(
-		createVoiceOpsStatusRoutes({
-			store: runtime.traces,
-			llmProviders: ['openai', 'anthropic', 'gemini'],
-			sttProviders: ['deepgram', 'assemblyai']
-		})
-	)
-	.use(
-		createVoiceTurnLatencyRoutes({
-			htmlPath: '/turn-latency',
-			path: '/api/turn-latency',
-			store: runtime.session,
-			traceStore: runtime.traces
-		})
-	)
-	.use(
-		createVoiceLiveLatencyRoutes({
-			htmlPath: '/live-latency',
-			path: '/api/live-latency',
-			store: runtime.traces
-		})
-	)
-	.use(
-		createVoiceTurnQualityRoutes({
-			htmlPath: '/turn-quality',
-			path: '/api/turn-quality',
-			store: runtime.session
-		})
-	)
-	.use(
-		createVoiceTraceTimelineRoutes({
-			htmlPath: '/traces',
-			path: '/api/voice-traces',
-			store: runtime.traces
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			audit: runtime.audit,
-			auditDeliveries: runtime.auditDeliveries,
-			htmlPath: '/production-readiness',
-			path: '/api/production-readiness',
-			store: runtime.traces,
-			traceDeliveries: runtime.traceDeliveries
-		})
-	)
-	.use(
-		createVoiceAuditDeliveryRoutes({
-			htmlPath: '/audit/deliveries',
-			path: '/api/voice-audit-deliveries',
-			store: runtime.auditDeliveries
-		})
-	)
-	.use(
-		createVoiceTraceDeliveryRoutes({
-			htmlPath: '/traces/deliveries',
-			path: '/api/voice-trace-deliveries',
-			store: runtime.traceDeliveries
-		})
-	);
+  .use(
+    createVoiceOpsStatusRoutes({
+      store: runtime.traces,
+      llmProviders: ["openai", "anthropic", "gemini"],
+      sttProviders: ["deepgram", "assemblyai"],
+    }),
+  )
+  .use(
+    createVoiceTurnLatencyRoutes({
+      htmlPath: "/turn-latency",
+      path: "/api/turn-latency",
+      store: runtime.session,
+      traceStore: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceLiveLatencyRoutes({
+      htmlPath: "/live-latency",
+      path: "/api/live-latency",
+      store: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceTurnQualityRoutes({
+      htmlPath: "/turn-quality",
+      path: "/api/turn-quality",
+      store: runtime.session,
+    }),
+  )
+  .use(
+    createVoiceTraceTimelineRoutes({
+      htmlPath: "/traces",
+      path: "/api/voice-traces",
+      store: runtime.traces,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      audit: runtime.audit,
+      auditDeliveries: runtime.auditDeliveries,
+      htmlPath: "/production-readiness",
+      path: "/api/production-readiness",
+      store: runtime.traces,
+      traceDeliveries: runtime.traceDeliveries,
+    }),
+  )
+  .use(
+    createVoiceAuditDeliveryRoutes({
+      htmlPath: "/audit/deliveries",
+      path: "/api/voice-audit-deliveries",
+      store: runtime.auditDeliveries,
+    }),
+  )
+  .use(
+    createVoiceTraceDeliveryRoutes({
+      htmlPath: "/traces/deliveries",
+      path: "/api/voice-trace-deliveries",
+      store: runtime.traceDeliveries,
+    }),
+  );
 ```
 
 Recommended proof routes:
@@ -1369,20 +1376,22 @@ Use `createVoiceReadinessProfile(...)` when you want production-shaped defaults 
 
 ```ts
 import {
-	createVoiceProductionReadinessRoutes,
-	createVoiceReadinessProfile
-} from '@absolutejs/voice';
+  createVoiceProductionReadinessRoutes,
+  createVoiceReadinessProfile,
+} from "@absolutejs/voice";
 
 app.use(
-	createVoiceProductionReadinessRoutes({
-		...createVoiceReadinessProfile('meeting-recorder', {
-			bargeInReports: async () => [await buildBargeInReport()],
-			explain: true,
-			providerRoutingContracts: async () => [await runProviderRoutingContract()],
-			reconnectContracts: async () => [await runReconnectContract()]
-		}),
-		store: runtime.traces
-	})
+  createVoiceProductionReadinessRoutes({
+    ...createVoiceReadinessProfile("meeting-recorder", {
+      bargeInReports: async () => [await buildBargeInReport()],
+      explain: true,
+      providerRoutingContracts: async () => [
+        await runProviderRoutingContract(),
+      ],
+      reconnectContracts: async () => [await runReconnectContract()],
+    }),
+    store: runtime.traces,
+  }),
 );
 ```
 
@@ -1390,14 +1399,14 @@ Use `evaluateVoiceProductionReadinessEvidence(...)` or `assertVoiceProductionRea
 
 ```ts
 const readiness = await buildVoiceProductionReadinessReport({
-	store: runtime.traces,
-	providerSlo,
-	opsRecovery
+  store: runtime.traces,
+  providerSlo,
+  opsRecovery,
 });
 
 assertVoiceProductionReadinessEvidence(readiness, {
-	requireStatus: 'pass',
-	requiredChecks: ['Provider SLO gates', 'Session health', 'Turn quality']
+  requireStatus: "pass",
+  requiredChecks: ["Provider SLO gates", "Session health", "Turn quality"],
 });
 ```
 
@@ -1405,54 +1414,52 @@ Use `createVoiceProductionReadinessProofRuntime(...)` when the app needs a fresh
 
 ```ts
 import {
-	createVoiceProductionReadinessProofRuntime,
-	createVoiceProductionReadinessRoutes,
-	createVoiceReadinessProfile
-} from '@absolutejs/voice';
+  createVoiceProductionReadinessProofRuntime,
+  createVoiceProductionReadinessRoutes,
+  createVoiceReadinessProfile,
+} from "@absolutejs/voice";
 
 const readinessProof = createVoiceProductionReadinessProofRuntime({
-	cacheMs: 10_000,
-	traceMaxAgeMs: 30 * 60_000
+  cacheMs: 10_000,
+  traceMaxAgeMs: 30 * 60_000,
 });
 
 const refreshReadinessProof = () =>
-	readinessProof.refresh(async (metadata) => {
-		await readinessProof.seedTraceProof({
-			llmProvider: 'openai',
-			scenarioId: 'provider-slo-proof',
-			sttProvider: 'deepgram',
-			ttsProvider: 'openai'
-		});
+  readinessProof.refresh(async (metadata) => {
+    await readinessProof.seedTraceProof({
+      llmProvider: "openai",
+      scenarioId: "provider-slo-proof",
+      sttProvider: "deepgram",
+      ttsProvider: "openai",
+    });
 
-		await writeProofPack({
-			generatedAt: metadata.generatedAt,
-			runId: metadata.runId
-		});
-	});
+    await writeProofPack({
+      generatedAt: metadata.generatedAt,
+      runId: metadata.runId,
+    });
+  });
 
 app.use(
-	createVoiceProductionReadinessRoutes({
-		...createVoiceReadinessProfile('phone-agent', {
-			explain: true
-		}),
-		additionalChecks: async () => [
-			await readinessProof.buildFreshnessCheck()
-		],
-		cacheMs: readinessProof.options.cacheMs,
-		providerSlo: async () => {
-			await refreshReadinessProof();
-			return {
-				events: await readinessProof.store.list(),
-				requiredKinds: ['llm', 'stt', 'tts']
-			};
-		},
-		resolveOptions: async () => {
-			await refreshReadinessProof();
-			return {};
-		},
-		store: readinessProof.store,
-		traceMaxAgeMs: readinessProof.options.traceMaxAgeMs
-	})
+  createVoiceProductionReadinessRoutes({
+    ...createVoiceReadinessProfile("phone-agent", {
+      explain: true,
+    }),
+    additionalChecks: async () => [await readinessProof.buildFreshnessCheck()],
+    cacheMs: readinessProof.options.cacheMs,
+    providerSlo: async () => {
+      await refreshReadinessProof();
+      return {
+        events: await readinessProof.store.list(),
+        requiredKinds: ["llm", "stt", "tts"],
+      };
+    },
+    resolveOptions: async () => {
+      await refreshReadinessProof();
+      return {};
+    },
+    store: readinessProof.store,
+    traceMaxAgeMs: readinessProof.options.traceMaxAgeMs,
+  }),
 );
 ```
 
@@ -1460,27 +1467,27 @@ Use `buildVoiceProofPack(...)` and `writeVoiceProofPack(...)` when the app needs
 
 ```ts
 import {
-	buildVoiceProofPackFromObservabilityExport,
-	createVoiceProofPackRoutes,
-	writeVoiceProofPack
-} from '@absolutejs/voice';
+  buildVoiceProofPackFromObservabilityExport,
+  createVoiceProofPackRoutes,
+  writeVoiceProofPack,
+} from "@absolutejs/voice";
 
 const exportReport = await buildVoiceObservabilityExport({
-	store: runtime.traces,
-	audit: runtime.audit
+  store: runtime.traces,
+  audit: runtime.audit,
 });
 const proofPack = buildVoiceProofPackFromObservabilityExport(exportReport, {
-	runId: 'release-proof'
+  runId: "release-proof",
 });
 const written = await writeVoiceProofPack(proofPack, {
-	outputDir: '.voice-runtime/proof-pack'
+  outputDir: ".voice-runtime/proof-pack",
 });
 
 app.use(createVoiceProofPackRoutes({ source: proofPack }));
 
 const exportWithProofPack = await buildVoiceObservabilityExport({
-	artifacts: written.artifacts,
-	store: runtime.traces
+  artifacts: written.artifacts,
+  store: runtime.traces,
 });
 ```
 
@@ -1490,25 +1497,25 @@ Use `buildVoiceRealCallProfileEvidenceFromTraceEvents(...)` or `loadVoiceRealCal
 
 ```ts
 import {
-	buildVoiceRealCallProfileHistoryReport,
-	createVoiceRealCallProfileHistoryRoutes,
-	loadVoiceRealCallProfileEvidenceFromTraceStore
-} from '@absolutejs/voice';
+  buildVoiceRealCallProfileHistoryReport,
+  createVoiceRealCallProfileHistoryRoutes,
+  loadVoiceRealCallProfileEvidenceFromTraceStore,
+} from "@absolutejs/voice";
 
 const buildRealCallHistory = async () =>
-	buildVoiceRealCallProfileHistoryReport({
-		evidence: await loadVoiceRealCallProfileEvidenceFromTraceStore({
-			defaultProfileId: 'meeting-recorder',
-			defaultProfileLabel: 'Meeting recorder',
-			store: runtime.traces
-		}),
-		source: 'runtime.traces'
-	});
+  buildVoiceRealCallProfileHistoryReport({
+    evidence: await loadVoiceRealCallProfileEvidenceFromTraceStore({
+      defaultProfileId: "meeting-recorder",
+      defaultProfileLabel: "Meeting recorder",
+      store: runtime.traces,
+    }),
+    source: "runtime.traces",
+  });
 
 app.use(
-	createVoiceRealCallProfileHistoryRoutes({
-		source: buildRealCallHistory
-	})
+  createVoiceRealCallProfileHistoryRoutes({
+    source: buildRealCallHistory,
+  }),
 );
 ```
 
@@ -1518,15 +1525,15 @@ Use `buildVoiceRealCallProfileReadinessCheck(...)` to make that history deploy-b
 
 ```ts
 createVoiceProductionReadinessRoutes({
-	additionalChecks: async () => [
-		buildVoiceRealCallProfileReadinessCheck(await buildRealCallHistory(), {
-			minActionableProfiles: 2,
-			minCycles: 10,
-			requiredProfileIds: ['meeting-recorder', 'support-agent'],
-			requiredProviderRoles: ['llm', 'stt', 'tts']
-		})
-	],
-	store: runtime.traces
+  additionalChecks: async () => [
+    buildVoiceRealCallProfileReadinessCheck(await buildRealCallHistory(), {
+      minActionableProfiles: 2,
+      minCycles: 10,
+      requiredProfileIds: ["meeting-recorder", "support-agent"],
+      requiredProviderRoles: ["llm", "stt", "tts"],
+    }),
+  ],
+  store: runtime.traces,
 });
 ```
 
@@ -1536,14 +1543,14 @@ Mount `createVoiceRealCallProfileRecoveryActionRoutes(...)` when those actions s
 
 ```ts
 app.use(
-	createVoiceRealCallProfileRecoveryActionRoutes({
-		handlers: {
-			'collect-browser-proof': async () => runBrowserProfileProof(),
-			'collect-phone-proof': async () => runPhoneProfileProof(),
-			refresh: async () => refreshReadinessProof()
-		},
-		source: buildRealCallHistory
-	})
+  createVoiceRealCallProfileRecoveryActionRoutes({
+    handlers: {
+      "collect-browser-proof": async () => runBrowserProfileProof(),
+      "collect-phone-proof": async () => runPhoneProfileProof(),
+      refresh: async () => refreshReadinessProof(),
+    },
+    source: buildRealCallHistory,
+  }),
 );
 ```
 
@@ -1553,15 +1560,15 @@ For longer-running proof collection, add a job store and mark selected actions a
 const recoveryJobs = createVoiceInMemoryRealCallProfileRecoveryJobStore();
 
 app.use(
-	createVoiceRealCallProfileRecoveryActionRoutes({
-		asyncActionIds: ['collect-browser-proof', 'collect-phone-proof'],
-		handlers: {
-			'collect-browser-proof': async () => runBrowserProfileProof(),
-			'collect-phone-proof': async () => runPhoneProfileProof()
-		},
-		jobStore: recoveryJobs,
-		source: buildRealCallHistory
-	})
+  createVoiceRealCallProfileRecoveryActionRoutes({
+    asyncActionIds: ["collect-browser-proof", "collect-phone-proof"],
+    handlers: {
+      "collect-browser-proof": async () => runBrowserProfileProof(),
+      "collect-phone-proof": async () => runPhoneProfileProof(),
+    },
+    jobStore: recoveryJobs,
+    source: buildRealCallHistory,
+  }),
 );
 ```
 
@@ -1569,7 +1576,7 @@ Use the SQLite job store when recovery jobs should survive restarts:
 
 ```ts
 const recoveryJobs = createVoiceSQLiteRealCallProfileRecoveryJobStore({
-	path: '.voice-runtime/real-call-recovery/jobs.sqlite'
+  path: ".voice-runtime/real-call-recovery/jobs.sqlite",
 });
 ```
 
@@ -1579,7 +1586,7 @@ Use `buildVoiceRealCallProfileRecoveryJobHistoryCheck(...)` in production readin
 
 ```ts
 additionalChecks: async () => [
-	await buildVoiceRealCallProfileRecoveryJobHistoryCheck(recoveryJobs)
+  await buildVoiceRealCallProfileRecoveryJobHistoryCheck(recoveryJobs),
 ];
 ```
 
@@ -1592,16 +1599,16 @@ const recoveryPlan = buildVoiceReadinessRecoveryActions(readinessReport);
 Use `createVoiceProfileTraceTagger(...)` when the app already has a trace store and needs every appended trace to carry a benchmark profile label. It wraps any `VoiceTraceEventStore`, preserves the underlying store behavior, and adds `profileId`/`benchmarkProfileId` metadata and payload fields that real-call profile history can ingest later.
 
 ```ts
-import { createVoiceProfileTraceTagger } from '@absolutejs/voice';
+import { createVoiceProfileTraceTagger } from "@absolutejs/voice";
 
 const trace = createVoiceProfileTraceTagger({
-	defaultProfile: {
-		id: 'meeting-recorder',
-		label: 'Meeting recorder'
-	},
-	resolveProfile: (event) =>
-		event.sessionId.startsWith('support-') ? 'support-agent' : undefined,
-	store: runtime.traces
+  defaultProfile: {
+    id: "meeting-recorder",
+    label: "Meeting recorder",
+  },
+  resolveProfile: (event) =>
+    event.sessionId.startsWith("support-") ? "support-agent" : undefined,
+  store: runtime.traces,
 });
 ```
 
@@ -1615,27 +1622,29 @@ Phone-agent fast path:
 
 ```ts
 app.use(
-	createVoiceProductionReadinessRoutes({
-		...createVoiceReadinessProfile('phone-agent', {
-			auditDeliveries: runtime.auditDeliveries,
-			campaignReadiness: () =>
-				runVoiceCampaignReadinessProof({
-					store: runtime.campaigns
-				}),
-			carriers: loadCarrierMatrixInputs,
-			deliveryRuntime,
-			explain: true,
-			observabilityExportDeliveryHistory: {
-				store: observabilityExportDeliveryReceipts,
-				maxAgeMs: 60 * 60 * 1000,
-				failOnStale: true
-			},
-			phoneAgentSmokes: async () => [await runPhoneSmoke()],
-			providerRoutingContracts: async () => [await runProviderRoutingContract()],
-			traceDeliveries: runtime.traceDeliveries
-		}),
-		store: runtime.traces
-	})
+  createVoiceProductionReadinessRoutes({
+    ...createVoiceReadinessProfile("phone-agent", {
+      auditDeliveries: runtime.auditDeliveries,
+      campaignReadiness: () =>
+        runVoiceCampaignReadinessProof({
+          store: runtime.campaigns,
+        }),
+      carriers: loadCarrierMatrixInputs,
+      deliveryRuntime,
+      explain: true,
+      observabilityExportDeliveryHistory: {
+        store: observabilityExportDeliveryReceipts,
+        maxAgeMs: 60 * 60 * 1000,
+        failOnStale: true,
+      },
+      phoneAgentSmokes: async () => [await runPhoneSmoke()],
+      providerRoutingContracts: async () => [
+        await runProviderRoutingContract(),
+      ],
+      traceDeliveries: runtime.traceDeliveries,
+    }),
+    store: runtime.traces,
+  }),
 );
 ```
 
@@ -1643,21 +1652,21 @@ Ops-heavy fast path:
 
 ```ts
 app.use(
-	createVoiceProductionReadinessRoutes({
-		...createVoiceReadinessProfile('ops-heavy', {
-			audit: runtime.audit,
-			auditDeliveries: runtime.auditDeliveries,
-			deliveryRuntime,
-			observabilityExportDeliveryHistory: {
-				store: observabilityExportDeliveryReceipts
-			},
-			traceDeliveries: runtime.traceDeliveries
-		}),
-		gate: {
-			failOnWarnings: true
-		},
-		store: runtime.traces
-	})
+  createVoiceProductionReadinessRoutes({
+    ...createVoiceReadinessProfile("ops-heavy", {
+      audit: runtime.audit,
+      auditDeliveries: runtime.auditDeliveries,
+      deliveryRuntime,
+      observabilityExportDeliveryHistory: {
+        store: observabilityExportDeliveryReceipts,
+      },
+      traceDeliveries: runtime.traceDeliveries,
+    }),
+    gate: {
+      failOnWarnings: true,
+    },
+    store: runtime.traces,
+  }),
 );
 ```
 
@@ -1675,30 +1684,30 @@ Use file delivery for local demos, dev environments, or self-hosted deployments 
 
 ```ts
 import {
-	createVoiceDeliveryRuntime,
-	createVoiceDeliveryRuntimePresetConfig,
-	createVoiceDeliveryRuntimeRoutes,
-	createVoiceFileRuntimeStorage
-} from '@absolutejs/voice';
+  createVoiceDeliveryRuntime,
+  createVoiceDeliveryRuntimePresetConfig,
+  createVoiceDeliveryRuntimeRoutes,
+  createVoiceFileRuntimeStorage,
+} from "@absolutejs/voice";
 
 const runtimeStorage = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 
 const deliveryRuntime = createVoiceDeliveryRuntime(
-	createVoiceDeliveryRuntimePresetConfig({
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		directory: '.voice-runtime/support/delivery-exports',
-		leases: createLeaseCoordinator(),
-		mode: 'file',
-		traceDeliveries: runtimeStorage.traceDeliveries
-	})
+  createVoiceDeliveryRuntimePresetConfig({
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    directory: ".voice-runtime/support/delivery-exports",
+    leases: createLeaseCoordinator(),
+    mode: "file",
+    traceDeliveries: runtimeStorage.traceDeliveries,
+  }),
 );
 
 app.use(
-	createVoiceDeliveryRuntimeRoutes({
-		runtime: deliveryRuntime
-	})
+  createVoiceDeliveryRuntimeRoutes({
+    runtime: deliveryRuntime,
+  }),
 );
 ```
 
@@ -1708,36 +1717,36 @@ Use webhook delivery when audit and trace exports should go to your own ingestio
 
 ```ts
 const deliveryRuntime = createVoiceDeliveryRuntime(
-	createVoiceDeliveryRuntimePresetConfig({
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		auditSinkId: 'support-audit-webhook',
-		body: {
-			audit: ({ events }) => ({
-				eventCount: events.length,
-				events,
-				source: 'support-app',
-				surface: 'audit-deliveries'
-			}),
-			trace: ({ events }) => ({
-				eventCount: events.length,
-				events,
-				source: 'support-app',
-				surface: 'trace-deliveries'
-			})
-		},
-		failures: {
-			maxFailures: 3
-		},
-		leases: {
-			audit: createLeaseCoordinator(),
-			trace: createLeaseCoordinator()
-		},
-		mode: 'webhook',
-		signingSecret: process.env.VOICE_DELIVERY_WEBHOOK_SECRET,
-		traceDeliveries: runtimeStorage.traceDeliveries,
-		traceSinkId: 'support-trace-webhook',
-		url: process.env.VOICE_DELIVERY_WEBHOOK_URL!
-	})
+  createVoiceDeliveryRuntimePresetConfig({
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    auditSinkId: "support-audit-webhook",
+    body: {
+      audit: ({ events }) => ({
+        eventCount: events.length,
+        events,
+        source: "support-app",
+        surface: "audit-deliveries",
+      }),
+      trace: ({ events }) => ({
+        eventCount: events.length,
+        events,
+        source: "support-app",
+        surface: "trace-deliveries",
+      }),
+    },
+    failures: {
+      maxFailures: 3,
+    },
+    leases: {
+      audit: createLeaseCoordinator(),
+      trace: createLeaseCoordinator(),
+    },
+    mode: "webhook",
+    signingSecret: process.env.VOICE_DELIVERY_WEBHOOK_SECRET,
+    traceDeliveries: runtimeStorage.traceDeliveries,
+    traceSinkId: "support-trace-webhook",
+    url: process.env.VOICE_DELIVERY_WEBHOOK_URL!,
+  }),
 );
 ```
 
@@ -1747,22 +1756,22 @@ Use S3 delivery when exports should land directly in object storage through Bun'
 
 ```ts
 const deliveryRuntime = createVoiceDeliveryRuntime(
-	createVoiceDeliveryRuntimePresetConfig({
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		auditSinkId: 'support-audit-s3',
-		bucket: process.env.VOICE_DELIVERY_S3_BUCKET,
-		failures: {
-			maxFailures: 3
-		},
-		keyPrefix: 'support/voice-deliveries',
-		leases: {
-			audit: createLeaseCoordinator(),
-			trace: createLeaseCoordinator()
-		},
-		mode: 's3',
-		traceDeliveries: runtimeStorage.traceDeliveries,
-		traceSinkId: 'support-trace-s3'
-	})
+  createVoiceDeliveryRuntimePresetConfig({
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    auditSinkId: "support-audit-s3",
+    bucket: process.env.VOICE_DELIVERY_S3_BUCKET,
+    failures: {
+      maxFailures: 3,
+    },
+    keyPrefix: "support/voice-deliveries",
+    leases: {
+      audit: createLeaseCoordinator(),
+      trace: createLeaseCoordinator(),
+    },
+    mode: "s3",
+    traceDeliveries: runtimeStorage.traceDeliveries,
+    traceSinkId: "support-trace-s3",
+  }),
 );
 ```
 
@@ -1776,15 +1785,15 @@ Pass the same runtime to production readiness so failed, dead-lettered, or pendi
 
 ```ts
 app.use(
-	createVoiceProductionReadinessRoutes({
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		deliveryRuntime,
-		links: {
-			deliveryRuntime: '/delivery-runtime'
-		},
-		store: runtimeStorage.traces,
-		traceDeliveries: runtimeStorage.traceDeliveries
-	})
+  createVoiceProductionReadinessRoutes({
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    deliveryRuntime,
+    links: {
+      deliveryRuntime: "/delivery-runtime",
+    },
+    store: runtimeStorage.traces,
+    traceDeliveries: runtimeStorage.traceDeliveries,
+  }),
 );
 ```
 
@@ -1794,30 +1803,30 @@ Use `createVoiceSimulationSuiteRoutes(...)` when you want one pre-production pro
 
 ```ts
 import {
-	createVoiceSimulationSuiteRoutes,
-	createVoiceFileRuntimeStorage
-} from '@absolutejs/voice';
+  createVoiceSimulationSuiteRoutes,
+  createVoiceFileRuntimeStorage,
+} from "@absolutejs/voice";
 
 const runtime = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 
 app.use(
-	createVoiceSimulationSuiteRoutes({
-		htmlPath: '/voice/simulations',
-		path: '/api/voice/simulations',
-		store: runtime.traces,
-		scenarios: workflowScenarios,
-		fixtureStore: scenarioFixtureStore,
-		tools: toolContracts,
-		outcomes: {
-			contracts: outcomeContracts,
-			events: runtime.events,
-			reviews: runtime.reviews,
-			sessions: runtime.session,
-			tasks: runtime.tasks
-		}
-	})
+  createVoiceSimulationSuiteRoutes({
+    htmlPath: "/voice/simulations",
+    path: "/api/voice/simulations",
+    store: runtime.traces,
+    scenarios: workflowScenarios,
+    fixtureStore: scenarioFixtureStore,
+    tools: toolContracts,
+    outcomes: {
+      contracts: outcomeContracts,
+      events: runtime.events,
+      reviews: runtime.reviews,
+      sessions: runtime.session,
+      tasks: runtime.tasks,
+    },
+  }),
 );
 ```
 
@@ -1829,24 +1838,24 @@ Use `createVoiceCampaignRoutes(...)` when you need Retell/Bland-style outbound c
 
 ```ts
 import {
-	createVoiceCampaignRoutes,
-	createVoiceProductionReadinessRoutes,
-	createVoiceReadinessProfile,
-	createVoiceSQLiteCampaignStore,
-	runVoiceCampaignReadinessProof
-} from '@absolutejs/voice';
+  createVoiceCampaignRoutes,
+  createVoiceProductionReadinessRoutes,
+  createVoiceReadinessProfile,
+  createVoiceSQLiteCampaignStore,
+  runVoiceCampaignReadinessProof,
+} from "@absolutejs/voice";
 
 const campaigns = createVoiceSQLiteCampaignStore({
-	path: '.voice-runtime/campaigns.sqlite'
+  path: ".voice-runtime/campaigns.sqlite",
 });
 
 app.use(
-	createVoiceCampaignRoutes({
-		htmlPath: '/voice/campaigns',
-		path: '/api/voice/campaigns',
-		store: campaigns,
-		title: 'Outbound Campaigns'
-	})
+  createVoiceCampaignRoutes({
+    htmlPath: "/voice/campaigns",
+    path: "/api/voice/campaigns",
+    store: campaigns,
+    title: "Outbound Campaigns",
+  }),
 );
 ```
 
@@ -1862,18 +1871,18 @@ The campaign runtime gives you explicit primitives instead of a campaign app kit
 Import recipients through the route API:
 
 ```ts
-await fetch('/api/voice/campaigns/campaign-1/recipients/import', {
-	body: JSON.stringify({
-		csv: `id,name,phone,consent,segment
+await fetch("/api/voice/campaigns/campaign-1/recipients/import", {
+  body: JSON.stringify({
+    csv: `id,name,phone,consent,segment
 recipient-1,Ada,+15550001001,yes,trial
 recipient-2,Grace,+15550001002,true,enterprise`,
-		requireConsent: true,
-		variableColumns: ['segment']
-	}),
-	headers: {
-		'content-type': 'application/json'
-	},
-	method: 'POST'
+    requireConsent: true,
+    variableColumns: ["segment"],
+  }),
+  headers: {
+    "content-type": "application/json",
+  },
+  method: "POST",
 });
 ```
 
@@ -1881,15 +1890,15 @@ Create campaigns with scheduling controls:
 
 ```ts
 await runtime.create({
-	maxAttempts: 3,
-	maxConcurrentAttempts: 10,
-	name: 'Renewal outreach',
-	schedule: {
-		attemptWindow: { startHour: 9, endHour: 17 },
-		quietHours: { startHour: 12, endHour: 13 },
-		rateLimit: { maxAttempts: 60, windowMs: 60_000 },
-		retryPolicy: { backoffMs: [5 * 60_000, 30 * 60_000] }
-	}
+  maxAttempts: 3,
+  maxConcurrentAttempts: 10,
+  name: "Renewal outreach",
+  schedule: {
+    attemptWindow: { startHour: 9, endHour: 17 },
+    quietHours: { startHour: 12, endHour: 13 },
+    rateLimit: { maxAttempts: 60, windowMs: 60_000 },
+    retryPolicy: { backoffMs: [5 * 60_000, 30 * 60_000] },
+  },
 });
 ```
 
@@ -1897,16 +1906,16 @@ Certify the campaign path without live carrier traffic:
 
 ```ts
 const campaignReadiness = await runVoiceCampaignReadinessProof({
-	store: campaigns
+  store: campaigns,
 });
 
 if (!campaignReadiness.ok) {
-	throw new Error(
-		campaignReadiness.checks
-			.filter((check) => check.status !== 'pass')
-			.map((check) => check.name)
-			.join('\n')
-	);
+  throw new Error(
+    campaignReadiness.checks
+      .filter((check) => check.status !== "pass")
+      .map((check) => check.name)
+      .join("\n"),
+  );
 }
 ```
 
@@ -1914,16 +1923,16 @@ Pass that proof into production readiness so campaign regressions block deploys:
 
 ```ts
 app.use(
-	createVoiceProductionReadinessRoutes({
-		...createVoiceReadinessProfile('phone-agent', {
-			campaignReadiness: () =>
-				runVoiceCampaignReadinessProof({
-					store: campaigns
-				}),
-			explain: true
-		}),
-		store: runtime.traces
-	})
+  createVoiceProductionReadinessRoutes({
+    ...createVoiceReadinessProfile("phone-agent", {
+      campaignReadiness: () =>
+        runVoiceCampaignReadinessProof({
+          store: campaigns,
+        }),
+      explain: true,
+    }),
+    store: runtime.traces,
+  }),
 );
 ```
 
@@ -1935,66 +1944,65 @@ Use `createVoicePhoneAgent(...)` when the agent needs to answer or place calls t
 
 ```ts
 import {
-	createVoicePhoneAgent,
-	createVoiceTelephonyOutcomePolicy,
-	runVoicePhoneAgentProductionSmokeContract
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoicePhoneAgent,
+  createVoiceTelephonyOutcomePolicy,
+  runVoicePhoneAgentProductionSmokeContract,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const outcomePolicy = createVoiceTelephonyOutcomePolicy({
-	transferTarget: '+15551234567'
+  transferTarget: "+15551234567",
 });
 
-app
-	.use(
-		createVoicePhoneAgent({
-			setup: {
-				path: '/api/voice/phone/setup',
-				title: 'Support Phone Agent'
-			},
-			matrix: {
-				path: '/api/carriers',
-				title: 'AbsoluteJS Voice Carrier Matrix'
-			},
-			productionSmoke: {
-				maxAgeMs: 24 * 60 * 60 * 1000,
-				required: [
-					'carrier-contract',
-					'media-started',
-					'transcript',
-					'assistant-response',
-					'lifecycle-outcome',
-					'no-session-error',
-					'fresh-trace'
-				],
-				store: runtime.traces
-			},
-			carriers: [
-				{
-					provider: 'twilio',
-					options: {
-						context: {},
-						outcomePolicy,
-						session: runtime.session,
-						stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-						streamPath: '/api/voice/twilio/stream',
-						twiml: {
-							path: '/api/voice/twilio',
-							streamUrl: process.env.TWILIO_STREAM_URL
-						},
-						webhook: {
-							path: '/api/voice/twilio/webhook',
-							signingSecret: process.env.TWILIO_AUTH_TOKEN
-						},
-						async onTurn({ turn }) {
-							return { assistantText: `I heard: ${turn.text}` };
-						},
-						onComplete: async () => {}
-					}
-				}
-			]
-		}).routes
-	);
+app.use(
+  createVoicePhoneAgent({
+    setup: {
+      path: "/api/voice/phone/setup",
+      title: "Support Phone Agent",
+    },
+    matrix: {
+      path: "/api/carriers",
+      title: "AbsoluteJS Voice Carrier Matrix",
+    },
+    productionSmoke: {
+      maxAgeMs: 24 * 60 * 60 * 1000,
+      required: [
+        "carrier-contract",
+        "media-started",
+        "transcript",
+        "assistant-response",
+        "lifecycle-outcome",
+        "no-session-error",
+        "fresh-trace",
+      ],
+      store: runtime.traces,
+    },
+    carriers: [
+      {
+        provider: "twilio",
+        options: {
+          context: {},
+          outcomePolicy,
+          session: runtime.session,
+          stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+          streamPath: "/api/voice/twilio/stream",
+          twiml: {
+            path: "/api/voice/twilio",
+            streamUrl: process.env.TWILIO_STREAM_URL,
+          },
+          webhook: {
+            path: "/api/voice/twilio/webhook",
+            signingSecret: process.env.TWILIO_AUTH_TOKEN,
+          },
+          async onTurn({ turn }) {
+            return { assistantText: `I heard: ${turn.text}` };
+          },
+          onComplete: async () => {},
+        },
+      },
+    ],
+  }).routes,
+);
 ```
 
 The wrapper mounts selected carrier routes plus two proof surfaces:
@@ -2009,13 +2017,13 @@ The wrapper mounts selected carrier routes plus two proof surfaces:
 The setup JSON includes `setupInstructions`, so your own admin UI can render copy-ready carrier fields without scraping HTML:
 
 ```ts
-const setup = await fetch('/api/voice/phone/setup').then((response) =>
-	response.json()
+const setup = await fetch("/api/voice/phone/setup").then((response) =>
+  response.json(),
 );
 
 for (const carrier of setup.setupInstructions) {
-	console.log(carrier.carrierName, carrier.status);
-	console.log(carrier.steps.join('\n'));
+  console.log(carrier.carrierName, carrier.status);
+  console.log(carrier.steps.join("\n"));
 }
 ```
 
@@ -2063,21 +2071,21 @@ After running a real smoke call, certify the phone-agent path from traces:
 
 ```ts
 const smoke = await runVoicePhoneAgentProductionSmokeContract({
-	maxAgeMs: 24 * 60 * 60 * 1000,
-	required: [
-		'media-started',
-		'transcript',
-		'assistant-response',
-		'lifecycle-outcome',
-		'no-session-error',
-		'fresh-trace'
-	],
-	sessionId: 'phone-smoke-session',
-	store: runtime.traces
+  maxAgeMs: 24 * 60 * 60 * 1000,
+  required: [
+    "media-started",
+    "transcript",
+    "assistant-response",
+    "lifecycle-outcome",
+    "no-session-error",
+    "fresh-trace",
+  ],
+  sessionId: "phone-smoke-session",
+  store: runtime.traces,
 });
 
 if (!smoke.pass) {
-	throw new Error(smoke.issues.map((issue) => issue.message).join('\n'));
+  throw new Error(smoke.issues.map((issue) => issue.message).join("\n"));
 }
 ```
 
@@ -2091,20 +2099,22 @@ Use `createVoiceOpsStatusRoutes(...)` when you want a small status endpoint for 
 
 ```ts
 import {
-	createVoiceDemoReadyRoutes,
-	createVoiceFileRuntimeStorage,
-	createVoiceOpsStatusRoutes,
-	summarizeVoiceOpsStatus
-} from '@absolutejs/voice';
+  createVoiceDemoReadyRoutes,
+  createVoiceFileRuntimeStorage,
+  createVoiceOpsStatusRoutes,
+  summarizeVoiceOpsStatus,
+} from "@absolutejs/voice";
 
-const runtime = createVoiceFileRuntimeStorage({ directory: '.voice-runtime/support' });
+const runtime = createVoiceFileRuntimeStorage({
+  directory: ".voice-runtime/support",
+});
 
 app.use(
-	createVoiceOpsStatusRoutes({
-		store: runtime.traces,
-		llmProviders: ['openai', 'anthropic', 'gemini'],
-		sttProviders: ['deepgram', 'assemblyai']
-	})
+  createVoiceOpsStatusRoutes({
+    store: runtime.traces,
+    llmProviders: ["openai", "anthropic", "gemini"],
+    sttProviders: ["deepgram", "assemblyai"],
+  }),
 );
 ```
 
@@ -2114,44 +2124,44 @@ For a single demo page that rolls up ops status, production readiness, phone set
 
 ```ts
 app.use(
-	createVoiceDemoReadyRoutes({
-		opsStatus: {
-			href: '/api/voice/ops-status',
-			load: () => summarizeVoiceOpsStatus(opsStatusOptions)
-		},
-		phoneSetup: {
-			href: '/api/voice/phone/setup?format=html',
-			load: () => phoneAgentSetupReport
-		},
-		phoneSmoke: {
-			href: '/voice/phone/smoke-contract',
-			load: () => phoneSmokeReport
-		},
-		productionReadiness: {
-			href: '/production-readiness',
-			load: () => productionReadinessReport
-		}
-	})
+  createVoiceDemoReadyRoutes({
+    opsStatus: {
+      href: "/api/voice/ops-status",
+      load: () => summarizeVoiceOpsStatus(opsStatusOptions),
+    },
+    phoneSetup: {
+      href: "/api/voice/phone/setup?format=html",
+      load: () => phoneAgentSetupReport,
+    },
+    phoneSmoke: {
+      href: "/voice/phone/smoke-contract",
+      load: () => phoneSmokeReport,
+    },
+    productionReadiness: {
+      href: "/production-readiness",
+      load: () => productionReadinessReport,
+    },
+  }),
 );
 ```
 
 ```ts
 app.use(
-	createVoiceOpsStatusRoutes({
-		include: { quality: false, sessions: false },
-		preferFixtureWorkflows: true,
-		store: runtime.traces
-	})
+  createVoiceOpsStatusRoutes({
+    include: { quality: false, sessions: false },
+    preferFixtureWorkflows: true,
+    store: runtime.traces,
+  }),
 );
 ```
 
 ### React Status Widget
 
 ```tsx
-import { VoiceOpsStatus } from '@absolutejs/voice/react';
+import { VoiceOpsStatus } from "@absolutejs/voice/react";
 
 export function OpsBadge() {
-	return <VoiceOpsStatus intervalMs={5000} />;
+  return <VoiceOpsStatus intervalMs={5000} />;
 }
 ```
 
@@ -2159,11 +2169,11 @@ export function OpsBadge() {
 
 ```vue
 <script setup lang="ts">
-import { VoiceOpsStatus } from '@absolutejs/voice/vue';
+import { VoiceOpsStatus } from "@absolutejs/voice/vue";
 </script>
 
 <template>
-	<VoiceOpsStatus :interval-ms="5000" />
+  <VoiceOpsStatus :interval-ms="5000" />
 </template>
 ```
 
@@ -2186,15 +2196,17 @@ import { VoiceOpsStatus } from '@absolutejs/voice/vue';
 ### Angular Status Widget
 
 ```ts
-import { VoiceOpsStatusService } from '@absolutejs/voice/angular';
+import { VoiceOpsStatusService } from "@absolutejs/voice/angular";
 
-status = inject(VoiceOpsStatusService).connect('/api/voice/ops-status', {
-	intervalMs: 5000
+status = inject(VoiceOpsStatusService).connect("/api/voice/ops-status", {
+  intervalMs: 5000,
 });
 ```
 
 ```html
-<h2>{{ status.report()?.status === 'pass' ? 'Passing' : 'Needs attention' }}</h2>
+<h2>
+  {{ status.report()?.status === 'pass' ? 'Passing' : 'Needs attention' }}
+</h2>
 <p>{{ status.report()?.passed ?? 0 }} passing checks</p>
 ```
 
@@ -2203,11 +2215,15 @@ status = inject(VoiceOpsStatusService).connect('/api/voice/ops-status', {
 ```html
 <div id="voice-ops-status"></div>
 <script type="module">
-	import { mountVoiceOpsStatus } from '@absolutejs/voice/client';
+  import { mountVoiceOpsStatus } from "@absolutejs/voice/client";
 
-	mountVoiceOpsStatus(document.querySelector('#voice-ops-status'), '/api/voice/ops-status', {
-		intervalMs: 5000
-	});
+  mountVoiceOpsStatus(
+    document.querySelector("#voice-ops-status"),
+    "/api/voice/ops-status",
+    {
+      intervalMs: 5000,
+    },
+  );
 </script>
 ```
 
@@ -2216,8 +2232,8 @@ For custom elements:
 ```html
 <absolute-voice-ops-status interval-ms="5000"></absolute-voice-ops-status>
 <script type="module">
-	import { defineVoiceOpsStatusElement } from '@absolutejs/voice/client';
-	defineVoiceOpsStatusElement();
+  import { defineVoiceOpsStatusElement } from "@absolutejs/voice/client";
+  defineVoiceOpsStatusElement();
 </script>
 ```
 
@@ -2228,17 +2244,17 @@ Mount `createVoiceCallDebuggerRoutes(...)` on the server, then expose a small fr
 React:
 
 ```tsx
-import { VoiceCallDebuggerLaunch } from '@absolutejs/voice/react';
+import { VoiceCallDebuggerLaunch } from "@absolutejs/voice/react";
 
 export function DebugLatestCall() {
-	return (
-		<VoiceCallDebuggerLaunch
-			description="Open snapshot, replay, provider path, transcript, and incident markdown."
-			intervalMs={5000}
-			path="/api/voice-call-debugger/latest"
-			title="Debug Latest Call"
-		/>
-	);
+  return (
+    <VoiceCallDebuggerLaunch
+      description="Open snapshot, replay, provider path, transcript, and incident markdown."
+      intervalMs={5000}
+      path="/api/voice-call-debugger/latest"
+      title="Debug Latest Call"
+    />
+  );
 }
 ```
 
@@ -2246,16 +2262,16 @@ Vue:
 
 ```vue
 <script setup lang="ts">
-import { VoiceCallDebuggerLaunch } from '@absolutejs/voice/vue';
+import { VoiceCallDebuggerLaunch } from "@absolutejs/voice/vue";
 </script>
 
 <template>
-	<VoiceCallDebuggerLaunch
-		description="Open snapshot, replay, provider path, transcript, and incident markdown."
-		:interval-ms="5000"
-		path="/api/voice-call-debugger/latest"
-		title="Debug Latest Call"
-	/>
+  <VoiceCallDebuggerLaunch
+    description="Open snapshot, replay, provider path, transcript, and incident markdown."
+    :interval-ms="5000"
+    path="/api/voice-call-debugger/latest"
+    title="Debug Latest Call"
+  />
 </template>
 ```
 
@@ -2292,34 +2308,34 @@ Svelte:
 Angular:
 
 ```ts
-import { Component, computed, inject } from '@angular/core';
-import { createVoiceCallDebuggerLaunchViewModel } from '@absolutejs/voice/client';
-import { VoiceCallDebuggerService } from '@absolutejs/voice/angular';
+import { Component, computed, inject } from "@angular/core";
+import { createVoiceCallDebuggerLaunchViewModel } from "@absolutejs/voice/client";
+import { VoiceCallDebuggerService } from "@absolutejs/voice/angular";
 
 @Component({
-	selector: 'app-debug-latest-call',
-	template: `
-		<a [href]="model().href">{{ model().label }}</a>
-		<p>{{ model().description }}</p>
-	`
+  selector: "app-debug-latest-call",
+  template: `
+    <a [href]="model().href">{{ model().label }}</a>
+    <p>{{ model().description }}</p>
+  `,
 })
 export class DebugLatestCallComponent {
-	private readonly callDebugger = inject(VoiceCallDebuggerService).connect(
-		'/api/voice-call-debugger/latest',
-		{ intervalMs: 5000 }
-	);
-	readonly model = computed(() =>
-		createVoiceCallDebuggerLaunchViewModel(
-			'/api/voice-call-debugger/latest',
-			{
-				error: this.callDebugger.error(),
-				isLoading: this.callDebugger.isLoading(),
-				report: this.callDebugger.report(),
-				updatedAt: this.callDebugger.updatedAt()
-			},
-			{ title: 'Debug Latest Call' }
-		)
-	);
+  private readonly callDebugger = inject(VoiceCallDebuggerService).connect(
+    "/api/voice-call-debugger/latest",
+    { intervalMs: 5000 },
+  );
+  readonly model = computed(() =>
+    createVoiceCallDebuggerLaunchViewModel(
+      "/api/voice-call-debugger/latest",
+      {
+        error: this.callDebugger.error(),
+        isLoading: this.callDebugger.isLoading(),
+        report: this.callDebugger.report(),
+        updatedAt: this.callDebugger.updatedAt(),
+      },
+      { title: "Debug Latest Call" },
+    ),
+  );
 }
 ```
 
@@ -2327,15 +2343,15 @@ HTML or HTMX:
 
 ```html
 <absolute-voice-call-debugger-launch
-	interval-ms="5000"
-	path="/api/voice-call-debugger/latest"
-	title="Debug Latest Call"
+  interval-ms="5000"
+  path="/api/voice-call-debugger/latest"
+  title="Debug Latest Call"
 ></absolute-voice-call-debugger-launch>
 
 <script type="module">
-	import { defineVoiceCallDebuggerLaunchElement } from '@absolutejs/voice/client';
+  import { defineVoiceCallDebuggerLaunchElement } from "@absolutejs/voice/client";
 
-	defineVoiceCallDebuggerLaunchElement();
+  defineVoiceCallDebuggerLaunchElement();
 </script>
 ```
 
@@ -2344,28 +2360,30 @@ HTML or HTMX:
 After mounting `createVoiceDeliveryRuntimeRoutes(...)`, apps can expose audit and trace worker health through the same framework-native primitives:
 
 ```tsx
-import { VoiceDeliveryRuntime } from '@absolutejs/voice/react';
+import { VoiceDeliveryRuntime } from "@absolutejs/voice/react";
 
 export function DeliveryWorkers() {
-	return <VoiceDeliveryRuntime intervalMs={5000} />;
+  return <VoiceDeliveryRuntime intervalMs={5000} />;
 }
 ```
 
 The widget includes operator actions by default: `Tick workers` drains pending/failed deliveries, and `Requeue dead letters` moves reviewed dead-lettered audit/trace deliveries back into the live queues. Pass `includeActions={false}` when you only want a read-only status card.
 
 ```ts
-import { VoiceDeliveryRuntime } from '@absolutejs/voice/vue';
-import { createVoiceDeliveryRuntime } from '@absolutejs/voice/svelte';
-import { VoiceDeliveryRuntimeService } from '@absolutejs/voice/angular';
+import { VoiceDeliveryRuntime } from "@absolutejs/voice/vue";
+import { createVoiceDeliveryRuntime } from "@absolutejs/voice/svelte";
+import { VoiceDeliveryRuntimeService } from "@absolutejs/voice/angular";
 ```
 
 For HTML or HTMX pages:
 
 ```html
-<absolute-voice-delivery-runtime interval-ms="5000"></absolute-voice-delivery-runtime>
+<absolute-voice-delivery-runtime
+  interval-ms="5000"
+></absolute-voice-delivery-runtime>
 <script type="module">
-	import { defineVoiceDeliveryRuntimeElement } from '@absolutejs/voice/client';
-	defineVoiceDeliveryRuntimeElement();
+  import { defineVoiceDeliveryRuntimeElement } from "@absolutejs/voice/client";
+  defineVoiceDeliveryRuntimeElement();
 </script>
 ```
 
@@ -2374,30 +2392,30 @@ For HTML or HTMX pages:
 Use `VoiceOpsActionCenter` when you want one primitive operator panel for production proofs and recovery actions without building a dashboard. The default action builder can include production readiness refresh, delivery worker ticks, dead-letter requeue, turn-latency proof, and provider failover simulation.
 
 ```tsx
-import { VoiceOpsActionCenter } from '@absolutejs/voice/react';
-import { createVoiceOpsActionCenterActions } from '@absolutejs/voice/client';
+import { VoiceOpsActionCenter } from "@absolutejs/voice/react";
+import { createVoiceOpsActionCenterActions } from "@absolutejs/voice/client";
 
 export function OperatorPanel() {
-	return (
-		<VoiceOpsActionCenter
-			actions={createVoiceOpsActionCenterActions({
-				providers: ['deepgram', 'assemblyai']
-			})}
-		/>
-	);
+  return (
+    <VoiceOpsActionCenter
+      actions={createVoiceOpsActionCenterActions({
+        providers: ["deepgram", "assemblyai"],
+      })}
+    />
+  );
 }
 ```
 
 Mount `createVoiceOpsActionAuditRoutes(...)` to make every action-center click auditable. The client posts successful and failed action results to `/api/voice/ops-actions/audit` by default, and the route records both `operator.action` audit events and `operator.action` trace events.
 
 ```ts
-import { createVoiceOpsActionAuditRoutes } from '@absolutejs/voice';
+import { createVoiceOpsActionAuditRoutes } from "@absolutejs/voice";
 
 app.use(
-	createVoiceOpsActionAuditRoutes({
-		audit: runtimeStorage.audit,
-		trace: runtimeStorage.traces
-	})
+  createVoiceOpsActionAuditRoutes({
+    audit: runtimeStorage.audit,
+    trace: runtimeStorage.traces,
+  }),
 );
 ```
 
@@ -2408,16 +2426,16 @@ For HTML or HTMX pages:
 ```html
 <div id="voice-ops-actions"></div>
 <script type="module">
-	import {
-		createVoiceOpsActionCenterActions,
-		mountVoiceOpsActionCenter
-	} from '@absolutejs/voice/client';
+  import {
+    createVoiceOpsActionCenterActions,
+    mountVoiceOpsActionCenter,
+  } from "@absolutejs/voice/client";
 
-	mountVoiceOpsActionCenter(document.querySelector('#voice-ops-actions'), {
-		actions: createVoiceOpsActionCenterActions({
-			providers: ['deepgram']
-		})
-	});
+  mountVoiceOpsActionCenter(document.querySelector("#voice-ops-actions"), {
+    actions: createVoiceOpsActionCenterActions({
+      providers: ["deepgram"],
+    }),
+  });
 </script>
 ```
 
@@ -2436,51 +2454,51 @@ Mount the live-ops control routes beside your voice route:
 
 ```ts
 import {
-	createVoiceLiveOpsRoutes,
-	createVoiceMemoryLiveOpsControlStore,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceLiveOpsRoutes,
+  createVoiceMemoryLiveOpsControlStore,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const liveOps = createVoiceMemoryLiveOpsControlStore();
 
 app
-	.use(
-		createVoiceLiveOpsRoutes({
-			audit: runtimeStorage.audit,
-			store: liveOps,
-			trace: runtimeStorage.traces
-		})
-	)
-	.use(
-		voice({
-			path: '/voice',
-			liveOps: {
-				getControl: (sessionId) => liveOps.get(sessionId)
-			},
-			session: runtimeStorage.session,
-			stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-			async onTurn({ turn }) {
-				return { assistantText: `I heard: ${turn.text}` };
-			},
-			onComplete: async () => {}
-		})
-	);
+  .use(
+    createVoiceLiveOpsRoutes({
+      audit: runtimeStorage.audit,
+      store: liveOps,
+      trace: runtimeStorage.traces,
+    }),
+  )
+  .use(
+    voice({
+      path: "/voice",
+      liveOps: {
+        getControl: (sessionId) => liveOps.get(sessionId),
+      },
+      session: runtimeStorage.session,
+      stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+      async onTurn({ turn }) {
+        return { assistantText: `I heard: ${turn.text}` };
+      },
+      onComplete: async () => {},
+    }),
+  );
 ```
 
 The default route accepts `POST /api/voice/live-ops/action`:
 
 ```ts
-await fetch('/api/voice/live-ops/action', {
-	body: JSON.stringify({
-		action: 'pause-assistant',
-		assignee: 'operator-123',
-		detail: 'Caller is upset; pause automation while support reviews.',
-		sessionId: 'session-123',
-		tag: 'priority-support'
-	}),
-	headers: { 'content-type': 'application/json' },
-	method: 'POST'
+await fetch("/api/voice/live-ops/action", {
+  body: JSON.stringify({
+    action: "pause-assistant",
+    assignee: "operator-123",
+    detail: "Caller is upset; pause automation while support reviews.",
+    sessionId: "session-123",
+    tag: "priority-support",
+  }),
+  headers: { "content-type": "application/json" },
+  method: "POST",
 });
 ```
 
@@ -2499,26 +2517,26 @@ The safe operator runbook is:
 Framework and HTML clients can run the same actions without a custom dashboard:
 
 ```tsx
-import { useVoiceLiveOps } from '@absolutejs/voice/react';
+import { useVoiceLiveOps } from "@absolutejs/voice/react";
 
 export function LiveOperatorPanel({ sessionId }: { sessionId: string }) {
-	const liveOps = useVoiceLiveOps();
+  const liveOps = useVoiceLiveOps();
 
-	return (
-		<button
-			onClick={() =>
-				liveOps.run({
-					action: 'operator-takeover',
-					assignee: 'operator-123',
-					detail: 'Human support took over the call.',
-					sessionId,
-					tag: 'human-takeover'
-				})
-			}
-		>
-			Take over
-		</button>
-	);
+  return (
+    <button
+      onClick={() =>
+        liveOps.run({
+          action: "operator-takeover",
+          assignee: "operator-123",
+          detail: "Human support took over the call.",
+          sessionId,
+          tag: "human-takeover",
+        })
+      }
+    >
+      Take over
+    </button>
+  );
 }
 ```
 
@@ -2527,8 +2545,8 @@ For HTML or HTMX pages:
 ```html
 <absolute-voice-live-ops session-id="session-123"></absolute-voice-live-ops>
 <script type="module">
-	import { defineVoiceLiveOpsElement } from '@absolutejs/voice/client';
-	defineVoiceLiveOpsElement();
+  import { defineVoiceLiveOpsElement } from "@absolutejs/voice/client";
+  defineVoiceLiveOpsElement();
 </script>
 ```
 
@@ -2540,77 +2558,77 @@ Use `createVoiceAssistant(...)` when you want one product-level surface for a vo
 
 ```ts
 import {
-	createVoiceAssistant,
-	createVoiceExperiment,
-	createVoiceFileRuntimeStorage,
-	createVoiceMemoryStore,
-	createVoiceAgentTool,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceAssistant,
+  createVoiceExperiment,
+  createVoiceFileRuntimeStorage,
+  createVoiceMemoryStore,
+  createVoiceAgentTool,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtimeStorage = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 
 const lookupOrder = createVoiceAgentTool({
-	name: 'lookup_order',
-	description: 'Look up an order by id.',
-	execute: async ({ args }) => ({ orderId: args.orderId, status: 'shipped' })
+  name: "lookup_order",
+  description: "Look up an order by id.",
+  execute: async ({ args }) => ({ orderId: args.orderId, status: "shipped" }),
 });
 
 const assistant = createVoiceAssistant({
-	id: 'support',
-	artifactPlan: {
-		ops: {
-			events: runtimeStorage.events,
-			reviews: runtimeStorage.reviews,
-			tasks: runtimeStorage.tasks
-		},
-		preset: {
-			name: 'support-triage',
-			options: {
-				queue: 'support-triage'
-			}
-		}
-	},
-	experiment: createVoiceExperiment({
-		id: 'support-prompt',
-		variants: [
-			{ id: 'baseline', weight: 1 },
-			{
-				id: 'direct',
-				weight: 1,
-				system: 'You are concise, practical, and resolve the caller quickly.'
-			}
-		]
-	}),
-	guardrails: {
-		beforeTurn: ({ turn }) =>
-			turn.text.toLowerCase().includes('human')
-				? { escalate: { reason: 'caller requested a human' } }
-				: undefined
-	},
-	model: {
-		async generate({ messages, tools }) {
-			return {
-				assistantText: `I can help. Available tools: ${tools.map((tool) => tool.name).join(', ')}`
-			};
-		}
-	},
-	system: 'You are a support voice assistant.',
-	tools: [lookupOrder],
-	trace: runtimeStorage.traces
+  id: "support",
+  artifactPlan: {
+    ops: {
+      events: runtimeStorage.events,
+      reviews: runtimeStorage.reviews,
+      tasks: runtimeStorage.tasks,
+    },
+    preset: {
+      name: "support-triage",
+      options: {
+        queue: "support-triage",
+      },
+    },
+  },
+  experiment: createVoiceExperiment({
+    id: "support-prompt",
+    variants: [
+      { id: "baseline", weight: 1 },
+      {
+        id: "direct",
+        weight: 1,
+        system: "You are concise, practical, and resolve the caller quickly.",
+      },
+    ],
+  }),
+  guardrails: {
+    beforeTurn: ({ turn }) =>
+      turn.text.toLowerCase().includes("human")
+        ? { escalate: { reason: "caller requested a human" } }
+        : undefined,
+  },
+  model: {
+    async generate({ messages, tools }) {
+      return {
+        assistantText: `I can help. Available tools: ${tools.map((tool) => tool.name).join(", ")}`,
+      };
+    },
+  },
+  system: "You are a support voice assistant.",
+  tools: [lookupOrder],
+  trace: runtimeStorage.traces,
 });
 
 voice({
-	path: '/voice',
-	session: createVoiceMemoryStore(),
-	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-	trace: runtimeStorage.traces,
-	ops: assistant.ops,
-	onTurn: assistant.onTurn,
-	onComplete: async () => {}
+  path: "/voice",
+  session: createVoiceMemoryStore(),
+  stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+  trace: runtimeStorage.traces,
+  ops: assistant.ops,
+  onTurn: assistant.onTurn,
+  onComplete: async () => {},
 });
 ```
 
@@ -2622,93 +2640,93 @@ For assistant-style products, use `createVoiceAgent(...)` as the `onTurn` handle
 
 ```ts
 import {
-	createVoiceAgent,
-	createVoiceAgentSquad,
-	createVoiceAgentTool,
-	createVoiceMemoryStore,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceAgent,
+  createVoiceAgentSquad,
+  createVoiceAgentTool,
+  createVoiceMemoryStore,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const lookupOrder = createVoiceAgentTool({
-	name: 'lookup_order',
-	description: 'Look up an order by id.',
-	parameters: {
-		type: 'object',
-		properties: {
-			orderId: { type: 'string' }
-		},
-		required: ['orderId']
-	},
-	execute: async ({ args }) => {
-		return { orderId: args.orderId, status: 'shipped' };
-	}
+  name: "lookup_order",
+  description: "Look up an order by id.",
+  parameters: {
+    type: "object",
+    properties: {
+      orderId: { type: "string" },
+    },
+    required: ["orderId"],
+  },
+  execute: async ({ args }) => {
+    return { orderId: args.orderId, status: "shipped" };
+  },
 });
 
 const supportAgent = createVoiceAgent({
-	id: 'support',
-	system: 'You are a concise support voice agent.',
-	tools: [lookupOrder],
-	model: {
-		async generate({ messages, tools }) {
-			// Call your LLM provider here. If it returns tool calls, AbsoluteJS
-			// executes them and calls the model again with tool results.
-			return {
-				assistantText: `I can help. Available tools: ${tools.map((tool) => tool.name).join(', ')}`
-			};
-		}
-	}
+  id: "support",
+  system: "You are a concise support voice agent.",
+  tools: [lookupOrder],
+  model: {
+    async generate({ messages, tools }) {
+      // Call your LLM provider here. If it returns tool calls, AbsoluteJS
+      // executes them and calls the model again with tool results.
+      return {
+        assistantText: `I can help. Available tools: ${tools.map((tool) => tool.name).join(", ")}`,
+      };
+    },
+  },
 });
 
 const billingAgent = createVoiceAgent({
-	id: 'billing',
-	system: 'You handle billing questions.',
-	model: {
-		async generate() {
-			return { assistantText: 'I can help with billing.' };
-		}
-	}
+  id: "billing",
+  system: "You handle billing questions.",
+  model: {
+    async generate() {
+      return { assistantText: "I can help with billing." };
+    },
+  },
 });
 
 const frontDesk = createVoiceAgentSquad({
-	id: 'front-desk',
-	defaultAgentId: 'support',
-	agents: [supportAgent, billingAgent],
-	contextPolicy: ({ summaryMessage, turn }) => ({
-		messages: [
-			summaryMessage,
-			{
-				content: turn.text,
-				role: 'user'
-			}
-		],
-		metadata: {
-			contextPolicy: 'handoff-summary-and-current-turn'
-		},
-		system: 'Use only the handoff summary and current caller turn.'
-	}),
-	handoffPolicy: ({ handoff }) => {
-		if (handoff.targetAgentId === 'billing') {
-			return {
-				summary: 'Route verified billing requests to the billing specialist.',
-				metadata: { queue: 'billing' }
-			};
-		}
+  id: "front-desk",
+  defaultAgentId: "support",
+  agents: [supportAgent, billingAgent],
+  contextPolicy: ({ summaryMessage, turn }) => ({
+    messages: [
+      summaryMessage,
+      {
+        content: turn.text,
+        role: "user",
+      },
+    ],
+    metadata: {
+      contextPolicy: "handoff-summary-and-current-turn",
+    },
+    system: "Use only the handoff summary and current caller turn.",
+  }),
+  handoffPolicy: ({ handoff }) => {
+    if (handoff.targetAgentId === "billing") {
+      return {
+        summary: "Route verified billing requests to the billing specialist.",
+        metadata: { queue: "billing" },
+      };
+    }
 
-		return {
-			allow: false,
-			reason: `No approved route for ${handoff.targetAgentId}.`,
-			escalate: { reason: 'unsupported-specialist' }
-		};
-	}
+    return {
+      allow: false,
+      reason: `No approved route for ${handoff.targetAgentId}.`,
+      escalate: { reason: "unsupported-specialist" },
+    };
+  },
 });
 
 voice({
-	path: '/voice',
-	session: createVoiceMemoryStore(),
-	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-	onTurn: frontDesk.onTurn,
-	onComplete: async () => {}
+  path: "/voice",
+  session: createVoiceMemoryStore(),
+  stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+  onTurn: frontDesk.onTurn,
+  onComplete: async () => {},
 });
 ```
 
@@ -2723,38 +2741,38 @@ Each specialist owns its own `tools`, so tool permissions stay explicit per agen
 Make the current specialist visible in your UI by mounting trace timelines and using the squad status primitives. They derive current specialist state from `agent.handoff`, `agent.context`, `agent.model`, and `agent.result` traces, so the UI stays tied to the same proof source used by readiness and operations records.
 
 ```tsx
-import { VoiceAgentSquadStatus } from '@absolutejs/voice/react';
+import { VoiceAgentSquadStatus } from "@absolutejs/voice/react";
 
 export function SpecialistBadge({ sessionId }: { sessionId: string }) {
-	return (
-		<VoiceAgentSquadStatus
-			path="/api/voice-traces"
-			sessionId={sessionId}
-			title="Current specialist"
-		/>
-	);
+  return (
+    <VoiceAgentSquadStatus
+      path="/api/voice-traces"
+      sessionId={sessionId}
+      title="Current specialist"
+    />
+  );
 }
 ```
 
 Framework equivalents are available without a dashboard:
 
 ```ts
-import { useVoiceAgentSquadStatus } from '@absolutejs/voice/vue';
-import { createVoiceAgentSquadStatus } from '@absolutejs/voice/svelte';
-import { VoiceAgentSquadStatusService } from '@absolutejs/voice/angular';
+import { useVoiceAgentSquadStatus } from "@absolutejs/voice/vue";
+import { createVoiceAgentSquadStatus } from "@absolutejs/voice/svelte";
+import { VoiceAgentSquadStatusService } from "@absolutejs/voice/angular";
 ```
 
 For HTML or HTMX pages:
 
 ```html
 <absolute-voice-agent-squad-status
-	path="/api/voice-traces"
-	session-id="session-123"
-	title="Current specialist"
+  path="/api/voice-traces"
+  session-id="session-123"
+  title="Current specialist"
 ></absolute-voice-agent-squad-status>
 <script type="module">
-	import { defineVoiceAgentSquadStatusElement } from '@absolutejs/voice/client';
-	defineVoiceAgentSquadStatusElement();
+  import { defineVoiceAgentSquadStatusElement } from "@absolutejs/voice/client";
+  defineVoiceAgentSquadStatusElement();
 </script>
 ```
 
@@ -2762,47 +2780,47 @@ Use `runVoiceAgentSquadContract(...)` in tests or readiness checks when you need
 
 ```ts
 import {
-	createVoiceMemoryTraceEventStore,
-	runVoiceAgentSquadContract
-} from '@absolutejs/voice';
+  createVoiceMemoryTraceEventStore,
+  runVoiceAgentSquadContract,
+} from "@absolutejs/voice";
 
 const trace = createVoiceMemoryTraceEventStore();
 const frontDesk = createVoiceAgentSquad({
-	id: 'front-desk',
-	defaultAgentId: 'support',
-	agents: [supportAgent, billingAgent],
-	trace
+  id: "front-desk",
+  defaultAgentId: "support",
+  agents: [supportAgent, billingAgent],
+  trace,
 });
 
 const report = await runVoiceAgentSquadContract({
-	context: {},
-	squad: frontDesk,
-	trace,
-	contract: {
-		id: 'billing-route',
-		scenarioId: 'billing-route',
-		turns: [
-			{
-				text: 'I have a billing question.',
-				expect: {
-					finalAgentId: 'billing',
-					outcome: 'assistant',
-					assistantIncludes: ['billing'],
-					handoffs: [
-						{
-							fromAgentId: 'support',
-							targetAgentId: 'billing',
-							status: 'allowed'
-						}
-					]
-				}
-			}
-		]
-	}
+  context: {},
+  squad: frontDesk,
+  trace,
+  contract: {
+    id: "billing-route",
+    scenarioId: "billing-route",
+    turns: [
+      {
+        text: "I have a billing question.",
+        expect: {
+          finalAgentId: "billing",
+          outcome: "assistant",
+          assistantIncludes: ["billing"],
+          handoffs: [
+            {
+              fromAgentId: "support",
+              targetAgentId: "billing",
+              status: "allowed",
+            },
+          ],
+        },
+      },
+    ],
+  },
 });
 
 if (!report.pass) {
-	throw new Error(report.issues.map((issue) => issue.message).join('\n'));
+  throw new Error(report.issues.map((issue) => issue.message).join("\n"));
 }
 ```
 
@@ -2812,140 +2830,140 @@ Use trace stores when you want every call to be inspectable outside a hosted pla
 
 ```ts
 import {
-	buildVoiceTraceReplay,
-	buildVoiceAuditExport,
-	createVoiceAuditHTTPSink,
-	createVoiceAuditLogger,
-	createVoiceAuditSinkDeliveryWorker,
-	createVoiceAuditSinkStore,
-	createVoiceAuditTrailRoutes,
-	createVoiceAgent,
-	createVoiceFileRuntimeStorage,
-	createVoiceRedisTaskLeaseCoordinator,
-	createVoiceTraceDeliveryRoutes,
-	createVoiceTraceHTTPSink,
-	createVoiceTraceSinkStore,
-	createVoiceTraceSinkDeliveryWorker,
-	buildVoiceDataRetentionPlan,
-	exportVoiceTrace,
-	applyVoiceDataRetentionPolicy,
-	pruneVoiceTraceEvents,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  buildVoiceTraceReplay,
+  buildVoiceAuditExport,
+  createVoiceAuditHTTPSink,
+  createVoiceAuditLogger,
+  createVoiceAuditSinkDeliveryWorker,
+  createVoiceAuditSinkStore,
+  createVoiceAuditTrailRoutes,
+  createVoiceAgent,
+  createVoiceFileRuntimeStorage,
+  createVoiceRedisTaskLeaseCoordinator,
+  createVoiceTraceDeliveryRoutes,
+  createVoiceTraceHTTPSink,
+  createVoiceTraceSinkStore,
+  createVoiceTraceSinkDeliveryWorker,
+  buildVoiceDataRetentionPlan,
+  exportVoiceTrace,
+  applyVoiceDataRetentionPolicy,
+  pruneVoiceTraceEvents,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtimeStorage = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 const redisLeases = createVoiceRedisTaskLeaseCoordinator({
-	url: process.env.REDIS_URL
+  url: process.env.REDIS_URL,
 });
 const auditStore = createVoiceAuditSinkStore({
-	store: runtimeStorage.audit,
-	deliveryQueue: runtimeStorage.auditDeliveries,
-	sinks: [
-		createVoiceAuditHTTPSink({
-			id: 'security-warehouse',
-			signingSecret: process.env.VOICE_AUDIT_SINK_SECRET,
-			url: process.env.VOICE_AUDIT_SINK_URL!
-		})
-	]
+  store: runtimeStorage.audit,
+  deliveryQueue: runtimeStorage.auditDeliveries,
+  sinks: [
+    createVoiceAuditHTTPSink({
+      id: "security-warehouse",
+      signingSecret: process.env.VOICE_AUDIT_SINK_SECRET,
+      url: process.env.VOICE_AUDIT_SINK_URL!,
+    }),
+  ],
 });
 const audit = createVoiceAuditLogger(auditStore);
 const auditSinkWorker = createVoiceAuditSinkDeliveryWorker({
-	deliveries: runtimeStorage.auditDeliveries,
-	leases: redisLeases,
-	sinks: [
-		createVoiceAuditHTTPSink({
-			id: 'security-warehouse',
-			signingSecret: process.env.VOICE_AUDIT_SINK_SECRET,
-			url: process.env.VOICE_AUDIT_SINK_URL!
-		})
-	],
-	workerId: 'audit-sink-worker'
+  deliveries: runtimeStorage.auditDeliveries,
+  leases: redisLeases,
+  sinks: [
+    createVoiceAuditHTTPSink({
+      id: "security-warehouse",
+      signingSecret: process.env.VOICE_AUDIT_SINK_SECRET,
+      url: process.env.VOICE_AUDIT_SINK_URL!,
+    }),
+  ],
+  workerId: "audit-sink-worker",
 });
 const trace = createVoiceTraceSinkStore({
-	store: runtimeStorage.traces,
-	deliveryQueue: runtimeStorage.traceDeliveries,
-	redact: true,
-	sinks: [
-		createVoiceTraceHTTPSink({
-			id: 'warehouse',
-			url: process.env.TRACE_WAREHOUSE_URL!
-		})
-	]
+  store: runtimeStorage.traces,
+  deliveryQueue: runtimeStorage.traceDeliveries,
+  redact: true,
+  sinks: [
+    createVoiceTraceHTTPSink({
+      id: "warehouse",
+      url: process.env.TRACE_WAREHOUSE_URL!,
+    }),
+  ],
 });
 const traceSinkWorker = createVoiceTraceSinkDeliveryWorker({
-	deliveries: runtimeStorage.traceDeliveries,
-	leases: redisLeases,
-	redact: true,
-	sinks: [
-		createVoiceTraceHTTPSink({
-			id: 'warehouse',
-			url: process.env.TRACE_WAREHOUSE_URL!
-		})
-	],
-	workerId: 'trace-sink-worker'
+  deliveries: runtimeStorage.traceDeliveries,
+  leases: redisLeases,
+  redact: true,
+  sinks: [
+    createVoiceTraceHTTPSink({
+      id: "warehouse",
+      url: process.env.TRACE_WAREHOUSE_URL!,
+    }),
+  ],
+  workerId: "trace-sink-worker",
 });
 
 const supportAgent = createVoiceAgent({
-	id: 'support',
-	audit,
-	auditProvider: 'openai',
-	auditModel: 'gpt-4.1',
-	trace,
-	model: {
-		async generate() {
-			return { assistantText: 'How can I help?' };
-		}
-	}
+  id: "support",
+  audit,
+  auditProvider: "openai",
+  auditModel: "gpt-4.1",
+  trace,
+  model: {
+    async generate() {
+      return { assistantText: "How can I help?" };
+    },
+  },
 });
 
 voice({
-	path: '/voice',
-	session: runtimeStorage.session,
-	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
-	trace,
-	onTurn: supportAgent.onTurn,
-	onComplete: async () => {}
+  path: "/voice",
+  session: runtimeStorage.session,
+  stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+  trace,
+  onTurn: supportAgent.onTurn,
+  onComplete: async () => {},
 });
 app.use(
-	createVoiceAuditTrailRoutes({
-		store: runtimeStorage.audit
-	})
+  createVoiceAuditTrailRoutes({
+    store: runtimeStorage.audit,
+  }),
 );
 app.use(
-	createVoiceTraceDeliveryRoutes({
-		store: runtimeStorage.traceDeliveries,
-		worker: traceSinkWorker
-	})
+  createVoiceTraceDeliveryRoutes({
+    store: runtimeStorage.traceDeliveries,
+    worker: traceSinkWorker,
+  }),
 );
 
 const replay = await exportVoiceTrace({
-	store: runtimeStorage.traces,
-	filter: {
-		sessionId: 'session-123'
-	}
+  store: runtimeStorage.traces,
+  filter: {
+    sessionId: "session-123",
+  },
 });
 
 const report = buildVoiceTraceReplay(replay.events, {
-	redact: true,
-	title: 'Support call session-123'
+  redact: true,
+  title: "Support call session-123",
 });
 
 console.log(report.summary);
 console.log(report.evaluation.pass);
-await Bun.write('trace.html', report.html);
+await Bun.write("trace.html", report.html);
 
 await pruneVoiceTraceEvents({
-	store: runtimeStorage.traces,
-	before: Date.now() - 30 * 24 * 60 * 60 * 1000
+  store: runtimeStorage.traces,
+  before: Date.now() - 30 * 24 * 60 * 60 * 1000,
 });
 
 await audit.operatorAction({
-	action: 'review.approve',
-	actor: { id: 'operator-123', kind: 'operator' },
-	resource: { id: 'review-123', type: 'review' }
+  action: "review.approve",
+  actor: { id: "operator-123", kind: "operator" },
+  resource: { id: "review-123", type: "review" },
 });
 ```
 
@@ -2963,16 +2981,16 @@ For whole-runtime data control, use `buildVoiceDataRetentionPlan(...)` first and
 
 ```ts
 const plan = await buildVoiceDataRetentionPlan({
-	before: Date.now() - 30 * 24 * 60 * 60 * 1000,
-	...runtimeStorage
+  before: Date.now() - 30 * 24 * 60 * 60 * 1000,
+  ...runtimeStorage,
 });
 
 console.log(plan.scopes);
 
 await applyVoiceDataRetentionPolicy({
-	audit: runtimeStorage.audit,
-	before: Date.now() - 30 * 24 * 60 * 60 * 1000,
-	...runtimeStorage
+  audit: runtimeStorage.audit,
+  before: Date.now() - 30 * 24 * 60 * 60 * 1000,
+  ...runtimeStorage,
 });
 ```
 
@@ -2980,29 +2998,29 @@ For a compliance-facing control surface, mount `createVoiceDataControlRoutes(...
 
 ```ts
 import {
-	createVoiceDataControlRoutes,
-	createVoiceZeroRetentionPolicy,
-	voiceComplianceRedactionDefaults
-} from '@absolutejs/voice';
+  createVoiceDataControlRoutes,
+  createVoiceZeroRetentionPolicy,
+  voiceComplianceRedactionDefaults,
+} from "@absolutejs/voice";
 
 app.use(
-	createVoiceDataControlRoutes({
-		...runtimeStorage,
-		audit: runtimeStorage.audit,
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		path: '/data-control',
-		redact: voiceComplianceRedactionDefaults,
-		traceDeliveries: runtimeStorage.traceDeliveries
-	})
+  createVoiceDataControlRoutes({
+    ...runtimeStorage,
+    audit: runtimeStorage.audit,
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    path: "/data-control",
+    redact: voiceComplianceRedactionDefaults,
+    traceDeliveries: runtimeStorage.traceDeliveries,
+  }),
 );
 
 const zeroRetentionPlan = await buildVoiceDataRetentionPlan(
-	createVoiceZeroRetentionPolicy({
-		...runtimeStorage,
-		audit: runtimeStorage.audit,
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		traceDeliveries: runtimeStorage.traceDeliveries
-	})
+  createVoiceZeroRetentionPolicy({
+    ...runtimeStorage,
+    audit: runtimeStorage.audit,
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    traceDeliveries: runtimeStorage.traceDeliveries,
+  }),
 );
 ```
 
@@ -3025,18 +3043,18 @@ Zero-retention sensitive call:
 
 ```ts
 const policy = createVoiceZeroRetentionPolicy({
-	...runtimeStorage,
-	audit: runtimeStorage.audit,
-	auditDeliveries: runtimeStorage.auditDeliveries,
-	traceDeliveries: runtimeStorage.traceDeliveries
+  ...runtimeStorage,
+  audit: runtimeStorage.audit,
+  auditDeliveries: runtimeStorage.auditDeliveries,
+  traceDeliveries: runtimeStorage.traceDeliveries,
 });
 
 const dryRun = await buildVoiceDataRetentionPlan(policy);
 if (dryRun.deletedCount > 0) {
-	await applyVoiceDataRetentionPolicy({
-		...policy,
-		dryRun: false
-	});
+  await applyVoiceDataRetentionPolicy({
+    ...policy,
+    dryRun: false,
+  });
 }
 ```
 
@@ -3046,13 +3064,13 @@ Redacted support export:
 
 ```ts
 const auditExport = await exportVoiceAuditTrail({
-	redact: voiceComplianceRedactionDefaults,
-	store: runtimeStorage.audit
+  redact: voiceComplianceRedactionDefaults,
+  store: runtimeStorage.audit,
 });
 const auditMarkdown = renderVoiceAuditMarkdown(auditExport.events);
 
 const traceMarkdown = renderVoiceTraceMarkdown(events, {
-	redact: voiceComplianceRedactionDefaults
+  redact: voiceComplianceRedactionDefaults,
 });
 ```
 
@@ -3062,19 +3080,19 @@ Customer-owned storage:
 
 ```ts
 const runtimeStorage = createVoicePostgresRuntimeStorage({
-	connectionString: process.env.DATABASE_URL!,
-	schemaName: 'voice_ops',
-	tablePrefix: 'support'
+  connectionString: process.env.DATABASE_URL!,
+  schemaName: "voice_ops",
+  tablePrefix: "support",
 });
 
 app.use(
-	createVoiceDataControlRoutes({
-		...runtimeStorage,
-		audit: runtimeStorage.audit,
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		redact: voiceComplianceRedactionDefaults,
-		traceDeliveries: runtimeStorage.traceDeliveries
-	})
+  createVoiceDataControlRoutes({
+    ...runtimeStorage,
+    audit: runtimeStorage.audit,
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    redact: voiceComplianceRedactionDefaults,
+    traceDeliveries: runtimeStorage.traceDeliveries,
+  }),
 );
 ```
 
@@ -3084,19 +3102,19 @@ Deploy gate for compliance evidence:
 
 ```ts
 app.use(
-	createVoiceProductionReadinessRoutes({
-		audit: {
-			require: [
-				{ type: 'provider.call' },
-				{ type: 'operator.action' },
-				{ type: 'retention.policy', maxAgeMs: 7 * 24 * 60 * 60 * 1000 }
-			],
-			store: runtimeStorage.audit
-		},
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		traceDeliveries: runtimeStorage.traceDeliveries,
-		store: runtimeStorage.traces
-	})
+  createVoiceProductionReadinessRoutes({
+    audit: {
+      require: [
+        { type: "provider.call" },
+        { type: "operator.action" },
+        { type: "retention.policy", maxAgeMs: 7 * 24 * 60 * 60 * 1000 },
+      ],
+      store: runtimeStorage.audit,
+    },
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    traceDeliveries: runtimeStorage.traceDeliveries,
+    store: runtimeStorage.traces,
+  }),
 );
 ```
 
@@ -3120,12 +3138,12 @@ Use operations records as the default support/debug entrypoint. A hosted platfor
 
 ```ts
 app.use(
-	createVoiceOperationsRecordRoutes({
-		audit: runtimeStorage.audit,
-		htmlPath: '/voice-operations/:sessionId',
-		path: '/api/voice-operations/:sessionId',
-		store: runtimeStorage.traces
-	})
+  createVoiceOperationsRecordRoutes({
+    audit: runtimeStorage.audit,
+    htmlPath: "/voice-operations/:sessionId",
+    path: "/api/voice-operations/:sessionId",
+    store: runtimeStorage.traces,
+  }),
 );
 ```
 
@@ -3135,12 +3153,12 @@ Use `evaluateVoiceOperationsRecordProviderRecovery(...)` or `assertVoiceOperatio
 
 ```ts
 assertVoiceOperationsRecordProviderRecovery(record, {
-	recoveryStatus: 'degraded',
-	minFallbacks: 1,
-	minDegraded: 1,
-	requiredStatuses: ['fallback', 'degraded'],
-	requiredSurfaces: ['live-call'],
-	requiredReasonIncludes: ['latency budget']
+  recoveryStatus: "degraded",
+  minFallbacks: 1,
+  minDegraded: 1,
+  requiredStatuses: ["fallback", "degraded"],
+  requiredSurfaces: ["live-call"],
+  requiredReasonIncludes: ["latency budget"],
 });
 ```
 
@@ -3148,10 +3166,10 @@ Use `evaluateVoiceOperationsRecordGuardrails(...)` when a proof pack or deploy g
 
 ```ts
 const report = assertVoiceOperationsRecordGuardrails(record, {
-	minBlocked: 1,
-	proofs: ['live-guardrails-runtime'],
-	ruleIds: ['support.no-medical-advice'],
-	stages: ['assistant-output', 'tool-input']
+  minBlocked: 1,
+  proofs: ["live-guardrails-runtime"],
+  ruleIds: ["support.no-medical-advice"],
+  stages: ["assistant-output", "tool-input"],
 });
 ```
 
@@ -3163,16 +3181,16 @@ Mount `createVoiceOpsRecoveryRoutes(...)` beside it when operators need one depl
 
 ```ts
 app.use(
-	createVoiceOpsRecoveryRoutes({
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		handoffDeliveries,
-		links: {
-			operationsRecords: '/voice-operations/:sessionId',
-			traceDeliveries: '/traces/deliveries'
-		},
-		traceDeliveries: runtimeStorage.traceDeliveries,
-		traces: runtimeStorage.traces
-	})
+  createVoiceOpsRecoveryRoutes({
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    handoffDeliveries,
+    links: {
+      operationsRecords: "/voice-operations/:sessionId",
+      traceDeliveries: "/traces/deliveries",
+    },
+    traceDeliveries: runtimeStorage.traceDeliveries,
+    traces: runtimeStorage.traces,
+  }),
 );
 ```
 
@@ -3182,19 +3200,19 @@ Pass the same report into production readiness to make recovery issues a deploy 
 
 ```ts
 const opsRecovery = await buildVoiceOpsRecoveryReport({
-	links: { operationsRecords: '/voice-operations/:sessionId' },
-	traces: runtimeStorage.traces
+  links: { operationsRecords: "/voice-operations/:sessionId" },
+  traces: runtimeStorage.traces,
 });
 
 app.use(
-	createVoiceProductionReadinessRoutes({
-		links: {
-			operationsRecords: '/voice-operations/:sessionId',
-			opsRecovery: '/ops-recovery'
-		},
-		opsRecovery,
-		store: runtimeStorage.traces
-	})
+  createVoiceProductionReadinessRoutes({
+    links: {
+      operationsRecords: "/voice-operations/:sessionId",
+      opsRecovery: "/ops-recovery",
+    },
+    opsRecovery,
+    store: runtimeStorage.traces,
+  }),
 );
 ```
 
@@ -3208,18 +3226,21 @@ Every export manifest and artifact index includes a stable schema contract:
 
 ```ts
 import {
-	assertVoiceObservabilityExportSchema,
-	validateVoiceObservabilityExportRecord,
-	voiceObservabilityExportSchemaId,
-	voiceObservabilityExportSchemaVersion
-} from '@absolutejs/voice';
+  assertVoiceObservabilityExportSchema,
+  validateVoiceObservabilityExportRecord,
+  voiceObservabilityExportSchemaId,
+  voiceObservabilityExportSchemaVersion,
+} from "@absolutejs/voice";
 
 assertVoiceObservabilityExportSchema(exportReport);
 const validation = validateVoiceObservabilityExportRecord(exportReport);
 if (!validation.ok) {
-	throw new Error(validation.issues.map((issue) => issue.message).join('\n'));
+  throw new Error(validation.issues.map((issue) => issue.message).join("\n"));
 }
-console.log(voiceObservabilityExportSchemaId, voiceObservabilityExportSchemaVersion);
+console.log(
+  voiceObservabilityExportSchemaId,
+  voiceObservabilityExportSchemaVersion,
+);
 ```
 
 Use `validateVoiceObservabilityExportRecord(...)` or `assertVoiceObservabilityExportRecord(...)` when reading customer-owned records back from SQLite, Postgres, S3, a webhook collector, a warehouse, or a SIEM. The validator accepts manifests, artifact indexes, delivery reports, delivery receipts, delivery histories, and database payload records, then checks the stable schema id/version plus the minimum shape required for safe ingestion.
@@ -3228,31 +3249,31 @@ Use `evaluateVoicePlatformCoverage(...)` or `assertVoicePlatformCoverage(...)` w
 
 ```ts
 const coverage = buildVoicePlatformCoverageSummary({
-	coverage: latestProofPack.vapiCoverage,
-	runId: latestProofPack.runId
+  coverage: latestProofPack.vapiCoverage,
+  runId: latestProofPack.runId,
 });
 
 assertVoicePlatformCoverage(coverage, {
-	minSurfaces: 12,
-	requiredEvidence: ['productionReadiness', 'operationsRecord', 'providerSlo'],
-	requiredSurfaces: ['Web voice assistant', 'Call logs and incident handoff']
+  minSurfaces: 12,
+  requiredEvidence: ["productionReadiness", "operationsRecord", "providerSlo"],
+  requiredSurfaces: ["Web voice assistant", "Call logs and incident handoff"],
 });
 ```
 
 Use `replayVoiceObservabilityExport(...)` when you need to prove an already-delivered evidence bundle is still usable:
 
 ```ts
-import { replayVoiceObservabilityExport } from '@absolutejs/voice';
+import { replayVoiceObservabilityExport } from "@absolutejs/voice";
 
 const replay = await replayVoiceObservabilityExport({
-	kind: 'sqlite',
-	path: '.voice-runtime/observability-exports.sqlite',
-	runId: '2026-04-29T17-20-51.032Z',
-	tableName: 'voice_observability_exports'
+  kind: "sqlite",
+  path: ".voice-runtime/observability-exports.sqlite",
+  runId: "2026-04-29T17-20-51.032Z",
+  tableName: "voice_observability_exports",
 });
 
-if (replay.status !== 'pass') {
-	console.error(replay.issues);
+if (replay.status !== "pass") {
+  console.error(replay.issues);
 }
 ```
 
@@ -3260,99 +3281,99 @@ Replay sources support supplied records plus file, S3, SQLite, and Postgres deli
 
 ```ts
 import {
-	buildVoiceObservabilityExport,
-	createVoiceFileObservabilityExportDeliveryReceiptStore,
-	createVoiceObservabilityExportRoutes,
-	createVoiceObservabilityExportReplayRoutes
-} from '@absolutejs/voice';
+  buildVoiceObservabilityExport,
+  createVoiceFileObservabilityExportDeliveryReceiptStore,
+  createVoiceObservabilityExportRoutes,
+  createVoiceObservabilityExportReplayRoutes,
+} from "@absolutejs/voice";
 
 const observabilityReceipts =
-	createVoiceFileObservabilityExportDeliveryReceiptStore({
-		directory: '.voice-runtime/observability-export-receipts'
-	});
+  createVoiceFileObservabilityExportDeliveryReceiptStore({
+    directory: ".voice-runtime/observability-export-receipts",
+  });
 
 app.use(
-	createVoiceObservabilityExportRoutes({
-		artifactIntegrity: {
-			maxAgeMs: 15 * 60 * 1000
-		},
-		deliveryDestinations: [
-			{
-				directory: '.voice-runtime/observability-exports',
-				kind: 'file',
-				label: 'Local customer-owned observability archive'
-			},
-			{
-				bucket: process.env.VOICE_OBSERVABILITY_EXPORT_S3_BUCKET,
-				keyPrefix: 'voice/observability-exports',
-				kind: 's3',
-				label: 'S3 customer-owned observability archive'
-			},
-			{
-				kind: 'sqlite',
-				path: '.voice-runtime/observability-exports.sqlite',
-				tableName: 'voice_observability_exports',
-				label: 'SQLite customer-owned observability warehouse'
-			},
-			{
-				connectionString: process.env.VOICE_OBSERVABILITY_EXPORT_POSTGRES_URL,
-				kind: 'postgres',
-				schemaName: 'voice',
-				tableName: 'observability_exports',
-				label: 'Postgres customer-owned observability warehouse'
-			}
-		],
-		deliveryReceipts: observabilityReceipts,
-		artifacts: [
-			{
-				id: 'latest-proof-pack',
-				kind: 'proof-pack',
-				label: 'Latest proof pack',
-				path: '.voice-runtime/proof-pack/latest.md',
-				required: true
-			}
-		],
-		audit: runtimeStorage.audit,
-		auditDeliveries: runtimeStorage.auditDeliveries,
-		links: {
-			callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
-			operationsRecord: (sessionId) => `/voice-operations/${sessionId}`,
-			sessionSnapshot: (sessionId) =>
-				`/api/voice/session-snapshot/${sessionId}`
-		},
-		redact: true,
-		store: runtimeStorage.traces,
-		traceDeliveries: runtimeStorage.traceDeliveries
-	})
+  createVoiceObservabilityExportRoutes({
+    artifactIntegrity: {
+      maxAgeMs: 15 * 60 * 1000,
+    },
+    deliveryDestinations: [
+      {
+        directory: ".voice-runtime/observability-exports",
+        kind: "file",
+        label: "Local customer-owned observability archive",
+      },
+      {
+        bucket: process.env.VOICE_OBSERVABILITY_EXPORT_S3_BUCKET,
+        keyPrefix: "voice/observability-exports",
+        kind: "s3",
+        label: "S3 customer-owned observability archive",
+      },
+      {
+        kind: "sqlite",
+        path: ".voice-runtime/observability-exports.sqlite",
+        tableName: "voice_observability_exports",
+        label: "SQLite customer-owned observability warehouse",
+      },
+      {
+        connectionString: process.env.VOICE_OBSERVABILITY_EXPORT_POSTGRES_URL,
+        kind: "postgres",
+        schemaName: "voice",
+        tableName: "observability_exports",
+        label: "Postgres customer-owned observability warehouse",
+      },
+    ],
+    deliveryReceipts: observabilityReceipts,
+    artifacts: [
+      {
+        id: "latest-proof-pack",
+        kind: "proof-pack",
+        label: "Latest proof pack",
+        path: ".voice-runtime/proof-pack/latest.md",
+        required: true,
+      },
+    ],
+    audit: runtimeStorage.audit,
+    auditDeliveries: runtimeStorage.auditDeliveries,
+    links: {
+      callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
+      operationsRecord: (sessionId) => `/voice-operations/${sessionId}`,
+      sessionSnapshot: (sessionId) =>
+        `/api/voice/session-snapshot/${sessionId}`,
+    },
+    redact: true,
+    store: runtimeStorage.traces,
+    traceDeliveries: runtimeStorage.traceDeliveries,
+  }),
 );
 
 app.use(
-	createVoiceObservabilityExportReplayRoutes({
-		source: async () => ({
-			kind: 'sqlite',
-			path: '.voice-runtime/observability-exports.sqlite',
-			runId: 'latest-proof-pack',
-			tableName: 'voice_observability_exports'
-		})
-	})
+  createVoiceObservabilityExportReplayRoutes({
+    source: async () => ({
+      kind: "sqlite",
+      path: ".voice-runtime/observability-exports.sqlite",
+      runId: "latest-proof-pack",
+      tableName: "voice_observability_exports",
+    }),
+  }),
 );
 
 const exportReport = await buildVoiceObservabilityExport({
-	artifactIntegrity: {
-		maxAgeMs: 15 * 60 * 1000
-	},
-	audit: runtimeStorage.audit,
-	auditDeliveries: runtimeStorage.auditDeliveries,
-	callDebuggerReports: [latestCallDebuggerReport],
-	links: {
-		callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
-		operationsRecord: (sessionId) => `/voice-operations/${sessionId}`,
-		sessionSnapshot: (sessionId) => `/api/voice/session-snapshot/${sessionId}`
-	},
-	redact: true,
-	sessionSnapshots: [latestSessionSnapshot],
-	store: runtimeStorage.traces,
-	traceDeliveries: runtimeStorage.traceDeliveries
+  artifactIntegrity: {
+    maxAgeMs: 15 * 60 * 1000,
+  },
+  audit: runtimeStorage.audit,
+  auditDeliveries: runtimeStorage.auditDeliveries,
+  callDebuggerReports: [latestCallDebuggerReport],
+  links: {
+    callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
+    operationsRecord: (sessionId) => `/voice-operations/${sessionId}`,
+    sessionSnapshot: (sessionId) => `/api/voice/session-snapshot/${sessionId}`,
+  },
+  redact: true,
+  sessionSnapshots: [latestSessionSnapshot],
+  store: runtimeStorage.traces,
+  traceDeliveries: runtimeStorage.traceDeliveries,
 });
 ```
 
@@ -3362,32 +3383,32 @@ Pass the same report into production readiness when export health should block d
 
 ```ts
 const observabilityExportDeliveryReceipts =
-	createVoiceFileObservabilityExportDeliveryReceiptStore({
-		directory: '.voice-runtime/observability-export-receipts'
-	});
+  createVoiceFileObservabilityExportDeliveryReceiptStore({
+    directory: ".voice-runtime/observability-export-receipts",
+  });
 
 app.use(
-	createVoiceProductionReadinessRoutes({
-		links: {
-			observabilityExport: '/voice/observability-export',
-			observabilityExportDeliveries:
-				'/api/voice/observability-export/deliveries'
-		},
-		observabilityExport: exportReport,
-		observabilityExportDeliveryHistory: {
-			failOnMissing: true,
-			failOnStale: true,
-			maxAgeMs: 60 * 60 * 1000,
-			store: observabilityExportDeliveryReceipts
-		},
-		observabilityExportReplay: {
-			kind: 'sqlite',
-			path: '.voice-runtime/observability-exports.sqlite',
-			runId: 'latest-proof-pack',
-			tableName: 'voice_observability_exports'
-		},
-		store: runtimeStorage.traces
-	})
+  createVoiceProductionReadinessRoutes({
+    links: {
+      observabilityExport: "/voice/observability-export",
+      observabilityExportDeliveries:
+        "/api/voice/observability-export/deliveries",
+    },
+    observabilityExport: exportReport,
+    observabilityExportDeliveryHistory: {
+      failOnMissing: true,
+      failOnStale: true,
+      maxAgeMs: 60 * 60 * 1000,
+      store: observabilityExportDeliveryReceipts,
+    },
+    observabilityExportReplay: {
+      kind: "sqlite",
+      path: ".voice-runtime/observability-exports.sqlite",
+      runId: "latest-proof-pack",
+      tableName: "voice_observability_exports",
+    },
+    store: runtimeStorage.traces,
+  }),
 );
 ```
 
@@ -3405,71 +3426,71 @@ The recommended production pattern is:
 The simplest durable local setup uses `createVoiceFileRuntimeStorage(...)` plus `voice({ ops })`:
 
 ```ts
-import { Elysia } from 'elysia';
+import { Elysia } from "elysia";
 import {
-	createVoiceCRMActivitySink,
-	createVoiceFileRuntimeStorage,
-	createVoiceHelpdeskTicketSink,
-	resolveVoiceOutcomeRecipe,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceCRMActivitySink,
+  createVoiceFileRuntimeStorage,
+  createVoiceHelpdeskTicketSink,
+  resolveVoiceOutcomeRecipe,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 const runtimeStorage = createVoiceFileRuntimeStorage({
-	directory: '.voice-runtime/support'
+  directory: ".voice-runtime/support",
 });
 
 const app = new Elysia().use(
-	voice({
-		path: '/voice',
-		preset: 'reliability',
-		session: runtimeStorage.session,
-		stt: deepgram({
-			apiKey: process.env.DEEPGRAM_API_KEY!,
-			model: 'flux-general-en'
-		}),
-		async onTurn({ turn }) {
-			if (turn.text.toLowerCase().includes('billing')) {
-				return {
-					assistantText: 'Transferring to billing.',
-					transfer: {
-						reason: 'caller-requested-transfer',
-						target: 'billing'
-					}
-				};
-			}
+  voice({
+    path: "/voice",
+    preset: "reliability",
+    session: runtimeStorage.session,
+    stt: deepgram({
+      apiKey: process.env.DEEPGRAM_API_KEY!,
+      model: "flux-general-en",
+    }),
+    async onTurn({ turn }) {
+      if (turn.text.toLowerCase().includes("billing")) {
+        return {
+          assistantText: "Transferring to billing.",
+          transfer: {
+            reason: "caller-requested-transfer",
+            target: "billing",
+          },
+        };
+      }
 
-			return {
-				assistantText: `You said: ${turn.text}`
-			};
-		},
-		onComplete: async () => {},
-		ops: {
-			...resolveVoiceOutcomeRecipe('support-triage', {
-				assignee: 'support-oncall',
-				queue: 'support-triage'
-			}),
-			reviews: runtimeStorage.reviews,
-			tasks: runtimeStorage.tasks,
-			events: runtimeStorage.events,
-			webhook: {
-				url: process.env.VOICE_OPS_WEBHOOK_URL!,
-				retries: 2,
-				backoffMs: 500,
-				signingSecret: process.env.VOICE_OPS_WEBHOOK_SECRET
-			},
-			sinks: [
-				createVoiceHelpdeskTicketSink({
-					id: 'helpdesk',
-					url: process.env.HELPDESK_SYNC_URL!
-				}),
-				createVoiceCRMActivitySink({
-					id: 'crm',
-					url: process.env.CRM_SYNC_URL!
-				})
-			]
-		}
-	})
+      return {
+        assistantText: `You said: ${turn.text}`,
+      };
+    },
+    onComplete: async () => {},
+    ops: {
+      ...resolveVoiceOutcomeRecipe("support-triage", {
+        assignee: "support-oncall",
+        queue: "support-triage",
+      }),
+      reviews: runtimeStorage.reviews,
+      tasks: runtimeStorage.tasks,
+      events: runtimeStorage.events,
+      webhook: {
+        url: process.env.VOICE_OPS_WEBHOOK_URL!,
+        retries: 2,
+        backoffMs: 500,
+        signingSecret: process.env.VOICE_OPS_WEBHOOK_SECRET,
+      },
+      sinks: [
+        createVoiceHelpdeskTicketSink({
+          id: "helpdesk",
+          url: process.env.HELPDESK_SYNC_URL!,
+        }),
+        createVoiceCRMActivitySink({
+          id: "crm",
+          url: process.env.CRM_SYNC_URL!,
+        }),
+      ],
+    },
+  }),
 );
 ```
 
@@ -3515,10 +3536,10 @@ Use the `*SyncSinks(...)` helpers when you want create/update parity without han
 If you want durable non-file runtime storage under Bun, use `createVoiceSQLiteRuntimeStorage(...)` with the same `ops` shape:
 
 ```ts
-import { createVoiceSQLiteRuntimeStorage, voice } from '@absolutejs/voice';
+import { createVoiceSQLiteRuntimeStorage, voice } from "@absolutejs/voice";
 
 const runtimeStorage = createVoiceSQLiteRuntimeStorage({
-	path: '.voice-runtime/support.sqlite'
+  path: ".voice-runtime/support.sqlite",
 });
 ```
 
@@ -3527,12 +3548,12 @@ This uses Bun's native `bun:sqlite` driver directly.
 If you want production-friendly shared storage, use `createVoicePostgresRuntimeStorage(...)`:
 
 ```ts
-import { createVoicePostgresRuntimeStorage, voice } from '@absolutejs/voice';
+import { createVoicePostgresRuntimeStorage, voice } from "@absolutejs/voice";
 
 const runtimeStorage = createVoicePostgresRuntimeStorage({
-	connectionString: process.env.DATABASE_URL!,
-	schemaName: 'voice_ops',
-	tablePrefix: 'support'
+  connectionString: process.env.DATABASE_URL!,
+  schemaName: "voice_ops",
+  tablePrefix: "support",
 });
 ```
 
@@ -3543,17 +3564,17 @@ File, SQLite, and Postgres runtime storage expose the same core surfaces: `sessi
 If you need worker coordination for follow-up tasks, use Bun's native Redis client through `createVoiceRedisTaskLeaseCoordinator(...)`:
 
 ```ts
-import { createVoiceRedisTaskLeaseCoordinator } from '@absolutejs/voice';
+import { createVoiceRedisTaskLeaseCoordinator } from "@absolutejs/voice";
 
 const leases = createVoiceRedisTaskLeaseCoordinator({
-	url: process.env.REDIS_URL,
-	keyPrefix: 'voice:ops'
+  url: process.env.REDIS_URL,
+  keyPrefix: "voice:ops",
 });
 
 const claimed = await leases.claim({
-	taskId: 'task-123',
-	workerId: 'worker-a',
-	leaseMs: 30_000
+  taskId: "task-123",
+  workerId: "worker-a",
+  leaseMs: 30_000,
 });
 ```
 
@@ -3613,82 +3634,82 @@ If you want one higher-level core surface instead of wiring review recording, we
 
 ```ts
 import {
-	createVoiceCRMActivitySink,
-	createVoiceFileRuntimeStorage,
-	createVoiceHelpdeskTicketSink,
-	createVoiceOpsRuntime,
-	createVoiceRedisTaskLeaseCoordinator,
-	voice
-} from '@absolutejs/voice';
+  createVoiceCRMActivitySink,
+  createVoiceFileRuntimeStorage,
+  createVoiceHelpdeskTicketSink,
+  createVoiceOpsRuntime,
+  createVoiceRedisTaskLeaseCoordinator,
+  voice,
+} from "@absolutejs/voice";
 
 const runtimeStorage = createVoiceFileRuntimeStorage({
-	dir: '.voice-runtime/support'
+  dir: ".voice-runtime/support",
 });
 
 const ops = {
-	reviews: runtimeStorage.reviews,
-	tasks: runtimeStorage.tasks,
-	events: runtimeStorage.events,
-	sinks: [
-		createVoiceHelpdeskTicketSink({
-			id: 'helpdesk',
-			url: process.env.HELPDESK_SYNC_URL!
-		}),
-		createVoiceCRMActivitySink({
-			id: 'crm',
-			url: process.env.CRM_SYNC_URL!
-		})
-	]
+  reviews: runtimeStorage.reviews,
+  tasks: runtimeStorage.tasks,
+  events: runtimeStorage.events,
+  sinks: [
+    createVoiceHelpdeskTicketSink({
+      id: "helpdesk",
+      url: process.env.HELPDESK_SYNC_URL!,
+    }),
+    createVoiceCRMActivitySink({
+      id: "crm",
+      url: process.env.CRM_SYNC_URL!,
+    }),
+  ],
 } as const;
 
 const opsRuntime = createVoiceOpsRuntime({
-	ops,
-	sinks: {
-		autoStart: true,
-		leases: createVoiceRedisTaskLeaseCoordinator({
-			url: process.env.REDIS_URL,
-			keyPrefix: 'voice:ops:sinks'
-		}),
-		maxFailures: 3,
-		workerId: 'ops-sink-worker'
-	},
-	tasks: {
-		autoStart: true,
-		leases: createVoiceRedisTaskLeaseCoordinator({
-			url: process.env.REDIS_URL,
-			keyPrefix: 'voice:ops:tasks'
-		}),
-		maxFailures: 3,
-		process: async (task) => {
-			if (task.kind === 'callback') {
-				// hand off to CRM / dialer / queue
-				return { action: 'complete' };
-			}
+  ops,
+  sinks: {
+    autoStart: true,
+    leases: createVoiceRedisTaskLeaseCoordinator({
+      url: process.env.REDIS_URL,
+      keyPrefix: "voice:ops:sinks",
+    }),
+    maxFailures: 3,
+    workerId: "ops-sink-worker",
+  },
+  tasks: {
+    autoStart: true,
+    leases: createVoiceRedisTaskLeaseCoordinator({
+      url: process.env.REDIS_URL,
+      keyPrefix: "voice:ops:tasks",
+    }),
+    maxFailures: 3,
+    process: async (task) => {
+      if (task.kind === "callback") {
+        // hand off to CRM / dialer / queue
+        return { action: "complete" };
+      }
 
-			return { action: 'requeue', detail: 'Waiting for a downstream system.' };
-		},
-		workerId: 'ops-task-worker'
-	},
-	webhooks: {
-		autoStart: true,
-		leases: createVoiceRedisTaskLeaseCoordinator({
-			url: process.env.REDIS_URL,
-			keyPrefix: 'voice:ops:events'
-		}),
-		retries: 2,
-		signingSecret: process.env.VOICE_OPS_WEBHOOK_SECRET,
-		url: process.env.VOICE_OPS_WEBHOOK_URL!,
-		workerId: 'ops-webhook-worker'
-	}
+      return { action: "requeue", detail: "Waiting for a downstream system." };
+    },
+    workerId: "ops-task-worker",
+  },
+  webhooks: {
+    autoStart: true,
+    leases: createVoiceRedisTaskLeaseCoordinator({
+      url: process.env.REDIS_URL,
+      keyPrefix: "voice:ops:events",
+    }),
+    retries: 2,
+    signingSecret: process.env.VOICE_OPS_WEBHOOK_SECRET,
+    url: process.env.VOICE_OPS_WEBHOOK_URL!,
+    workerId: "ops-webhook-worker",
+  },
 });
 
 opsRuntime.start();
 
 app.use(
-	voice({
-		path: '/voice',
-		ops
-	})
+  voice({
+    path: "/voice",
+    ops,
+  }),
 );
 ```
 
@@ -3704,18 +3725,18 @@ That gives you:
 If you want opinionated queue routing without handcrafting every assignee/queue/SLA rule, start from `resolveVoiceOpsPreset(...)` and spread the result into your ops runtime:
 
 ```ts
-import { resolveVoiceOpsPreset } from '@absolutejs/voice';
+import { resolveVoiceOpsPreset } from "@absolutejs/voice";
 
-const opsPreset = resolveVoiceOpsPreset('support-default');
+const opsPreset = resolveVoiceOpsPreset("support-default");
 
 const opsRuntime = createVoiceOpsRuntime({
-	ops: {
-		reviews: runtimeStorage.reviews,
-		tasks: runtimeStorage.tasks,
-		events: runtimeStorage.events,
-		taskPolicies: opsPreset.taskPolicies
-	},
-	sla: opsPreset.sla
+  ops: {
+    reviews: runtimeStorage.reviews,
+    tasks: runtimeStorage.tasks,
+    events: runtimeStorage.events,
+    taskPolicies: opsPreset.taskPolicies,
+  },
+  sla: opsPreset.sla,
 });
 ```
 
@@ -3774,27 +3795,27 @@ For the local file-backed starter path, the minimum production-shaped stack is:
 `@absolutejs/voice` now supports optional assistant audio streaming on the same session path. If you provide a `tts` adapter, `assistantText` responses are still sent as text, and the synthesized PCM chunks are streamed as `audio` messages alongside them.
 
 ```ts
-import { voice, createVoiceMemoryStore } from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
-import { elevenlabs } from '@absolutejs/voice-elevenlabs';
+import { voice, createVoiceMemoryStore } from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
+import { elevenlabs } from "@absolutejs/voice-elevenlabs";
 
 app.use(
-	voice({
-		path: '/voice',
-		session: createVoiceMemoryStore(),
-		stt: deepgram({
-			apiKey: process.env.DEEPGRAM_API_KEY!,
-			model: 'flux-general-en'
-		}),
-		tts: elevenlabs({
-			apiKey: process.env.ELEVENLABS_API_KEY!,
-			voiceId: process.env.ELEVENLABS_VOICE_ID!
-		}),
-		onTurn: async ({ turn }) => ({
-			assistantText: `You said: ${turn.text}`
-		}),
-		onComplete: async () => {}
-	})
+  voice({
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: deepgram({
+      apiKey: process.env.DEEPGRAM_API_KEY!,
+      model: "flux-general-en",
+    }),
+    tts: elevenlabs({
+      apiKey: process.env.ELEVENLABS_API_KEY!,
+      voiceId: process.env.ELEVENLABS_VOICE_ID!,
+    }),
+    onTurn: async ({ turn }) => ({
+      assistantText: `You said: ${turn.text}`,
+    }),
+    onComplete: async () => {},
+  }),
 );
 ```
 
@@ -3805,50 +3826,50 @@ Client state now exposes `assistantAudio` on the stream/controller helpers, so a
 Use realtime adapter packages when you want direct speech-to-speech output paths for live smoke tests, duplex benchmarks, or custom realtime orchestration. Core owns the `RealtimeAdapter` contract and `voice({ realtime })` orchestration path; provider protocol code lives in adapter packages such as `@absolutejs/voice-openai` and `@absolutejs/voice-gemini`.
 
 ```ts
-import { voice } from '@absolutejs/voice';
-import { openai } from '@absolutejs/voice-openai';
-import { runTTSAdapterFixture } from '@absolutejs/voice/testing';
+import { voice } from "@absolutejs/voice";
+import { openai } from "@absolutejs/voice-openai";
+import { runTTSAdapterFixture } from "@absolutejs/voice/testing";
 
 const realtime = openai({
-	apiKey: process.env.OPENAI_API_KEY!,
-	instructions: 'Answer in one concise sentence.',
-	model: 'gpt-realtime',
-	voice: 'marin'
+  apiKey: process.env.OPENAI_API_KEY!,
+  instructions: "Answer in one concise sentence.",
+  model: "gpt-realtime",
+  voice: "marin",
 });
 
 app.use(
-	voice({
-		path: '/voice',
-		realtime,
-		realtimeInputFormat: {
-			channels: 1,
-			container: 'raw',
-			encoding: 'pcm_s16le',
-			sampleRateHz: 24000
-		},
-		session,
-		onTurn: async ({ turn }) => ({
-			assistantText: `You said: ${turn.text}`
-		}),
-		onComplete: async () => {}
-	})
+  voice({
+    path: "/voice",
+    realtime,
+    realtimeInputFormat: {
+      channels: 1,
+      container: "raw",
+      encoding: "pcm_s16le",
+      sampleRateHz: 24000,
+    },
+    session,
+    onTurn: async ({ turn }) => ({
+      assistantText: `You said: ${turn.text}`,
+    }),
+    onComplete: async () => {},
+  }),
 );
 
 const report = await runTTSAdapterFixture(
-	realtime,
-	{
-		id: 'openai-realtime-smoke',
-		text: 'Say exactly: AbsoluteJS realtime is online.',
-		title: 'OpenAI Realtime smoke'
-	},
-	{
-		realtimeFormat: {
-			channels: 1,
-			container: 'raw',
-			encoding: 'pcm_s16le',
-			sampleRateHz: 24000
-		}
-	}
+  realtime,
+  {
+    id: "openai-realtime-smoke",
+    text: "Say exactly: AbsoluteJS realtime is online.",
+    title: "OpenAI Realtime smoke",
+  },
+  {
+    realtimeFormat: {
+      channels: 1,
+      container: "raw",
+      encoding: "pcm_s16le",
+      sampleRateHz: 24000,
+    },
+  },
 );
 ```
 
@@ -3858,25 +3879,25 @@ Use `createVoiceRealtimeProviderContractMatrixPreset(...)` to prove which realti
 
 ```ts
 import {
-	createVoiceRealtimeProviderContractMatrixPreset,
-	createVoiceRealtimeProviderContractRoutes
-} from '@absolutejs/voice';
+  createVoiceRealtimeProviderContractMatrixPreset,
+  createVoiceRealtimeProviderContractRoutes,
+} from "@absolutejs/voice";
 
 app.use(
-	createVoiceRealtimeProviderContractRoutes({
-		matrix: createVoiceRealtimeProviderContractMatrixPreset({
-			env: process.env,
-			fallbackProviders: {
-				'gemini-live': ['openai-realtime'],
-				'openai-realtime': ['gemini-live']
-			},
-			latencyBudgets: {
-				'gemini-live': 900,
-				'openai-realtime': 800
-			},
-			selected: 'openai-realtime'
-		})
-	})
+  createVoiceRealtimeProviderContractRoutes({
+    matrix: createVoiceRealtimeProviderContractMatrixPreset({
+      env: process.env,
+      fallbackProviders: {
+        "gemini-live": ["openai-realtime"],
+        "openai-realtime": ["gemini-live"],
+      },
+      latencyBudgets: {
+        "gemini-live": 900,
+        "openai-realtime": 800,
+      },
+      selected: "openai-realtime",
+    }),
+  }),
 );
 ```
 
@@ -3884,12 +3905,12 @@ If you want a minimal browser playback path, use the client audio player:
 
 ```ts
 import {
-	createVoiceAudioPlayer,
-	createVoiceController
-} from '@absolutejs/voice/client';
+  createVoiceAudioPlayer,
+  createVoiceController,
+} from "@absolutejs/voice/client";
 
-const voice = createVoiceController('/voice', {
-	preset: 'chat'
+const voice = createVoiceController("/voice", {
+  preset: "chat",
 });
 const player = createVoiceAudioPlayer(voice);
 
@@ -3902,13 +3923,13 @@ await player.interrupt(); // flush queued assistant playback for barge-in
 For a higher-level client path, use the duplex helper:
 
 ```ts
-import { createVoiceDuplexController } from '@absolutejs/voice/client';
+import { createVoiceDuplexController } from "@absolutejs/voice/client";
 
-const voice = createVoiceDuplexController('/voice', {
-	bargeIn: {
-		interruptThreshold: 0.08
-	},
-	preset: 'chat'
+const voice = createVoiceDuplexController("/voice", {
+  bargeIn: {
+    interruptThreshold: 0.08,
+  },
+  preset: "chat",
 });
 
 await voice.audioPlayer.start();
@@ -3946,34 +3967,37 @@ That writes:
 Minimal usage:
 
 ```ts
-import { createTwilioMediaStreamBridge, createTwilioVoiceResponse } from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
-import { elevenlabs } from '@absolutejs/voice-elevenlabs';
+import {
+  createTwilioMediaStreamBridge,
+  createTwilioVoiceResponse,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
+import { elevenlabs } from "@absolutejs/voice-elevenlabs";
 
 const twiml = createTwilioVoiceResponse({
-  streamUrl: 'wss://example.com/voice/twilio',
+  streamUrl: "wss://example.com/voice/twilio",
   parameters: {
-    sessionId: 'call-123',
-    scenarioId: 'phone-intake'
+    sessionId: "call-123",
+    scenarioId: "phone-intake",
   },
-  track: 'both_tracks'
+  track: "both_tracks",
 });
 
 const bridge = createTwilioMediaStreamBridge(twilioSocket, {
   context: {},
   onComplete: async () => {},
   onTurn: async ({ turn }) => ({
-    assistantText: `You said: ${turn.text}`
+    assistantText: `You said: ${turn.text}`,
   }),
   session: createVoiceMemoryStore(),
   stt: deepgram({
     apiKey: process.env.DEEPGRAM_API_KEY!,
-    model: 'flux-general-en'
+    model: "flux-general-en",
   }),
   tts: elevenlabs({
     apiKey: process.env.ELEVENLABS_API_KEY!,
-    voiceId: process.env.ELEVENLABS_VOICE_ID!
-  })
+    voiceId: process.env.ELEVENLABS_VOICE_ID!,
+  }),
 });
 
 await bridge.handleMessage(startMessageFromTwilio);
@@ -3989,6 +4013,7 @@ bun run bench:telephony:run
 ```
 
 That writes:
+
 - `benchmark-results/telephony-twilio-bridge.json`
 - `benchmark-results/telephony-run-manifest.json`
 
@@ -4007,6 +4032,7 @@ bun run bench:telephony:live:run
 ```
 
 That writes:
+
 - `benchmark-results/telephony-live-deepgram-elevenlabs.json`
 - `benchmark-results/telephony-live-run-manifest.json`
 
@@ -4017,6 +4043,7 @@ bun run bench:telephony:live:series
 ```
 
 That writes:
+
 - `benchmark-results/telephony-live-series-summary-runs-3.json`
 
 For a live Deepgram telephony model shootout on the same PSTN path, run:
@@ -4026,6 +4053,7 @@ bun run bench:telephony:live:shootout
 ```
 
 That writes:
+
 - `benchmark-results/telephony-live-flux-general-en.json`
 - `benchmark-results/telephony-live-nova-3-phone.json`
 - `benchmark-results/telephony-live-shootout-manifest.json`
@@ -4135,43 +4163,43 @@ Minimal production-oriented example:
 
 ```ts
 import {
-	createVoiceSTTRoutingCorrectionHandler,
-	createPhraseHintCorrectionHandler,
-	resolveVoiceSTTRoutingStrategy,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceSTTRoutingCorrectionHandler,
+  createPhraseHintCorrectionHandler,
+  resolveVoiceSTTRoutingStrategy,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
 app.use(
-	voice({
-		path: '/voice/intake',
-		preset: 'reliability',
-		lexicon: [
-			{
-				text: 'AbsoluteJS',
-				aliases: ['absoloot js'],
-				pronunciation: 'ab-so-lute jay ess'
-			}
-		],
-		phraseHints: [
-			{ text: 'AbsoluteJS', aliases: ['absolute js'] },
-			{ text: 'Joe Johnston', aliases: ['joe johnson'] },
-			{
-				text: 'beneath well thatched trees that shed the rain like a roof',
-				aliases: ['beneath wealth', 'shelter beneath wealth']
-			}
-		],
-		correctTurn: createPhraseHintCorrectionHandler(),
-		session: createVoiceMemoryStore(),
-		stt: deepgram({
-			apiKey: process.env.DEEPGRAM_API_KEY!,
-			model: 'flux-general-en'
-		}),
-		onTurn: async ({ turn }) => ({
-			assistantText: `Captured: ${turn.text}`
-		}),
-		onComplete: async () => {}
-	})
+  voice({
+    path: "/voice/intake",
+    preset: "reliability",
+    lexicon: [
+      {
+        text: "AbsoluteJS",
+        aliases: ["absoloot js"],
+        pronunciation: "ab-so-lute jay ess",
+      },
+    ],
+    phraseHints: [
+      { text: "AbsoluteJS", aliases: ["absolute js"] },
+      { text: "Joe Johnston", aliases: ["joe johnson"] },
+      {
+        text: "beneath well thatched trees that shed the rain like a roof",
+        aliases: ["beneath wealth", "shelter beneath wealth"],
+      },
+    ],
+    correctTurn: createPhraseHintCorrectionHandler(),
+    session: createVoiceMemoryStore(),
+    stt: deepgram({
+      apiKey: process.env.DEEPGRAM_API_KEY!,
+      model: "flux-general-en",
+    }),
+    onTurn: async ({ turn }) => ({
+      assistantText: `Captured: ${turn.text}`,
+    }),
+    onComplete: async () => {},
+  }),
 );
 ```
 
@@ -4183,28 +4211,30 @@ app.use(
 
 ```ts
 import {
-	createVoiceMemoryStore,
-	createVoiceSTTRoutingCorrectionHandler,
-	resolveVoiceSTTRoutingStrategy,
-	voice
-} from '@absolutejs/voice';
-import { deepgram } from '@absolutejs/voice-deepgram';
+  createVoiceMemoryStore,
+  createVoiceSTTRoutingCorrectionHandler,
+  resolveVoiceSTTRoutingStrategy,
+  voice,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
 
-const strategy = resolveVoiceSTTRoutingStrategy('best');
+const strategy = resolveVoiceSTTRoutingStrategy("best");
 
 app.use(
-	voice({
-		path: '/voice/stt',
-		preset: strategy.preset,
-		phraseHints: [{ text: 'Joe Johnston', aliases: ['joe johnson'] }],
-		correctTurn: createVoiceSTTRoutingCorrectionHandler(strategy.correctionMode),
-		session: createVoiceMemoryStore(),
-		sttLifecycle: strategy.sttLifecycle,
-		stt: deepgram({
-			apiKey: process.env.DEEPGRAM_API_KEY!,
-			model: 'flux-general-en'
-		})
-	})
+  voice({
+    path: "/voice/stt",
+    preset: strategy.preset,
+    phraseHints: [{ text: "Joe Johnston", aliases: ["joe johnson"] }],
+    correctTurn: createVoiceSTTRoutingCorrectionHandler(
+      strategy.correctionMode,
+    ),
+    session: createVoiceMemoryStore(),
+    sttLifecycle: strategy.sttLifecycle,
+    stt: deepgram({
+      apiKey: process.env.DEEPGRAM_API_KEY!,
+      model: "flux-general-en",
+    }),
+  }),
 );
 ```
 
@@ -4222,30 +4252,36 @@ Use `createVoiceProviderRouter(...)` when your assistant can run on more than on
 
 ```ts
 import {
-	createAnthropicVoiceAssistantModel,
-	createGeminiVoiceAssistantModel,
-	createOpenAIVoiceAssistantModel,
-	createVoiceProviderRouter,
-	resolveVoiceProviderRoutingPolicyPreset
-} from '@absolutejs/voice';
+  createAnthropicVoiceAssistantModel,
+  createGeminiVoiceAssistantModel,
+  createOpenAIVoiceAssistantModel,
+  createVoiceProviderRouter,
+  resolveVoiceProviderRoutingPolicyPreset,
+} from "@absolutejs/voice";
 
 const model = createVoiceProviderRouter({
-	providers: {
-		openai: createOpenAIVoiceAssistantModel({ apiKey: process.env.OPENAI_API_KEY! }),
-		anthropic: createAnthropicVoiceAssistantModel({ apiKey: process.env.ANTHROPIC_API_KEY! }),
-		gemini: createGeminiVoiceAssistantModel({ apiKey: process.env.GEMINI_API_KEY! })
-	},
-	providerHealth: {
-		failureThreshold: 1,
-		cooldownMs: 30_000,
-		rateLimitCooldownMs: 120_000
-	},
-	providerProfiles: {
-		openai: { cost: 6, latencyMs: 650, quality: 0.92, timeoutMs: 3500 },
-		anthropic: { cost: 7, latencyMs: 850, quality: 0.95, timeoutMs: 4500 },
-		gemini: { cost: 2, latencyMs: 700, quality: 0.86, timeoutMs: 3500 }
-	},
-	policy: resolveVoiceProviderRoutingPolicyPreset('balanced')
+  providers: {
+    openai: createOpenAIVoiceAssistantModel({
+      apiKey: process.env.OPENAI_API_KEY!,
+    }),
+    anthropic: createAnthropicVoiceAssistantModel({
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+    }),
+    gemini: createGeminiVoiceAssistantModel({
+      apiKey: process.env.GEMINI_API_KEY!,
+    }),
+  },
+  providerHealth: {
+    failureThreshold: 1,
+    cooldownMs: 30_000,
+    rateLimitCooldownMs: 120_000,
+  },
+  providerProfiles: {
+    openai: { cost: 6, latencyMs: 650, quality: 0.92, timeoutMs: 3500 },
+    anthropic: { cost: 7, latencyMs: 850, quality: 0.95, timeoutMs: 4500 },
+    gemini: { cost: 2, latencyMs: 700, quality: 0.86, timeoutMs: 3500 },
+  },
+  policy: resolveVoiceProviderRoutingPolicyPreset("balanced"),
 });
 ```
 
@@ -4261,52 +4297,52 @@ Use `createVoiceProviderOrchestrationProfile(...)` when one app has multiple pro
 
 ```ts
 import {
-	createVoiceProviderOrchestrationProfile,
-	createVoiceProviderRouter
-} from '@absolutejs/voice';
+  createVoiceProviderOrchestrationProfile,
+  createVoiceProviderRouter,
+} from "@absolutejs/voice";
 
 const providerProfile = createVoiceProviderOrchestrationProfile({
-	id: 'support-agent-providers',
-	defaultSurface: 'live-call',
-	surfaces: {
-		'live-call': {
-			policy: 'latency-first',
-			fallback: ['openai', 'anthropic', 'gemini'],
-			maxLatencyMs: 900,
-			providerHealth: {
-				failureThreshold: 1,
-				cooldownMs: 30_000,
-				rateLimitCooldownMs: 120_000
-			},
-			providerProfiles: {
-				openai: { cost: 6, latencyMs: 650, quality: 0.92, timeoutMs: 3500 },
-				anthropic: { cost: 7, latencyMs: 850, quality: 0.95, timeoutMs: 4500 },
-				gemini: { cost: 2, latencyMs: 700, quality: 0.86, timeoutMs: 3500 }
-			}
-		},
-		'background-summary': {
-			policy: 'cost-cap',
-			fallback: ['gemini', 'openai'],
-			maxCost: 3,
-			minQuality: 0.82,
-			providerProfiles: {
-				openai: { cost: 6, latencyMs: 650, quality: 0.92 },
-				gemini: { cost: 2, latencyMs: 700, quality: 0.86 }
-			}
-		}
-	}
+  id: "support-agent-providers",
+  defaultSurface: "live-call",
+  surfaces: {
+    "live-call": {
+      policy: "latency-first",
+      fallback: ["openai", "anthropic", "gemini"],
+      maxLatencyMs: 900,
+      providerHealth: {
+        failureThreshold: 1,
+        cooldownMs: 30_000,
+        rateLimitCooldownMs: 120_000,
+      },
+      providerProfiles: {
+        openai: { cost: 6, latencyMs: 650, quality: 0.92, timeoutMs: 3500 },
+        anthropic: { cost: 7, latencyMs: 850, quality: 0.95, timeoutMs: 4500 },
+        gemini: { cost: 2, latencyMs: 700, quality: 0.86, timeoutMs: 3500 },
+      },
+    },
+    "background-summary": {
+      policy: "cost-cap",
+      fallback: ["gemini", "openai"],
+      maxCost: 3,
+      minQuality: 0.82,
+      providerProfiles: {
+        openai: { cost: 6, latencyMs: 650, quality: 0.92 },
+        gemini: { cost: 2, latencyMs: 700, quality: 0.86 },
+      },
+    },
+  },
 });
 
 const liveModel = createVoiceProviderRouter({
-	providers,
-	orchestrationProfile: providerProfile,
-	orchestrationSurface: 'live-call'
+  providers,
+  orchestrationProfile: providerProfile,
+  orchestrationSurface: "live-call",
 });
 
 const summaryModel = createVoiceProviderRouter({
-	providers,
-	orchestrationProfile: providerProfile,
-	orchestrationSurface: 'background-summary'
+  providers,
+  orchestrationProfile: providerProfile,
+  orchestrationSurface: "background-summary",
 });
 ```
 
@@ -4314,89 +4350,89 @@ Mount `createVoiceProviderOrchestrationRoutes(...)` and pass the report into pro
 
 ```ts
 import {
-	buildVoiceProviderOrchestrationReport,
-	createVoiceProviderOrchestrationRoutes,
-	createVoiceProductionReadinessRoutes
-} from '@absolutejs/voice';
+  buildVoiceProviderOrchestrationReport,
+  createVoiceProviderOrchestrationRoutes,
+  createVoiceProductionReadinessRoutes,
+} from "@absolutejs/voice";
 
 const providerOrchestration = () =>
-	buildVoiceProviderOrchestrationReport({
-		profile: providerProfile,
-		requirements: {
-			'live-call': {
-				minProviders: 2,
-				requireBudgetPolicy: true,
-				requireCircuitBreaker: true,
-				requireFallback: true,
-				requireTimeoutBudget: true
-			}
-		}
-	});
+  buildVoiceProviderOrchestrationReport({
+    profile: providerProfile,
+    requirements: {
+      "live-call": {
+        minProviders: 2,
+        requireBudgetPolicy: true,
+        requireCircuitBreaker: true,
+        requireFallback: true,
+        requireTimeoutBudget: true,
+      },
+    },
+  });
 
 app
-	.use(
-		createVoiceProviderOrchestrationRoutes({
-			profile: providerProfile,
-			requirements: {
-				'live-call': {
-					minProviders: 2,
-					requireBudgetPolicy: true,
-					requireCircuitBreaker: true,
-					requireFallback: true,
-					requireTimeoutBudget: true
-				}
-			}
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			store: runtime.traces,
-			providerOrchestration,
-			links: {
-				providerOrchestration: '/voice/provider-orchestration'
-			}
-		})
-	);
+  .use(
+    createVoiceProviderOrchestrationRoutes({
+      profile: providerProfile,
+      requirements: {
+        "live-call": {
+          minProviders: 2,
+          requireBudgetPolicy: true,
+          requireCircuitBreaker: true,
+          requireFallback: true,
+          requireTimeoutBudget: true,
+        },
+      },
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      store: runtime.traces,
+      providerOrchestration,
+      links: {
+        providerOrchestration: "/voice/provider-orchestration",
+      },
+    }),
+  );
 ```
 
 Budget filters are strict. If you pass `maxCost`, `maxLatencyMs`, or `minQuality`, providers outside those limits are removed before ranking, even if they were selected by the request.
 
 ```ts
-const policy = resolveVoiceProviderRoutingPolicyPreset('cost-cap', {
-	maxCost: 3,
-	minQuality: 0.82
+const policy = resolveVoiceProviderRoutingPolicyPreset("cost-cap", {
+  maxCost: 3,
+  minQuality: 0.82,
 });
 ```
 
 Use `runVoiceProviderRoutingContract(...)` when provider fallback needs to be certified before production. The contract reads provider routing trace events and verifies the expected selected provider, fallback provider, status, and kind in order.
 
 ```ts
-import { runVoiceProviderRoutingContract } from '@absolutejs/voice';
+import { runVoiceProviderRoutingContract } from "@absolutejs/voice";
 
 const report = await runVoiceProviderRoutingContract({
-	store: runtime.traces,
-	contract: {
-		id: 'openai-to-anthropic-fallback',
-		expect: [
-			{
-				kind: 'llm',
-				provider: 'openai',
-				selectedProvider: 'openai',
-				fallbackProvider: 'anthropic',
-				status: 'error'
-			},
-			{
-				kind: 'llm',
-				provider: 'anthropic',
-				selectedProvider: 'openai',
-				status: 'fallback'
-			}
-		]
-	}
+  store: runtime.traces,
+  contract: {
+    id: "openai-to-anthropic-fallback",
+    expect: [
+      {
+        kind: "llm",
+        provider: "openai",
+        selectedProvider: "openai",
+        fallbackProvider: "anthropic",
+        status: "error",
+      },
+      {
+        kind: "llm",
+        provider: "anthropic",
+        selectedProvider: "openai",
+        status: "fallback",
+      },
+    ],
+  },
 });
 
 if (!report.pass) {
-	throw new Error(report.issues.map((issue) => issue.message).join('\n'));
+  throw new Error(report.issues.map((issue) => issue.message).join("\n"));
 }
 ```
 
@@ -4406,35 +4442,35 @@ Use `createVoiceProviderSloRoutes(...)` when provider speed needs to be release 
 
 ```ts
 import {
-	createVoiceProviderSloRoutes,
-	createVoiceProductionReadinessRoutes
-} from '@absolutejs/voice';
+  createVoiceProviderSloRoutes,
+  createVoiceProductionReadinessRoutes,
+} from "@absolutejs/voice";
 
 const providerSlo = {
-	requiredKinds: ['llm', 'stt', 'tts'],
-	thresholds: {
-		llm: { maxAverageElapsedMs: 2500, maxP95ElapsedMs: 4500 },
-		stt: { maxAverageElapsedMs: 800, maxP95ElapsedMs: 1500 },
-		tts: { maxAverageElapsedMs: 1200, maxP95ElapsedMs: 2200 }
-	}
+  requiredKinds: ["llm", "stt", "tts"],
+  thresholds: {
+    llm: { maxAverageElapsedMs: 2500, maxP95ElapsedMs: 4500 },
+    stt: { maxAverageElapsedMs: 800, maxP95ElapsedMs: 1500 },
+    tts: { maxAverageElapsedMs: 1200, maxP95ElapsedMs: 2200 },
+  },
 } as const;
 
 app
-	.use(
-		createVoiceProviderSloRoutes({
-			store: runtime.traces,
-			...providerSlo
-		})
-	)
-	.use(
-		createVoiceProductionReadinessRoutes({
-			store: runtime.traces,
-			providerSlo,
-			links: {
-				providerSlo: '/voice/provider-slos'
-			}
-		})
-	);
+  .use(
+    createVoiceProviderSloRoutes({
+      store: runtime.traces,
+      ...providerSlo,
+    }),
+  )
+  .use(
+    createVoiceProductionReadinessRoutes({
+      store: runtime.traces,
+      providerSlo,
+      links: {
+        providerSlo: "/voice/provider-slos",
+      },
+    }),
+  );
 ```
 
 The provider SLO routes expose JSON at `/api/voice/provider-slos`, HTML at `/voice/provider-slos`, and Markdown at `/voice/provider-slos.md`. Readiness adds a `Provider SLO gates` check when `providerSlo` is configured; failing latency, timeout, fallback, or unresolved-error budgets close the deploy gate.
@@ -4443,18 +4479,18 @@ Use `evaluateVoiceProviderSloEvidence(...)` or `assertVoiceProviderSloEvidence(.
 
 ```ts
 const providerReport = await buildVoiceProviderSloReport({
-	requiredKinds: ['llm', 'stt', 'tts'],
-	store: runtime.traces
+  requiredKinds: ["llm", "stt", "tts"],
+  store: runtime.traces,
 });
 
 assertVoiceProviderSloEvidence(providerReport, {
-	fallbackKinds: ['llm'],
-	maxP95ElapsedMs: { llm: 4500, stt: 1500, tts: 2200 },
-	maxStatus: 'pass',
-	minFallbacks: 1,
-	minLatencySamples: 3,
-	requiredKinds: ['llm', 'stt', 'tts'],
-	requiredProviders: ['openai', 'anthropic', 'deepgram']
+  fallbackKinds: ["llm"],
+  maxP95ElapsedMs: { llm: 4500, stt: 1500, tts: 2200 },
+  maxStatus: "pass",
+  minFallbacks: 1,
+  minLatencySamples: 3,
+  requiredKinds: ["llm", "stt", "tts"],
+  requiredProviders: ["openai", "anthropic", "deepgram"],
 });
 ```
 
@@ -4462,26 +4498,26 @@ Use `createVoiceProviderDecisionTraceEvent(...)` and `createVoiceProviderDecisio
 
 ```ts
 import {
-	createVoiceProviderDecisionTraceEvent,
-	createVoiceProviderDecisionTraceRoutes
-} from '@absolutejs/voice';
+  createVoiceProviderDecisionTraceEvent,
+  createVoiceProviderDecisionTraceRoutes,
+} from "@absolutejs/voice";
 
 await traces.append(
-	createVoiceProviderDecisionTraceEvent({
-		provider: 'deepgram',
-		selectedProvider: 'assemblyai',
-		fallbackProvider: 'assemblyai',
-		status: 'fallback',
-		surface: 'live-stt',
-		reason: 'Deepgram timed out, AssemblyAI recovered the live STT turn.'
-	})
+  createVoiceProviderDecisionTraceEvent({
+    provider: "deepgram",
+    selectedProvider: "assemblyai",
+    fallbackProvider: "assemblyai",
+    status: "fallback",
+    surface: "live-stt",
+    reason: "Deepgram timed out, AssemblyAI recovered the live STT turn.",
+  }),
 );
 
 app.use(
-	createVoiceProviderDecisionTraceRoutes({
-		store: traces,
-		requiredSurfaces: ['live-call', 'live-stt', 'telephony-tts']
-	})
+  createVoiceProviderDecisionTraceRoutes({
+    store: traces,
+    requiredSurfaces: ["live-call", "live-stt", "telephony-tts"],
+  }),
 );
 ```
 
@@ -4491,37 +4527,37 @@ Use `createVoiceProviderContractMatrixPreset(...)` when you want readiness proof
 
 ```ts
 import {
-	buildVoiceProviderContractMatrix,
-	createVoiceProviderContractMatrixPreset,
-	createVoiceProviderContractMatrixRoutes
-} from '@absolutejs/voice';
+  buildVoiceProviderContractMatrix,
+  createVoiceProviderContractMatrixPreset,
+  createVoiceProviderContractMatrixRoutes,
+} from "@absolutejs/voice";
 
 const providerContracts = () =>
-	createVoiceProviderContractMatrixPreset('phone-agent', {
-		env: process.env,
-		providers: {
-			llm: ['openai', 'anthropic', 'gemini'],
-			stt: ['deepgram', 'assemblyai'],
-			tts: ['openai', 'emergency']
-		},
-		selected: {
-			llm: 'openai',
-			stt: 'deepgram',
-			tts: 'openai'
-		},
-		latencyBudgets: {
-			openai: 900,
-			deepgram: 250,
-			assemblyai: 900,
-			emergency: 80
-		},
-		remediationHref: '/provider-contracts'
-	});
+  createVoiceProviderContractMatrixPreset("phone-agent", {
+    env: process.env,
+    providers: {
+      llm: ["openai", "anthropic", "gemini"],
+      stt: ["deepgram", "assemblyai"],
+      tts: ["openai", "emergency"],
+    },
+    selected: {
+      llm: "openai",
+      stt: "deepgram",
+      tts: "openai",
+    },
+    latencyBudgets: {
+      openai: 900,
+      deepgram: 250,
+      assemblyai: 900,
+      emergency: 80,
+    },
+    remediationHref: "/provider-contracts",
+  });
 
 const app = createVoiceProviderContractMatrixRoutes({
-	htmlPath: '/provider-contracts',
-	path: '/api/provider-contracts',
-	load: () => buildVoiceProviderContractMatrix(providerContracts())
+  htmlPath: "/provider-contracts",
+  path: "/api/provider-contracts",
+  load: () => buildVoiceProviderContractMatrix(providerContracts()),
 });
 ```
 
@@ -4531,13 +4567,13 @@ For full control, pass an object policy:
 
 ```ts
 const model = createVoiceProviderRouter({
-	providers,
-	providerProfiles,
-	policy: {
-		strategy: 'balanced',
-		maxLatencyMs: 1000,
-		weights: { cost: 1, latencyMs: 0.004, quality: 12 }
-	}
+  providers,
+  providerProfiles,
+  policy: {
+    strategy: "balanced",
+    maxLatencyMs: 1000,
+    weights: { cost: 1, latencyMs: 0.004, quality: 12 },
+  },
 });
 ```
 
@@ -4545,31 +4581,31 @@ The same profile and policy shape also works for STT and TTS provider routers, s
 
 ```ts
 const stt = createVoiceSTTProviderRouter({
-	adapters: {
-		deepgram,
-		assemblyai
-	},
-	providerHealth: { cooldownMs: 30_000 },
-	providerProfiles: {
-		deepgram: { cost: 4, latencyMs: 180, quality: 0.93, timeoutMs: 1500 },
-		assemblyai: { cost: 2, latencyMs: 650, quality: 0.88, timeoutMs: 3000 }
-	},
-	policy: resolveVoiceProviderRoutingPolicyPreset('latency-first')
+  adapters: {
+    deepgram,
+    assemblyai,
+  },
+  providerHealth: { cooldownMs: 30_000 },
+  providerProfiles: {
+    deepgram: { cost: 4, latencyMs: 180, quality: 0.93, timeoutMs: 1500 },
+    assemblyai: { cost: 2, latencyMs: 650, quality: 0.88, timeoutMs: 3000 },
+  },
+  policy: resolveVoiceProviderRoutingPolicyPreset("latency-first"),
 });
 
 const tts = createVoiceTTSProviderRouter({
-	adapters: {
-		elevenlabs,
-		openai
-	},
-	providerProfiles: {
-		elevenlabs: { cost: 5, latencyMs: 220, quality: 0.94 },
-		openai: { cost: 2, latencyMs: 320, quality: 0.87 }
-	},
-	policy: resolveVoiceProviderRoutingPolicyPreset('cost-cap', {
-		maxCost: 3,
-		minQuality: 0.85
-	})
+  adapters: {
+    elevenlabs,
+    openai,
+  },
+  providerProfiles: {
+    elevenlabs: { cost: 5, latencyMs: 220, quality: 0.94 },
+    openai: { cost: 2, latencyMs: 320, quality: 0.87 },
+  },
+  policy: resolveVoiceProviderRoutingPolicyPreset("cost-cap", {
+    maxCost: 3,
+    minQuality: 0.85,
+  }),
 });
 ```
 
@@ -4588,27 +4624,27 @@ On the server:
 
 ```ts
 voice({
-	path: '/voice/intake',
-	preset: 'guided-intake',
-	session: createVoiceMemoryStore(),
-	stt: deepgram({
-		apiKey: process.env.DEEPGRAM_API_KEY!,
-		model: 'nova-3'
-	}),
-	onTurn: async ({ turn }) => ({
-		assistantText: `Captured: ${turn.text}`
-	}),
-	onComplete: async () => {}
+  path: "/voice/intake",
+  preset: "guided-intake",
+  session: createVoiceMemoryStore(),
+  stt: deepgram({
+    apiKey: process.env.DEEPGRAM_API_KEY!,
+    model: "nova-3",
+  }),
+  onTurn: async ({ turn }) => ({
+    assistantText: `Captured: ${turn.text}`,
+  }),
+  onComplete: async () => {},
 });
 ```
 
 On the client:
 
 ```ts
-import { createVoiceController } from '@absolutejs/voice/client';
+import { createVoiceController } from "@absolutejs/voice/client";
 
-const voice = createVoiceController('/voice/intake', {
-	preset: 'guided-intake'
+const voice = createVoiceController("/voice/intake", {
+  preset: "guided-intake",
 });
 
 await voice.startRecording();
@@ -4672,30 +4708,30 @@ It can be:
 
 ```ts
 voice({
-	path: '/voice/intake',
-	lexicon: async ({ context }) => {
-		return [
-			{
-				text: 'AbsoluteJS',
-				aliases: ['absoloot js'],
-				pronunciation: 'ab-so-lute jay ess'
-			},
-			{
-				text: 'Eden Treaty',
-				aliases: ['eden tree tea'],
-				pronunciation: 'ee-den tree-tee'
-			}
-		];
-	},
-	session: createVoiceMemoryStore(),
-	stt: deepgram({
-		apiKey: process.env.DEEPGRAM_API_KEY!,
-		model: 'flux-general-en'
-	}),
-	onTurn: async ({ turn }) => ({
-		assistantText: turn.text
-	}),
-	onComplete: async () => {}
+  path: "/voice/intake",
+  lexicon: async ({ context }) => {
+    return [
+      {
+        text: "AbsoluteJS",
+        aliases: ["absoloot js"],
+        pronunciation: "ab-so-lute jay ess",
+      },
+      {
+        text: "Eden Treaty",
+        aliases: ["eden tree tea"],
+        pronunciation: "ee-den tree-tee",
+      },
+    ];
+  },
+  session: createVoiceMemoryStore(),
+  stt: deepgram({
+    apiKey: process.env.DEEPGRAM_API_KEY!,
+    model: "flux-general-en",
+  }),
+  onTurn: async ({ turn }) => ({
+    assistantText: turn.text,
+  }),
+  onComplete: async () => {},
 });
 ```
 
@@ -4714,25 +4750,25 @@ They can be:
 
 ```ts
 voice({
-	path: '/voice/intake',
-	preset: 'reliability',
-	phraseHints: async ({ context, scenarioId, sessionId }) => {
-		return [
-			{ text: 'AbsoluteJS', aliases: ['absolute js'] },
-			{ text: 'Eden Treaty', aliases: ['eden treaty'] },
-			{ text: 'Joe Johnston', aliases: ['joe johnson'] }
-		];
-	},
-	correctTurn: createPhraseHintCorrectionHandler(),
-	session: createVoiceMemoryStore(),
-	stt: deepgram({
-		apiKey: process.env.DEEPGRAM_API_KEY!,
-		model: 'flux-general-en'
-	}),
-	onTurn: async ({ turn }) => ({
-		assistantText: turn.text
-	}),
-	onComplete: async () => {}
+  path: "/voice/intake",
+  preset: "reliability",
+  phraseHints: async ({ context, scenarioId, sessionId }) => {
+    return [
+      { text: "AbsoluteJS", aliases: ["absolute js"] },
+      { text: "Eden Treaty", aliases: ["eden treaty"] },
+      { text: "Joe Johnston", aliases: ["joe johnson"] },
+    ];
+  },
+  correctTurn: createPhraseHintCorrectionHandler(),
+  session: createVoiceMemoryStore(),
+  stt: deepgram({
+    apiKey: process.env.DEEPGRAM_API_KEY!,
+    model: "flux-general-en",
+  }),
+  onTurn: async ({ turn }) => ({
+    assistantText: turn.text,
+  }),
+  onComplete: async () => {},
 });
 ```
 
@@ -4745,7 +4781,7 @@ How the package uses them:
 Current built-in correction helper:
 
 ```ts
-import { createPhraseHintCorrectionHandler } from '@absolutejs/voice';
+import { createPhraseHintCorrectionHandler } from "@absolutejs/voice";
 
 const correctTurn = createPhraseHintCorrectionHandler();
 ```
@@ -4755,38 +4791,38 @@ This helper is intentionally deterministic. It is for phrase normalization and d
 ### React
 
 ```tsx
-import { useVoiceController } from '@absolutejs/voice/react';
+import { useVoiceController } from "@absolutejs/voice/react";
 
 export function VoiceWidget() {
-	const voice = useVoiceController('/voice/intake', {
-		preset: 'guided-intake'
-	});
+  const voice = useVoiceController("/voice/intake", {
+    preset: "guided-intake",
+  });
 
-	return (
-		<button onClick={() => void voice.toggleRecording()}>
-			{voice.isRecording ? 'Stop microphone' : 'Start microphone'}
-		</button>
-	);
+  return (
+    <button onClick={() => void voice.toggleRecording()}>
+      {voice.isRecording ? "Stop microphone" : "Start microphone"}
+    </button>
+  );
 }
 ```
 
 ### Vue
 
 ```ts
-import { useVoiceController } from '@absolutejs/voice/vue';
+import { useVoiceController } from "@absolutejs/voice/vue";
 
-const voice = useVoiceController('/voice/intake', {
-	preset: 'guided-intake'
+const voice = useVoiceController("/voice/intake", {
+  preset: "guided-intake",
 });
 ```
 
 ### Svelte
 
 ```ts
-import { createVoiceController } from '@absolutejs/voice/svelte';
+import { createVoiceController } from "@absolutejs/voice/svelte";
 
-const voice = createVoiceController('/voice/intake', {
-	preset: 'guided-intake'
+const voice = createVoiceController("/voice/intake", {
+  preset: "guided-intake",
 });
 ```
 
@@ -4807,27 +4843,27 @@ controller = this.voice.connect('/voice/intake', {
 Voice now mirrors the AI plugin's HTMX pattern with plugin-owned renderers and a plugin-owned fragment route.
 
 ```ts
-import { voice, createVoiceMemoryStore } from '@absolutejs/voice';
+import { voice, createVoiceMemoryStore } from "@absolutejs/voice";
 
 app.use(
-	voice({
-		path: '/voice/intake',
-		htmx: {
-			result: ({ result }) =>
-				result
-					? `<pre>${JSON.stringify(result, null, 2)}</pre>`
-					: '<p>No structured result yet.</p>'
-		},
-		onComplete: async () => {},
-		onTurn: async ({ turn }) => ({
-			assistantText: `You said: ${turn.text}`
-		}),
-		session: createVoiceMemoryStore(),
-		stt: deepgram({
-			apiKey: process.env.DEEPGRAM_API_KEY!,
-			model: 'nova-3'
-		})
-	})
+  voice({
+    path: "/voice/intake",
+    htmx: {
+      result: ({ result }) =>
+        result
+          ? `<pre>${JSON.stringify(result, null, 2)}</pre>`
+          : "<p>No structured result yet.</p>",
+    },
+    onComplete: async () => {},
+    onTurn: async ({ turn }) => ({
+      assistantText: `You said: ${turn.text}`,
+    }),
+    session: createVoiceMemoryStore(),
+    stt: deepgram({
+      apiKey: process.env.DEEPGRAM_API_KEY!,
+      model: "nova-3",
+    }),
+  }),
 );
 ```
 
@@ -4842,12 +4878,12 @@ The plugin exposes `GET /voice/intake/htmx/session?sessionId=...` by default. Th
 On the client, bind the browser voice stream to a hidden HTMX refresh element:
 
 ```ts
-import { createVoiceController } from '@absolutejs/voice/client';
+import { createVoiceController } from "@absolutejs/voice/client";
 
-const voice = createVoiceController('/voice/intake', {
-	preset: 'guided-intake'
+const voice = createVoiceController("/voice/intake", {
+  preset: "guided-intake",
 });
-voice.bindHTMX({ element: '#voice-htmx-sync' });
+voice.bindHTMX({ element: "#voice-htmx-sync" });
 ```
 
 That keeps HTMX pages declarative without inventing custom fragment endpoints for core voice session UI.
@@ -4992,19 +5028,19 @@ Adapters normalize vendor behavior into a core event model so the plugin never b
 
 ```ts
 type STTAdapter = {
-	kind: 'stt';
-	open: (
-		options: STTAdapterOpenOptions
-	) => Promise<STTAdapterSession> | STTAdapterSession;
+  kind: "stt";
+  open: (
+    options: STTAdapterOpenOptions,
+  ) => Promise<STTAdapterSession> | STTAdapterSession;
 };
 
 type STTAdapterSession = {
-	on: <K extends keyof STTSessionEventMap>(
-		event: K,
-		handler: (payload: STTSessionEventMap[K]) => void | Promise<void>
-	) => () => void;
-	send: (audio: AudioChunk) => Promise<void>;
-	close: (reason?: string) => Promise<void>;
+  on: <K extends keyof STTSessionEventMap>(
+    event: K,
+    handler: (payload: STTSessionEventMap[K]) => void | Promise<void>,
+  ) => () => void;
+  send: (audio: AudioChunk) => Promise<void>;
+  close: (reason?: string) => Promise<void>;
 };
 ```
 
@@ -5029,21 +5065,18 @@ Voice uses the same bring-your-own-session pattern as AI, now via the shared gen
 
 ```ts
 type SessionStore<TSession, TSummary> = {
-	get: (id: string) => Promise<TSession | undefined>;
-	getOrCreate: (id: string) => Promise<TSession>;
-	set: (id: string, value: TSession) => Promise<void>;
-	list: () => Promise<TSummary[]>;
-	remove: (id: string) => Promise<void>;
+  get: (id: string) => Promise<TSession | undefined>;
+  getOrCreate: (id: string) => Promise<TSession>;
+  set: (id: string, value: TSession) => Promise<void>;
+  list: () => Promise<TSummary[]>;
+  remove: (id: string) => Promise<void>;
 };
 ```
 
 Voice specializes it as:
 
 ```ts
-type VoiceSessionStore = SessionStore<
-	VoiceSessionRecord,
-	VoiceSessionSummary
->;
+type VoiceSessionStore = SessionStore<VoiceSessionRecord, VoiceSessionSummary>;
 ```
 
 A storage implementation must:
@@ -5078,23 +5111,23 @@ You can pair a primary vendor with an optional fallback vendor per route when yo
 
 ```ts
 voice({
-	path: '/voice/intake',
-	preset: 'default',
-	session: createVoiceMemoryStore(),
-	stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY!, model: 'nova-3' }),
-	sttFallback: {
-		adapter: assemblyai({ apiKey: process.env.ASSEMBLYAI_API_KEY! }),
-		trigger: 'empty-or-low-confidence',
-		confidenceThreshold: 0.65,
-		minTextLength: 2,
-		replayWindowMs: 8000,
-		settleMs: 220,
-		maxAttemptsPerTurn: 1
-	},
-	onTurn: async ({ turn }) => {
-		return { assistantText: `Captured: ${turn.text}` };
-	},
-	onComplete: async () => {}
+  path: "/voice/intake",
+  preset: "default",
+  session: createVoiceMemoryStore(),
+  stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY!, model: "nova-3" }),
+  sttFallback: {
+    adapter: assemblyai({ apiKey: process.env.ASSEMBLYAI_API_KEY! }),
+    trigger: "empty-or-low-confidence",
+    confidenceThreshold: 0.65,
+    minTextLength: 2,
+    replayWindowMs: 8000,
+    settleMs: 220,
+    maxAttemptsPerTurn: 1,
+  },
+  onTurn: async ({ turn }) => {
+    return { assistantText: `Captured: ${turn.text}` };
+  },
+  onComplete: async () => {},
 });
 ```
 
@@ -5220,123 +5253,121 @@ Server route setup:
 
 ```ts
 import {
-	createVoiceBrowserMediaRoutes,
-	createVoiceProductionReadinessRoutes,
-	getLatestVoiceBrowserMediaReport
-} from '@absolutejs/voice';
+  createVoiceBrowserMediaRoutes,
+  createVoiceProductionReadinessRoutes,
+  getLatestVoiceBrowserMediaReport,
+} from "@absolutejs/voice";
 
-app
-	.use(createVoiceBrowserMediaRoutes({ store: runtime.traces }))
-	.use(
-		createVoiceProductionReadinessRoutes({
-			browserMedia: () =>
-				getLatestVoiceBrowserMediaReport({ store: runtime.traces }),
-			links: {
-				browserMedia: '/voice/browser-media'
-			}
-		})
-	);
+app.use(createVoiceBrowserMediaRoutes({ store: runtime.traces })).use(
+  createVoiceProductionReadinessRoutes({
+    browserMedia: () =>
+      getLatestVoiceBrowserMediaReport({ store: runtime.traces }),
+    links: {
+      browserMedia: "/voice/browser-media",
+    },
+  }),
+);
 ```
 
 Shared stream options:
 
 ```ts
 const browserMedia = {
-	continuity: {
-		maxGapMs: 7000,
-		maxInboundPacketStallMs: 7000,
-		maxOutboundPacketStallMs: 7000,
-		requireInboundAudio: true,
-		requireOutboundAudio: true
-	},
-	getPeerConnection: () => peerConnection,
-	maxJitterMs: 30,
-	maxPacketLossRatio: 0.02,
-	maxRoundTripTimeMs: 250,
-	requireConnectedCandidatePair: true,
-	requireLiveAudioTrack: true
+  continuity: {
+    maxGapMs: 7000,
+    maxInboundPacketStallMs: 7000,
+    maxOutboundPacketStallMs: 7000,
+    requireInboundAudio: true,
+    requireOutboundAudio: true,
+  },
+  getPeerConnection: () => peerConnection,
+  maxJitterMs: 30,
+  maxPacketLossRatio: 0.02,
+  maxRoundTripTimeMs: 250,
+  requireConnectedCandidatePair: true,
+  requireLiveAudioTrack: true,
 };
 ```
 
 React:
 
 ```tsx
-import { useRef } from 'react';
-import { useVoiceStream } from '@absolutejs/voice/react';
+import { useRef } from "react";
+import { useVoiceStream } from "@absolutejs/voice/react";
 
 export function WebRTCVoice() {
-	const peerConnection = useRef<RTCPeerConnection | null>(null);
-	const voice = useVoiceStream('/voice/support', {
-		browserMedia: {
-			...browserMedia,
-			getPeerConnection: () => peerConnection.current
-		}
-	});
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const voice = useVoiceStream("/voice/support", {
+    browserMedia: {
+      ...browserMedia,
+      getPeerConnection: () => peerConnection.current,
+    },
+  });
 
-	return <button onClick={() => voice.close()}>End call</button>;
+  return <button onClick={() => voice.close()}>End call</button>;
 }
 ```
 
 Vue:
 
 ```ts
-import { shallowRef } from 'vue';
-import { useVoiceStream } from '@absolutejs/voice/vue';
+import { shallowRef } from "vue";
+import { useVoiceStream } from "@absolutejs/voice/vue";
 
 const peerConnection = shallowRef<RTCPeerConnection | null>(null);
-const voice = useVoiceStream('/voice/support', {
-	browserMedia: {
-		...browserMedia,
-		getPeerConnection: () => peerConnection.value
-	}
+const voice = useVoiceStream("/voice/support", {
+  browserMedia: {
+    ...browserMedia,
+    getPeerConnection: () => peerConnection.value,
+  },
 });
 ```
 
 Svelte:
 
 ```ts
-import { createVoiceStream } from '@absolutejs/voice/svelte';
+import { createVoiceStream } from "@absolutejs/voice/svelte";
 
 let peerConnection: RTCPeerConnection | null = null;
-const voice = createVoiceStream('/voice/support', {
-	browserMedia: {
-		...browserMedia,
-		getPeerConnection: () => peerConnection
-	}
+const voice = createVoiceStream("/voice/support", {
+  browserMedia: {
+    ...browserMedia,
+    getPeerConnection: () => peerConnection,
+  },
 });
 ```
 
 Angular:
 
 ```ts
-import { Component, inject } from '@angular/core';
-import { VoiceStreamService } from '@absolutejs/voice/angular';
+import { Component, inject } from "@angular/core";
+import { VoiceStreamService } from "@absolutejs/voice/angular";
 
 @Component({
-	selector: 'app-webrtc-voice',
-	template: `<button type="button" (click)="stream.close()">End call</button>`
+  selector: "app-webrtc-voice",
+  template: `<button type="button" (click)="stream.close()">End call</button>`,
 })
 export class WebRTCVoiceComponent {
-	private readonly voice = inject(VoiceStreamService);
-	private peerConnection: RTCPeerConnection | null = null;
+  private readonly voice = inject(VoiceStreamService);
+  private peerConnection: RTCPeerConnection | null = null;
 
-	readonly stream = this.voice.connect('/voice/support', {
-		browserMedia: {
-			...browserMedia,
-			getPeerConnection: () => this.peerConnection
-		}
-	});
+  readonly stream = this.voice.connect("/voice/support", {
+    browserMedia: {
+      ...browserMedia,
+      getPeerConnection: () => this.peerConnection,
+    },
+  });
 }
 ```
 
 HTMX/plain browser:
 
 ```ts
-import { createVoiceController } from '@absolutejs/voice/client';
+import { createVoiceController } from "@absolutejs/voice/client";
 
-const voice = createVoiceController('/voice/support', {
-	browserMedia
+const voice = createVoiceController("/voice/support", {
+  browserMedia,
 });
 
-voice.bindHTMX({ element: '#voice-htmx-sync' });
+voice.bindHTMX({ element: "#voice-htmx-sync" });
 ```

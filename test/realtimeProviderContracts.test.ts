@@ -1,211 +1,212 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from "bun:test";
 import {
-	buildVoiceRealtimeChannelReport,
-	buildVoiceRealtimeProviderContractMatrix,
-	createVoiceRealtimeProviderContractMatrixPreset,
-	createVoiceRealtimeProviderContractRoutes,
-	evaluateVoiceRealtimeProviderContractEvidence
-} from '../src';
+  buildVoiceRealtimeChannelReport,
+  buildVoiceRealtimeProviderContractMatrix,
+  createVoiceRealtimeProviderContractMatrixPreset,
+  createVoiceRealtimeProviderContractRoutes,
+  evaluateVoiceRealtimeProviderContractEvidence,
+} from "../src";
 
 const realtimeFormat = {
-	channels: 1,
-	container: 'raw',
-	encoding: 'pcm_s16le',
-	sampleRateHz: 24_000
+  channels: 1,
+  container: "raw",
+  encoding: "pcm_s16le",
+  sampleRateHz: 24_000,
 } as const;
 
 const realtimeChannel = buildVoiceRealtimeChannelReport({
-	browserCapture: {
-		audioContextSampleRateHz: 48_000,
-		channelCount: 1,
-		sampleRateHz: 24_000
-	},
-	inputFormat: realtimeFormat,
-	maxFirstAudioLatencyMs: 800,
-	outputFormat: realtimeFormat,
-	provider: 'openai-realtime',
-	runtimeSamples: [
-		{ format: realtimeFormat, kind: 'input-audio', source: 'trace-store' },
-		{
-			format: realtimeFormat,
-			kind: 'assistant-audio',
-			latencyMs: 420,
-			source: 'trace-store'
-		}
-	]
+  browserCapture: {
+    audioContextSampleRateHz: 48_000,
+    channelCount: 1,
+    sampleRateHz: 24_000,
+  },
+  inputFormat: realtimeFormat,
+  maxFirstAudioLatencyMs: 800,
+  outputFormat: realtimeFormat,
+  provider: "openai-realtime",
+  runtimeSamples: [
+    { format: realtimeFormat, kind: "input-audio", source: "trace-store" },
+    {
+      format: realtimeFormat,
+      kind: "assistant-audio",
+      latencyMs: 420,
+      source: "trace-store",
+    },
+  ],
 });
 
-describe('realtime provider contracts', () => {
-	test('buildVoiceRealtimeProviderContractMatrix passes a complete realtime provider', () => {
-		const report = buildVoiceRealtimeProviderContractMatrix({
-			contracts: [
-				{
-					capabilities: [
-						'browser-format-negotiation',
-						'raw-pcm',
-						'duplex-audio',
-						'turn-commit',
-						'first-audio-latency',
-						'trace-evidence',
-						'reconnect',
-						'barge-in'
-					],
-					env: { OPENAI_API_KEY: 'test' },
-					fallbackProviders: ['cascaded-stt-llm-tts'],
-					latencyBudgetMs: 800,
-					provider: 'openai-realtime',
-					readinessHref: '/production-readiness',
-					realtimeChannel,
-					selected: true,
-					traceHref: '/traces?sessionId=proof-realtime-channel'
-				}
-			]
-		});
+describe("realtime provider contracts", () => {
+  test("buildVoiceRealtimeProviderContractMatrix passes a complete realtime provider", () => {
+    const report = buildVoiceRealtimeProviderContractMatrix({
+      contracts: [
+        {
+          capabilities: [
+            "browser-format-negotiation",
+            "raw-pcm",
+            "duplex-audio",
+            "turn-commit",
+            "first-audio-latency",
+            "trace-evidence",
+            "reconnect",
+            "barge-in",
+          ],
+          env: { OPENAI_API_KEY: "test" },
+          fallbackProviders: ["cascaded-stt-llm-tts"],
+          latencyBudgetMs: 800,
+          provider: "openai-realtime",
+          readinessHref: "/production-readiness",
+          realtimeChannel,
+          selected: true,
+          traceHref: "/traces?sessionId=proof-realtime-channel",
+        },
+      ],
+    });
 
-		expect(report.status).toBe('pass');
-		expect(report.passed).toBe(1);
-		expect(
-			evaluateVoiceRealtimeProviderContractEvidence(report, {
-				maxFailed: 0,
-				maxWarned: 0,
-				requiredProviders: ['openai-realtime'],
-				requiredCheckKeys: [
-					'configured',
-					'env',
-					'capabilities',
-					'realtimeChannel',
-					'traceEvidence',
-					'readiness'
-				]
-			}).ok
-		).toBe(true);
-	});
+    expect(report.status).toBe("pass");
+    expect(report.passed).toBe(1);
+    expect(
+      evaluateVoiceRealtimeProviderContractEvidence(report, {
+        maxFailed: 0,
+        maxWarned: 0,
+        requiredProviders: ["openai-realtime"],
+        requiredCheckKeys: [
+          "configured",
+          "env",
+          "capabilities",
+          "realtimeChannel",
+          "traceEvidence",
+          "readiness",
+        ],
+      }).ok,
+    ).toBe(true);
+  });
 
-	test('buildVoiceRealtimeProviderContractMatrix reports missing contract pieces', () => {
-		const report = buildVoiceRealtimeProviderContractMatrix({
-			contracts: [
-				{
-					configured: false,
-					provider: 'openai-realtime'
-				}
-			]
-		});
+  test("buildVoiceRealtimeProviderContractMatrix reports missing contract pieces", () => {
+    const report = buildVoiceRealtimeProviderContractMatrix({
+      contracts: [
+        {
+          configured: false,
+          provider: "openai-realtime",
+        },
+      ],
+    });
 
-		expect(report.status).toBe('fail');
-		expect(report.failed).toBe(1);
-		const assertion = evaluateVoiceRealtimeProviderContractEvidence(report, {
-			maxFailed: 0,
-			maxWarned: 0
-		});
-		expect(assertion.ok).toBe(false);
-		expect(assertion.issues).toContain(
-			'Expected realtime provider contract status at most pass, found fail.'
-		);
-	});
+    expect(report.status).toBe("fail");
+    expect(report.failed).toBe(1);
+    const assertion = evaluateVoiceRealtimeProviderContractEvidence(report, {
+      maxFailed: 0,
+      maxWarned: 0,
+    });
+    expect(assertion.ok).toBe(false);
+    expect(assertion.issues).toContain(
+      "Expected realtime provider contract status at most pass, found fail.",
+    );
+  });
 
-	test('buildVoiceRealtimeProviderContractMatrix warns for planned provider contracts', () => {
-		const report = buildVoiceRealtimeProviderContractMatrix({
-			contracts: [
-				{
-					configured: false,
-					implementationStatus: 'planned',
-					provider: 'gemini-live'
-				}
-			]
-		});
+  test("buildVoiceRealtimeProviderContractMatrix warns for planned provider contracts", () => {
+    const report = buildVoiceRealtimeProviderContractMatrix({
+      contracts: [
+        {
+          configured: false,
+          implementationStatus: "planned",
+          provider: "gemini-live",
+        },
+      ],
+    });
 
-		expect(report.status).toBe('warn');
-		expect(report.failed).toBe(0);
-		expect(report.warned).toBe(1);
-		expect(
-			report.rows[0]?.checks.find((check) => check.key === 'configured')?.status
-		).toBe('warn');
-		expect(
-			report.rows[0]?.checks.find((check) => check.key === 'env')?.status
-		).toBe('warn');
-		expect(
-			report.rows[0]?.checks.find((check) => check.key === 'realtimeChannel')
-				?.status
-		).toBe('warn');
-	});
+    expect(report.status).toBe("warn");
+    expect(report.failed).toBe(0);
+    expect(report.warned).toBe(1);
+    expect(
+      report.rows[0]?.checks.find((check) => check.key === "configured")
+        ?.status,
+    ).toBe("warn");
+    expect(
+      report.rows[0]?.checks.find((check) => check.key === "env")?.status,
+    ).toBe("warn");
+    expect(
+      report.rows[0]?.checks.find((check) => check.key === "realtimeChannel")
+        ?.status,
+    ).toBe("warn");
+  });
 
-	test('createVoiceRealtimeProviderContractMatrixPreset declares realtime adapter packages', () => {
-		const preset = createVoiceRealtimeProviderContractMatrixPreset({
-			env: {
-				GEMINI_API_KEY: 'set',
-				OPENAI_API_KEY: 'set'
-			},
-			fallbackProviders: {
-				'gemini-live': ['openai-realtime'],
-				'openai-realtime': ['gemini-live']
-			},
-			latencyBudgets: {
-				'gemini-live': 900,
-				'openai-realtime': 800
-			},
-			readinessHref: '/production-readiness',
-			realtimeChannels: {
-				'gemini-live': realtimeChannel,
-				'openai-realtime': realtimeChannel
-			},
-			selected: 'openai-realtime',
-			traceHref: {
-				'gemini-live': '/traces?sessionId=gemini-live',
-				'openai-realtime': '/traces?sessionId=openai-realtime'
-			}
-		});
-		const report = buildVoiceRealtimeProviderContractMatrix(preset);
+  test("createVoiceRealtimeProviderContractMatrixPreset declares realtime adapter packages", () => {
+    const preset = createVoiceRealtimeProviderContractMatrixPreset({
+      env: {
+        GEMINI_API_KEY: "set",
+        OPENAI_API_KEY: "set",
+      },
+      fallbackProviders: {
+        "gemini-live": ["openai-realtime"],
+        "openai-realtime": ["gemini-live"],
+      },
+      latencyBudgets: {
+        "gemini-live": 900,
+        "openai-realtime": 800,
+      },
+      readinessHref: "/production-readiness",
+      realtimeChannels: {
+        "gemini-live": realtimeChannel,
+        "openai-realtime": realtimeChannel,
+      },
+      selected: "openai-realtime",
+      traceHref: {
+        "gemini-live": "/traces?sessionId=gemini-live",
+        "openai-realtime": "/traces?sessionId=openai-realtime",
+      },
+    });
+    const report = buildVoiceRealtimeProviderContractMatrix(preset);
 
-		expect(preset.contracts.map((contract) => contract.provider)).toEqual([
-			'openai-realtime',
-			'gemini-live'
-		]);
-		expect(report.status).toBe('pass');
-		expect(report.failed).toBe(0);
-		expect(
-			report.rows.find((row) => row.provider === 'openai-realtime')?.selected
-		).toBe(true);
-	});
+    expect(preset.contracts.map((contract) => contract.provider)).toEqual([
+      "openai-realtime",
+      "gemini-live",
+    ]);
+    expect(report.status).toBe("pass");
+    expect(report.failed).toBe(0);
+    expect(
+      report.rows.find((row) => row.provider === "openai-realtime")?.selected,
+    ).toBe(true);
+  });
 
-	test('createVoiceRealtimeProviderContractRoutes exposes JSON and HTML', async () => {
-		const app = createVoiceRealtimeProviderContractRoutes({
-			matrix: {
-				contracts: [
-					{
-						capabilities: [
-							'browser-format-negotiation',
-							'raw-pcm',
-							'duplex-audio',
-							'turn-commit',
-							'first-audio-latency',
-							'trace-evidence',
-							'reconnect',
-							'barge-in'
-						],
-						env: { OPENAI_API_KEY: 'test' },
-						fallbackProviders: ['cascaded-stt-llm-tts'],
-						latencyBudgetMs: 800,
-						provider: 'openai-realtime',
-						readinessHref: '/production-readiness',
-						realtimeChannel,
-						selected: true,
-						traceHref: '/traces?sessionId=proof-realtime-channel'
-					}
-				]
-			},
-			title: 'Realtime Contracts'
-		});
-		const jsonResponse = await app.handle(
-			new Request('http://localhost/api/voice/realtime-provider-contracts')
-		);
-		const htmlResponse = await app.handle(
-			new Request('http://localhost/voice/realtime-provider-contracts')
-		);
-		const json = (await jsonResponse.json()) as ReturnType<
-			typeof buildVoiceRealtimeProviderContractMatrix
-		>;
+  test("createVoiceRealtimeProviderContractRoutes exposes JSON and HTML", async () => {
+    const app = createVoiceRealtimeProviderContractRoutes({
+      matrix: {
+        contracts: [
+          {
+            capabilities: [
+              "browser-format-negotiation",
+              "raw-pcm",
+              "duplex-audio",
+              "turn-commit",
+              "first-audio-latency",
+              "trace-evidence",
+              "reconnect",
+              "barge-in",
+            ],
+            env: { OPENAI_API_KEY: "test" },
+            fallbackProviders: ["cascaded-stt-llm-tts"],
+            latencyBudgetMs: 800,
+            provider: "openai-realtime",
+            readinessHref: "/production-readiness",
+            realtimeChannel,
+            selected: true,
+            traceHref: "/traces?sessionId=proof-realtime-channel",
+          },
+        ],
+      },
+      title: "Realtime Contracts",
+    });
+    const jsonResponse = await app.handle(
+      new Request("http://localhost/api/voice/realtime-provider-contracts"),
+    );
+    const htmlResponse = await app.handle(
+      new Request("http://localhost/voice/realtime-provider-contracts"),
+    );
+    const json = (await jsonResponse.json()) as ReturnType<
+      typeof buildVoiceRealtimeProviderContractMatrix
+    >;
 
-		expect(json.status).toBe('pass');
-		expect(await htmlResponse.text()).toContain('Realtime Contracts');
-	});
+    expect(json.status).toBe("pass");
+    expect(await htmlResponse.text()).toContain("Realtime Contracts");
+  });
 });

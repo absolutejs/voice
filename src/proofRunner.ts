@@ -1,391 +1,391 @@
-export type VoiceProofTargetMethod = 'GET' | 'POST';
+export type VoiceProofTargetMethod = "GET" | "POST";
 
 export type VoiceProofTarget = {
-	accept?: string;
-	allowLogicalFail?: boolean;
-	body?: unknown;
-	kind: 'json' | 'text';
-	method?: VoiceProofTargetMethod;
-	name: string;
-	path: string;
-	requiredText?: string[];
+  accept?: string;
+  allowLogicalFail?: boolean;
+  body?: unknown;
+  kind: "json" | "text";
+  method?: VoiceProofTargetMethod;
+  name: string;
+  path: string;
+  requiredText?: string[];
 };
 
 export type VoiceProofTargetResult = {
-	body?: unknown;
-	bytes: number;
-	elapsedMs: number;
-	error?: string;
-	kind: VoiceProofTarget['kind'];
-	method: VoiceProofTargetMethod;
-	name: string;
-	ok: boolean;
-	path: string;
-	status?: number;
-	summary?: Record<string, unknown>;
-	url: string;
+  body?: unknown;
+  bytes: number;
+  elapsedMs: number;
+  error?: string;
+  kind: VoiceProofTarget["kind"];
+  method: VoiceProofTargetMethod;
+  name: string;
+  ok: boolean;
+  path: string;
+  status?: number;
+  summary?: Record<string, unknown>;
+  url: string;
 };
 
 export type VoiceCommandProofTarget = {
-	command: string[];
-	kind: 'command';
-	name: string;
+  command: string[];
+  kind: "command";
+  name: string;
 };
 
 export type VoiceCommandProofExecutionResult = {
-	status: number;
-	stderr?: string;
-	stdout?: string;
+  status: number;
+  stderr?: string;
+  stdout?: string;
 };
 
 export type VoiceCommandProofTargetResult = {
-	body?: unknown;
-	bytes: number;
-	command: string[];
-	elapsedMs: number;
-	error?: string;
-	kind: 'command';
-	name: string;
-	ok: boolean;
-	status?: number;
-	summary?: Record<string, unknown>;
+  body?: unknown;
+  bytes: number;
+  command: string[];
+  elapsedMs: number;
+  error?: string;
+  kind: "command";
+  name: string;
+  ok: boolean;
+  status?: number;
+  summary?: Record<string, unknown>;
 };
 
 export type VoiceProofTargetRunnerOptions = {
-	baseUrl: string;
-	fetch?: typeof fetch;
-	now?: () => number;
-	timeoutMs?: number;
-	writeArtifact?: (input: {
-		content: string;
-		name: string;
-		target: VoiceProofTarget;
-	}) => Promise<void> | void;
+  baseUrl: string;
+  fetch?: typeof fetch;
+  now?: () => number;
+  timeoutMs?: number;
+  writeArtifact?: (input: {
+    content: string;
+    name: string;
+    target: VoiceProofTarget;
+  }) => Promise<void> | void;
 };
 
 export type VoiceProofTargetRunOptions = VoiceProofTargetRunnerOptions & {
-	concurrency?: number;
+  concurrency?: number;
 };
 
 export type VoiceCommandProofTargetRunnerOptions = {
-	execute: (
-		target: VoiceCommandProofTarget
-	) =>
-		| Promise<VoiceCommandProofExecutionResult>
-		| VoiceCommandProofExecutionResult;
-	now?: () => number;
-	writeArtifact?: (input: {
-		content: string;
-		name: string;
-		target: VoiceCommandProofTarget;
-	}) => Promise<void> | void;
+  execute: (
+    target: VoiceCommandProofTarget,
+  ) =>
+    | Promise<VoiceCommandProofExecutionResult>
+    | VoiceCommandProofExecutionResult;
+  now?: () => number;
+  writeArtifact?: (input: {
+    content: string;
+    name: string;
+    target: VoiceCommandProofTarget;
+  }) => Promise<void> | void;
 };
 
 export type VoiceCommandProofTargetRunOptions =
-	VoiceCommandProofTargetRunnerOptions & {
-		concurrency?: number;
-	};
+  VoiceCommandProofTargetRunnerOptions & {
+    concurrency?: number;
+  };
 
 const encoder = new TextEncoder();
 
-const trimBaseUrl = (baseUrl: string) => baseUrl.replace(/\/$/, '');
+const trimBaseUrl = (baseUrl: string) => baseUrl.replace(/\/$/, "");
 
-const safeArtifactName = (name: string) => name.replace(/[^a-z0-9_.-]/gi, '-');
+const safeArtifactName = (name: string) => name.replace(/[^a-z0-9_.-]/gi, "-");
 
 const summarizeValue = (value: unknown): unknown => {
-	if (Array.isArray(value)) {
-		return { count: value.length };
-	}
-	if (!value || typeof value !== 'object') {
-		return value;
-	}
+  if (Array.isArray(value)) {
+    return { count: value.length };
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
 
-	const record = value as Record<string, unknown>;
-	const preferredKeys = [
-		'status',
-		'ok',
-		'pass',
-		'ready',
-		'proof',
-		'total',
-		'passed',
-		'failed',
-		'issues',
-		'summary',
-		'links',
-		'actions',
-		'checks',
-		'campaigns',
-		'recipients',
-		'attempts',
-		'telephonyMedia',
-		'operationsRecordHref',
-		'sentEvents',
-		'tasks',
-		'reviews',
-		'events',
-		'eventsWithLatency',
-		'observabilityExportReplay',
-		'validationIssues',
-		'deliveryDestinations',
-		'failedDeliveryDestinations',
-		'failedArtifacts',
-		'artifacts',
-		'kinds',
-		'redaction',
-		'retentionPlan',
-		'zeroRetentionAvailable'
-	];
-	const summary: Record<string, unknown> = {};
+  const record = value as Record<string, unknown>;
+  const preferredKeys = [
+    "status",
+    "ok",
+    "pass",
+    "ready",
+    "proof",
+    "total",
+    "passed",
+    "failed",
+    "issues",
+    "summary",
+    "links",
+    "actions",
+    "checks",
+    "campaigns",
+    "recipients",
+    "attempts",
+    "telephonyMedia",
+    "operationsRecordHref",
+    "sentEvents",
+    "tasks",
+    "reviews",
+    "events",
+    "eventsWithLatency",
+    "observabilityExportReplay",
+    "validationIssues",
+    "deliveryDestinations",
+    "failedDeliveryDestinations",
+    "failedArtifacts",
+    "artifacts",
+    "kinds",
+    "redaction",
+    "retentionPlan",
+    "zeroRetentionAvailable",
+  ];
+  const summary: Record<string, unknown> = {};
 
-	for (const key of preferredKeys) {
-		if (key in record) {
-			summary[key] = summarizeValue(record[key]);
-		}
-	}
+  for (const key of preferredKeys) {
+    if (key in record) {
+      summary[key] = summarizeValue(record[key]);
+    }
+  }
 
-	return Object.keys(summary).length > 0
-		? summary
-		: {
-				keys: Object.keys(record).slice(0, 12)
-			};
+  return Object.keys(summary).length > 0
+    ? summary
+    : {
+        keys: Object.keys(record).slice(0, 12),
+      };
 };
 
 export const getVoiceProofTargetLogicalFailure = (value: unknown) => {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
 
-	const record = value as Record<string, unknown>;
-	if (record.status === 'fail') {
-		return 'Response status is "fail".';
-	}
-	if (record.pass === false) {
-		return 'Response pass is false.';
-	}
-	if (record.ok === false) {
-		return 'Response ok is false.';
-	}
+  const record = value as Record<string, unknown>;
+  if (record.status === "fail") {
+    return 'Response status is "fail".';
+  }
+  if (record.pass === false) {
+    return "Response pass is false.";
+  }
+  if (record.ok === false) {
+    return "Response ok is false.";
+  }
 
-	return undefined;
+  return undefined;
 };
 
 export const mapVoiceProofTargetsWithConcurrency = async <TInput, TOutput>(
-	items: TInput[],
-	limit: number,
-	mapper: (item: TInput) => Promise<TOutput>
+  items: TInput[],
+  limit: number,
+  mapper: (item: TInput) => Promise<TOutput>,
 ) => {
-	const results = new Array<TOutput>(items.length);
-	let nextIndex = 0;
-	const workerCount = Math.min(Math.max(1, limit), items.length);
+  const results = new Array<TOutput>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, limit), items.length);
 
-	const workers = Array.from({ length: workerCount }, async () => {
-		while (nextIndex < items.length) {
-			const index = nextIndex;
-			nextIndex += 1;
-			const item = items[index];
-			if (item !== undefined) {
-				results[index] = await mapper(item);
-			}
-		}
-	});
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      if (item !== undefined) {
+        results[index] = await mapper(item);
+      }
+    }
+  });
 
-	await Promise.all(workers);
-	return results;
+  await Promise.all(workers);
+  return results;
 };
 
 export const fetchVoiceProofTarget = async (
-	target: VoiceProofTarget,
-	options: VoiceProofTargetRunnerOptions
+  target: VoiceProofTarget,
+  options: VoiceProofTargetRunnerOptions,
 ): Promise<VoiceProofTargetResult> => {
-	const method = target.method ?? 'GET';
-	const baseUrl = trimBaseUrl(options.baseUrl);
-	const url = `${baseUrl}${target.path}`;
-	const fetcher = options.fetch ?? globalThis.fetch;
-	const now = options.now ?? performance.now.bind(performance);
-	const startedAt = now();
-	const controller = new AbortController();
-	const timeout =
-		options.timeoutMs && options.timeoutMs > 0
-			? setTimeout(() => controller.abort(), options.timeoutMs)
-			: undefined;
+  const method = target.method ?? "GET";
+  const baseUrl = trimBaseUrl(options.baseUrl);
+  const url = `${baseUrl}${target.path}`;
+  const fetcher = options.fetch ?? globalThis.fetch;
+  const now = options.now ?? performance.now.bind(performance);
+  const startedAt = now();
+  const controller = new AbortController();
+  const timeout =
+    options.timeoutMs && options.timeoutMs > 0
+      ? setTimeout(() => controller.abort(), options.timeoutMs)
+      : undefined;
 
-	try {
-		const response = await fetcher(url, {
-			body: target.body === undefined ? undefined : JSON.stringify(target.body),
-			headers: {
-				accept:
-					target.accept ??
-					(target.kind === 'json'
-						? 'application/json'
-						: 'text/markdown,text/plain,*/*'),
-				...(target.body === undefined
-					? {}
-					: { 'content-type': 'application/json' })
-			},
-			method,
-			signal: controller.signal
-		});
-		const text = await response.text();
-		const bytes = encoder.encode(text).byteLength;
-		let body: unknown = text;
-		let parseError: string | undefined;
+  try {
+    const response = await fetcher(url, {
+      body: target.body === undefined ? undefined : JSON.stringify(target.body),
+      headers: {
+        accept:
+          target.accept ??
+          (target.kind === "json"
+            ? "application/json"
+            : "text/markdown,text/plain,*/*"),
+        ...(target.body === undefined
+          ? {}
+          : { "content-type": "application/json" }),
+      },
+      method,
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    const bytes = encoder.encode(text).byteLength;
+    let body: unknown = text;
+    let parseError: string | undefined;
 
-		if (target.kind === 'json' && text.trim()) {
-			try {
-				body = JSON.parse(text) as unknown;
-			} catch (error) {
-				parseError = error instanceof Error ? error.message : String(error);
-			}
-		}
+    if (target.kind === "json" && text.trim()) {
+      try {
+        body = JSON.parse(text) as unknown;
+      } catch (error) {
+        parseError = error instanceof Error ? error.message : String(error);
+      }
+    }
 
-		const missingText =
-			target.kind === 'text'
-				? (target.requiredText ?? []).filter((item) => !text.includes(item))
-				: [];
-		const logicalFailure =
-			target.kind === 'json' && !parseError && !target.allowLogicalFail
-				? getVoiceProofTargetLogicalFailure(body)
-				: undefined;
-		await options.writeArtifact?.({
-			content:
-				target.kind === 'json'
-					? `${JSON.stringify(parseError ? { parseError, text } : body, null, 2)}\n`
-					: text,
-			name: `${safeArtifactName(target.name)}.${target.kind === 'json' ? 'json' : 'md'}`,
-			target
-		});
+    const missingText =
+      target.kind === "text"
+        ? (target.requiredText ?? []).filter((item) => !text.includes(item))
+        : [];
+    const logicalFailure =
+      target.kind === "json" && !parseError && !target.allowLogicalFail
+        ? getVoiceProofTargetLogicalFailure(body)
+        : undefined;
+    await options.writeArtifact?.({
+      content:
+        target.kind === "json"
+          ? `${JSON.stringify(parseError ? { parseError, text } : body, null, 2)}\n`
+          : text,
+      name: `${safeArtifactName(target.name)}.${target.kind === "json" ? "json" : "md"}`,
+      target,
+    });
 
-		return {
-			body,
-			bytes,
-			elapsedMs: Math.round(now() - startedAt),
-			error:
-				parseError ??
-				logicalFailure ??
-				(missingText.length > 0
-					? `Missing required text: ${missingText.join(', ')}`
-					: undefined),
-			kind: target.kind,
-			method,
-			name: target.name,
-			ok:
-				response.ok &&
-				!parseError &&
-				!logicalFailure &&
-				missingText.length === 0,
-			path: target.path,
-			status: response.status,
-			summary: parseError
-				? { bytes, parseError }
-				: target.kind === 'json'
-					? (summarizeValue(body) as Record<string, unknown>)
-					: {
-							bytes,
-							requiredTextFound: missingText.length === 0
-						},
-			url
-		};
-	} catch (error) {
-		return {
-			bytes: 0,
-			elapsedMs: Math.round(now() - startedAt),
-			error: error instanceof Error ? error.message : String(error),
-			kind: target.kind,
-			method,
-			name: target.name,
-			ok: false,
-			path: target.path,
-			url
-		};
-	} finally {
-		if (timeout) {
-			clearTimeout(timeout);
-		}
-	}
+    return {
+      body,
+      bytes,
+      elapsedMs: Math.round(now() - startedAt),
+      error:
+        parseError ??
+        logicalFailure ??
+        (missingText.length > 0
+          ? `Missing required text: ${missingText.join(", ")}`
+          : undefined),
+      kind: target.kind,
+      method,
+      name: target.name,
+      ok:
+        response.ok &&
+        !parseError &&
+        !logicalFailure &&
+        missingText.length === 0,
+      path: target.path,
+      status: response.status,
+      summary: parseError
+        ? { bytes, parseError }
+        : target.kind === "json"
+          ? (summarizeValue(body) as Record<string, unknown>)
+          : {
+              bytes,
+              requiredTextFound: missingText.length === 0,
+            },
+      url,
+    };
+  } catch (error) {
+    return {
+      bytes: 0,
+      elapsedMs: Math.round(now() - startedAt),
+      error: error instanceof Error ? error.message : String(error),
+      kind: target.kind,
+      method,
+      name: target.name,
+      ok: false,
+      path: target.path,
+      url,
+    };
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
 };
 
 export const runVoiceProofTargets = (
-	targets: VoiceProofTarget[],
-	options: VoiceProofTargetRunOptions
+  targets: VoiceProofTarget[],
+  options: VoiceProofTargetRunOptions,
 ) =>
-	mapVoiceProofTargetsWithConcurrency(
-		targets,
-		options.concurrency ?? 2,
-		(target) => fetchVoiceProofTarget(target, options)
-	);
+  mapVoiceProofTargetsWithConcurrency(
+    targets,
+    options.concurrency ?? 2,
+    (target) => fetchVoiceProofTarget(target, options),
+  );
 
 export const runVoiceCommandProofTarget = async (
-	target: VoiceCommandProofTarget,
-	options: VoiceCommandProofTargetRunnerOptions
+  target: VoiceCommandProofTarget,
+  options: VoiceCommandProofTargetRunnerOptions,
 ): Promise<VoiceCommandProofTargetResult> => {
-	const now = options.now ?? performance.now.bind(performance);
-	const startedAt = now();
-	const execution = await options.execute(target);
-	const stdout = execution.stdout ?? '';
-	const stderr = execution.stderr ?? '';
-	const status = execution.status;
-	const text = stdout.trim();
-	const bytes = encoder.encode(`${stdout}${stderr}`).byteLength;
-	let body: unknown = text;
-	let parseError: string | undefined;
+  const now = options.now ?? performance.now.bind(performance);
+  const startedAt = now();
+  const execution = await options.execute(target);
+  const stdout = execution.stdout ?? "";
+  const stderr = execution.stderr ?? "";
+  const status = execution.status;
+  const text = stdout.trim();
+  const bytes = encoder.encode(`${stdout}${stderr}`).byteLength;
+  let body: unknown = text;
+  let parseError: string | undefined;
 
-	if (text) {
-		const jsonStart = text.indexOf('{');
-		const jsonText = jsonStart >= 0 ? text.slice(jsonStart) : text;
-		try {
-			body = JSON.parse(jsonText) as unknown;
-		} catch (error) {
-			parseError = error instanceof Error ? error.message : String(error);
-		}
-	}
+  if (text) {
+    const jsonStart = text.indexOf("{");
+    const jsonText = jsonStart >= 0 ? text.slice(jsonStart) : text;
+    try {
+      body = JSON.parse(jsonText) as unknown;
+    } catch (error) {
+      parseError = error instanceof Error ? error.message : String(error);
+    }
+  }
 
-	await options.writeArtifact?.({
-		content: `${JSON.stringify(
-			{
-				command: target.command,
-				parseError,
-				stderr,
-				stdout,
-				status,
-				summary: parseError ? undefined : body
-			},
-			null,
-			2
-		)}\n`,
-		name: `${safeArtifactName(target.name)}.json`,
-		target
-	});
+  await options.writeArtifact?.({
+    content: `${JSON.stringify(
+      {
+        command: target.command,
+        parseError,
+        stderr,
+        stdout,
+        status,
+        summary: parseError ? undefined : body,
+      },
+      null,
+      2,
+    )}\n`,
+    name: `${safeArtifactName(target.name)}.json`,
+    target,
+  });
 
-	const logicalFailure = !parseError
-		? getVoiceProofTargetLogicalFailure(body)
-		: undefined;
+  const logicalFailure = !parseError
+    ? getVoiceProofTargetLogicalFailure(body)
+    : undefined;
 
-	return {
-		body,
-		bytes,
-		command: target.command,
-		elapsedMs: Math.round(now() - startedAt),
-		error:
-			parseError ??
-			logicalFailure ??
-			(status === 0 ? undefined : stderr.trim() || `Command exited ${status}`),
-		kind: 'command',
-		name: target.name,
-		ok: status === 0 && !parseError && !logicalFailure,
-		status,
-		summary: parseError
-			? { bytes, parseError }
-			: (summarizeValue(body) as Record<string, unknown>)
-	};
+  return {
+    body,
+    bytes,
+    command: target.command,
+    elapsedMs: Math.round(now() - startedAt),
+    error:
+      parseError ??
+      logicalFailure ??
+      (status === 0 ? undefined : stderr.trim() || `Command exited ${status}`),
+    kind: "command",
+    name: target.name,
+    ok: status === 0 && !parseError && !logicalFailure,
+    status,
+    summary: parseError
+      ? { bytes, parseError }
+      : (summarizeValue(body) as Record<string, unknown>),
+  };
 };
 
 export const runVoiceCommandProofTargets = (
-	targets: VoiceCommandProofTarget[],
-	options: VoiceCommandProofTargetRunOptions
+  targets: VoiceCommandProofTarget[],
+  options: VoiceCommandProofTargetRunOptions,
 ) =>
-	mapVoiceProofTargetsWithConcurrency(
-		targets,
-		options.concurrency ?? targets.length,
-		(target) => runVoiceCommandProofTarget(target, options)
-	);
+  mapVoiceProofTargetsWithConcurrency(
+    targets,
+    options.concurrency ?? targets.length,
+    (target) => runVoiceCommandProofTarget(target, options),
+  );

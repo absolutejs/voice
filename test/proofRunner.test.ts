@@ -1,182 +1,186 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from "bun:test";
 import {
-	fetchVoiceProofTarget,
-	mapVoiceProofTargetsWithConcurrency,
-	runVoiceCommandProofTarget,
-	runVoiceCommandProofTargets,
-	runVoiceProofTargets
-} from '../src';
+  fetchVoiceProofTarget,
+  mapVoiceProofTargetsWithConcurrency,
+  runVoiceCommandProofTarget,
+  runVoiceCommandProofTargets,
+  runVoiceProofTargets,
+} from "../src";
 
-test('fetchVoiceProofTarget captures json proof responses and artifacts', async () => {
-	const artifacts: Record<string, string> = {};
-	const result = await fetchVoiceProofTarget(
-		{
-			kind: 'json',
-			name: 'productionReadiness',
-			path: '/api/production-readiness'
-		},
-		{
-			baseUrl: 'http://localhost',
-			fetch: async () =>
-				Response.json({
-					checks: [{ status: 'pass' }],
-					ok: true,
-					status: 'pass'
-				}),
-			now: () => 100,
-			writeArtifact: ({ content, name }) => {
-				artifacts[name] = content;
-			}
-		}
-	);
+test("fetchVoiceProofTarget captures json proof responses and artifacts", async () => {
+  const artifacts: Record<string, string> = {};
+  const result = await fetchVoiceProofTarget(
+    {
+      kind: "json",
+      name: "productionReadiness",
+      path: "/api/production-readiness",
+    },
+    {
+      baseUrl: "http://localhost",
+      fetch: async () =>
+        Response.json({
+          checks: [{ status: "pass" }],
+          ok: true,
+          status: "pass",
+        }),
+      now: () => 100,
+      writeArtifact: ({ content, name }) => {
+        artifacts[name] = content;
+      },
+    },
+  );
 
-	expect(result).toMatchObject({
-		body: {
-			ok: true,
-			status: 'pass'
-		},
-		kind: 'json',
-		method: 'GET',
-		name: 'productionReadiness',
-		ok: true,
-		path: '/api/production-readiness',
-		status: 200,
-		summary: {
-			checks: { count: 1 },
-			ok: true,
-			status: 'pass'
-		},
-		url: 'http://localhost/api/production-readiness'
-	});
-	expect(artifacts['productionReadiness.json']).toContain('"status": "pass"');
+  expect(result).toMatchObject({
+    body: {
+      ok: true,
+      status: "pass",
+    },
+    kind: "json",
+    method: "GET",
+    name: "productionReadiness",
+    ok: true,
+    path: "/api/production-readiness",
+    status: 200,
+    summary: {
+      checks: { count: 1 },
+      ok: true,
+      status: "pass",
+    },
+    url: "http://localhost/api/production-readiness",
+  });
+  expect(artifacts["productionReadiness.json"]).toContain('"status": "pass"');
 });
 
-test('fetchVoiceProofTarget fails logical failures and missing text', async () => {
-	const jsonResult = await fetchVoiceProofTarget(
-		{
-			kind: 'json',
-			name: 'providerRouting',
-			path: '/api/provider-routing'
-		},
-		{
-			baseUrl: 'http://localhost/',
-			fetch: async () => Response.json({ pass: false })
-		}
-	);
-	const textResult = await fetchVoiceProofTarget(
-		{
-			kind: 'text',
-			name: 'markdownProof',
-			path: '/proof.md',
-			requiredText: ['required phrase']
-		},
-		{
-			baseUrl: 'http://localhost',
-			fetch: async () => new Response('other text')
-		}
-	);
+test("fetchVoiceProofTarget fails logical failures and missing text", async () => {
+  const jsonResult = await fetchVoiceProofTarget(
+    {
+      kind: "json",
+      name: "providerRouting",
+      path: "/api/provider-routing",
+    },
+    {
+      baseUrl: "http://localhost/",
+      fetch: async () => Response.json({ pass: false }),
+    },
+  );
+  const textResult = await fetchVoiceProofTarget(
+    {
+      kind: "text",
+      name: "markdownProof",
+      path: "/proof.md",
+      requiredText: ["required phrase"],
+    },
+    {
+      baseUrl: "http://localhost",
+      fetch: async () => new Response("other text"),
+    },
+  );
 
-	expect(jsonResult).toMatchObject({
-		error: 'Response pass is false.',
-		ok: false
-	});
-	expect(textResult).toMatchObject({
-		error: 'Missing required text: required phrase',
-		ok: false
-	});
+  expect(jsonResult).toMatchObject({
+    error: "Response pass is false.",
+    ok: false,
+  });
+  expect(textResult).toMatchObject({
+    error: "Missing required text: required phrase",
+    ok: false,
+  });
 });
 
-test('runVoiceProofTargets preserves input order with concurrency', async () => {
-	const seen: string[] = [];
-	const results = await runVoiceProofTargets(
-		[
-			{ kind: 'json', name: 'one', path: '/one' },
-			{ kind: 'json', name: 'two', path: '/two' },
-			{ kind: 'json', name: 'three', path: '/three' }
-		],
-		{
-			baseUrl: 'http://localhost',
-			concurrency: 2,
-			fetch: async (url) => {
-				seen.push(String(url));
-				return Response.json({ ok: true, url });
-			}
-		}
-	);
+test("runVoiceProofTargets preserves input order with concurrency", async () => {
+  const seen: string[] = [];
+  const results = await runVoiceProofTargets(
+    [
+      { kind: "json", name: "one", path: "/one" },
+      { kind: "json", name: "two", path: "/two" },
+      { kind: "json", name: "three", path: "/three" },
+    ],
+    {
+      baseUrl: "http://localhost",
+      concurrency: 2,
+      fetch: async (url) => {
+        seen.push(String(url));
+        return Response.json({ ok: true, url });
+      },
+    },
+  );
 
-	expect(results.map((result) => result.name)).toEqual(['one', 'two', 'three']);
-	expect(seen).toHaveLength(3);
+  expect(results.map((result) => result.name)).toEqual(["one", "two", "three"]);
+  expect(seen).toHaveLength(3);
 });
 
-test('mapVoiceProofTargetsWithConcurrency handles empty lists', async () => {
-	expect(
-		await mapVoiceProofTargetsWithConcurrency([], 3, async (item: string) => item)
-	).toEqual([]);
+test("mapVoiceProofTargetsWithConcurrency handles empty lists", async () => {
+  expect(
+    await mapVoiceProofTargetsWithConcurrency(
+      [],
+      3,
+      async (item: string) => item,
+    ),
+  ).toEqual([]);
 });
 
-test('runVoiceCommandProofTarget parses command stdout and writes artifacts', async () => {
-	const artifacts: Record<string, string> = {};
-	const result = await runVoiceCommandProofTarget(
-		{
-			command: ['bun', 'run', 'smoke:voice'],
-			kind: 'command',
-			name: 'voiceSmoke'
-		},
-		{
-			execute: async () => ({
-				status: 0,
-				stderr: '',
-				stdout: 'log line\n{"ok":true,"status":"pass","total":2}'
-			}),
-			now: () => 200,
-			writeArtifact: ({ content, name }) => {
-				artifacts[name] = content;
-			}
-		}
-	);
+test("runVoiceCommandProofTarget parses command stdout and writes artifacts", async () => {
+  const artifacts: Record<string, string> = {};
+  const result = await runVoiceCommandProofTarget(
+    {
+      command: ["bun", "run", "smoke:voice"],
+      kind: "command",
+      name: "voiceSmoke",
+    },
+    {
+      execute: async () => ({
+        status: 0,
+        stderr: "",
+        stdout: 'log line\n{"ok":true,"status":"pass","total":2}',
+      }),
+      now: () => 200,
+      writeArtifact: ({ content, name }) => {
+        artifacts[name] = content;
+      },
+    },
+  );
 
-	expect(result).toMatchObject({
-		body: {
-			ok: true,
-			status: 'pass',
-			total: 2
-		},
-		command: ['bun', 'run', 'smoke:voice'],
-		kind: 'command',
-		name: 'voiceSmoke',
-		ok: true,
-		status: 0,
-		summary: {
-			ok: true,
-			status: 'pass',
-			total: 2
-		}
-	});
-	expect(artifacts['voiceSmoke.json']).toContain('"command"');
+  expect(result).toMatchObject({
+    body: {
+      ok: true,
+      status: "pass",
+      total: 2,
+    },
+    command: ["bun", "run", "smoke:voice"],
+    kind: "command",
+    name: "voiceSmoke",
+    ok: true,
+    status: 0,
+    summary: {
+      ok: true,
+      status: "pass",
+      total: 2,
+    },
+  });
+  expect(artifacts["voiceSmoke.json"]).toContain('"command"');
 });
 
-test('runVoiceCommandProofTargets reports command logical failures', async () => {
-	const results = await runVoiceCommandProofTargets(
-		[
-			{
-				command: ['bun', 'run', 'failing'],
-				kind: 'command',
-				name: 'failingCommand'
-			}
-		],
-		{
-			execute: async () => ({
-				status: 0,
-				stdout: '{"ok":false}'
-			})
-		}
-	);
+test("runVoiceCommandProofTargets reports command logical failures", async () => {
+  const results = await runVoiceCommandProofTargets(
+    [
+      {
+        command: ["bun", "run", "failing"],
+        kind: "command",
+        name: "failingCommand",
+      },
+    ],
+    {
+      execute: async () => ({
+        status: 0,
+        stdout: '{"ok":false}',
+      }),
+    },
+  );
 
-	expect(results).toMatchObject([
-		{
-			error: 'Response ok is false.',
-			ok: false,
-			status: 0
-		}
-	]);
+  expect(results).toMatchObject([
+    {
+      error: "Response ok is false.",
+      ok: false,
+      status: 0,
+    },
+  ]);
 });

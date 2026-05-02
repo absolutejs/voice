@@ -1,1239 +1,1248 @@
-import { Buffer } from 'node:buffer';
-import { Database } from 'bun:sqlite';
-import type { RedisClient } from 'bun';
-import { Elysia } from 'elysia';
+import { Buffer } from "node:buffer";
+import { Database } from "bun:sqlite";
+import type { RedisClient } from "bun";
+import { Elysia } from "elysia";
 import {
-	evaluateVoiceTelephonyContract,
-	type VoiceTelephonyContractReport,
-	type VoiceTelephonySetupStatus,
-	type VoiceTelephonySmokeCheck,
-	type VoiceTelephonySmokeReport
-} from './contract';
+  evaluateVoiceTelephonyContract,
+  type VoiceTelephonyContractReport,
+  type VoiceTelephonySetupStatus,
+  type VoiceTelephonySmokeCheck,
+  type VoiceTelephonySmokeReport,
+} from "./contract";
 import {
-	createVoiceTelephonyOutcomePolicy,
-	createVoiceTelephonyWebhookRoutes,
-	type VoiceTelephonyOutcomePolicy,
-	type VoiceTelephonyWebhookRoutesOptions,
-	type VoiceTelephonyWebhookVerificationResult
-} from '../telephonyOutcome';
-import type { VoiceServerMessage, VoiceSessionRecord } from '../types';
+  createVoiceTelephonyOutcomePolicy,
+  createVoiceTelephonyWebhookRoutes,
+  type VoiceTelephonyOutcomePolicy,
+  type VoiceTelephonyWebhookRoutesOptions,
+  type VoiceTelephonyWebhookVerificationResult,
+} from "../telephonyOutcome";
+import type { VoiceServerMessage, VoiceSessionRecord } from "../types";
 import {
-	createTwilioMediaStreamBridge,
-	type TwilioInboundMessage,
-	type TwilioMediaStreamBridgeOptions,
-	type TwilioMediaStreamSocket,
-	type TwilioOutboundMessage
-} from './twilio';
-import type { VoicePostgresClient } from '../postgresStore';
+  createTwilioMediaStreamBridge,
+  type TwilioInboundMessage,
+  type TwilioMediaStreamBridgeOptions,
+  type TwilioMediaStreamSocket,
+  type TwilioOutboundMessage,
+} from "./twilio";
+import type { VoicePostgresClient } from "../postgresStore";
 
 export type TelnyxMediaPayload = {
-	chunk?: string;
-	payload: string;
-	timestamp?: string;
-	track?: 'inbound' | 'outbound' | 'inbound_track' | 'outbound_track';
+  chunk?: string;
+  payload: string;
+  timestamp?: string;
+  track?: "inbound" | "outbound" | "inbound_track" | "outbound_track";
 };
 
 export type TelnyxInboundMessage =
-	| {
-			event: 'connected';
-			version?: string;
-	  }
-	| {
-			event: 'start';
-			sequence_number?: string;
-			start?: {
-				call_control_id?: string;
-				call_leg_id?: string;
-				call_session_id?: string;
-				custom_parameters?: Record<string, string>;
-				media_format?: {
-					channels?: number;
-					encoding?: string;
-					sample_rate?: number;
-				};
-				user_id?: string;
-			};
-			stream_id?: string;
-	  }
-	| {
-			event: 'media';
-			media: TelnyxMediaPayload;
-			sequence_number?: string;
-			stream_id?: string;
-	  }
-	| {
-			event: 'mark';
-			mark?: {
-				name?: string;
-			};
-			sequence_number?: string;
-			stream_id?: string;
-	  }
-	| {
-			event: 'dtmf';
-			dtmf?: {
-				digit?: string;
-			};
-			sequence_number?: string;
-			stream_id?: string;
-	  }
-	| {
-			event: 'error';
-			payload?: {
-				code?: number;
-				detail?: string;
-				title?: string;
-			};
-			stream_id?: string;
-	  }
-	| {
-			event: 'stop';
-			sequence_number?: string;
-			stop?: {
-				call_control_id?: string;
-				user_id?: string;
-			};
-			stream_id?: string;
-	  };
+  | {
+      event: "connected";
+      version?: string;
+    }
+  | {
+      event: "start";
+      sequence_number?: string;
+      start?: {
+        call_control_id?: string;
+        call_leg_id?: string;
+        call_session_id?: string;
+        custom_parameters?: Record<string, string>;
+        media_format?: {
+          channels?: number;
+          encoding?: string;
+          sample_rate?: number;
+        };
+        user_id?: string;
+      };
+      stream_id?: string;
+    }
+  | {
+      event: "media";
+      media: TelnyxMediaPayload;
+      sequence_number?: string;
+      stream_id?: string;
+    }
+  | {
+      event: "mark";
+      mark?: {
+        name?: string;
+      };
+      sequence_number?: string;
+      stream_id?: string;
+    }
+  | {
+      event: "dtmf";
+      dtmf?: {
+        digit?: string;
+      };
+      sequence_number?: string;
+      stream_id?: string;
+    }
+  | {
+      event: "error";
+      payload?: {
+        code?: number;
+        detail?: string;
+        title?: string;
+      };
+      stream_id?: string;
+    }
+  | {
+      event: "stop";
+      sequence_number?: string;
+      stop?: {
+        call_control_id?: string;
+        user_id?: string;
+      };
+      stream_id?: string;
+    };
 
 export type TelnyxOutboundMediaMessage = {
-	event: 'media';
-	media: {
-		payload: string;
-	};
+  event: "media";
+  media: {
+    payload: string;
+  };
 };
 
 export type TelnyxOutboundClearMessage = {
-	event: 'clear';
+  event: "clear";
 };
 
 export type TelnyxOutboundMarkMessage = {
-	event: 'mark';
-	mark: {
-		name: string;
-	};
+  event: "mark";
+  mark: {
+    name: string;
+  };
 };
 
 export type TelnyxOutboundMessage =
-	| TelnyxOutboundMediaMessage
-	| TelnyxOutboundClearMessage
-	| TelnyxOutboundMarkMessage;
+  | TelnyxOutboundMediaMessage
+  | TelnyxOutboundClearMessage
+  | TelnyxOutboundMarkMessage;
 
 export type TelnyxMediaStreamSocket = {
-	close: (code?: number, reason?: string) => void | Promise<void>;
-	send: (data: string) => void | Promise<void>;
+  close: (code?: number, reason?: string) => void | Promise<void>;
+  send: (data: string) => void | Promise<void>;
 };
 
 export type TelnyxMediaStreamBridgeOptions<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
-> = Omit<TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>, 'onVoiceMessage'> & {
-	onVoiceMessage?: (input: {
-		callControlId?: string;
-		message: VoiceServerMessage<TResult>;
-		sessionId: string;
-		streamId?: string;
-	}) => Promise<void> | void;
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
+> = Omit<
+  TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>,
+  "onVoiceMessage"
+> & {
+  onVoiceMessage?: (input: {
+    callControlId?: string;
+    message: VoiceServerMessage<TResult>;
+    sessionId: string;
+    streamId?: string;
+  }) => Promise<void> | void;
 };
 
 export type TelnyxMediaStreamBridge = {
-	close: (reason?: string) => Promise<void>;
-	getSessionId: () => string | null;
-	getStreamId: () => string | null;
-	handleMessage: (raw: string | TelnyxInboundMessage) => Promise<void>;
+  close: (reason?: string) => Promise<void>;
+  getSessionId: () => string | null;
+  getStreamId: () => string | null;
+  handleMessage: (raw: string | TelnyxInboundMessage) => Promise<void>;
 };
 
 export type TelnyxVoiceResponseOptions = {
-	bidirectionalCodec?: 'AMR-WB' | 'G722' | 'OPUS' | 'PCMA' | 'PCMU';
-	bidirectionalMode?: 'mp3' | 'rtp';
-	codec?: 'AMR-WB' | 'G722' | 'OPUS' | 'PCMA' | 'PCMU' | 'default';
-	streamName?: string;
-	streamUrl: string;
-	track?: 'both_tracks' | 'inbound_track' | 'outbound_track';
+  bidirectionalCodec?: "AMR-WB" | "G722" | "OPUS" | "PCMA" | "PCMU";
+  bidirectionalMode?: "mp3" | "rtp";
+  codec?: "AMR-WB" | "G722" | "OPUS" | "PCMA" | "PCMU" | "default";
+  streamName?: string;
+  streamUrl: string;
+  track?: "both_tracks" | "inbound_track" | "outbound_track";
 };
 
-export type TelnyxVoiceSetupStatus = VoiceTelephonySetupStatus<'telnyx'> & {
-	urls: VoiceTelephonySetupStatus<'telnyx'>['urls'] & {
-		texml: string;
-	};
+export type TelnyxVoiceSetupStatus = VoiceTelephonySetupStatus<"telnyx"> & {
+  urls: VoiceTelephonySetupStatus<"telnyx">["urls"] & {
+    texml: string;
+  };
 };
 
 export type TelnyxVoiceSetupOptions = {
-	path?: false | string;
-	requiredEnv?: Record<string, string | undefined>;
-	title?: string;
+  path?: false | string;
+  requiredEnv?: Record<string, string | undefined>;
+  title?: string;
 };
 
 export type TelnyxVoiceSmokeCheck = VoiceTelephonySmokeCheck;
 
-export type TelnyxVoiceSmokeReport = VoiceTelephonySmokeReport<'telnyx'> & {
-	contract: VoiceTelephonyContractReport<'telnyx'>;
-	setup: TelnyxVoiceSetupStatus;
-	texml?: {
-		status: number;
-		streamUrl?: string;
-	};
+export type TelnyxVoiceSmokeReport = VoiceTelephonySmokeReport<"telnyx"> & {
+  contract: VoiceTelephonyContractReport<"telnyx">;
+  setup: TelnyxVoiceSetupStatus;
+  texml?: {
+    status: number;
+    streamUrl?: string;
+  };
 };
 
 export type TelnyxVoiceSmokeOptions = {
-	callControlId?: string;
-	callLegId?: string;
-	eventType?: string;
-	path?: false | string;
-	sessionId?: string;
-	title?: string;
+  callControlId?: string;
+  callLegId?: string;
+  eventType?: string;
+  path?: false | string;
+  sessionId?: string;
+  title?: string;
 };
 
 export type TelnyxVoiceRoutesOptions<
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 > = {
-	bridge?: TelnyxMediaStreamBridgeOptions<TContext, TSession, TResult>;
-	context?: TContext;
-	name?: string;
-	outcomePolicy?: VoiceTelephonyOutcomePolicy;
-	setup?: TelnyxVoiceSetupOptions;
-	smoke?: TelnyxVoiceSmokeOptions;
-	streamPath?: string;
-	texml?: {
-		path?: string;
-		response?: Omit<TelnyxVoiceResponseOptions, 'streamUrl'>;
-		streamUrl?:
-			| string
-			| ((input: {
-					query: Record<string, unknown>;
-					request: Request;
-					streamPath: string;
-			  }) => Promise<string> | string);
-	};
-	webhook?: Omit<
-		VoiceTelephonyWebhookRoutesOptions<TContext, TSession, TResult>,
-		'context' | 'path' | 'policy' | 'provider'
-	> & {
-		eventStore?: VoiceTelnyxWebhookEventStore;
-		path?: string;
-		policy?: VoiceTelephonyOutcomePolicy;
-		publicKey?: string;
-		toleranceSeconds?: number;
-	};
+  bridge?: TelnyxMediaStreamBridgeOptions<TContext, TSession, TResult>;
+  context?: TContext;
+  name?: string;
+  outcomePolicy?: VoiceTelephonyOutcomePolicy;
+  setup?: TelnyxVoiceSetupOptions;
+  smoke?: TelnyxVoiceSmokeOptions;
+  streamPath?: string;
+  texml?: {
+    path?: string;
+    response?: Omit<TelnyxVoiceResponseOptions, "streamUrl">;
+    streamUrl?:
+      | string
+      | ((input: {
+          query: Record<string, unknown>;
+          request: Request;
+          streamPath: string;
+        }) => Promise<string> | string);
+  };
+  webhook?: Omit<
+    VoiceTelephonyWebhookRoutesOptions<TContext, TSession, TResult>,
+    "context" | "path" | "policy" | "provider"
+  > & {
+    eventStore?: VoiceTelnyxWebhookEventStore;
+    path?: string;
+    policy?: VoiceTelephonyOutcomePolicy;
+    publicKey?: string;
+    toleranceSeconds?: number;
+  };
 };
 
 export type VoiceTelnyxWebhookEventStore = {
-	claim?: (eventId: string) => Promise<boolean> | boolean;
-	has: (eventId: string) => Promise<boolean> | boolean;
-	set: (eventId: string) => Promise<void> | void;
+  claim?: (eventId: string) => Promise<boolean> | boolean;
+  has: (eventId: string) => Promise<boolean> | boolean;
+  set: (eventId: string) => Promise<void> | void;
 };
 
 export type VoiceTelnyxWebhookEventStoreOptions = {
-	ttlSeconds?: number;
+  ttlSeconds?: number;
 };
 
 export type VoiceSQLiteTelnyxWebhookEventStoreOptions =
-	VoiceTelnyxWebhookEventStoreOptions & {
-		database?: Database;
-		path?: string;
-		tableName?: string;
-		tablePrefix?: string;
-	};
+  VoiceTelnyxWebhookEventStoreOptions & {
+    database?: Database;
+    path?: string;
+    tableName?: string;
+    tablePrefix?: string;
+  };
 
 export type VoicePostgresTelnyxWebhookEventStoreOptions =
-	VoiceTelnyxWebhookEventStoreOptions & {
-		connectionString?: string;
-		schemaName?: string;
-		sql?: VoicePostgresClient;
-		tableName?: string;
-		tablePrefix?: string;
-	};
+  VoiceTelnyxWebhookEventStoreOptions & {
+    connectionString?: string;
+    schemaName?: string;
+    sql?: VoicePostgresClient;
+    tableName?: string;
+    tablePrefix?: string;
+  };
 
 export type VoiceRedisTelnyxWebhookEventClient = Pick<
-	RedisClient,
-	'exists' | 'set'
+  RedisClient,
+  "exists" | "set"
 >;
 
 export type VoiceRedisTelnyxWebhookEventStoreOptions =
-	VoiceTelnyxWebhookEventStoreOptions & {
-		client?: VoiceRedisTelnyxWebhookEventClient;
-		keyPrefix?: string;
-		url?: string;
-	};
+  VoiceTelnyxWebhookEventStoreOptions & {
+    client?: VoiceRedisTelnyxWebhookEventClient;
+    keyPrefix?: string;
+    url?: string;
+  };
 
 export type VoiceTelnyxWebhookVerifierOptions = {
-	eventStore?: VoiceTelnyxWebhookEventStore;
-	publicKey?: string;
-	toleranceSeconds?: number;
+  eventStore?: VoiceTelnyxWebhookEventStore;
+  publicKey?: string;
+  toleranceSeconds?: number;
 };
 
 const escapeXml = (value: string) =>
-	value
-		.replaceAll('&', '&amp;')
-		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&apos;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;');
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 
 const escapeHtml = (value: string) =>
-	value
-		.replaceAll('&', '&amp;')
-		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&#39;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;');
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 
 const joinUrlPath = (origin: string, path: string) =>
-	`${origin.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+  `${origin.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 
 const resolveRequestOrigin = (request: Request) => {
-	const url = new URL(request.url);
-	const forwardedHost = request.headers.get('x-forwarded-host');
-	const forwardedProto = request.headers.get('x-forwarded-proto');
-	const host = forwardedHost ?? request.headers.get('host') ?? url.host;
-	const protocol = forwardedProto ?? url.protocol.replace(':', '');
+  const url = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const host = forwardedHost ?? request.headers.get("host") ?? url.host;
+  const protocol = forwardedProto ?? url.protocol.replace(":", "");
 
-	return `${protocol}://${host}`;
+  return `${protocol}://${host}`;
 };
 
 const extractTelnyxStreamUrl = (texml: string) =>
-	texml.match(/<Stream\b[^>]*\surl="([^"]+)"/i)?.[1]?.replaceAll('&amp;', '&');
+  texml.match(/<Stream\b[^>]*\surl="([^"]+)"/i)?.[1]?.replaceAll("&amp;", "&");
 
 const createSmokeCheck = (
-	name: string,
-	status: TelnyxVoiceSmokeCheck['status'],
-	message?: string,
-	details?: Record<string, unknown>
+  name: string,
+  status: TelnyxVoiceSmokeCheck["status"],
+  message?: string,
+  details?: Record<string, unknown>,
 ): TelnyxVoiceSmokeCheck => ({
-	details,
-	message,
-	name,
-	status
+  details,
+  message,
+  name,
+  status,
 });
 
 const resolveTelnyxStreamUrl = async <
-	TContext,
-	TSession extends VoiceSessionRecord,
-	TResult
+  TContext,
+  TSession extends VoiceSessionRecord,
+  TResult,
 >(
-	options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult>,
-	input: {
-		query: Record<string, unknown>;
-		request: Request;
-		streamPath: string;
-	}
+  options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult>,
+  input: {
+    query: Record<string, unknown>;
+    request: Request;
+    streamPath: string;
+  },
 ) => {
-	if (typeof options.texml?.streamUrl === 'function') {
-		return options.texml.streamUrl(input);
-	}
+  if (typeof options.texml?.streamUrl === "function") {
+    return options.texml.streamUrl(input);
+  }
 
-	if (typeof options.texml?.streamUrl === 'string') {
-		return options.texml.streamUrl;
-	}
+  if (typeof options.texml?.streamUrl === "string") {
+    return options.texml.streamUrl;
+  }
 
-	const origin = resolveRequestOrigin(input.request);
-	const wsOrigin = origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
-	return `${wsOrigin}${input.streamPath}`;
+  const origin = resolveRequestOrigin(input.request);
+  const wsOrigin = origin.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+  return `${wsOrigin}${input.streamPath}`;
 };
 
 export const createTelnyxVoiceResponse = (
-	options: TelnyxVoiceResponseOptions
+  options: TelnyxVoiceResponseOptions,
 ) => {
-	const attributes = [
-		`url="${escapeXml(options.streamUrl)}"`,
-		options.streamName ? `name="${escapeXml(options.streamName)}"` : undefined,
-		options.track ? `track="${escapeXml(options.track)}"` : undefined,
-		options.codec ? `codec="${escapeXml(options.codec)}"` : undefined,
-		options.bidirectionalMode
-			? `bidirectionalMode="${escapeXml(options.bidirectionalMode)}"`
-			: undefined,
-		options.bidirectionalCodec
-			? `bidirectionalCodec="${escapeXml(options.bidirectionalCodec)}"`
-			: undefined
-	]
-		.filter((value): value is string => Boolean(value))
-		.join(' ');
+  const attributes = [
+    `url="${escapeXml(options.streamUrl)}"`,
+    options.streamName ? `name="${escapeXml(options.streamName)}"` : undefined,
+    options.track ? `track="${escapeXml(options.track)}"` : undefined,
+    options.codec ? `codec="${escapeXml(options.codec)}"` : undefined,
+    options.bidirectionalMode
+      ? `bidirectionalMode="${escapeXml(options.bidirectionalMode)}"`
+      : undefined,
+    options.bidirectionalCodec
+      ? `bidirectionalCodec="${escapeXml(options.bidirectionalCodec)}"`
+      : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
 
-	return `<?xml version="1.0" encoding="UTF-8"?><Response><Start><Stream ${attributes} /></Start></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Start><Stream ${attributes} /></Start></Response>`;
 };
 
 const parseTelnyxMessage = (raw: string | TelnyxInboundMessage) => {
-	if (typeof raw !== 'string') {
-		return raw;
-	}
+  if (typeof raw !== "string") {
+    return raw;
+  }
 
-	return JSON.parse(raw) as TelnyxInboundMessage;
+  return JSON.parse(raw) as TelnyxInboundMessage;
 };
 
-const normalizeTelnyxTrack = (track: TelnyxMediaPayload['track']) =>
-	track === 'outbound' || track === 'outbound_track' ? 'outbound' : 'inbound';
+const normalizeTelnyxTrack = (track: TelnyxMediaPayload["track"]) =>
+  track === "outbound" || track === "outbound_track" ? "outbound" : "inbound";
 
 const telnyxToTwilioMessage = (
-	message: TelnyxInboundMessage
+  message: TelnyxInboundMessage,
 ): TwilioInboundMessage | null => {
-	switch (message.event) {
-		case 'connected':
-			return {
-				event: 'connected',
-				version: message.version
-			};
-		case 'start': {
-			const streamSid = message.stream_id ?? 'telnyx-stream';
-			return {
-				event: 'start',
-				start: {
-					callSid:
-						message.start?.call_control_id ??
-						message.start?.call_session_id ??
-						message.start?.call_leg_id,
-					customParameters: {
-						...(message.start?.custom_parameters ?? {}),
-						...(message.start?.call_session_id
-							? { sessionId: message.start.call_session_id }
-							: {})
-					},
-					mediaFormat: {
-						channels: message.start?.media_format?.channels,
-						encoding: message.start?.media_format?.encoding,
-						sampleRate: message.start?.media_format?.sample_rate
-					},
-					streamSid
-				},
-				streamSid
-			};
-		}
-		case 'media': {
-			const streamSid = message.stream_id ?? 'telnyx-stream';
-			return {
-				event: 'media',
-				media: {
-					chunk: message.media.chunk,
-					payload: message.media.payload,
-					timestamp: message.media.timestamp,
-					track: normalizeTelnyxTrack(message.media.track)
-				},
-				streamSid
-			};
-		}
-		case 'mark':
-			return {
-				event: 'mark',
-				mark: message.mark,
-				streamSid: message.stream_id ?? 'telnyx-stream'
-			};
-		case 'stop':
-			return {
-				event: 'stop',
-				stop: {
-					callSid: message.stop?.call_control_id
-				},
-				streamSid: message.stream_id ?? 'telnyx-stream'
-			};
-		case 'dtmf':
-		case 'error':
-			return null;
-	}
+  switch (message.event) {
+    case "connected":
+      return {
+        event: "connected",
+        version: message.version,
+      };
+    case "start": {
+      const streamSid = message.stream_id ?? "telnyx-stream";
+      return {
+        event: "start",
+        start: {
+          callSid:
+            message.start?.call_control_id ??
+            message.start?.call_session_id ??
+            message.start?.call_leg_id,
+          customParameters: {
+            ...(message.start?.custom_parameters ?? {}),
+            ...(message.start?.call_session_id
+              ? { sessionId: message.start.call_session_id }
+              : {}),
+          },
+          mediaFormat: {
+            channels: message.start?.media_format?.channels,
+            encoding: message.start?.media_format?.encoding,
+            sampleRate: message.start?.media_format?.sample_rate,
+          },
+          streamSid,
+        },
+        streamSid,
+      };
+    }
+    case "media": {
+      const streamSid = message.stream_id ?? "telnyx-stream";
+      return {
+        event: "media",
+        media: {
+          chunk: message.media.chunk,
+          payload: message.media.payload,
+          timestamp: message.media.timestamp,
+          track: normalizeTelnyxTrack(message.media.track),
+        },
+        streamSid,
+      };
+    }
+    case "mark":
+      return {
+        event: "mark",
+        mark: message.mark,
+        streamSid: message.stream_id ?? "telnyx-stream",
+      };
+    case "stop":
+      return {
+        event: "stop",
+        stop: {
+          callSid: message.stop?.call_control_id,
+        },
+        streamSid: message.stream_id ?? "telnyx-stream",
+      };
+    case "dtmf":
+    case "error":
+      return null;
+  }
 };
 
 const createTelnyxTwilioSocketAdapter = (
-	socket: TelnyxMediaStreamSocket
+  socket: TelnyxMediaStreamSocket,
 ): TwilioMediaStreamSocket => ({
-	close: (code, reason) => socket.close(code, reason),
-	send: async (data) => {
-		const message = JSON.parse(data) as TwilioOutboundMessage;
-		const telnyxMessage: TelnyxOutboundMessage | null =
-			message.event === 'media'
-				? {
-						event: 'media',
-						media: {
-							payload: message.media.payload
-						}
-				  }
-				: message.event === 'clear'
-					? {
-							event: 'clear'
-					  }
-					: message.event === 'mark'
-						? {
-								event: 'mark',
-								mark: message.mark
-						  }
-						: null;
+  close: (code, reason) => socket.close(code, reason),
+  send: async (data) => {
+    const message = JSON.parse(data) as TwilioOutboundMessage;
+    const telnyxMessage: TelnyxOutboundMessage | null =
+      message.event === "media"
+        ? {
+            event: "media",
+            media: {
+              payload: message.media.payload,
+            },
+          }
+        : message.event === "clear"
+          ? {
+              event: "clear",
+            }
+          : message.event === "mark"
+            ? {
+                event: "mark",
+                mark: message.mark,
+              }
+            : null;
 
-		if (telnyxMessage) {
-			await Promise.resolve(socket.send(JSON.stringify(telnyxMessage)));
-		}
-	}
+    if (telnyxMessage) {
+      await Promise.resolve(socket.send(JSON.stringify(telnyxMessage)));
+    }
+  },
 });
 
 export const createTelnyxMediaStreamBridge = <
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 >(
-	socket: TelnyxMediaStreamSocket,
-	options: TelnyxMediaStreamBridgeOptions<TContext, TSession, TResult>
+  socket: TelnyxMediaStreamSocket,
+  options: TelnyxMediaStreamBridgeOptions<TContext, TSession, TResult>,
 ): TelnyxMediaStreamBridge => {
-	const bridge = createTwilioMediaStreamBridge(
-		createTelnyxTwilioSocketAdapter(socket),
-		{
-			...(options as TwilioMediaStreamBridgeOptions<TContext, TSession, TResult>),
-			telephonyMediaCarrier: 'telnyx',
-			onVoiceMessage: options.onVoiceMessage
-				? (input) =>
-						options.onVoiceMessage?.({
-							callControlId: input.callSid,
-							message: input.message,
-							sessionId: input.sessionId,
-							streamId: input.streamSid
-						})
-				: undefined
-		}
-	);
+  const bridge = createTwilioMediaStreamBridge(
+    createTelnyxTwilioSocketAdapter(socket),
+    {
+      ...(options as TwilioMediaStreamBridgeOptions<
+        TContext,
+        TSession,
+        TResult
+      >),
+      telephonyMediaCarrier: "telnyx",
+      onVoiceMessage: options.onVoiceMessage
+        ? (input) =>
+            options.onVoiceMessage?.({
+              callControlId: input.callSid,
+              message: input.message,
+              sessionId: input.sessionId,
+              streamId: input.streamSid,
+            })
+        : undefined,
+    },
+  );
 
-	return {
-		close: bridge.close,
-		getSessionId: bridge.getSessionId,
-		getStreamId: bridge.getStreamSid,
-		handleMessage: async (raw) => {
-			const message = telnyxToTwilioMessage(parseTelnyxMessage(raw));
-			if (message) {
-				await bridge.handleMessage(message);
-			}
-		}
-	};
+  return {
+    close: bridge.close,
+    getSessionId: bridge.getSessionId,
+    getStreamId: bridge.getStreamSid,
+    handleMessage: async (raw) => {
+      const message = telnyxToTwilioMessage(parseTelnyxMessage(raw));
+      if (message) {
+        await bridge.handleMessage(message);
+      }
+    },
+  };
 };
 
 const decodeBase64 = (value: string) =>
-	Uint8Array.from(Buffer.from(value, 'base64'));
+  Uint8Array.from(Buffer.from(value, "base64"));
 
 export const verifyVoiceTelnyxWebhookSignature = async (input: {
-	body: string;
-	headers: Headers;
-	publicKey?: string;
-	toleranceSeconds?: number;
+  body: string;
+  headers: Headers;
+  publicKey?: string;
+  toleranceSeconds?: number;
 }): Promise<VoiceTelephonyWebhookVerificationResult> => {
-	if (!input.publicKey) {
-		return { ok: false, reason: 'missing-secret' };
-	}
+  if (!input.publicKey) {
+    return { ok: false, reason: "missing-secret" };
+  }
 
-	const signature = input.headers.get('telnyx-signature-ed25519');
-	const timestamp = input.headers.get('telnyx-timestamp');
-	if (!signature || !timestamp) {
-		return { ok: false, reason: 'missing-signature' };
-	}
+  const signature = input.headers.get("telnyx-signature-ed25519");
+  const timestamp = input.headers.get("telnyx-timestamp");
+  if (!signature || !timestamp) {
+    return { ok: false, reason: "missing-signature" };
+  }
 
-	const toleranceSeconds = input.toleranceSeconds ?? 300;
-	const timestampNumber = Number(timestamp);
-	if (
-		Number.isFinite(timestampNumber) &&
-		Math.abs(Date.now() / 1_000 - timestampNumber) > toleranceSeconds
-	) {
-		return { ok: false, reason: 'invalid-signature' };
-	}
+  const toleranceSeconds = input.toleranceSeconds ?? 300;
+  const timestampNumber = Number(timestamp);
+  if (
+    Number.isFinite(timestampNumber) &&
+    Math.abs(Date.now() / 1_000 - timestampNumber) > toleranceSeconds
+  ) {
+    return { ok: false, reason: "invalid-signature" };
+  }
 
-	try {
-		const key = await crypto.subtle.importKey(
-			'raw',
-			decodeBase64(input.publicKey),
-			'Ed25519',
-			false,
-			['verify']
-		);
-		const ok = await crypto.subtle.verify(
-			'Ed25519',
-			key,
-			decodeBase64(signature),
-			new TextEncoder().encode(`${timestamp}|${input.body}`)
-		);
-		return ok ? { ok: true } : { ok: false, reason: 'invalid-signature' };
-	} catch {
-		return { ok: false, reason: 'invalid-signature' };
-	}
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      decodeBase64(input.publicKey),
+      "Ed25519",
+      false,
+      ["verify"],
+    );
+    const ok = await crypto.subtle.verify(
+      "Ed25519",
+      key,
+      decodeBase64(signature),
+      new TextEncoder().encode(`${timestamp}|${input.body}`),
+    );
+    return ok ? { ok: true } : { ok: false, reason: "invalid-signature" };
+  } catch {
+    return { ok: false, reason: "invalid-signature" };
+  }
 };
 
 export const createMemoryVoiceTelnyxWebhookEventStore =
-	(): VoiceTelnyxWebhookEventStore => {
-		const eventIds = new Set<string>();
+  (): VoiceTelnyxWebhookEventStore => {
+    const eventIds = new Set<string>();
 
-		return {
-			claim: (eventId) => {
-				if (eventIds.has(eventId)) {
-					return false;
-				}
-				eventIds.add(eventId);
-				return true;
-			},
-			has: (eventId) => eventIds.has(eventId),
-			set: (eventId) => {
-				eventIds.add(eventId);
-			}
-		};
-	};
+    return {
+      claim: (eventId) => {
+        if (eventIds.has(eventId)) {
+          return false;
+        }
+        eventIds.add(eventId);
+        return true;
+      },
+      has: (eventId) => eventIds.has(eventId),
+      set: (eventId) => {
+        eventIds.add(eventId);
+      },
+    };
+  };
 
 const normalizeTelnyxStoreIdentifierSegment = (value: string) =>
-	value
-		.trim()
-		.replace(/[^a-zA-Z0-9_]+/g, '_')
-		.replace(/^_+|_+$/g, '') || 'voice';
+  value
+    .trim()
+    .replace(/[^a-zA-Z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "voice";
 
 const quoteTelnyxStoreIdentifier = (value: string) =>
-	`"${value.replace(/"/g, '""')}"`;
+  `"${value.replace(/"/g, '""')}"`;
 
 const resolveTelnyxEventTableName = (input: {
-	fallback: string;
-	tableName?: string;
-	tablePrefix?: string;
+  fallback: string;
+  tableName?: string;
+  tablePrefix?: string;
 }) => {
-	if (input.tableName) {
-		return normalizeTelnyxStoreIdentifierSegment(input.tableName);
-	}
+  if (input.tableName) {
+    return normalizeTelnyxStoreIdentifierSegment(input.tableName);
+  }
 
-	return `${normalizeTelnyxStoreIdentifierSegment(input.tablePrefix ?? 'voice')}_${normalizeTelnyxStoreIdentifierSegment(input.fallback)}`;
+  return `${normalizeTelnyxStoreIdentifierSegment(input.tablePrefix ?? "voice")}_${normalizeTelnyxStoreIdentifierSegment(input.fallback)}`;
 };
 
 const getTelnyxEventExpiresAt = (ttlSeconds?: number) =>
-	typeof ttlSeconds === 'number' && ttlSeconds > 0
-		? Date.now() + Math.ceil(ttlSeconds * 1000)
-		: null;
+  typeof ttlSeconds === "number" && ttlSeconds > 0
+    ? Date.now() + Math.ceil(ttlSeconds * 1000)
+    : null;
 
 export const createVoiceSQLiteTelnyxWebhookEventStore = (
-	options: VoiceSQLiteTelnyxWebhookEventStoreOptions
+  options: VoiceSQLiteTelnyxWebhookEventStoreOptions,
 ): VoiceTelnyxWebhookEventStore => {
-	const database =
-		options.database ??
-		new Database(options.path ?? ':memory:', {
-			create: true
-		});
-	const tableName = resolveTelnyxEventTableName({
-		fallback: 'telnyx_webhook_events',
-		tableName: options.tableName,
-		tablePrefix: options.tablePrefix
-	});
+  const database =
+    options.database ??
+    new Database(options.path ?? ":memory:", {
+      create: true,
+    });
+  const tableName = resolveTelnyxEventTableName({
+    fallback: "telnyx_webhook_events",
+    tableName: options.tableName,
+    tablePrefix: options.tablePrefix,
+  });
 
-	database.exec(
-		`CREATE TABLE IF NOT EXISTS "${tableName}" (
+  database.exec(
+    `CREATE TABLE IF NOT EXISTS "${tableName}" (
 			event_id TEXT PRIMARY KEY,
 			created_at INTEGER NOT NULL,
 			expires_at INTEGER
-		)`
-	);
-	const pruneExpired = database.query(
-		`DELETE FROM "${tableName}" WHERE expires_at IS NOT NULL AND expires_at <= ?1`
-	);
-	const select = database.query(
-		`SELECT event_id FROM "${tableName}" WHERE event_id = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1`
-	);
-	const insert = database.query(
-		`INSERT OR IGNORE INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)`
-	);
-	const upsert = database.query(
-		`INSERT INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)
-		 ON CONFLICT(event_id) DO UPDATE SET expires_at = excluded.expires_at`
-	);
+		)`,
+  );
+  const pruneExpired = database.query(
+    `DELETE FROM "${tableName}" WHERE expires_at IS NOT NULL AND expires_at <= ?1`,
+  );
+  const select = database.query(
+    `SELECT event_id FROM "${tableName}" WHERE event_id = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1`,
+  );
+  const insert = database.query(
+    `INSERT OR IGNORE INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)`,
+  );
+  const upsert = database.query(
+    `INSERT INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)
+		 ON CONFLICT(event_id) DO UPDATE SET expires_at = excluded.expires_at`,
+  );
 
-	return {
-		claim: (eventId) => {
-			const now = Date.now();
-			pruneExpired.run(now);
-			const result = insert.run(
-				eventId,
-				now,
-				getTelnyxEventExpiresAt(options.ttlSeconds)
-			);
-			return result.changes > 0;
-		},
-		has: (eventId) => Boolean(select.get(eventId, Date.now())),
-		set: (eventId) => {
-			upsert.run(
-				eventId,
-				Date.now(),
-				getTelnyxEventExpiresAt(options.ttlSeconds)
-			);
-		}
-	};
+  return {
+    claim: (eventId) => {
+      const now = Date.now();
+      pruneExpired.run(now);
+      const result = insert.run(
+        eventId,
+        now,
+        getTelnyxEventExpiresAt(options.ttlSeconds),
+      );
+      return result.changes > 0;
+    },
+    has: (eventId) => Boolean(select.get(eventId, Date.now())),
+    set: (eventId) => {
+      upsert.run(
+        eventId,
+        Date.now(),
+        getTelnyxEventExpiresAt(options.ttlSeconds),
+      );
+    },
+  };
 };
 
 const createVoiceTelnyxPostgresClient = async (
-	options: VoicePostgresTelnyxWebhookEventStoreOptions
+  options: VoicePostgresTelnyxWebhookEventStoreOptions,
 ): Promise<VoicePostgresClient> => {
-	if (options.sql) {
-		return options.sql;
-	}
+  if (options.sql) {
+    return options.sql;
+  }
 
-	if (!options.connectionString) {
-		throw new Error(
-			'createVoicePostgresTelnyxWebhookEventStore requires either options.sql or options.connectionString.'
-		);
-	}
+  if (!options.connectionString) {
+    throw new Error(
+      "createVoicePostgresTelnyxWebhookEventStore requires either options.sql or options.connectionString.",
+    );
+  }
 
-	const sql = new Bun.SQL(options.connectionString);
-	return {
-		unsafe: sql.unsafe.bind(sql)
-	};
+  const sql = new Bun.SQL(options.connectionString);
+  return {
+    unsafe: sql.unsafe.bind(sql),
+  };
 };
 
 const resolveTelnyxEventQualifiedTableName = (
-	options: VoicePostgresTelnyxWebhookEventStoreOptions
+  options: VoicePostgresTelnyxWebhookEventStoreOptions,
 ) => {
-	const schema = normalizeTelnyxStoreIdentifierSegment(
-		options.schemaName ?? 'public'
-	);
-	const table = resolveTelnyxEventTableName({
-		fallback: 'telnyx_webhook_events',
-		tableName: options.tableName,
-		tablePrefix: options.tablePrefix
-	});
-	return `${quoteTelnyxStoreIdentifier(schema)}.${quoteTelnyxStoreIdentifier(table)}`;
+  const schema = normalizeTelnyxStoreIdentifierSegment(
+    options.schemaName ?? "public",
+  );
+  const table = resolveTelnyxEventTableName({
+    fallback: "telnyx_webhook_events",
+    tableName: options.tableName,
+    tablePrefix: options.tablePrefix,
+  });
+  return `${quoteTelnyxStoreIdentifier(schema)}.${quoteTelnyxStoreIdentifier(table)}`;
 };
 
 export const createVoicePostgresTelnyxWebhookEventStore = (
-	options: VoicePostgresTelnyxWebhookEventStoreOptions = {}
+  options: VoicePostgresTelnyxWebhookEventStoreOptions = {},
 ): VoiceTelnyxWebhookEventStore => {
-	const qualifiedTableName = resolveTelnyxEventQualifiedTableName(options);
-	const schemaMatch = qualifiedTableName.match(/^"([^"]+)"\./);
-	const client = createVoiceTelnyxPostgresClient(options);
-	const initialized = (async () => {
-		const sql = await client;
-		if (schemaMatch?.[1]) {
-			await sql.unsafe(
-				`CREATE SCHEMA IF NOT EXISTS ${quoteTelnyxStoreIdentifier(schemaMatch[1])}`
-			);
-		}
-		await sql.unsafe(
-			`CREATE TABLE IF NOT EXISTS ${qualifiedTableName} (
+  const qualifiedTableName = resolveTelnyxEventQualifiedTableName(options);
+  const schemaMatch = qualifiedTableName.match(/^"([^"]+)"\./);
+  const client = createVoiceTelnyxPostgresClient(options);
+  const initialized = (async () => {
+    const sql = await client;
+    if (schemaMatch?.[1]) {
+      await sql.unsafe(
+        `CREATE SCHEMA IF NOT EXISTS ${quoteTelnyxStoreIdentifier(schemaMatch[1])}`,
+      );
+    }
+    await sql.unsafe(
+      `CREATE TABLE IF NOT EXISTS ${qualifiedTableName} (
 				event_id TEXT PRIMARY KEY,
 				created_at BIGINT NOT NULL,
 				expires_at BIGINT
-			)`
-		);
-	})();
+			)`,
+    );
+  })();
 
-	const pruneExpired = async () => {
-		await initialized;
-		const sql = await client;
-		await sql.unsafe(
-			`DELETE FROM ${qualifiedTableName} WHERE expires_at IS NOT NULL AND expires_at <= $1`,
-			[Date.now()]
-		);
-	};
+  const pruneExpired = async () => {
+    await initialized;
+    const sql = await client;
+    await sql.unsafe(
+      `DELETE FROM ${qualifiedTableName} WHERE expires_at IS NOT NULL AND expires_at <= $1`,
+      [Date.now()],
+    );
+  };
 
-	return {
-		claim: async (eventId) => {
-			await pruneExpired();
-			const sql = await client;
-			const rows = await sql.unsafe(
-				`INSERT INTO ${qualifiedTableName} (event_id, created_at, expires_at)
+  return {
+    claim: async (eventId) => {
+      await pruneExpired();
+      const sql = await client;
+      const rows = await sql.unsafe(
+        `INSERT INTO ${qualifiedTableName} (event_id, created_at, expires_at)
 				 VALUES ($1, $2, $3)
 				 ON CONFLICT (event_id) DO NOTHING
 				 RETURNING event_id`,
-				[eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)]
-			);
-			return rows.length > 0;
-		},
-		has: async (eventId) => {
-			await initialized;
-			const sql = await client;
-			const rows = await sql.unsafe(
-				`SELECT event_id FROM ${qualifiedTableName}
+        [eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)],
+      );
+      return rows.length > 0;
+    },
+    has: async (eventId) => {
+      await initialized;
+      const sql = await client;
+      const rows = await sql.unsafe(
+        `SELECT event_id FROM ${qualifiedTableName}
 				 WHERE event_id = $1 AND (expires_at IS NULL OR expires_at > $2)
 				 LIMIT 1`,
-				[eventId, Date.now()]
-			);
-			return rows.length > 0;
-		},
-		set: async (eventId) => {
-			await initialized;
-			const sql = await client;
-			await sql.unsafe(
-				`INSERT INTO ${qualifiedTableName} (event_id, created_at, expires_at)
+        [eventId, Date.now()],
+      );
+      return rows.length > 0;
+    },
+    set: async (eventId) => {
+      await initialized;
+      const sql = await client;
+      await sql.unsafe(
+        `INSERT INTO ${qualifiedTableName} (event_id, created_at, expires_at)
 				 VALUES ($1, $2, $3)
 				 ON CONFLICT (event_id) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
-				[eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)]
-			);
-		}
-	};
+        [eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)],
+      );
+    },
+  };
 };
 
 const getTelnyxRedisEventKey = (keyPrefix: string, eventId: string) =>
-	`${keyPrefix}:${eventId}`;
+  `${keyPrefix}:${eventId}`;
 
 export const createVoiceRedisTelnyxWebhookEventStore = (
-	options: VoiceRedisTelnyxWebhookEventStoreOptions = {}
+  options: VoiceRedisTelnyxWebhookEventStoreOptions = {},
 ): VoiceTelnyxWebhookEventStore => {
-	const client = options.client ?? new Bun.RedisClient(options.url);
-	const keyPrefix = options.keyPrefix?.trim() || 'voice:telnyx-webhook-event';
-	const ttlSeconds = options.ttlSeconds;
+  const client = options.client ?? new Bun.RedisClient(options.url);
+  const keyPrefix = options.keyPrefix?.trim() || "voice:telnyx-webhook-event";
+  const ttlSeconds = options.ttlSeconds;
 
-	const setEvent = async (eventId: string, nx: boolean) => {
-		const key = getTelnyxRedisEventKey(keyPrefix, eventId);
-		if (typeof ttlSeconds === 'number' && ttlSeconds > 0) {
-			return client.set(
-				key,
-				'1',
-				'EX',
-				String(Math.ceil(ttlSeconds)),
-				...(nx ? (['NX'] as const) : [])
-			);
-		}
+  const setEvent = async (eventId: string, nx: boolean) => {
+    const key = getTelnyxRedisEventKey(keyPrefix, eventId);
+    if (typeof ttlSeconds === "number" && ttlSeconds > 0) {
+      return client.set(
+        key,
+        "1",
+        "EX",
+        String(Math.ceil(ttlSeconds)),
+        ...(nx ? (["NX"] as const) : []),
+      );
+    }
 
-		return client.set(key, '1', ...(nx ? (['NX'] as const) : []));
-	};
+    return client.set(key, "1", ...(nx ? (["NX"] as const) : []));
+  };
 
-	return {
-		claim: async (eventId) => (await setEvent(eventId, true)) === 'OK',
-		has: async (eventId) =>
-			Boolean(await client.exists(getTelnyxRedisEventKey(keyPrefix, eventId))),
-		set: async (eventId) => {
-			await setEvent(eventId, false);
-		}
-	};
+  return {
+    claim: async (eventId) => (await setEvent(eventId, true)) === "OK",
+    has: async (eventId) =>
+      Boolean(await client.exists(getTelnyxRedisEventKey(keyPrefix, eventId))),
+    set: async (eventId) => {
+      await setEvent(eventId, false);
+    },
+  };
 };
 
 const readTelnyxWebhookEventId = (rawBody: string) => {
-	try {
-		const body = JSON.parse(rawBody) as unknown;
-		if (!body || typeof body !== 'object' || Array.isArray(body)) {
-			return undefined;
-		}
-		const record = body as Record<string, unknown>;
-		const data = record.data;
-		if (data && typeof data === 'object' && !Array.isArray(data)) {
-			const eventId = (data as Record<string, unknown>).id;
-			if (typeof eventId === 'string' && eventId.trim()) {
-				return eventId;
-			}
-		}
-		const eventId = record.id ?? record.event_id;
-		return typeof eventId === 'string' && eventId.trim() ? eventId : undefined;
-	} catch {
-		return undefined;
-	}
+  try {
+    const body = JSON.parse(rawBody) as unknown;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return undefined;
+    }
+    const record = body as Record<string, unknown>;
+    const data = record.data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const eventId = (data as Record<string, unknown>).id;
+      if (typeof eventId === "string" && eventId.trim()) {
+        return eventId;
+      }
+    }
+    const eventId = record.id ?? record.event_id;
+    return typeof eventId === "string" && eventId.trim() ? eventId : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 export const createVoiceTelnyxWebhookVerifier =
-	(options: VoiceTelnyxWebhookVerifierOptions) =>
-	async (input: {
-		rawBody: string;
-		headers: Headers;
-	}): Promise<VoiceTelephonyWebhookVerificationResult> => {
-		const verification = await verifyVoiceTelnyxWebhookSignature({
-			body: input.rawBody,
-			headers: input.headers,
-			publicKey: options.publicKey,
-			toleranceSeconds: options.toleranceSeconds
-		});
-		if (!verification.ok) {
-			return verification;
-		}
+  (options: VoiceTelnyxWebhookVerifierOptions) =>
+  async (input: {
+    rawBody: string;
+    headers: Headers;
+  }): Promise<VoiceTelephonyWebhookVerificationResult> => {
+    const verification = await verifyVoiceTelnyxWebhookSignature({
+      body: input.rawBody,
+      headers: input.headers,
+      publicKey: options.publicKey,
+      toleranceSeconds: options.toleranceSeconds,
+    });
+    if (!verification.ok) {
+      return verification;
+    }
 
-		const eventStore = options.eventStore;
-		if (!eventStore) {
-			return verification;
-		}
+    const eventStore = options.eventStore;
+    if (!eventStore) {
+      return verification;
+    }
 
-		const eventId = readTelnyxWebhookEventId(input.rawBody);
-		if (!eventId) {
-			return { ok: false, reason: 'invalid-signature' };
-		}
+    const eventId = readTelnyxWebhookEventId(input.rawBody);
+    if (!eventId) {
+      return { ok: false, reason: "invalid-signature" };
+    }
 
-		if (eventStore.claim) {
-			return (await eventStore.claim(eventId))
-				? verification
-				: { ok: false, reason: 'invalid-signature' };
-		}
-		if (await eventStore.has(eventId)) {
-			return { ok: false, reason: 'invalid-signature' };
-		}
+    if (eventStore.claim) {
+      return (await eventStore.claim(eventId))
+        ? verification
+        : { ok: false, reason: "invalid-signature" };
+    }
+    if (await eventStore.has(eventId)) {
+      return { ok: false, reason: "invalid-signature" };
+    }
 
-		await eventStore.set(eventId);
-		return verification;
-	};
+    await eventStore.set(eventId);
+    return verification;
+  };
 
 const buildTelnyxVoiceSetupStatus = async <
-	TContext,
-	TSession extends VoiceSessionRecord,
-	TResult
+  TContext,
+  TSession extends VoiceSessionRecord,
+  TResult,
 >(
-	options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult>,
-	input: {
-		query: Record<string, unknown>;
-		request: Request;
-		streamPath: string;
-		texmlPath: string;
-		webhookPath: string;
-	}
+  options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult>,
+  input: {
+    query: Record<string, unknown>;
+    request: Request;
+    streamPath: string;
+    texmlPath: string;
+    webhookPath: string;
+  },
 ): Promise<TelnyxVoiceSetupStatus> => {
-	const origin = resolveRequestOrigin(input.request);
-	const stream = await resolveTelnyxStreamUrl(options, input);
-	const texml = joinUrlPath(origin, input.texmlPath);
-	const webhook = joinUrlPath(origin, input.webhookPath);
-	const missing = Object.entries(options.setup?.requiredEnv ?? {})
-		.filter((entry) => !entry[1])
-		.map(([name]) => name);
-	const signingConfigured = Boolean(
-		options.webhook?.publicKey || options.webhook?.verify
-	);
-	const warnings = [
-		...(stream.startsWith('wss://')
-			? []
-			: ['Telnyx media streams should use wss:// in production.']),
-		...(signingConfigured
-			? []
-			: ['Webhook signature verification is not configured.'])
-	];
+  const origin = resolveRequestOrigin(input.request);
+  const stream = await resolveTelnyxStreamUrl(options, input);
+  const texml = joinUrlPath(origin, input.texmlPath);
+  const webhook = joinUrlPath(origin, input.webhookPath);
+  const missing = Object.entries(options.setup?.requiredEnv ?? {})
+    .filter((entry) => !entry[1])
+    .map(([name]) => name);
+  const signingConfigured = Boolean(
+    options.webhook?.publicKey || options.webhook?.verify,
+  );
+  const warnings = [
+    ...(stream.startsWith("wss://")
+      ? []
+      : ["Telnyx media streams should use wss:// in production."]),
+    ...(signingConfigured
+      ? []
+      : ["Webhook signature verification is not configured."]),
+  ];
 
-	return {
-		generatedAt: Date.now(),
-		missing,
-		provider: 'telnyx',
-		ready: missing.length === 0 && signingConfigured && warnings.length === 0,
-		signing: {
-			configured: signingConfigured,
-			mode: options.webhook?.verify
-				? 'custom'
-				: options.webhook?.publicKey
-					? 'provider-signature'
-					: 'none',
-			verificationUrl: webhook
-		},
-		urls: {
-			stream,
-			texml,
-			webhook
-		},
-		warnings
-	};
+  return {
+    generatedAt: Date.now(),
+    missing,
+    provider: "telnyx",
+    ready: missing.length === 0 && signingConfigured && warnings.length === 0,
+    signing: {
+      configured: signingConfigured,
+      mode: options.webhook?.verify
+        ? "custom"
+        : options.webhook?.publicKey
+          ? "provider-signature"
+          : "none",
+      verificationUrl: webhook,
+    },
+    urls: {
+      stream,
+      texml,
+      webhook,
+    },
+    warnings,
+  };
 };
 
 const renderTelnyxSetupHTML = (
-	status: TelnyxVoiceSetupStatus,
-	title: string
+  status: TelnyxVoiceSetupStatus,
+  title: string,
 ) => `<main style="font-family: ui-sans-serif, system-ui; max-width: 860px; margin: 40px auto; padding: 0 20px;">
 <p style="letter-spacing: .12em; text-transform: uppercase; color: #52606d;">Telnyx setup</p>
 <h1>${escapeHtml(title)}</h1>
-<p><strong>Status:</strong> ${status.ready ? 'Ready' : 'Needs attention'}</p>
+<p><strong>Status:</strong> ${status.ready ? "Ready" : "Needs attention"}</p>
 <ul>
 <li><strong>TeXML:</strong> <code>${escapeHtml(status.urls.texml)}</code></li>
 <li><strong>Media stream:</strong> <code>${escapeHtml(status.urls.stream)}</code></li>
 <li><strong>Status webhook:</strong> <code>${escapeHtml(status.urls.webhook)}</code></li>
 </ul>
-${status.missing.length ? `<h2>Missing env</h2><ul>${status.missing.map((name) => `<li><code>${escapeHtml(name)}</code></li>`).join('')}</ul>` : ''}
-${status.warnings.length ? `<h2>Warnings</h2><ul>${status.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>` : ''}
+${status.missing.length ? `<h2>Missing env</h2><ul>${status.missing.map((name) => `<li><code>${escapeHtml(name)}</code></li>`).join("")}</ul>` : ""}
+${status.warnings.length ? `<h2>Warnings</h2><ul>${status.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : ""}
 </main>`;
 
 const renderTelnyxSmokeHTML = (
-	report: TelnyxVoiceSmokeReport,
-	title: string
+  report: TelnyxVoiceSmokeReport,
+  title: string,
 ) => `<main style="font-family: ui-sans-serif, system-ui; max-width: 860px; margin: 40px auto; padding: 0 20px;">
 <p style="letter-spacing: .12em; text-transform: uppercase; color: #52606d;">Telnyx smoke test</p>
 <h1>${escapeHtml(title)}</h1>
-<p><strong>Status:</strong> ${report.pass ? 'Pass' : 'Fail'}</p>
-<ul>${report.checks.map((check) => `<li><strong>${escapeHtml(check.name)}</strong>: ${escapeHtml(check.status)}${check.message ? ` - ${escapeHtml(check.message)}` : ''}</li>`).join('')}</ul>
+<p><strong>Status:</strong> ${report.pass ? "Pass" : "Fail"}</p>
+<ul>${report.checks.map((check) => `<li><strong>${escapeHtml(check.name)}</strong>: ${escapeHtml(check.status)}${check.message ? ` - ${escapeHtml(check.message)}` : ""}</li>`).join("")}</ul>
 </main>`;
 
 const runTelnyxSmokeTest = async <
-	TContext,
-	TSession extends VoiceSessionRecord,
-	TResult
+  TContext,
+  TSession extends VoiceSessionRecord,
+  TResult,
 >(input: {
-	app: {
-		handle: (request: Request) => Response | Promise<Response>;
-	};
-	options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult>;
-	query: Record<string, unknown>;
-	request: Request;
-	streamPath: string;
-	texmlPath: string;
-	webhookPath: string;
+  app: {
+    handle: (request: Request) => Response | Promise<Response>;
+  };
+  options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult>;
+  query: Record<string, unknown>;
+  request: Request;
+  streamPath: string;
+  texmlPath: string;
+  webhookPath: string;
 }): Promise<TelnyxVoiceSmokeReport> => {
-	const setup = await buildTelnyxVoiceSetupStatus(input.options, input);
-	const checks: TelnyxVoiceSmokeCheck[] = [];
-	const texmlResponse = await input.app.handle(new Request(setup.urls.texml));
-	const texml = await texmlResponse.text();
-	const streamUrl = extractTelnyxStreamUrl(texml);
-	checks.push(
-		createSmokeCheck(
-			'texml',
-			texmlResponse.ok && Boolean(streamUrl) ? 'pass' : 'fail',
-			streamUrl ? 'TeXML includes a media stream URL.' : 'TeXML is missing <Stream url="...">.',
-			{
-				status: texmlResponse.status,
-				streamUrl
-			}
-		)
-	);
-	checks.push(
-		createSmokeCheck(
-			'stream-url',
-			streamUrl?.startsWith('wss://') ? 'pass' : 'fail',
-			streamUrl?.startsWith('wss://')
-				? 'Media stream URL uses wss://.'
-				: 'Media stream URL should use wss:// for Telnyx.',
-			{
-				streamUrl
-			}
-		)
-	);
+  const setup = await buildTelnyxVoiceSetupStatus(input.options, input);
+  const checks: TelnyxVoiceSmokeCheck[] = [];
+  const texmlResponse = await input.app.handle(new Request(setup.urls.texml));
+  const texml = await texmlResponse.text();
+  const streamUrl = extractTelnyxStreamUrl(texml);
+  checks.push(
+    createSmokeCheck(
+      "texml",
+      texmlResponse.ok && Boolean(streamUrl) ? "pass" : "fail",
+      streamUrl
+        ? "TeXML includes a media stream URL."
+        : 'TeXML is missing <Stream url="...">.',
+      {
+        status: texmlResponse.status,
+        streamUrl,
+      },
+    ),
+  );
+  checks.push(
+    createSmokeCheck(
+      "stream-url",
+      streamUrl?.startsWith("wss://") ? "pass" : "fail",
+      streamUrl?.startsWith("wss://")
+        ? "Media stream URL uses wss://."
+        : "Media stream URL should use wss:// for Telnyx.",
+      {
+        streamUrl,
+      },
+    ),
+  );
 
-	const webhookBody = {
-		data: {
-			event_type: input.options.smoke?.eventType ?? 'call.hangup',
-			id: 'telnyx-smoke-event',
-			payload: {
-				call_control_id:
-					input.options.smoke?.callControlId ?? 'telnyx-smoke-call',
-				call_leg_id: input.options.smoke?.callLegId ?? 'telnyx-smoke-leg',
-				call_session_id:
-					input.options.smoke?.sessionId ?? 'telnyx-smoke-session',
-				hangup_cause: 'busy',
-				sip_hangup_cause: 486
-			},
-			record_type: 'event'
-		}
-	};
-	const webhookResponse = await input.app.handle(
-		new Request(setup.urls.webhook, {
-			body: JSON.stringify(webhookBody),
-			headers: {
-				'content-type': 'application/json'
-			},
-			method: 'POST'
-		})
-	);
-	const webhookText = await webhookResponse.text();
-	const webhookPayload = (() => {
-		try {
-			return JSON.parse(webhookText) as unknown;
-		} catch {
-			return webhookText;
-		}
-	})();
-	checks.push(
-		createSmokeCheck(
-			'webhook',
-			webhookResponse.ok ? 'pass' : 'fail',
-			webhookResponse.ok
-				? 'Synthetic Telnyx event was accepted.'
-				: 'Synthetic Telnyx event failed.',
-			{
-				status: webhookResponse.status
-			}
-		)
-	);
-	for (const warning of setup.warnings) {
-		checks.push(createSmokeCheck('setup-warning', 'warn', warning));
-	}
-	for (const name of setup.missing) {
-		checks.push(createSmokeCheck('missing-env', 'fail', `${name} is missing.`));
-	}
+  const webhookBody = {
+    data: {
+      event_type: input.options.smoke?.eventType ?? "call.hangup",
+      id: "telnyx-smoke-event",
+      payload: {
+        call_control_id:
+          input.options.smoke?.callControlId ?? "telnyx-smoke-call",
+        call_leg_id: input.options.smoke?.callLegId ?? "telnyx-smoke-leg",
+        call_session_id:
+          input.options.smoke?.sessionId ?? "telnyx-smoke-session",
+        hangup_cause: "busy",
+        sip_hangup_cause: 486,
+      },
+      record_type: "event",
+    },
+  };
+  const webhookResponse = await input.app.handle(
+    new Request(setup.urls.webhook, {
+      body: JSON.stringify(webhookBody),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    }),
+  );
+  const webhookText = await webhookResponse.text();
+  const webhookPayload = (() => {
+    try {
+      return JSON.parse(webhookText) as unknown;
+    } catch {
+      return webhookText;
+    }
+  })();
+  checks.push(
+    createSmokeCheck(
+      "webhook",
+      webhookResponse.ok ? "pass" : "fail",
+      webhookResponse.ok
+        ? "Synthetic Telnyx event was accepted."
+        : "Synthetic Telnyx event failed.",
+      {
+        status: webhookResponse.status,
+      },
+    ),
+  );
+  for (const warning of setup.warnings) {
+    checks.push(createSmokeCheck("setup-warning", "warn", warning));
+  }
+  for (const name of setup.missing) {
+    checks.push(createSmokeCheck("missing-env", "fail", `${name} is missing.`));
+  }
 
-	const baseReport = {
-		checks,
-		generatedAt: Date.now(),
-		pass: checks.every((check) => check.status !== 'fail'),
-		provider: 'telnyx' as const,
-		setup,
-		texml: {
-			status: texmlResponse.status,
-			streamUrl
-		},
-		twiml: {
-			status: texmlResponse.status,
-			streamUrl
-		},
-		webhook: {
-			body: webhookPayload,
-			status: webhookResponse.status
-		}
-	};
+  const baseReport = {
+    checks,
+    generatedAt: Date.now(),
+    pass: checks.every((check) => check.status !== "fail"),
+    provider: "telnyx" as const,
+    setup,
+    texml: {
+      status: texmlResponse.status,
+      streamUrl,
+    },
+    twiml: {
+      status: texmlResponse.status,
+      streamUrl,
+    },
+    webhook: {
+      body: webhookPayload,
+      status: webhookResponse.status,
+    },
+  };
 
-	return {
-		...baseReport,
-		contract: evaluateVoiceTelephonyContract({
-			setup,
-			smoke: baseReport
-		})
-	};
+  return {
+    ...baseReport,
+    contract: evaluateVoiceTelephonyContract({
+      setup,
+      smoke: baseReport,
+    }),
+  };
 };
 
 export const createTelnyxVoiceRoutes = <
-	TContext = unknown,
-	TSession extends VoiceSessionRecord = VoiceSessionRecord,
-	TResult = unknown
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
 >(
-	options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult> = {}
+  options: TelnyxVoiceRoutesOptions<TContext, TSession, TResult> = {},
 ) => {
-	const streamPath = options.streamPath ?? '/api/voice/telnyx/stream';
-	const texmlPath = options.texml?.path ?? '/api/voice/telnyx';
-	const webhookPath = options.webhook?.path ?? '/api/voice/telnyx/webhook';
-	const setupPath =
-		options.setup?.path === false
-			? false
-			: options.setup?.path ?? '/api/voice/telnyx/setup';
-	const smokePath =
-		options.smoke?.path === false
-			? false
-			: options.smoke?.path ?? '/api/voice/telnyx/smoke';
-	const bridges = new WeakMap<object, TelnyxMediaStreamBridge>();
-	const webhookPolicy =
-		options.webhook?.policy ??
-		options.outcomePolicy ??
-		createVoiceTelephonyOutcomePolicy();
-	const verify =
-		options.webhook?.verify ??
-		(options.webhook?.publicKey
-			? createVoiceTelnyxWebhookVerifier({
-					eventStore: options.webhook.eventStore,
-					publicKey: options.webhook.publicKey,
-					toleranceSeconds: options.webhook.toleranceSeconds
-				})
-			: undefined);
-	const app = new Elysia({
-		name: options.name ?? 'absolutejs-voice-telnyx'
-	})
-		.get(texmlPath, async ({ query, request }) => {
-			const streamUrl = await resolveTelnyxStreamUrl(options, {
-				query,
-				request,
-				streamPath
-			});
-			return new Response(
-				createTelnyxVoiceResponse({
-					...options.texml?.response,
-					streamUrl
-				}),
-				{
-					headers: {
-						'content-type': 'text/xml; charset=utf-8'
-					}
-				}
-			);
-		})
-		.post(texmlPath, async ({ query, request }) => {
-			const streamUrl = await resolveTelnyxStreamUrl(options, {
-				query,
-				request,
-				streamPath
-			});
-			return new Response(
-				createTelnyxVoiceResponse({
-					...options.texml?.response,
-					streamUrl
-				}),
-				{
-					headers: {
-						'content-type': 'text/xml; charset=utf-8'
-					}
-				}
-			);
-		})
-		.ws(streamPath, {
-			close: async (ws, _code, reason) => {
-				const bridge = bridges.get(ws as object);
-				bridges.delete(ws as object);
-				await bridge?.close(reason);
-			},
-			message: async (ws, raw) => {
-				if (!options.bridge) {
-					ws.close(1011, 'Telnyx media bridge is not configured.');
-					return;
-				}
+  const streamPath = options.streamPath ?? "/api/voice/telnyx/stream";
+  const texmlPath = options.texml?.path ?? "/api/voice/telnyx";
+  const webhookPath = options.webhook?.path ?? "/api/voice/telnyx/webhook";
+  const setupPath =
+    options.setup?.path === false
+      ? false
+      : (options.setup?.path ?? "/api/voice/telnyx/setup");
+  const smokePath =
+    options.smoke?.path === false
+      ? false
+      : (options.smoke?.path ?? "/api/voice/telnyx/smoke");
+  const bridges = new WeakMap<object, TelnyxMediaStreamBridge>();
+  const webhookPolicy =
+    options.webhook?.policy ??
+    options.outcomePolicy ??
+    createVoiceTelephonyOutcomePolicy();
+  const verify =
+    options.webhook?.verify ??
+    (options.webhook?.publicKey
+      ? createVoiceTelnyxWebhookVerifier({
+          eventStore: options.webhook.eventStore,
+          publicKey: options.webhook.publicKey,
+          toleranceSeconds: options.webhook.toleranceSeconds,
+        })
+      : undefined);
+  const app = new Elysia({
+    name: options.name ?? "absolutejs-voice-telnyx",
+  })
+    .get(texmlPath, async ({ query, request }) => {
+      const streamUrl = await resolveTelnyxStreamUrl(options, {
+        query,
+        request,
+        streamPath,
+      });
+      return new Response(
+        createTelnyxVoiceResponse({
+          ...options.texml?.response,
+          streamUrl,
+        }),
+        {
+          headers: {
+            "content-type": "text/xml; charset=utf-8",
+          },
+        },
+      );
+    })
+    .post(texmlPath, async ({ query, request }) => {
+      const streamUrl = await resolveTelnyxStreamUrl(options, {
+        query,
+        request,
+        streamPath,
+      });
+      return new Response(
+        createTelnyxVoiceResponse({
+          ...options.texml?.response,
+          streamUrl,
+        }),
+        {
+          headers: {
+            "content-type": "text/xml; charset=utf-8",
+          },
+        },
+      );
+    })
+    .ws(streamPath, {
+      close: async (ws, _code, reason) => {
+        const bridge = bridges.get(ws as object);
+        bridges.delete(ws as object);
+        await bridge?.close(reason);
+      },
+      message: async (ws, raw) => {
+        if (!options.bridge) {
+          ws.close(1011, "Telnyx media bridge is not configured.");
+          return;
+        }
 
-				let bridge = bridges.get(ws as object);
-				if (!bridge) {
-					bridge = createTelnyxMediaStreamBridge(
-						{
-							close: (code, reason) => {
-								ws.close(code, reason);
-							},
-							send: (data) => {
-								ws.send(data);
-							}
-						},
-						options.bridge
-					);
-					bridges.set(ws as object, bridge);
-				}
+        let bridge = bridges.get(ws as object);
+        if (!bridge) {
+          bridge = createTelnyxMediaStreamBridge(
+            {
+              close: (code, reason) => {
+                ws.close(code, reason);
+              },
+              send: (data) => {
+                ws.send(data);
+              },
+            },
+            options.bridge,
+          );
+          bridges.set(ws as object, bridge);
+        }
 
-				await bridge.handleMessage(raw as string);
-			}
-		})
-		.use(
-			createVoiceTelephonyWebhookRoutes({
-				...(options.webhook ?? {}),
-				context: options.context as TContext,
-				path: webhookPath,
-				policy: webhookPolicy,
-				provider: 'telnyx',
-				requireVerification: Boolean(options.webhook?.publicKey),
-				resolveSessionId:
-					options.webhook?.resolveSessionId ??
-					(({ event }) => {
-						const metadata = event.metadata;
-						return typeof metadata?.call_session_id === 'string'
-							? metadata.call_session_id
-							: typeof metadata?.callSessionId === 'string'
-								? metadata.callSessionId
-								: typeof metadata?.call_control_id === 'string'
-									? metadata.call_control_id
-									: undefined;
-					}),
-				verify
-			})
-		);
+        await bridge.handleMessage(raw as string);
+      },
+    })
+    .use(
+      createVoiceTelephonyWebhookRoutes({
+        ...(options.webhook ?? {}),
+        context: options.context as TContext,
+        path: webhookPath,
+        policy: webhookPolicy,
+        provider: "telnyx",
+        requireVerification: Boolean(options.webhook?.publicKey),
+        resolveSessionId:
+          options.webhook?.resolveSessionId ??
+          (({ event }) => {
+            const metadata = event.metadata;
+            return typeof metadata?.call_session_id === "string"
+              ? metadata.call_session_id
+              : typeof metadata?.callSessionId === "string"
+                ? metadata.callSessionId
+                : typeof metadata?.call_control_id === "string"
+                  ? metadata.call_control_id
+                  : undefined;
+          }),
+        verify,
+      }),
+    );
 
-	const withSetup = setupPath
-		? app.get(setupPath, async ({ query, request }) => {
-				const status = await buildTelnyxVoiceSetupStatus(options, {
-					query,
-					request,
-					streamPath,
-					texmlPath,
-					webhookPath
-				});
-				if (query.format === 'html') {
-					return new Response(
-						renderTelnyxSetupHTML(
-							status,
-							options.setup?.title ?? 'AbsoluteJS Telnyx Voice Setup'
-						),
-						{
-							headers: {
-								'content-type': 'text/html; charset=utf-8'
-							}
-						}
-					);
-				}
-				return status;
-		  })
-		: app;
+  const withSetup = setupPath
+    ? app.get(setupPath, async ({ query, request }) => {
+        const status = await buildTelnyxVoiceSetupStatus(options, {
+          query,
+          request,
+          streamPath,
+          texmlPath,
+          webhookPath,
+        });
+        if (query.format === "html") {
+          return new Response(
+            renderTelnyxSetupHTML(
+              status,
+              options.setup?.title ?? "AbsoluteJS Telnyx Voice Setup",
+            ),
+            {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+            },
+          );
+        }
+        return status;
+      })
+    : app;
 
-	if (!smokePath) {
-		return withSetup;
-	}
+  if (!smokePath) {
+    return withSetup;
+  }
 
-	return withSetup.get(smokePath, async ({ query, request }) => {
-		const report = await runTelnyxSmokeTest({
-			app,
-			options,
-			query,
-			request,
-			streamPath,
-			texmlPath,
-			webhookPath
-		});
-		if (query.format === 'html') {
-			return new Response(
-				renderTelnyxSmokeHTML(
-					report,
-					options.smoke?.title ?? 'AbsoluteJS Telnyx Voice Smoke Test'
-				),
-				{
-					headers: {
-						'content-type': 'text/html; charset=utf-8'
-					}
-				}
-			);
-		}
-		return report;
-	});
+  return withSetup.get(smokePath, async ({ query, request }) => {
+    const report = await runTelnyxSmokeTest({
+      app,
+      options,
+      query,
+      request,
+      streamPath,
+      texmlPath,
+      webhookPath,
+    });
+    if (query.format === "html") {
+      return new Response(
+        renderTelnyxSmokeHTML(
+          report,
+          options.smoke?.title ?? "AbsoluteJS Telnyx Voice Smoke Test",
+        ),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+          },
+        },
+      );
+    }
+    return report;
+  });
 };

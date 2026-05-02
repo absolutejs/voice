@@ -1,8 +1,8 @@
 import type {
-	VoiceClientMessage,
-	VoiceConnectionOptions,
-	VoiceServerMessage
-} from '../types';
+  VoiceClientMessage,
+  VoiceConnectionOptions,
+  VoiceServerMessage,
+} from "../types";
 
 const WS_OPEN = 1;
 const WS_CLOSED = 3;
@@ -11,355 +11,364 @@ const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
 const DEFAULT_PING_INTERVAL = 30_000;
 const RECONNECT_DELAY_MS = 500;
 
-const DEFAULT_SCENARIO_QUERY_PARAM = 'scenarioId';
+const DEFAULT_SCENARIO_QUERY_PARAM = "scenarioId";
 
 type VoiceConnectionState = {
-	isConnected: boolean;
-	pendingMessages: Array<string | Uint8Array | ArrayBuffer>;
-	pingInterval: ReturnType<typeof setInterval> | null;
-	scenarioId: string | null;
-	reconnectAttempts: number;
-	reconnectTimeout: ReturnType<typeof setTimeout> | null;
-	sessionId: string;
-	ws: WebSocket | null;
+  isConnected: boolean;
+  pendingMessages: Array<string | Uint8Array | ArrayBuffer>;
+  pingInterval: ReturnType<typeof setInterval> | null;
+  scenarioId: string | null;
+  reconnectAttempts: number;
+  reconnectTimeout: ReturnType<typeof setTimeout> | null;
+  sessionId: string;
+  ws: WebSocket | null;
 };
 
 type VoiceConnectionHandle = {
-	callControl: (
-		message: Omit<VoiceClientMessage & { type: 'call_control' }, 'type'>
-	) => void;
-	start: (input?: { sessionId?: string; scenarioId?: string }) => void;
-	close: () => void;
-	endTurn: () => void;
-	getReadyState: () => number;
-	getScenarioId: () => string;
-	getSessionId: () => string;
-	send: (message: VoiceClientMessage) => void;
-	sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
-	subscribe: (callback: (message: VoiceServerMessage) => void) => () => void;
+  callControl: (
+    message: Omit<VoiceClientMessage & { type: "call_control" }, "type">,
+  ) => void;
+  start: (input?: { sessionId?: string; scenarioId?: string }) => void;
+  close: () => void;
+  endTurn: () => void;
+  getReadyState: () => number;
+  getScenarioId: () => string;
+  getSessionId: () => string;
+  send: (message: VoiceClientMessage) => void;
+  sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
+  simulateDisconnect: () => void;
+  subscribe: (callback: (message: VoiceServerMessage) => void) => () => void;
 };
 
 const noop = () => {};
 const noopUnsubscribe = () => noop;
 
 const NOOP_CONNECTION: VoiceConnectionHandle = {
-	callControl: noop,
-	close: noop,
-	endTurn: noop,
-	getReadyState: () => WS_CLOSED,
-	getScenarioId: () => '',
-	getSessionId: () => '',
-	send: noop,
-	sendAudio: noop,
-	start: () => {},
-	subscribe: noopUnsubscribe
+  callControl: noop,
+  close: noop,
+  endTurn: noop,
+  getReadyState: () => WS_CLOSED,
+  getScenarioId: () => "",
+  getSessionId: () => "",
+  send: noop,
+  sendAudio: noop,
+  simulateDisconnect: noop,
+  start: () => {},
+  subscribe: noopUnsubscribe,
 };
 
 const createSessionId = () => crypto.randomUUID();
 
 const buildWsUrl = (
-	path: string,
-	sessionId: string,
-	scenarioId: string | null
+  path: string,
+  sessionId: string,
+  scenarioId: string | null,
 ) => {
-	const { hostname, port, protocol } = window.location;
-	const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-	const portSuffix = port ? `:${port}` : '';
-	const url = new URL(`${wsProtocol}//${hostname}${portSuffix}${path}`);
-	url.searchParams.set('sessionId', sessionId);
+  const { hostname, port, protocol } = window.location;
+  const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+  const portSuffix = port ? `:${port}` : "";
+  const url = new URL(`${wsProtocol}//${hostname}${portSuffix}${path}`);
+  url.searchParams.set("sessionId", sessionId);
 
-	if (scenarioId) {
-		url.searchParams.set(DEFAULT_SCENARIO_QUERY_PARAM, scenarioId);
-	}
+  if (scenarioId) {
+    url.searchParams.set(DEFAULT_SCENARIO_QUERY_PARAM, scenarioId);
+  }
 
-	return url.toString();
+  return url.toString();
 };
 
 const isVoiceServerMessage = (value: unknown): value is VoiceServerMessage => {
-	if (!value || typeof value !== 'object' || !('type' in value)) {
-		return false;
-	}
+  if (!value || typeof value !== "object" || !("type" in value)) {
+    return false;
+  }
 
-	switch (value.type) {
-		case 'audio':
-		case 'assistant':
-		case 'call_lifecycle':
-		case 'complete':
-		case 'connection':
-		case 'error':
-		case 'final':
-		case 'partial':
-		case 'pong':
-		case 'replay':
-		case 'session':
-		case 'turn':
-			return true;
-		default:
-			return false;
-	}
+  switch (value.type) {
+    case "audio":
+    case "assistant":
+    case "call_lifecycle":
+    case "complete":
+    case "connection":
+    case "error":
+    case "final":
+    case "partial":
+    case "pong":
+    case "replay":
+    case "session":
+    case "turn":
+      return true;
+    default:
+      return false;
+  }
 };
 
 const parseServerMessage = (event: MessageEvent) => {
-	if (typeof event.data !== 'string') {
-		return null;
-	}
+  if (typeof event.data !== "string") {
+    return null;
+  }
 
-	try {
-		const parsed = JSON.parse(event.data) as unknown;
+  try {
+    const parsed = JSON.parse(event.data) as unknown;
 
-		return isVoiceServerMessage(parsed) ? parsed : null;
-	} catch {
-		return null;
-	}
+    return isVoiceServerMessage(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 };
 
 export const createVoiceConnection = (
-	path: string,
-	options: VoiceConnectionOptions = {}
+  path: string,
+  options: VoiceConnectionOptions = {},
 ) => {
-	if (typeof window === 'undefined') {
-		return NOOP_CONNECTION;
-	}
+  if (typeof window === "undefined") {
+    return NOOP_CONNECTION;
+  }
 
-	const listeners = new Set<(message: VoiceServerMessage) => void>();
-	const shouldReconnect = options.reconnect !== false;
-	const maxReconnectAttempts =
-		options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS;
-	const pingInterval = options.pingInterval ?? DEFAULT_PING_INTERVAL;
+  const listeners = new Set<(message: VoiceServerMessage) => void>();
+  const shouldReconnect = options.reconnect !== false;
+  const maxReconnectAttempts =
+    options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS;
+  const pingInterval = options.pingInterval ?? DEFAULT_PING_INTERVAL;
 
-	const state: VoiceConnectionState = {
-		isConnected: false,
-		pendingMessages: [],
-		scenarioId: options.scenarioId ?? null,
-		pingInterval: null,
-		reconnectAttempts: 0,
-		reconnectTimeout: null,
-		sessionId: options.sessionId ?? createSessionId(),
-		ws: null
-	};
+  const state: VoiceConnectionState = {
+    isConnected: false,
+    pendingMessages: [],
+    scenarioId: options.scenarioId ?? null,
+    pingInterval: null,
+    reconnectAttempts: 0,
+    reconnectTimeout: null,
+    sessionId: options.sessionId ?? createSessionId(),
+    ws: null,
+  };
 
-	const emitConnection = (
-		reconnect: VoiceServerMessage & { type: 'connection' }
-	) => {
-		listeners.forEach((listener) => listener(reconnect));
-	};
+  const emitConnection = (
+    reconnect: VoiceServerMessage & { type: "connection" },
+  ) => {
+    listeners.forEach((listener) => listener(reconnect));
+  };
 
-	const clearTimers = () => {
-		if (state.pingInterval) {
-			clearInterval(state.pingInterval);
-			state.pingInterval = null;
-		}
+  const clearTimers = () => {
+    if (state.pingInterval) {
+      clearInterval(state.pingInterval);
+      state.pingInterval = null;
+    }
 
-		if (state.reconnectTimeout) {
-			clearTimeout(state.reconnectTimeout);
-			state.reconnectTimeout = null;
-		}
-	};
+    if (state.reconnectTimeout) {
+      clearTimeout(state.reconnectTimeout);
+      state.reconnectTimeout = null;
+    }
+  };
 
-	const flushPendingMessages = () => {
-		if (state.ws?.readyState !== WS_OPEN) {
-			return;
-		}
+  const flushPendingMessages = () => {
+    if (state.ws?.readyState !== WS_OPEN) {
+      return;
+    }
 
-		while (state.pendingMessages.length > 0) {
-			const next = state.pendingMessages.shift();
+    while (state.pendingMessages.length > 0) {
+      const next = state.pendingMessages.shift();
 
-			if (next !== undefined) {
-				state.ws.send(next);
-			}
-		}
-	};
+      if (next !== undefined) {
+        state.ws.send(next);
+      }
+    }
+  };
 
-	const scheduleReconnect = () => {
-		const nextAttemptAt = Date.now() + RECONNECT_DELAY_MS;
-		state.reconnectAttempts += 1;
-		emitConnection({
-			reconnect: {
-				attempts: state.reconnectAttempts,
-				lastDisconnectAt: Date.now(),
-				maxAttempts: maxReconnectAttempts,
-				nextAttemptAt,
-				status: 'reconnecting'
-			},
-			type: 'connection'
-		});
-		state.reconnectTimeout = setTimeout(() => {
-			if (state.reconnectAttempts > maxReconnectAttempts) {
-				emitConnection({
-					reconnect: {
-						attempts: state.reconnectAttempts,
-						maxAttempts: maxReconnectAttempts,
-						status: 'exhausted'
-					},
-					type: 'connection'
-				});
-				return;
-			}
+  const scheduleReconnect = () => {
+    const nextAttemptAt = Date.now() + RECONNECT_DELAY_MS;
+    state.reconnectAttempts += 1;
+    emitConnection({
+      reconnect: {
+        attempts: state.reconnectAttempts,
+        lastDisconnectAt: Date.now(),
+        maxAttempts: maxReconnectAttempts,
+        nextAttemptAt,
+        status: "reconnecting",
+      },
+      type: "connection",
+    });
+    state.reconnectTimeout = setTimeout(() => {
+      if (state.reconnectAttempts > maxReconnectAttempts) {
+        emitConnection({
+          reconnect: {
+            attempts: state.reconnectAttempts,
+            maxAttempts: maxReconnectAttempts,
+            status: "exhausted",
+          },
+          type: "connection",
+        });
+        return;
+      }
 
-			connect();
-		}, RECONNECT_DELAY_MS);
-	};
+      connect();
+    }, RECONNECT_DELAY_MS);
+  };
 
-	const connect = () => {
-		const ws = new WebSocket(
-			buildWsUrl(path, state.sessionId, state.scenarioId)
-		);
-		ws.binaryType = 'arraybuffer';
+  const connect = () => {
+    const ws = new WebSocket(
+      buildWsUrl(path, state.sessionId, state.scenarioId),
+    );
+    ws.binaryType = "arraybuffer";
 
-		ws.onopen = () => {
-			const wasReconnecting = state.reconnectAttempts > 0;
-			state.isConnected = true;
-			flushPendingMessages();
+    ws.onopen = () => {
+      const wasReconnecting = state.reconnectAttempts > 0;
+      state.isConnected = true;
+      flushPendingMessages();
 
-			if (wasReconnecting) {
-				emitConnection({
-					reconnect: {
-						attempts: state.reconnectAttempts,
-						lastResumedAt: Date.now(),
-						maxAttempts: maxReconnectAttempts,
-						status: 'resumed'
-					},
-					type: 'connection'
-				});
-				state.reconnectAttempts = 0;
-			}
+      if (wasReconnecting) {
+        emitConnection({
+          reconnect: {
+            attempts: state.reconnectAttempts,
+            lastResumedAt: Date.now(),
+            maxAttempts: maxReconnectAttempts,
+            status: "resumed",
+          },
+          type: "connection",
+        });
+        state.reconnectAttempts = 0;
+      }
 
-			listeners.forEach((listener) =>
-				listener({
-					scenarioId: state.scenarioId ?? undefined,
-					sessionId: state.sessionId,
-					status: 'active',
-					type: 'session'
-				})
-			);
+      listeners.forEach((listener) =>
+        listener({
+          scenarioId: state.scenarioId ?? undefined,
+          sessionId: state.sessionId,
+          status: "active",
+          type: "session",
+        }),
+      );
 
-			state.pingInterval = setInterval(() => {
-				if (ws.readyState === WS_OPEN) {
-					ws.send(JSON.stringify({ type: 'ping' }));
-				}
-			}, pingInterval);
-		};
+      state.pingInterval = setInterval(() => {
+        if (ws.readyState === WS_OPEN) {
+          ws.send(JSON.stringify({ type: "ping" }));
+        }
+      }, pingInterval);
+    };
 
-		ws.onmessage = (event) => {
-			const parsed = parseServerMessage(event);
-			if (!parsed) {
-				return;
-			}
+    ws.onmessage = (event) => {
+      const parsed = parseServerMessage(event);
+      if (!parsed) {
+        return;
+      }
 
-			if (parsed.type === 'session') {
-				state.sessionId = parsed.sessionId;
-				state.scenarioId = parsed.scenarioId ?? state.scenarioId;
-			}
+      if (parsed.type === "session") {
+        state.sessionId = parsed.sessionId;
+        state.scenarioId = parsed.scenarioId ?? state.scenarioId;
+      }
 
-			listeners.forEach((listener) => listener(parsed));
-		};
+      listeners.forEach((listener) => listener(parsed));
+    };
 
-		ws.onclose = (event) => {
-			state.isConnected = false;
-			clearTimers();
+    ws.onclose = (event) => {
+      state.isConnected = false;
+      clearTimers();
 
-			const reconnectable =
-				shouldReconnect &&
-				event.code !== WS_NORMAL_CLOSURE &&
-				state.reconnectAttempts < maxReconnectAttempts;
+      const reconnectable =
+        shouldReconnect &&
+        event.code !== WS_NORMAL_CLOSURE &&
+        state.reconnectAttempts < maxReconnectAttempts;
 
-			if (reconnectable) {
-				scheduleReconnect();
-			} else if (shouldReconnect && event.code !== WS_NORMAL_CLOSURE) {
-				emitConnection({
-					reconnect: {
-						attempts: state.reconnectAttempts,
-						lastDisconnectAt: Date.now(),
-						maxAttempts: maxReconnectAttempts,
-						status: 'exhausted'
-					},
-					type: 'connection'
-				});
-			}
-		};
+      if (reconnectable) {
+        scheduleReconnect();
+      } else if (shouldReconnect && event.code !== WS_NORMAL_CLOSURE) {
+        emitConnection({
+          reconnect: {
+            attempts: state.reconnectAttempts,
+            lastDisconnectAt: Date.now(),
+            maxAttempts: maxReconnectAttempts,
+            status: "exhausted",
+          },
+          type: "connection",
+        });
+      }
+    };
 
-		state.ws = ws;
-	};
+    state.ws = ws;
+  };
 
-	const sendSerialized = (value: string | Uint8Array | ArrayBuffer) => {
-		if (state.ws?.readyState === WS_OPEN) {
-			state.ws.send(value);
+  const sendSerialized = (value: string | Uint8Array | ArrayBuffer) => {
+    if (state.ws?.readyState === WS_OPEN) {
+      state.ws.send(value);
 
-			return;
-		}
+      return;
+    }
 
-		state.pendingMessages.push(value);
-	};
+    state.pendingMessages.push(value);
+  };
 
-	const send = (message: VoiceClientMessage) => {
-		sendSerialized(JSON.stringify(message));
-	};
+  const send = (message: VoiceClientMessage) => {
+    sendSerialized(JSON.stringify(message));
+  };
 
-	const start = (input: { sessionId?: string; scenarioId?: string } = {}) => {
-		if (input.sessionId) {
-			state.sessionId = input.sessionId;
-		}
+  const start = (input: { sessionId?: string; scenarioId?: string } = {}) => {
+    if (input.sessionId) {
+      state.sessionId = input.sessionId;
+    }
 
-		if (input.scenarioId) {
-			state.scenarioId = input.scenarioId;
-		}
+    if (input.scenarioId) {
+      state.scenarioId = input.scenarioId;
+    }
 
-		send({
-			type: 'start',
-			sessionId: state.sessionId,
-			scenarioId: state.scenarioId ?? undefined
-		});
-	};
+    send({
+      type: "start",
+      sessionId: state.sessionId,
+      scenarioId: state.scenarioId ?? undefined,
+    });
+  };
 
-	const sendAudio = (audio: Uint8Array | ArrayBuffer) => {
-		sendSerialized(audio);
-	};
+  const sendAudio = (audio: Uint8Array | ArrayBuffer) => {
+    sendSerialized(audio);
+  };
 
-	const endTurn = () => {
-		send({ type: 'end_turn' });
-	};
+  const endTurn = () => {
+    send({ type: "end_turn" });
+  };
 
-	const callControl = (
-		message: Omit<VoiceClientMessage & { type: 'call_control' }, 'type'>
-	) => {
-		send({
-			...message,
-			type: 'call_control'
-		});
-	};
+  const callControl = (
+    message: Omit<VoiceClientMessage & { type: "call_control" }, "type">,
+  ) => {
+    send({
+      ...message,
+      type: "call_control",
+    });
+  };
 
-	const close = () => {
-		clearTimers();
+  const close = () => {
+    clearTimers();
 
-		if (state.ws) {
-			state.ws.close(WS_NORMAL_CLOSURE);
-			state.ws = null;
-		}
+    if (state.ws) {
+      state.ws.close(WS_NORMAL_CLOSURE);
+      state.ws = null;
+    }
 
-		state.isConnected = false;
-		listeners.clear();
-	};
+    state.isConnected = false;
+    listeners.clear();
+  };
 
-	const subscribe = (callback: (message: VoiceServerMessage) => void) => {
-		listeners.add(callback);
+  const simulateDisconnect = () => {
+    if (state.ws?.readyState === WS_OPEN) {
+      state.ws.close(4000, "absolutejs-voice-reconnect-proof");
+    }
+  };
 
-		return () => {
-			listeners.delete(callback);
-		};
-	};
+  const subscribe = (callback: (message: VoiceServerMessage) => void) => {
+    listeners.add(callback);
 
-	connect();
+    return () => {
+      listeners.delete(callback);
+    };
+  };
 
-	return {
-		callControl,
-		close,
-		endTurn,
-		getReadyState: () => state.ws?.readyState ?? WS_CLOSED,
-		getScenarioId: () => state.scenarioId ?? '',
-		getSessionId: () => state.sessionId,
-		send,
-		sendAudio,
-		start,
-		subscribe
-	};
+  connect();
+
+  return {
+    callControl,
+    close,
+    endTurn,
+    getReadyState: () => state.ws?.readyState ?? WS_CLOSED,
+    getScenarioId: () => state.scenarioId ?? "",
+    getSessionId: () => state.sessionId,
+    send,
+    sendAudio,
+    simulateDisconnect,
+    start,
+    subscribe,
+  };
 };

@@ -1,261 +1,262 @@
 {
-	"name": "@absolutejs/voice",
-	"version": "0.0.22-beta.439",
-	"description": "Voice primitives and Elysia plugin for AbsoluteJS",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/absolutejs/voice.git"
-	},
-	"files": [
-		"dist",
-		"fixtures",
-		"README.md"
-	],
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"license": "CC BY-NC 4.0",
-	"author": "Alex Kahn",
-	"scripts": {
-		"bench:accents": "bun run ./scripts/benchmark-stt.ts all accents",
-		"bench:jargon": "bun run ./scripts/benchmark-stt.ts all jargon",
-		"bench:jargon:run": "bun run ./scripts/run-jargon-benchmarks.ts",
-		"bench:multilingual": "bun run ./scripts/benchmark-stt.ts all multilingual",
-		"bench:multi-speaker": "bun run ./scripts/benchmark-stt.ts all multi-speaker",
-		"bench:multi-speaker:run": "bun run ./scripts/run-multi-speaker-benchmarks.ts",
-		"bench:multi-speaker:analyze": "bun run ./scripts/run-multi-speaker-analysis.ts",
-		"bench:deepgram:multi-speaker:clean": "bun run ./scripts/benchmark-stt.ts deepgram multi-speaker-clean",
-		"bench:deepgram:multi-speaker:noisy": "bun run ./scripts/benchmark-stt.ts deepgram multi-speaker-noisy",
-		"bench:deepgram:multi-speaker:noisy:corrected": "bun run ./scripts/benchmark-stt.ts deepgram-corrected multi-speaker-noisy",
-		"bench:deepgram:multi-speaker:debug": "bun run ./scripts/run-multi-speaker-debug.ts",
-		"bench:code-switch": "bun run ./scripts/benchmark-stt.ts all code-switch",
-		"bench:code-switch:series": "bun run ./scripts/benchmark-stt.ts all code-switch --runs 5",
-		"bench:code-switch:ca-es": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es",
-		"bench:code-switch:ca-es:series": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es --runs 5",
-		"bench:code-switch:ca-es:corts:series": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es-corts --runs 5",
-		"bench:code-switch:ca-es:parlament:series": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es-parlament --runs 5",
-		"bench:code-switch:hi-en": "bun run ./scripts/benchmark-stt.ts all code-switch-hi-en",
-		"bench:code-switch:hi-en:series": "bun run ./scripts/benchmark-stt.ts all code-switch-hi-en --runs 5",
-		"bench:telephony": "bun run ./scripts/benchmark-stt.ts all telephony",
-		"bench:telephony:bridge": "bun run ./scripts/benchmark-telephony.ts",
-		"bench:telephony:run": "bun run ./scripts/run-telephony-benchmarks.ts",
-		"bench:tts": "bun run ./scripts/benchmark-tts.ts all",
-		"bench:tts:elevenlabs": "bun run ./scripts/benchmark-tts.ts elevenlabs",
-		"bench:tts:openai": "bun run ./scripts/benchmark-tts.ts openai",
-		"bench:tts:interrupt": "bun run ./scripts/benchmark-tts.ts all interrupt",
-		"bench:tts:interrupt:elevenlabs": "bun run ./scripts/benchmark-tts.ts elevenlabs interrupt",
-		"bench:tts:interrupt:openai": "bun run ./scripts/benchmark-tts.ts openai interrupt",
-		"bench:tts:run": "bun run ./scripts/run-tts-benchmarks.ts",
-		"bench:tts:interrupt:run": "bun run ./scripts/run-tts-interruption-benchmarks.ts",
-		"bench:duplex": "bun run ./scripts/benchmark-duplex.ts",
-		"bench:duplex:live": "bun run ./scripts/benchmark-live-duplex.ts all",
-		"bench:duplex:live:elevenlabs": "bun run ./scripts/benchmark-live-duplex.ts elevenlabs",
-		"bench:duplex:live:openai": "bun run ./scripts/benchmark-live-duplex.ts openai",
-		"bench:duplex:live:run": "bun run ./scripts/run-live-duplex-benchmarks.ts",
-		"bench:telephony:live": "bun run ./scripts/benchmark-live-telephony.ts",
-		"bench:telephony:live:run": "bun run ./scripts/run-live-telephony-benchmarks.ts",
-		"bench:telephony:live:series": "bun run ./scripts/run-live-telephony-series.ts",
-		"bench:telephony:live:shootout": "bun run ./scripts/run-live-telephony-shootout.ts",
-		"bench:telephony:live:stt:shootout": "bun run ./scripts/run-live-telephony-stt-shootout.ts",
-		"bench:telephony:live:tts:shootout": "bun run ./scripts/run-live-telephony-tts-shootout.ts",
-		"bench:duplex:browser": "bun run ./scripts/benchmark-browser-duplex.ts all",
-		"bench:duplex:browser:elevenlabs": "bun run ./scripts/benchmark-browser-duplex.ts elevenlabs",
-		"bench:duplex:browser:openai": "bun run ./scripts/benchmark-browser-duplex.ts openai",
-		"bench:duplex:browser:run": "bun run ./scripts/run-browser-duplex-benchmarks.ts",
-		"bench:duplex:browser:series": "bun run ./scripts/run-browser-duplex-series.ts",
-		"bench:duplex:browser:overlap": "bun run ./scripts/benchmark-browser-duplex-overlap.ts all",
-		"bench:duplex:browser:overlap:run": "bun run ./scripts/run-browser-duplex-overlap-benchmarks.ts",
-		"bench:duplex:browser:overlap:series": "bun run ./scripts/run-browser-duplex-overlap-series.ts",
-		"bench:production": "bun run ./scripts/benchmark-production.ts",
-		"bench:production:deepgram-corrected:audit": "bun run ./scripts/benchmark-production.ts deepgram-corrected-audit",
-		"bench:assemblyai": "bun run ./scripts/benchmark-stt.ts assemblyai",
-		"bench:assemblyai:accents": "bun run ./scripts/benchmark-stt.ts assemblyai accents",
-		"bench:assemblyai:multilingual": "bun run ./scripts/benchmark-stt.ts assemblyai multilingual",
-		"bench:assemblyai:code-switch": "bun run ./scripts/benchmark-stt.ts assemblyai code-switch",
-		"bench:openai": "bun run ./scripts/benchmark-stt.ts openai",
-		"bench:openai:accents": "bun run ./scripts/benchmark-stt.ts openai accents",
-		"bench:openai:multilingual": "bun run ./scripts/benchmark-stt.ts openai multilingual",
-		"bench:openai:code-switch": "bun run ./scripts/benchmark-stt.ts openai code-switch",
-		"bench:openai:code-switch:series": "bun run ./scripts/benchmark-stt.ts openai code-switch --runs 5",
-		"bench:openai:code-switch:ca-es": "bun run ./scripts/benchmark-stt.ts openai code-switch-ca-es",
-		"bench:openai:code-switch:ca-es:series": "bun run ./scripts/benchmark-stt.ts openai code-switch-ca-es --runs 5",
-		"bench:openai:code-switch:hi-en": "bun run ./scripts/benchmark-stt.ts openai code-switch-hi-en",
-		"bench:openai:code-switch:hi-en:series": "bun run ./scripts/benchmark-stt.ts openai code-switch-hi-en --runs 5",
-		"bench:openai:code-switch:corrected": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch",
-		"bench:openai:code-switch:corrected:series": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch --runs 5",
-		"bench:openai:code-switch:corrected:ca-es": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-ca-es",
-		"bench:openai:code-switch:corrected:ca-es:series": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-ca-es --runs 5",
-		"bench:openai:code-switch:corrected:hi-en": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-hi-en",
-		"bench:openai:code-switch:corrected:hi-en:series": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-hi-en --runs 5",
-		"bench:openai:diag": "bun run ./scripts/benchmark-stt.ts openai --diag",
-		"bench:deepgram": "bun run ./scripts/benchmark-stt.ts deepgram",
-		"bench:deepgram:accents": "bun run ./scripts/benchmark-stt.ts deepgram accents",
-		"bench:deepgram:jargon": "bun run ./scripts/benchmark-stt.ts deepgram jargon",
-		"bench:deepgram:multilingual": "bun run ./scripts/benchmark-stt.ts deepgram multilingual",
-		"bench:deepgram:multi-speaker": "bun run ./scripts/benchmark-stt.ts deepgram multi-speaker",
-		"bench:deepgram:code-switch": "bun run ./scripts/benchmark-stt.ts deepgram code-switch",
-		"bench:deepgram:code-switch:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch --runs 5",
-		"bench:deepgram:code-switch:ca-es": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es",
-		"bench:deepgram:code-switch:ca-es:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5",
-		"bench:deepgram:code-switch:ca-es:corts:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es-corts --runs 5",
-		"bench:deepgram:code-switch:ca-es:parlament:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es-parlament --runs 5",
-		"bench:deepgram:code-switch:ca-es:nova3-multi:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-3 DEEPGRAM_CODE_SWITCH_LANGUAGE=multi bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova3-multi",
-		"bench:deepgram:code-switch:ca-es:nova3-ca:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-3 DEEPGRAM_CODE_SWITCH_LANGUAGE=ca bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova3-ca",
-		"bench:deepgram:code-switch:ca-es:nova3-es:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-3 DEEPGRAM_CODE_SWITCH_LANGUAGE=es bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova3-es",
-		"bench:deepgram:code-switch:ca-es:nova2-ca:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-2 DEEPGRAM_CODE_SWITCH_LANGUAGE=ca bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova2-ca",
-		"bench:deepgram:code-switch:ca-es:nova2-es:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-2 DEEPGRAM_CODE_SWITCH_LANGUAGE=es bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova2-es",
-		"bench:deepgram:code-switch:ca-es:best:corrected:series": "bun run ./scripts/run-caes-corrected-benchmark.ts",
-		"bench:deepgram:code-switch:hi-en": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-hi-en",
-		"bench:deepgram:code-switch:hi-en:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-hi-en --runs 5",
-		"bench:deepgram:code-switch:corrected": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch",
-		"bench:deepgram:code-switch:corrected:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch --runs 5",
-		"bench:deepgram:code-switch:corrected:ca-es": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es",
-		"bench:deepgram:code-switch:corrected:ca-es:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es --runs 5",
-		"bench:deepgram:code-switch:corrected:ca-es:corts:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es-corts --runs 5",
-		"bench:deepgram:code-switch:corrected:ca-es:parlament:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es-parlament --runs 5",
-		"bench:deepgram:code-switch:ca-es:parlament:debug": "bun run ./scripts/run-caes-parlament-debug.ts",
-		"bench:deepgram:code-switch:ca-es:parlament:rerun": "bun run ./scripts/run-caes-parlament-series.ts",
-		"bench:deepgram:code-switch:ca-es:full:rerun": "bun run ./scripts/run-caes-full-series.ts",
-		"bench:deepgram:code-switch:corrected:hi-en": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-hi-en",
-		"bench:deepgram:code-switch:corrected:hi-en:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-hi-en --runs 5",
-		"corpus:multilingual": "bun run ./scripts/build-multilingual-corpus.ts",
-		"bench:deepgram:corrected:audit": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected-audit all",
-		"bench:deepgram:corrected:audit:jargon": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected-audit jargon",
-		"bench:deepgram:corrected:telephony": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected telephony",
-		"bench:deepgram:corrected:audit:telephony": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected-audit telephony",
-		"bench:deepgram:telephony": "bun run ./scripts/benchmark-stt.ts deepgram telephony",
-		"bench:deepgram:nova": "bun run ./scripts/benchmark-stt.ts deepgram",
-		"bench:deepgram:flux": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram",
-		"bench:vs": "bun run ./scripts/benchmark-vs.ts",
-		"bench:vs:all": "bun run ./scripts/benchmark-vs.ts all all",
-		"bench:vs:all:accents": "bun run ./scripts/benchmark-vs.ts all accents",
-		"bench:vs:all:code-switch": "bun run ./scripts/benchmark-vs.ts all code-switch",
-		"bench:vs:all:jargon": "bun run ./scripts/benchmark-vs.ts all jargon",
-		"bench:vs:all:multilingual": "bun run ./scripts/benchmark-vs.ts all multilingual",
-		"bench:vs:all:multi-speaker": "bun run ./scripts/benchmark-vs.ts all multi-speaker",
-		"bench:vs:all:telephony": "bun run ./scripts/benchmark-vs.ts all telephony",
-		"bench:vs:deepgram": "bun run ./scripts/benchmark-vs.ts deepgram all",
-		"bench:vs:deepgram-nova": "bun run ./scripts/benchmark-vs.ts deepgram-nova all",
-		"bench:vs:deepgram-flux": "bun run ./scripts/benchmark-vs.ts deepgram-flux all --compare benchmarks/your-vapi-metrics.json",
-		"bench:vs:assemblyai": "bun run ./scripts/benchmark-vs.ts assemblyai all",
-		"bench:vs:openai": "bun run ./scripts/benchmark-vs.ts openai all",
-		"bench:deepgram:sessions": "bun run ./scripts/benchmark-session.ts deepgram",
-		"bench:stt:best:sessions": "bun run ./scripts/benchmark-session.ts best-stt",
-		"bench:stt:cheap:sessions": "bun run ./scripts/benchmark-session.ts cheap-stt",
-		"bench:stt:routing:run": "bun run ./scripts/run-stt-routing-benchmarks.ts",
-		"bench:deepgram:soak:sessions": "bun run ./scripts/benchmark-session.ts deepgram-flux --profile soak --runs 3",
-		"bench:deepgram:hybrid:sessions": "bun run ./scripts/benchmark-session.ts deepgram-hybrid",
-		"bench:deepgram:corrected:sessions": "bun run ./scripts/benchmark-session.ts deepgram-corrected",
-		"bench:deepgram:corrected:soak:sessions": "bun run ./scripts/benchmark-session.ts deepgram-corrected --profile soak --runs 3",
-		"bench:deepgram:corrected:sessions:audit": "bun run ./scripts/benchmark-session.ts deepgram-corrected-audit",
-		"bench:deepgram:openai-hybrid:sessions": "bun run ./scripts/benchmark-session.ts deepgram-openai-hybrid",
-		"bench:production:deepgram-flux-noisy-room": "bun run ./scripts/benchmark-production.ts deepgram-flux-noisy-room",
-		"bench:production:deepgram-corrected": "bun run ./scripts/benchmark-production.ts deepgram-corrected",
-		"bench:resilience": "bun run ./scripts/benchmark-resilience.ts",
-		"bench:soak:run": "bun run ./scripts/run-session-soak-benchmarks.ts",
-		"bench:soak:debug": "bun run ./scripts/run-session-soak-debug.ts",
-		"bench:soak:debug:corrected": "bun run ./scripts/run-session-soak-debug.ts corrected",
-		"bench:soak:series:debug": "bun run ./scripts/run-session-soak-series-debug.ts raw",
-		"bench:soak:series:debug:corrected": "bun run ./scripts/run-session-soak-series-debug.ts corrected",
-		"bench:sessions": "bun run ./scripts/benchmark-session.ts all",
-		"bench:stt": "bun run ./scripts/benchmark-stt.ts all",
-		"bench:assemblyai:sessions": "bun run ./scripts/benchmark-session.ts assemblyai",
-		"bench:openai:sessions": "bun run ./scripts/benchmark-session.ts openai",
-		"build": "rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
-		"format": "prettier --write \"./**/*.{js,jsx,ts,tsx,json,md}\"",
-		"lint": "eslint ./src",
-		"release": "bun run format && bun run build && bun publish",
-		"test": "bun test ./test/*.test.ts",
-		"test:adapters": "bun test ./test/live/*.test.ts",
-		"test:assemblyai": "bun test ./test/live/assemblyai.live.test.ts",
-		"test:deepgram": "bun test ./test/live/deepgram.live.test.ts",
-		"test:elevenlabs": "bun test ./test/live/elevenlabs.live.test.ts",
-		"test:openai": "bun test ./test/live/openai.live.test.ts",
-		"typecheck": "bun run tsc --noEmit"
-	},
-	"exports": {
-		".": {
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		},
-		"./client": {
-			"browser": "./dist/client/index.js",
-			"import": "./dist/client/index.js",
-			"types": "./dist/client/index.d.ts"
-		},
-		"./react": {
-			"browser": "./dist/react/index.js",
-			"import": "./dist/react/index.js",
-			"types": "./dist/react/index.d.ts"
-		},
-		"./vue": {
-			"browser": "./dist/vue/index.js",
-			"import": "./dist/vue/index.js",
-			"types": "./dist/vue/index.d.ts"
-		},
-		"./svelte": {
-			"import": "./dist/svelte/index.js",
-			"types": "./dist/svelte/index.d.ts"
-		},
-		"./angular": {
-			"import": "./dist/angular/index.js",
-			"types": "./dist/angular/index.d.ts"
-		},
-		"./testing": {
-			"import": "./dist/testing/index.js",
-			"types": "./dist/testing/index.d.ts"
-		}
-	},
-	"typesVersions": {
-		"*": {
-			"testing": [
-				"dist/testing/index.d.ts"
-			],
-			"client": [
-				"dist/client/index.d.ts"
-			],
-			"react": [
-				"dist/react/index.d.ts"
-			],
-			"svelte": [
-				"dist/svelte/index.d.ts"
-			],
-			"vue": [
-				"dist/vue/index.d.ts"
-			],
-			"angular": [
-				"dist/angular/index.d.ts"
-			]
-		}
-	},
-	"peerDependencies": {
-		"@absolutejs/absolute": ">=0.19.0-beta.646",
-		"@angular/core": ">=21.0.0",
-		"elysia": ">=1.4.18",
-		"react": ">=19.0.0",
-		"vue": ">=3.5.0"
-	},
-	"peerDependenciesMeta": {
-		"@angular/core": {
-			"optional": true
-		},
-		"react": {
-			"optional": true
-		},
-		"vue": {
-			"optional": true
-		}
-	},
-	"dependencies": {
-		"@absolutejs/media": "0.0.1-beta.14"
-	},
-	"devDependencies": {
-		"@absolutejs/absolute": "0.19.0-beta.646",
-		"@angular/core": "^21.0.0",
-		"@types/bun": "1.3.9",
-		"@types/react": "19.2.0",
-		"elysia": "1.4.18",
-		"react": "19.2.1",
-		"typescript": "^5.9.3",
-		"vue": "3.5.27"
-	}
+  "name": "@absolutejs/voice",
+  "version": "0.0.22-beta.452",
+  "description": "Voice primitives and Elysia plugin for AbsoluteJS",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/absolutejs/voice.git"
+  },
+  "files": [
+    "dist",
+    "fixtures",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "CC BY-NC 4.0",
+  "author": "Alex Kahn",
+  "scripts": {
+    "bench:accents": "bun run ./scripts/benchmark-stt.ts all accents",
+    "bench:jargon": "bun run ./scripts/benchmark-stt.ts all jargon",
+    "bench:jargon:run": "bun run ./scripts/run-jargon-benchmarks.ts",
+    "bench:multilingual": "bun run ./scripts/benchmark-stt.ts all multilingual",
+    "bench:multi-speaker": "bun run ./scripts/benchmark-stt.ts all multi-speaker",
+    "bench:multi-speaker:run": "bun run ./scripts/run-multi-speaker-benchmarks.ts",
+    "bench:multi-speaker:analyze": "bun run ./scripts/run-multi-speaker-analysis.ts",
+    "bench:deepgram:multi-speaker:clean": "bun run ./scripts/benchmark-stt.ts deepgram multi-speaker-clean",
+    "bench:deepgram:multi-speaker:noisy": "bun run ./scripts/benchmark-stt.ts deepgram multi-speaker-noisy",
+    "bench:deepgram:multi-speaker:noisy:corrected": "bun run ./scripts/benchmark-stt.ts deepgram-corrected multi-speaker-noisy",
+    "bench:deepgram:multi-speaker:debug": "bun run ./scripts/run-multi-speaker-debug.ts",
+    "bench:code-switch": "bun run ./scripts/benchmark-stt.ts all code-switch",
+    "bench:code-switch:series": "bun run ./scripts/benchmark-stt.ts all code-switch --runs 5",
+    "bench:code-switch:ca-es": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es",
+    "bench:code-switch:ca-es:series": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es --runs 5",
+    "bench:code-switch:ca-es:corts:series": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es-corts --runs 5",
+    "bench:code-switch:ca-es:parlament:series": "bun run ./scripts/benchmark-stt.ts all code-switch-ca-es-parlament --runs 5",
+    "bench:code-switch:hi-en": "bun run ./scripts/benchmark-stt.ts all code-switch-hi-en",
+    "bench:code-switch:hi-en:series": "bun run ./scripts/benchmark-stt.ts all code-switch-hi-en --runs 5",
+    "bench:telephony": "bun run ./scripts/benchmark-stt.ts all telephony",
+    "bench:telephony:bridge": "bun run ./scripts/benchmark-telephony.ts",
+    "bench:telephony:run": "bun run ./scripts/run-telephony-benchmarks.ts",
+    "bench:tts": "bun run ./scripts/benchmark-tts.ts all",
+    "bench:tts:elevenlabs": "bun run ./scripts/benchmark-tts.ts elevenlabs",
+    "bench:tts:openai": "bun run ./scripts/benchmark-tts.ts openai",
+    "bench:tts:interrupt": "bun run ./scripts/benchmark-tts.ts all interrupt",
+    "bench:tts:interrupt:elevenlabs": "bun run ./scripts/benchmark-tts.ts elevenlabs interrupt",
+    "bench:tts:interrupt:openai": "bun run ./scripts/benchmark-tts.ts openai interrupt",
+    "bench:tts:run": "bun run ./scripts/run-tts-benchmarks.ts",
+    "bench:tts:interrupt:run": "bun run ./scripts/run-tts-interruption-benchmarks.ts",
+    "bench:duplex": "bun run ./scripts/benchmark-duplex.ts",
+    "bench:duplex:live": "bun run ./scripts/benchmark-live-duplex.ts all",
+    "bench:duplex:live:elevenlabs": "bun run ./scripts/benchmark-live-duplex.ts elevenlabs",
+    "bench:duplex:live:openai": "bun run ./scripts/benchmark-live-duplex.ts openai",
+    "bench:duplex:live:run": "bun run ./scripts/run-live-duplex-benchmarks.ts",
+    "bench:telephony:live": "bun run ./scripts/benchmark-live-telephony.ts",
+    "bench:telephony:live:run": "bun run ./scripts/run-live-telephony-benchmarks.ts",
+    "bench:telephony:live:series": "bun run ./scripts/run-live-telephony-series.ts",
+    "bench:telephony:live:shootout": "bun run ./scripts/run-live-telephony-shootout.ts",
+    "bench:telephony:live:stt:shootout": "bun run ./scripts/run-live-telephony-stt-shootout.ts",
+    "bench:telephony:live:tts:shootout": "bun run ./scripts/run-live-telephony-tts-shootout.ts",
+    "bench:duplex:browser": "bun run ./scripts/benchmark-browser-duplex.ts all",
+    "bench:duplex:browser:elevenlabs": "bun run ./scripts/benchmark-browser-duplex.ts elevenlabs",
+    "bench:duplex:browser:openai": "bun run ./scripts/benchmark-browser-duplex.ts openai",
+    "bench:duplex:browser:run": "bun run ./scripts/run-browser-duplex-benchmarks.ts",
+    "bench:duplex:browser:series": "bun run ./scripts/run-browser-duplex-series.ts",
+    "bench:duplex:browser:overlap": "bun run ./scripts/benchmark-browser-duplex-overlap.ts all",
+    "bench:duplex:browser:overlap:run": "bun run ./scripts/run-browser-duplex-overlap-benchmarks.ts",
+    "bench:duplex:browser:overlap:series": "bun run ./scripts/run-browser-duplex-overlap-series.ts",
+    "bench:production": "bun run ./scripts/benchmark-production.ts",
+    "bench:production:deepgram-corrected:audit": "bun run ./scripts/benchmark-production.ts deepgram-corrected-audit",
+    "bench:assemblyai": "bun run ./scripts/benchmark-stt.ts assemblyai",
+    "bench:assemblyai:accents": "bun run ./scripts/benchmark-stt.ts assemblyai accents",
+    "bench:assemblyai:multilingual": "bun run ./scripts/benchmark-stt.ts assemblyai multilingual",
+    "bench:assemblyai:code-switch": "bun run ./scripts/benchmark-stt.ts assemblyai code-switch",
+    "bench:openai": "bun run ./scripts/benchmark-stt.ts openai",
+    "bench:openai:accents": "bun run ./scripts/benchmark-stt.ts openai accents",
+    "bench:openai:multilingual": "bun run ./scripts/benchmark-stt.ts openai multilingual",
+    "bench:openai:code-switch": "bun run ./scripts/benchmark-stt.ts openai code-switch",
+    "bench:openai:code-switch:series": "bun run ./scripts/benchmark-stt.ts openai code-switch --runs 5",
+    "bench:openai:code-switch:ca-es": "bun run ./scripts/benchmark-stt.ts openai code-switch-ca-es",
+    "bench:openai:code-switch:ca-es:series": "bun run ./scripts/benchmark-stt.ts openai code-switch-ca-es --runs 5",
+    "bench:openai:code-switch:hi-en": "bun run ./scripts/benchmark-stt.ts openai code-switch-hi-en",
+    "bench:openai:code-switch:hi-en:series": "bun run ./scripts/benchmark-stt.ts openai code-switch-hi-en --runs 5",
+    "bench:openai:code-switch:corrected": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch",
+    "bench:openai:code-switch:corrected:series": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch --runs 5",
+    "bench:openai:code-switch:corrected:ca-es": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-ca-es",
+    "bench:openai:code-switch:corrected:ca-es:series": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-ca-es --runs 5",
+    "bench:openai:code-switch:corrected:hi-en": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-hi-en",
+    "bench:openai:code-switch:corrected:hi-en:series": "bun run ./scripts/benchmark-stt.ts openai-corrected code-switch-hi-en --runs 5",
+    "bench:openai:diag": "bun run ./scripts/benchmark-stt.ts openai --diag",
+    "bench:deepgram": "bun run ./scripts/benchmark-stt.ts deepgram",
+    "bench:deepgram:accents": "bun run ./scripts/benchmark-stt.ts deepgram accents",
+    "bench:deepgram:jargon": "bun run ./scripts/benchmark-stt.ts deepgram jargon",
+    "bench:deepgram:multilingual": "bun run ./scripts/benchmark-stt.ts deepgram multilingual",
+    "bench:deepgram:multi-speaker": "bun run ./scripts/benchmark-stt.ts deepgram multi-speaker",
+    "bench:deepgram:code-switch": "bun run ./scripts/benchmark-stt.ts deepgram code-switch",
+    "bench:deepgram:code-switch:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch --runs 5",
+    "bench:deepgram:code-switch:ca-es": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es",
+    "bench:deepgram:code-switch:ca-es:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5",
+    "bench:deepgram:code-switch:ca-es:corts:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es-corts --runs 5",
+    "bench:deepgram:code-switch:ca-es:parlament:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es-parlament --runs 5",
+    "bench:deepgram:code-switch:ca-es:nova3-multi:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-3 DEEPGRAM_CODE_SWITCH_LANGUAGE=multi bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova3-multi",
+    "bench:deepgram:code-switch:ca-es:nova3-ca:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-3 DEEPGRAM_CODE_SWITCH_LANGUAGE=ca bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova3-ca",
+    "bench:deepgram:code-switch:ca-es:nova3-es:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-3 DEEPGRAM_CODE_SWITCH_LANGUAGE=es bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova3-es",
+    "bench:deepgram:code-switch:ca-es:nova2-ca:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-2 DEEPGRAM_CODE_SWITCH_LANGUAGE=ca bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova2-ca",
+    "bench:deepgram:code-switch:ca-es:nova2-es:series": "DEEPGRAM_CODE_SWITCH_MODEL=nova-2 DEEPGRAM_CODE_SWITCH_LANGUAGE=es bun run ./scripts/benchmark-stt.ts deepgram code-switch-ca-es --runs 5 --variant nova2-es",
+    "bench:deepgram:code-switch:ca-es:best:corrected:series": "bun run ./scripts/run-caes-corrected-benchmark.ts",
+    "bench:deepgram:code-switch:hi-en": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-hi-en",
+    "bench:deepgram:code-switch:hi-en:series": "bun run ./scripts/benchmark-stt.ts deepgram code-switch-hi-en --runs 5",
+    "bench:deepgram:code-switch:corrected": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch",
+    "bench:deepgram:code-switch:corrected:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch --runs 5",
+    "bench:deepgram:code-switch:corrected:ca-es": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es",
+    "bench:deepgram:code-switch:corrected:ca-es:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es --runs 5",
+    "bench:deepgram:code-switch:corrected:ca-es:corts:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es-corts --runs 5",
+    "bench:deepgram:code-switch:corrected:ca-es:parlament:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-ca-es-parlament --runs 5",
+    "bench:deepgram:code-switch:ca-es:parlament:debug": "bun run ./scripts/run-caes-parlament-debug.ts",
+    "bench:deepgram:code-switch:ca-es:parlament:rerun": "bun run ./scripts/run-caes-parlament-series.ts",
+    "bench:deepgram:code-switch:ca-es:full:rerun": "bun run ./scripts/run-caes-full-series.ts",
+    "bench:deepgram:code-switch:corrected:hi-en": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-hi-en",
+    "bench:deepgram:code-switch:corrected:hi-en:series": "bun run ./scripts/benchmark-stt.ts deepgram-corrected code-switch-hi-en --runs 5",
+    "corpus:multilingual": "bun run ./scripts/build-multilingual-corpus.ts",
+    "bench:deepgram:corrected:audit": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected-audit all",
+    "bench:deepgram:corrected:audit:jargon": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected-audit jargon",
+    "bench:deepgram:corrected:telephony": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected telephony",
+    "bench:deepgram:corrected:audit:telephony": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram-corrected-audit telephony",
+    "bench:deepgram:telephony": "bun run ./scripts/benchmark-stt.ts deepgram telephony",
+    "bench:deepgram:nova": "bun run ./scripts/benchmark-stt.ts deepgram",
+    "bench:deepgram:flux": "DEEPGRAM_MODEL=flux-general-en bun run ./scripts/benchmark-stt.ts deepgram",
+    "bench:vs": "bun run ./scripts/benchmark-vs.ts",
+    "bench:vs:all": "bun run ./scripts/benchmark-vs.ts all all",
+    "bench:vs:all:accents": "bun run ./scripts/benchmark-vs.ts all accents",
+    "bench:vs:all:code-switch": "bun run ./scripts/benchmark-vs.ts all code-switch",
+    "bench:vs:all:jargon": "bun run ./scripts/benchmark-vs.ts all jargon",
+    "bench:vs:all:multilingual": "bun run ./scripts/benchmark-vs.ts all multilingual",
+    "bench:vs:all:multi-speaker": "bun run ./scripts/benchmark-vs.ts all multi-speaker",
+    "bench:vs:all:telephony": "bun run ./scripts/benchmark-vs.ts all telephony",
+    "bench:vs:deepgram": "bun run ./scripts/benchmark-vs.ts deepgram all",
+    "bench:vs:deepgram-nova": "bun run ./scripts/benchmark-vs.ts deepgram-nova all",
+    "bench:vs:deepgram-flux": "bun run ./scripts/benchmark-vs.ts deepgram-flux all --compare benchmarks/your-vapi-metrics.json",
+    "bench:vs:assemblyai": "bun run ./scripts/benchmark-vs.ts assemblyai all",
+    "bench:vs:openai": "bun run ./scripts/benchmark-vs.ts openai all",
+    "bench:deepgram:sessions": "bun run ./scripts/benchmark-session.ts deepgram",
+    "bench:stt:best:sessions": "bun run ./scripts/benchmark-session.ts best-stt",
+    "bench:stt:cheap:sessions": "bun run ./scripts/benchmark-session.ts cheap-stt",
+    "bench:stt:routing:run": "bun run ./scripts/run-stt-routing-benchmarks.ts",
+    "bench:deepgram:soak:sessions": "bun run ./scripts/benchmark-session.ts deepgram-flux --profile soak --runs 3",
+    "bench:deepgram:hybrid:sessions": "bun run ./scripts/benchmark-session.ts deepgram-hybrid",
+    "bench:deepgram:corrected:sessions": "bun run ./scripts/benchmark-session.ts deepgram-corrected",
+    "bench:deepgram:corrected:soak:sessions": "bun run ./scripts/benchmark-session.ts deepgram-corrected --profile soak --runs 3",
+    "bench:deepgram:corrected:sessions:audit": "bun run ./scripts/benchmark-session.ts deepgram-corrected-audit",
+    "bench:deepgram:openai-hybrid:sessions": "bun run ./scripts/benchmark-session.ts deepgram-openai-hybrid",
+    "bench:production:deepgram-flux-noisy-room": "bun run ./scripts/benchmark-production.ts deepgram-flux-noisy-room",
+    "bench:production:deepgram-corrected": "bun run ./scripts/benchmark-production.ts deepgram-corrected",
+    "bench:resilience": "bun run ./scripts/benchmark-resilience.ts",
+    "bench:soak:run": "bun run ./scripts/run-session-soak-benchmarks.ts",
+    "bench:soak:debug": "bun run ./scripts/run-session-soak-debug.ts",
+    "bench:soak:debug:corrected": "bun run ./scripts/run-session-soak-debug.ts corrected",
+    "bench:soak:series:debug": "bun run ./scripts/run-session-soak-series-debug.ts raw",
+    "bench:soak:series:debug:corrected": "bun run ./scripts/run-session-soak-series-debug.ts corrected",
+    "bench:sessions": "bun run ./scripts/benchmark-session.ts all",
+    "bench:stt": "bun run ./scripts/benchmark-stt.ts all",
+    "bench:assemblyai:sessions": "bun run ./scripts/benchmark-session.ts assemblyai",
+    "bench:openai:sessions": "bun run ./scripts/benchmark-session.ts openai",
+    "build": "bun run ./scripts/build-htmx-bootstrap-asset.ts && rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
+    "format": "prettier --write \"./**/*.{js,jsx,ts,tsx,json,md}\"",
+    "lint": "eslint ./src",
+    "release": "bun run format && bun run build && bun publish",
+    "test": "bun test ./test/*.test.ts",
+    "test:adapters": "bun test ./test/live/*.test.ts",
+    "test:assemblyai": "bun test ./test/live/assemblyai.live.test.ts",
+    "test:deepgram": "bun test ./test/live/deepgram.live.test.ts",
+    "test:elevenlabs": "bun test ./test/live/elevenlabs.live.test.ts",
+    "test:openai": "bun test ./test/live/openai.live.test.ts",
+    "typecheck": "bun run tsc --noEmit"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "browser": "./dist/client/index.js",
+      "import": "./dist/client/index.js",
+      "types": "./dist/client/index.d.ts"
+    },
+    "./react": {
+      "browser": "./dist/react/index.js",
+      "import": "./dist/react/index.js",
+      "types": "./dist/react/index.d.ts"
+    },
+    "./vue": {
+      "browser": "./dist/vue/index.js",
+      "import": "./dist/vue/index.js",
+      "types": "./dist/vue/index.d.ts"
+    },
+    "./svelte": {
+      "import": "./dist/svelte/index.js",
+      "types": "./dist/svelte/index.d.ts"
+    },
+    "./angular": {
+      "import": "./dist/angular/index.js",
+      "types": "./dist/angular/index.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing/index.js",
+      "types": "./dist/testing/index.d.ts"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "testing": [
+        "dist/testing/index.d.ts"
+      ],
+      "client": [
+        "dist/client/index.d.ts"
+      ],
+      "react": [
+        "dist/react/index.d.ts"
+      ],
+      "svelte": [
+        "dist/svelte/index.d.ts"
+      ],
+      "vue": [
+        "dist/vue/index.d.ts"
+      ],
+      "angular": [
+        "dist/angular/index.d.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@absolutejs/absolute": ">=0.19.0-beta.646",
+    "@angular/core": ">=21.0.0",
+    "elysia": ">=1.4.18",
+    "react": ">=19.0.0",
+    "vue": ">=3.5.0"
+  },
+  "peerDependenciesMeta": {
+    "@angular/core": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@absolutejs/media": "0.0.1-beta.14"
+  },
+  "devDependencies": {
+    "@absolutejs/absolute": "0.19.0-beta.646",
+    "@angular/core": "^21.0.0",
+    "@types/bun": "1.3.9",
+    "@types/react": "19.2.0",
+    "elysia": "1.4.18",
+    "prettier": "^3.4.0",
+    "react": "19.2.1",
+    "typescript": "^5.9.3",
+    "vue": "3.5.27"
+  }
 }

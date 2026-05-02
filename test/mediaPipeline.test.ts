@@ -1,529 +1,532 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from "bun:test";
 import {
-	buildMediaInterruptionReport,
-	buildMediaPipelineCalibrationReport,
-	buildMediaProcessorGraphReport,
-	buildMediaResamplingPlan,
-	buildMediaVadReport,
-	createMediaProcessorGraph,
-	createMediaTransport,
-	createMediaFrame,
-	createMediaFrameTransformPipeline,
-	type MediaFrame
-} from '@absolutejs/media';
+  buildMediaInterruptionReport,
+  buildMediaPipelineCalibrationReport,
+  buildMediaProcessorGraphReport,
+  buildMediaResamplingPlan,
+  buildMediaVadReport,
+  createMediaProcessorGraph,
+  createMediaTransport,
+  createMediaFrame,
+  createMediaFrameTransformPipeline,
+  type MediaFrame,
+} from "@absolutejs/media";
 import {
-	buildVoiceMediaPipelineReport,
-	createVoiceMediaPipelineRoutes,
-	evaluateVoiceMediaPipelineEvidence,
-	renderVoiceMediaPipelineMarkdown
-} from '../src';
+  buildVoiceMediaPipelineReport,
+  createVoiceMediaPipelineRoutes,
+  evaluateVoiceMediaPipelineEvidence,
+  renderVoiceMediaPipelineMarkdown,
+} from "../src";
 
 const raw24k = {
-	channels: 1,
-	container: 'raw',
-	encoding: 'pcm_s16le',
-	sampleRateHz: 24_000
+  channels: 1,
+  container: "raw",
+  encoding: "pcm_s16le",
+  sampleRateHz: 24_000,
 } as const;
 
 const browser48k = {
-	...raw24k,
-	sampleRateHz: 48_000
+  ...raw24k,
+  sampleRateHz: 48_000,
 } as const;
 
-describe('media pipeline calibration', () => {
-	test('passes calibrated media frames with trace evidence', () => {
-		const report = buildMediaPipelineCalibrationReport({
-			expectedInputFormat: raw24k,
-			expectedOutputFormat: raw24k,
-			frames: [
-				createMediaFrame({
-					format: raw24k,
-					id: 'input-1',
-					kind: 'input-audio',
-					source: 'browser',
-					traceEventId: 'trace-input-1'
-				}),
-				createMediaFrame({
-					format: raw24k,
-					id: 'assistant-1',
-					kind: 'assistant-audio',
-					latencyMs: 420,
-					metadata: { jitterMs: 12 },
-					source: 'provider',
-					traceEventId: 'trace-output-1'
-				}),
-				createMediaFrame({
-					id: 'interrupt-1',
-					kind: 'interruption',
-					source: 'voice-runtime',
-					traceEventId: 'trace-interrupt-1'
-				}),
-				createMediaFrame({
-					id: 'turn-1',
-					kind: 'turn-commit',
-					source: 'voice-runtime',
-					traceEventId: 'trace-turn-1'
-				})
-			],
-			maxFirstAudioLatencyMs: 800,
-			maxJitterMs: 40,
-			requireInterruptionFrame: true,
-			requireTraceEvidence: true,
-			surface: 'browser-realtime'
-		});
+describe("media pipeline calibration", () => {
+  test("passes calibrated media frames with trace evidence", () => {
+    const report = buildMediaPipelineCalibrationReport({
+      expectedInputFormat: raw24k,
+      expectedOutputFormat: raw24k,
+      frames: [
+        createMediaFrame({
+          format: raw24k,
+          id: "input-1",
+          kind: "input-audio",
+          source: "browser",
+          traceEventId: "trace-input-1",
+        }),
+        createMediaFrame({
+          format: raw24k,
+          id: "assistant-1",
+          kind: "assistant-audio",
+          latencyMs: 420,
+          metadata: { jitterMs: 12 },
+          source: "provider",
+          traceEventId: "trace-output-1",
+        }),
+        createMediaFrame({
+          id: "interrupt-1",
+          kind: "interruption",
+          source: "voice-runtime",
+          traceEventId: "trace-interrupt-1",
+        }),
+        createMediaFrame({
+          id: "turn-1",
+          kind: "turn-commit",
+          source: "voice-runtime",
+          traceEventId: "trace-turn-1",
+        }),
+      ],
+      maxFirstAudioLatencyMs: 800,
+      maxJitterMs: 40,
+      requireInterruptionFrame: true,
+      requireTraceEvidence: true,
+      surface: "browser-realtime",
+    });
 
-		expect(report.status).toBe('pass');
-		expect(report.inputAudioFrames).toBe(1);
-		expect(report.assistantAudioFrames).toBe(1);
-		expect(report.interruptionFrames).toBe(1);
-		expect(report.turnCommitFrames).toBe(1);
-		expect(report.traceLinkedFrames).toBe(4);
-		expect(report.firstAudioLatencyMs).toBe(420);
-		expect(report.resamplingRequired).toBe(false);
-	});
+    expect(report.status).toBe("pass");
+    expect(report.inputAudioFrames).toBe(1);
+    expect(report.assistantAudioFrames).toBe(1);
+    expect(report.interruptionFrames).toBe(1);
+    expect(report.turnCommitFrames).toBe(1);
+    expect(report.traceLinkedFrames).toBe(4);
+    expect(report.firstAudioLatencyMs).toBe(420);
+    expect(report.resamplingRequired).toBe(false);
+  });
 
-	test('fails when media format needs unhandled resampling', () => {
-		const report = buildMediaPipelineCalibrationReport({
-			expectedInputFormat: raw24k,
-			frames: [
-				createMediaFrame({
-					format: browser48k,
-					id: 'input-1',
-					kind: 'input-audio',
-					source: 'browser'
-				})
-			],
-			requireTraceEvidence: true
-		});
+  test("fails when media format needs unhandled resampling", () => {
+    const report = buildMediaPipelineCalibrationReport({
+      expectedInputFormat: raw24k,
+      frames: [
+        createMediaFrame({
+          format: browser48k,
+          id: "input-1",
+          kind: "input-audio",
+          source: "browser",
+        }),
+      ],
+      requireTraceEvidence: true,
+    });
 
-		expect(report.status).toBe('fail');
-		expect(report.resamplingRequired).toBe(true);
-		expect(report.resamplingTargetHz).toBe(24_000);
-		expect(report.issues).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ code: 'media.input_format_mismatch' }),
-				expect.objectContaining({ code: 'media.assistant_audio_missing' }),
-				expect.objectContaining({ code: 'media.trace_evidence_missing' })
-			])
-		);
-	});
+    expect(report.status).toBe("fail");
+    expect(report.resamplingRequired).toBe(true);
+    expect(report.resamplingTargetHz).toBe(24_000);
+    expect(report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "media.input_format_mismatch" }),
+        expect.objectContaining({ code: "media.assistant_audio_missing" }),
+        expect.objectContaining({ code: "media.trace_evidence_missing" }),
+      ]),
+    );
+  });
 
-	test('plans media resampling without hiding format mismatches', () => {
-		const plan = buildMediaResamplingPlan({
-			inputFormat: browser48k,
-			outputFormat: raw24k
-		});
+  test("plans media resampling without hiding format mismatches", () => {
+    const plan = buildMediaResamplingPlan({
+      inputFormat: browser48k,
+      outputFormat: raw24k,
+    });
 
-		expect(plan.required).toBe(true);
-		expect(plan.ratio).toBe(0.5);
-		expect(plan.status).toBe('pass');
-	});
+    expect(plan.required).toBe(true);
+    expect(plan.ratio).toBe(0.5);
+    expect(plan.status).toBe("pass");
+  });
 
-	test('runs frame transform pipelines in order', async () => {
-		const pipeline = createMediaFrameTransformPipeline({
-			transforms: [
-				{
-					name: 'tag-input',
-					transform: (frame) => ({
-						...frame,
-						metadata: { ...frame.metadata, tagged: true }
-					})
-				},
-				{
-					name: 'drop-metadata',
-					transform: (frame) =>
-						frame.kind === 'metadata' ? undefined : frame
-				}
-			]
-		});
+  test("runs frame transform pipelines in order", async () => {
+    const pipeline = createMediaFrameTransformPipeline({
+      transforms: [
+        {
+          name: "tag-input",
+          transform: (frame) => ({
+            ...frame,
+            metadata: { ...frame.metadata, tagged: true },
+          }),
+        },
+        {
+          name: "drop-metadata",
+          transform: (frame) => (frame.kind === "metadata" ? undefined : frame),
+        },
+      ],
+    });
 
-		const output = await pipeline.pushMany([
-			createMediaFrame({
-				format: raw24k,
-				id: 'input-1',
-				kind: 'input-audio',
-				source: 'browser'
-			}),
-			createMediaFrame({
-				id: 'metadata-1',
-				kind: 'metadata',
-				source: 'voice-runtime'
-			})
-		]);
+    const output = await pipeline.pushMany([
+      createMediaFrame({
+        format: raw24k,
+        id: "input-1",
+        kind: "input-audio",
+        source: "browser",
+      }),
+      createMediaFrame({
+        id: "metadata-1",
+        kind: "metadata",
+        source: "voice-runtime",
+      }),
+    ]);
 
-		expect(output).toHaveLength(1);
-		expect(output[0]?.metadata?.tagged).toBe(true);
-	});
+    expect(output).toHaveLength(1);
+    expect(output[0]?.metadata?.tagged).toBe(true);
+  });
 
-	test('tracks media transport lifecycle, frame flow, and backpressure', async () => {
-		const sent: string[] = [];
-		const received: string[] = [];
-		const transport = createMediaTransport({
-			inputFormat: raw24k,
-			maxBufferedFrames: 1,
-			name: 'browser-websocket',
-			onSend: (frame) => sent.push(frame.id),
-			outputFormat: raw24k
-		});
+  test("tracks media transport lifecycle, frame flow, and backpressure", async () => {
+    const sent: string[] = [];
+    const received: string[] = [];
+    const transport = createMediaTransport({
+      inputFormat: raw24k,
+      maxBufferedFrames: 1,
+      name: "browser-websocket",
+      onSend: (frame) => sent.push(frame.id),
+      outputFormat: raw24k,
+    });
 
-		transport.onFrame((frame) => received.push(frame.id));
-		await transport.connect?.();
-		await transport.receive(
-			createMediaFrame({
-				format: raw24k,
-				id: 'input-1',
-				kind: 'input-audio',
-				source: 'browser'
-			})
-		);
-		await transport.receive(
-			createMediaFrame({
-				format: raw24k,
-				id: 'input-2',
-				kind: 'input-audio',
-				source: 'browser'
-			})
-		);
-		await transport.send(
-			createMediaFrame({
-				format: raw24k,
-				id: 'assistant-1',
-				kind: 'assistant-audio',
-				source: 'provider'
-			})
-		);
-		const report = transport.report();
+    transport.onFrame((frame) => received.push(frame.id));
+    await transport.connect?.();
+    await transport.receive(
+      createMediaFrame({
+        format: raw24k,
+        id: "input-1",
+        kind: "input-audio",
+        source: "browser",
+      }),
+    );
+    await transport.receive(
+      createMediaFrame({
+        format: raw24k,
+        id: "input-2",
+        kind: "input-audio",
+        source: "browser",
+      }),
+    );
+    await transport.send(
+      createMediaFrame({
+        format: raw24k,
+        id: "assistant-1",
+        kind: "assistant-audio",
+        source: "provider",
+      }),
+    );
+    const report = transport.report();
 
-		expect(report.connected).toBe(true);
-		expect(report.inputFrames).toBe(2);
-		expect(report.outputFrames).toBe(1);
-		expect(report.backpressureEvents).toBe(1);
-		expect(report.status).toBe('warn');
-		expect(received).toEqual(['input-1', 'input-2']);
-		expect(sent).toEqual(['assistant-1']);
-	});
+    expect(report.connected).toBe(true);
+    expect(report.inputFrames).toBe(2);
+    expect(report.outputFrames).toBe(1);
+    expect(report.backpressureEvents).toBe(1);
+    expect(report.status).toBe("warn");
+    expect(received).toEqual(["input-1", "input-2"]);
+    expect(sent).toEqual(["assistant-1"]);
+  });
 
-	test('runs ordered media processor graphs with filters and branches', async () => {
-		const graph = createMediaProcessorGraph({
-			name: 'browser-media-graph',
-			nodes: [
-				{
-					kind: 'filter',
-					name: 'speech-only',
-					process: (frame) =>
-						frame.kind !== 'input-audio' ||
-						frame.metadata?.speechProbability !== 0.1
-				},
-				{
-					kind: 'branch',
-					name: 'transcript-alignment',
-					process: (frame) =>
-						frame.kind === 'input-audio'
-							? [
-									frame,
-									createMediaFrame({
-										...frame,
-										id: `${frame.id}:transcript`,
-										kind: 'transcript',
-										source: 'voice-runtime'
-									})
-								]
-							: frame
-				},
-				{
-					name: 'mark-processed',
-					process: (frame) => ({
-						...frame,
-						metadata: { ...frame.metadata, graphProcessed: true }
-					})
-				}
-			]
-		});
-		const output = await graph.processMany([
-			createMediaFrame({
-				format: raw24k,
-				id: 'speech-1',
-				kind: 'input-audio',
-				metadata: { speechProbability: 0.92 },
-				source: 'browser'
-			}),
-			createMediaFrame({
-				format: raw24k,
-				id: 'silence-1',
-				kind: 'input-audio',
-				metadata: { speechProbability: 0.1 },
-				source: 'browser'
-			})
-		]);
-		const report = graph.report();
-		const rebuilt = buildMediaProcessorGraphReport({
-			events: report.events,
-			name: report.name,
-			nodes: graph.nodes
-		});
+  test("runs ordered media processor graphs with filters and branches", async () => {
+    const graph = createMediaProcessorGraph({
+      name: "browser-media-graph",
+      nodes: [
+        {
+          kind: "filter",
+          name: "speech-only",
+          process: (frame) =>
+            frame.kind !== "input-audio" ||
+            frame.metadata?.speechProbability !== 0.1,
+        },
+        {
+          kind: "branch",
+          name: "transcript-alignment",
+          process: (frame) =>
+            frame.kind === "input-audio"
+              ? [
+                  frame,
+                  createMediaFrame({
+                    ...frame,
+                    id: `${frame.id}:transcript`,
+                    kind: "transcript",
+                    source: "voice-runtime",
+                  }),
+                ]
+              : frame,
+        },
+        {
+          name: "mark-processed",
+          process: (frame) => ({
+            ...frame,
+            metadata: { ...frame.metadata, graphProcessed: true },
+          }),
+        },
+      ],
+    });
+    const output = await graph.processMany([
+      createMediaFrame({
+        format: raw24k,
+        id: "speech-1",
+        kind: "input-audio",
+        metadata: { speechProbability: 0.92 },
+        source: "browser",
+      }),
+      createMediaFrame({
+        format: raw24k,
+        id: "silence-1",
+        kind: "input-audio",
+        metadata: { speechProbability: 0.1 },
+        source: "browser",
+      }),
+    ]);
+    const report = graph.report();
+    const rebuilt = buildMediaProcessorGraphReport({
+      events: report.events,
+      name: report.name,
+      nodes: graph.nodes,
+    });
 
-		expect(output).toHaveLength(2);
-		expect(output.map((frame) => frame.kind)).toEqual([
-			'input-audio',
-			'transcript'
-		]);
-		expect(output.every((frame) => frame.metadata?.graphProcessed)).toBe(true);
-		expect(report.status).toBe('pass');
-		expect(report.droppedFrames).toBe(1);
-		expect(report.emittedFrames).toBe(2);
-		expect(report.nodes.map((node) => node.name)).toEqual([
-			'speech-only',
-			'transcript-alignment',
-			'mark-processed'
-		]);
-		expect(rebuilt.emittedFrames).toBe(2);
-	});
+    expect(output).toHaveLength(2);
+    expect(output.map((frame) => frame.kind)).toEqual([
+      "input-audio",
+      "transcript",
+    ]);
+    expect(output.every((frame) => frame.metadata?.graphProcessed)).toBe(true);
+    expect(report.status).toBe("pass");
+    expect(report.droppedFrames).toBe(1);
+    expect(report.emittedFrames).toBe(2);
+    expect(report.nodes.map((node) => node.name)).toEqual([
+      "speech-only",
+      "transcript-alignment",
+      "mark-processed",
+    ]);
+    expect(rebuilt.emittedFrames).toBe(2);
+  });
 
-	test('derives VAD speech segments from input frames', () => {
-		const report = buildMediaVadReport({
-			frames: [
-				createMediaFrame({
-					at: 0,
-					durationMs: 20,
-					format: raw24k,
-					id: 'silence-1',
-					kind: 'input-audio',
-					metadata: { speechProbability: 0.1 },
-					source: 'browser'
-				}),
-				createMediaFrame({
-					at: 20,
-					durationMs: 20,
-					format: raw24k,
-					id: 'speech-1',
-					kind: 'input-audio',
-					metadata: { speechProbability: 0.8 },
-					source: 'browser',
-					turnId: 'turn-1'
-				}),
-				createMediaFrame({
-					at: 40,
-					durationMs: 20,
-					format: raw24k,
-					id: 'speech-2',
-					kind: 'input-audio',
-					metadata: { speechProbability: 0.7 },
-					source: 'browser',
-					turnId: 'turn-1'
-				}),
-				createMediaFrame({
-					at: 60,
-					durationMs: 20,
-					format: raw24k,
-					id: 'silence-2',
-					kind: 'input-audio',
-					metadata: { speechProbability: 0.1 },
-					source: 'browser',
-					turnId: 'turn-1'
-				})
-			],
-			maxSilenceFrames: 0,
-			minSpeechFrames: 2
-		});
+  test("derives VAD speech segments from input frames", () => {
+    const report = buildMediaVadReport({
+      frames: [
+        createMediaFrame({
+          at: 0,
+          durationMs: 20,
+          format: raw24k,
+          id: "silence-1",
+          kind: "input-audio",
+          metadata: { speechProbability: 0.1 },
+          source: "browser",
+        }),
+        createMediaFrame({
+          at: 20,
+          durationMs: 20,
+          format: raw24k,
+          id: "speech-1",
+          kind: "input-audio",
+          metadata: { speechProbability: 0.8 },
+          source: "browser",
+          turnId: "turn-1",
+        }),
+        createMediaFrame({
+          at: 40,
+          durationMs: 20,
+          format: raw24k,
+          id: "speech-2",
+          kind: "input-audio",
+          metadata: { speechProbability: 0.7 },
+          source: "browser",
+          turnId: "turn-1",
+        }),
+        createMediaFrame({
+          at: 60,
+          durationMs: 20,
+          format: raw24k,
+          id: "silence-2",
+          kind: "input-audio",
+          metadata: { speechProbability: 0.1 },
+          source: "browser",
+          turnId: "turn-1",
+        }),
+      ],
+      maxSilenceFrames: 0,
+      minSpeechFrames: 2,
+    });
 
-		expect(report.status).toBe('pass');
-		expect(report.segments).toEqual([
-			expect.objectContaining({
-				durationMs: 60,
-				frameCount: 3,
-				startAt: 20,
-				turnId: 'turn-1'
-			})
-		]);
-	});
+    expect(report.status).toBe("pass");
+    expect(report.segments).toEqual([
+      expect.objectContaining({
+        durationMs: 60,
+        frameCount: 3,
+        startAt: 20,
+        turnId: "turn-1",
+      }),
+    ]);
+  });
 
-	test('reports interruption latency failures', () => {
-		const report = buildMediaInterruptionReport({
-			frames: [
-				createMediaFrame({
-					id: 'interrupt-1',
-					kind: 'interruption',
-					latencyMs: 340,
-					source: 'voice-runtime'
-				})
-			],
-			maxInterruptionLatencyMs: 250
-		});
+  test("reports interruption latency failures", () => {
+    const report = buildMediaInterruptionReport({
+      frames: [
+        createMediaFrame({
+          id: "interrupt-1",
+          kind: "interruption",
+          latencyMs: 340,
+          source: "voice-runtime",
+        }),
+      ],
+      maxInterruptionLatencyMs: 250,
+    });
 
-		expect(report.status).toBe('fail');
-		expect(report.interruptionFrames).toBe(1);
-		expect(report.issues).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ code: 'media.interruption_latency' })
-			])
-		);
-	});
+    expect(report.status).toBe("fail");
+    expect(report.interruptionFrames).toBe(1);
+    expect(report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "media.interruption_latency" }),
+      ]),
+    );
+  });
 
-	test('builds a combined media pipeline report and assertion', () => {
-		const report = buildVoiceMediaPipelineReport({
-			expectedInputFormat: raw24k,
-			expectedOutputFormat: raw24k,
-			frames: [
-				createMediaFrame({
-					at: 0,
-					durationMs: 20,
-					format: raw24k,
-					id: 'input-1',
-					kind: 'input-audio',
-					metadata: { speechProbability: 0.8 },
-					source: 'browser',
-					traceEventId: 'trace-input'
-				}),
-				createMediaFrame({
-					format: raw24k,
-					id: 'assistant-1',
-					kind: 'assistant-audio',
-					latencyMs: 320,
-					source: 'provider',
-					traceEventId: 'trace-assistant'
-				}),
-				createMediaFrame({
-					id: 'interrupt-1',
-					kind: 'interruption',
-					latencyMs: 110,
-					source: 'voice-runtime',
-					traceEventId: 'trace-interrupt'
-				})
-			],
-			maxFirstAudioLatencyMs: 800,
-			maxInterruptionLatencyMs: 250,
-			maxMediaBackpressureEvents: 0,
-			maxMediaGapMs: 25,
-			maxMediaJitterMs: 40,
-			maxMediaTimestampDriftMs: 25,
-			requireInterruptionFrame: true,
-			requireTraceEvidence: true,
-			minMediaSpeechRatio: 0.8,
-			processorGraph: {
-				checkedAt: Date.now(),
-				droppedFrames: 0,
-				emittedFrames: 2,
-				events: [],
-				inputFrames: 1,
-				name: 'browser-media-graph',
-				nodes: [
-					{
-						droppedFrames: 0,
-						emittedFrames: 1,
-						events: [],
-						inputFrames: 1,
-						kind: 'filter',
-						name: 'speech-only',
-						status: 'pass'
-					},
-					{
-						droppedFrames: 0,
-						emittedFrames: 2,
-						events: [],
-						inputFrames: 1,
-						kind: 'branch',
-						name: 'transcript-alignment',
-						status: 'pass'
-					}
-				],
-				status: 'pass'
-			},
-			transport: {
-				backpressureEvents: 0,
-				checkedAt: Date.now(),
-				closed: false,
-				connected: true,
-				events: [],
-				failed: false,
-				inputFrames: 1,
-				name: 'browser-websocket',
-				outputFrames: 1,
-				state: 'open',
-				status: 'pass'
-			}
-		});
-		const assertion = evaluateVoiceMediaPipelineEvidence(report, {
-			maxFirstAudioLatencyMs: 800,
-			maxInterruptionLatencyMs: 250,
-			maxMediaBackpressureEvents: 0,
-			maxMediaGapMs: 25,
-			maxMediaJitterMs: 40,
-			maxMediaTimestampDriftMs: 25,
-			minMediaSpeechRatio: 0.8,
-			minProcessorGraphEmittedFrames: 2,
-			minProcessorGraphNodes: 2,
-			minAssistantAudioFrames: 1,
-			minInputAudioFrames: 1,
-			minTransportInputFrames: 1,
-			minTransportOutputFrames: 1,
-			minTraceLinkedFrames: 3,
-			minVadSegments: 1,
-			requireInterruptionFrame: true,
-			requirePass: true,
-			requireProcessorGraph: true,
-			requireQualityPass: true,
-			requireTransportConnected: true
-		});
+  test("builds a combined media pipeline report and assertion", () => {
+    const report = buildVoiceMediaPipelineReport({
+      expectedInputFormat: raw24k,
+      expectedOutputFormat: raw24k,
+      frames: [
+        createMediaFrame({
+          at: 0,
+          durationMs: 20,
+          format: raw24k,
+          id: "input-1",
+          kind: "input-audio",
+          metadata: { speechProbability: 0.8 },
+          source: "browser",
+          traceEventId: "trace-input",
+        }),
+        createMediaFrame({
+          format: raw24k,
+          id: "assistant-1",
+          kind: "assistant-audio",
+          latencyMs: 320,
+          source: "provider",
+          traceEventId: "trace-assistant",
+        }),
+        createMediaFrame({
+          id: "interrupt-1",
+          kind: "interruption",
+          latencyMs: 110,
+          source: "voice-runtime",
+          traceEventId: "trace-interrupt",
+        }),
+      ],
+      maxFirstAudioLatencyMs: 800,
+      maxInterruptionLatencyMs: 250,
+      maxMediaBackpressureEvents: 0,
+      maxMediaGapMs: 25,
+      maxMediaJitterMs: 40,
+      maxMediaTimestampDriftMs: 25,
+      requireInterruptionFrame: true,
+      requireTraceEvidence: true,
+      minMediaSpeechRatio: 0.8,
+      processorGraph: {
+        checkedAt: Date.now(),
+        droppedFrames: 0,
+        emittedFrames: 2,
+        events: [],
+        inputFrames: 1,
+        name: "browser-media-graph",
+        nodes: [
+          {
+            droppedFrames: 0,
+            emittedFrames: 1,
+            events: [],
+            inputFrames: 1,
+            kind: "filter",
+            name: "speech-only",
+            status: "pass",
+          },
+          {
+            droppedFrames: 0,
+            emittedFrames: 2,
+            events: [],
+            inputFrames: 1,
+            kind: "branch",
+            name: "transcript-alignment",
+            status: "pass",
+          },
+        ],
+        status: "pass",
+      },
+      transport: {
+        backpressureEvents: 0,
+        checkedAt: Date.now(),
+        closed: false,
+        connected: true,
+        events: [],
+        failed: false,
+        inputFrames: 1,
+        name: "browser-websocket",
+        outputFrames: 1,
+        state: "open",
+        status: "pass",
+      },
+    });
+    const assertion = evaluateVoiceMediaPipelineEvidence(report, {
+      maxFirstAudioLatencyMs: 800,
+      maxInterruptionLatencyMs: 250,
+      maxMediaBackpressureEvents: 0,
+      maxMediaGapMs: 25,
+      maxMediaJitterMs: 40,
+      maxMediaTimestampDriftMs: 25,
+      minMediaSpeechRatio: 0.8,
+      minProcessorGraphEmittedFrames: 2,
+      minProcessorGraphNodes: 2,
+      minAssistantAudioFrames: 1,
+      minInputAudioFrames: 1,
+      minTransportInputFrames: 1,
+      minTransportOutputFrames: 1,
+      minTraceLinkedFrames: 3,
+      minVadSegments: 1,
+      requireInterruptionFrame: true,
+      requirePass: true,
+      requireProcessorGraph: true,
+      requireQualityPass: true,
+      requireTransportConnected: true,
+    });
 
-		expect(report.status).toBe('pass');
-		expect(report.quality.status).toBe('pass');
-		expect(report.quality.speechRatio).toBe(1);
-		expect(report.processorGraph?.nodes).toHaveLength(2);
-		expect(report.transport?.connected).toBe(true);
-		expect(report.vad.segments).toHaveLength(1);
-		expect(assertion.ok).toBe(true);
-	});
+    expect(report.status).toBe("pass");
+    expect(report.quality.status).toBe("pass");
+    expect(report.quality.speechRatio).toBe(1);
+    expect(report.processorGraph?.nodes).toHaveLength(2);
+    expect(report.transport?.connected).toBe(true);
+    expect(report.vad.segments).toHaveLength(1);
+    expect(assertion.ok).toBe(true);
+  });
 
-	test('renders media pipeline routes as JSON, HTML, and Markdown', async () => {
-		const app = createVoiceMediaPipelineRoutes({
-			expectedInputFormat: raw24k,
-			expectedOutputFormat: raw24k,
-			frames: [
-				createMediaFrame({
-					format: raw24k,
-					id: 'input-1',
-					kind: 'input-audio',
-					metadata: { isSpeech: true },
-					source: 'browser',
-					traceEventId: 'trace-input'
-				}),
-				createMediaFrame({
-					format: raw24k,
-					id: 'assistant-1',
-					kind: 'assistant-audio',
-					latencyMs: 320,
-					source: 'provider',
-					traceEventId: 'trace-assistant'
-				}),
-				createMediaFrame({
-					id: 'interrupt-1',
-					kind: 'interruption',
-					latencyMs: 110,
-					source: 'voice-runtime',
-					traceEventId: 'trace-interrupt'
-				})
-			],
-			path: '/api/media',
-			title: 'Media Proof'
-		});
+  test("renders media pipeline routes as JSON, HTML, and Markdown", async () => {
+    const app = createVoiceMediaPipelineRoutes({
+      expectedInputFormat: raw24k,
+      expectedOutputFormat: raw24k,
+      frames: [
+        createMediaFrame({
+          format: raw24k,
+          id: "input-1",
+          kind: "input-audio",
+          metadata: { isSpeech: true },
+          source: "browser",
+          traceEventId: "trace-input",
+        }),
+        createMediaFrame({
+          format: raw24k,
+          id: "assistant-1",
+          kind: "assistant-audio",
+          latencyMs: 320,
+          source: "provider",
+          traceEventId: "trace-assistant",
+        }),
+        createMediaFrame({
+          id: "interrupt-1",
+          kind: "interruption",
+          latencyMs: 110,
+          source: "voice-runtime",
+          traceEventId: "trace-interrupt",
+        }),
+      ],
+      path: "/api/media",
+      title: "Media Proof",
+    });
 
-		const jsonResponse = await app.handle(new Request('http://localhost/api/media'));
-		const htmlResponse = await app.handle(
-			new Request('http://localhost/voice/media-pipeline')
-		);
-		const markdownResponse = await app.handle(
-			new Request('http://localhost/voice/media-pipeline.md')
-		);
-		const body = (await jsonResponse.json()) as ReturnType<
-			typeof buildVoiceMediaPipelineReport
-		>;
-		const markdown = renderVoiceMediaPipelineMarkdown(body);
+    const jsonResponse = await app.handle(
+      new Request("http://localhost/api/media"),
+    );
+    const htmlResponse = await app.handle(
+      new Request("http://localhost/voice/media-pipeline"),
+    );
+    const markdownResponse = await app.handle(
+      new Request("http://localhost/voice/media-pipeline.md"),
+    );
+    const body = (await jsonResponse.json()) as ReturnType<
+      typeof buildVoiceMediaPipelineReport
+    >;
+    const markdown = renderVoiceMediaPipelineMarkdown(body);
 
-		expect(body.status).toBe('pass');
-		expect(await htmlResponse.text()).toContain('Media Proof');
-		expect(await markdownResponse.text()).toContain('Voice Media Pipeline Proof');
-		expect(markdown).toContain('Processor graph');
-		expect(markdown).toContain('Media quality');
-		expect(markdown).toContain('VAD segments: 1');
-	});
+    expect(body.status).toBe("pass");
+    expect(await htmlResponse.text()).toContain("Media Proof");
+    expect(await markdownResponse.text()).toContain(
+      "Voice Media Pipeline Proof",
+    );
+    expect(markdown).toContain("Processor graph");
+    expect(markdown).toContain("Media quality");
+    expect(markdown).toContain("VAD segments: 1");
+  });
 });

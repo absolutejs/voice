@@ -1,34 +1,34 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
-	createVoiceAgentSquadStatusStore,
-	type VoiceAgentSquadStatusClientOptions
-} from '../client/agentSquadStatus';
+  createVoiceAgentSquadStatusStore,
+  type VoiceAgentSquadStatusClientOptions,
+} from "../client/agentSquadStatus";
 
 export const useVoiceAgentSquadStatus = (
-	path = '/api/voice-traces',
-	options: VoiceAgentSquadStatusClientOptions = {}
+  path = "/api/voice-traces",
+  options: VoiceAgentSquadStatusClientOptions = {},
 ) => {
-	const storeRef = useRef<ReturnType<
-		typeof createVoiceAgentSquadStatusStore
-	> | null>(null);
+  const storeRef = useRef<ReturnType<
+    typeof createVoiceAgentSquadStatusStore
+  > | null>(null);
 
-	if (!storeRef.current) {
-		storeRef.current = createVoiceAgentSquadStatusStore(path, options);
-	}
+  if (!storeRef.current) {
+    storeRef.current = createVoiceAgentSquadStatusStore(path, options);
+  }
 
-	const store = storeRef.current;
+  const store = storeRef.current;
 
-	useEffect(() => {
-		void store.refresh().catch(() => {});
-		return () => store.close();
-	}, [store]);
+  useEffect(() => {
+    void store.refresh().catch(() => {});
+    return () => store.close();
+  }, [store]);
 
-	return {
-		...useSyncExternalStore(
-			store.subscribe,
-			store.getSnapshot,
-			store.getServerSnapshot
-		),
-		refresh: store.refresh
-	};
+  return {
+    ...useSyncExternalStore(
+      store.subscribe,
+      store.getSnapshot,
+      store.getServerSnapshot,
+    ),
+    refresh: store.refresh,
+  };
 };

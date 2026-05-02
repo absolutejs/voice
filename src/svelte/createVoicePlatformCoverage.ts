@@ -1,16 +1,16 @@
-import { createVoicePlatformCoverageStore } from '../client/platformCoverage';
-import type { VoicePlatformCoverageClientOptions } from '../client/platformCoverage';
+import { createVoicePlatformCoverageStore } from "../client/platformCoverage";
+import type { VoicePlatformCoverageClientOptions } from "../client/platformCoverage";
 
 export const createVoicePlatformCoverage = (
-	path = '/api/voice/platform-coverage',
-	options: VoicePlatformCoverageClientOptions = {}
+  path = "/api/voice/platform-coverage",
+  options: VoicePlatformCoverageClientOptions = {},
 ) => {
-	const store = createVoicePlatformCoverageStore(path, options);
+  const store = createVoicePlatformCoverageStore(path, options);
 
-	return {
-		close: store.close,
-		getSnapshot: store.getSnapshot,
-		refresh: store.refresh,
-		subscribe: store.subscribe
-	};
+  return {
+    close: store.close,
+    getSnapshot: store.getSnapshot,
+    refresh: store.refresh,
+    subscribe: store.subscribe,
+  };
 };
