@@ -400,6 +400,52 @@ export type VoiceRealCallEvidenceRuntime = {
   ) => Promise<VoiceRealCallProfileEvidenceRecord[]>;
 };
 
+export type VoiceRealCallEvidenceRuntimeWorkerStatus =
+  | "idle"
+  | "running"
+  | VoiceProofTrendStatus;
+
+export type VoiceRealCallEvidenceRuntimeWorkerHealthReport = {
+  collectCount: number;
+  error?: string;
+  isRunning: boolean;
+  lastCollectedAt?: string;
+  lastReport?: VoiceRealCallEvidenceRuntimeReport;
+  lastStartedAt?: string;
+  lastStoppedAt?: string;
+  lastTickAt?: string;
+  source: string;
+  status: VoiceRealCallEvidenceRuntimeWorkerStatus;
+};
+
+export type VoiceRealCallEvidenceRuntimeWorkerOptions = {
+  collectOptions?: VoiceRealCallEvidenceRuntimeCollectOptions;
+  now?: () => Date;
+  onCollect?: (
+    report: VoiceRealCallEvidenceRuntimeReport,
+  ) => void | Promise<void>;
+  onError?: (error: unknown) => void | Promise<void>;
+  runtime: VoiceRealCallEvidenceRuntime;
+};
+
+export type VoiceRealCallEvidenceRuntimeWorker = {
+  collect: () => Promise<VoiceRealCallEvidenceRuntimeReport>;
+  health: () => VoiceRealCallEvidenceRuntimeWorkerHealthReport;
+};
+
+export type VoiceRealCallEvidenceRuntimeWorkerLoopOptions =
+  VoiceRealCallEvidenceRuntimeWorkerOptions & {
+    pollIntervalMs?: number;
+  };
+
+export type VoiceRealCallEvidenceRuntimeWorkerLoop =
+  VoiceRealCallEvidenceRuntimeWorker & {
+    isRunning: () => boolean;
+    start: () => void;
+    stop: () => void;
+    tick: () => Promise<VoiceRealCallEvidenceRuntimeReport>;
+  };
+
 export type VoiceRealCallEvidenceRuntimeRoutesOptions =
   VoiceRealCallEvidenceRuntimeOptions & {
     collectPath?: false | string;
@@ -2130,6 +2176,102 @@ export const buildVoiceRealCallEvidenceRuntimeReadinessCheck = (
     },
     status,
     value: `${String(report.summary.storedEvidence)} evidence / ${String(report.summary.sessions)} sessions / ${String(report.summary.profiles)} profiles`,
+  };
+};
+
+const readVoiceRealCallEvidenceRuntimeWorkerNow = (
+  options:
+    | VoiceRealCallEvidenceRuntimeWorkerOptions
+    | VoiceRealCallEvidenceRuntimeWorkerLoopOptions,
+) => (options.now ?? (() => new Date()))().toISOString();
+
+const readVoiceRealCallEvidenceRuntimeWorkerError = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+export const createVoiceRealCallEvidenceRuntimeWorker = (
+  options: VoiceRealCallEvidenceRuntimeWorkerOptions,
+): VoiceRealCallEvidenceRuntimeWorker => {
+  let collectCount = 0;
+  let error: string | undefined;
+  let lastCollectedAt: string | undefined;
+  let lastReport: VoiceRealCallEvidenceRuntimeReport | undefined;
+  let lastTickAt: string | undefined;
+  let status: VoiceRealCallEvidenceRuntimeWorkerStatus = "idle";
+
+  const collect = async () => {
+    lastTickAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+    try {
+      const report = await options.runtime.collect(options.collectOptions);
+      collectCount += 1;
+      error = undefined;
+      lastCollectedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+      lastReport = report;
+      status = report.status;
+      await options.onCollect?.(report);
+      return report;
+    } catch (caught) {
+      error = readVoiceRealCallEvidenceRuntimeWorkerError(caught);
+      status = "fail";
+      await options.onError?.(caught);
+      throw caught;
+    }
+  };
+
+  return {
+    collect,
+    health: () => ({
+      collectCount,
+      error,
+      isRunning: false,
+      lastCollectedAt,
+      lastReport,
+      lastTickAt,
+      source: "real-call-evidence-runtime-worker",
+      status,
+    }),
+  };
+};
+
+export const createVoiceRealCallEvidenceRuntimeWorkerLoop = (
+  options: VoiceRealCallEvidenceRuntimeWorkerLoopOptions,
+): VoiceRealCallEvidenceRuntimeWorkerLoop => {
+  const worker = createVoiceRealCallEvidenceRuntimeWorker(options);
+  const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 30_000);
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let lastStartedAt: string | undefined;
+  let lastStoppedAt: string | undefined;
+
+  const isRunning = () => timer !== undefined;
+  const tick = () => worker.collect();
+
+  return {
+    collect: tick,
+    health: () => ({
+      ...worker.health(),
+      isRunning: isRunning(),
+      lastStartedAt,
+      lastStoppedAt,
+    }),
+    isRunning,
+    start: () => {
+      if (timer) {
+        return;
+      }
+      lastStartedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+      timer = setInterval(() => {
+        void tick().catch((error) => {
+          void options.onError?.(error);
+        });
+      }, pollIntervalMs);
+    },
+    stop: () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+      lastStoppedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+    },
+    tick,
   };
 };
 

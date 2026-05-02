@@ -294,6 +294,8 @@ export {
   buildVoiceRealCallProfileRecoveryActions,
   buildVoiceReconnectProfileEvidenceSummary,
   createVoiceRealCallEvidenceRuntime,
+  createVoiceRealCallEvidenceRuntimeWorker,
+  createVoiceRealCallEvidenceRuntimeWorkerLoop,
   createVoiceRealCallEvidenceRuntimeRoutes,
   createVoiceInMemoryRealCallProfileRecoveryJobStore,
   createVoiceRealCallProfileTraceCollector,
@@ -522,6 +524,12 @@ export type {
   VoiceRealCallEvidenceRuntimeReport,
   VoiceRealCallEvidenceRuntimeRoutesOptions,
   VoiceRealCallEvidenceRuntimeSourceOptions,
+  VoiceRealCallEvidenceRuntimeWorker,
+  VoiceRealCallEvidenceRuntimeWorkerHealthReport,
+  VoiceRealCallEvidenceRuntimeWorkerLoop,
+  VoiceRealCallEvidenceRuntimeWorkerLoopOptions,
+  VoiceRealCallEvidenceRuntimeWorkerOptions,
+  VoiceRealCallEvidenceRuntimeWorkerStatus,
   VoiceSQLiteRealCallProfileEvidenceStoreOptions,
 } from "./proofTrends";
 export {

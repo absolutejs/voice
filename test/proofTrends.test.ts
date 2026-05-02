@@ -21,6 +21,8 @@ import {
   buildVoiceRealCallProfileRecoveryActions,
   buildVoiceReconnectProfileEvidenceSummary,
   createVoiceRealCallEvidenceRuntime,
+  createVoiceRealCallEvidenceRuntimeWorker,
+  createVoiceRealCallEvidenceRuntimeWorkerLoop,
   createVoiceRealCallEvidenceRuntimeRoutes,
   createVoiceInMemoryRealCallProfileRecoveryJobStore,
   createVoiceRealCallProfileTraceCollector,
@@ -1448,6 +1450,88 @@ describe("proof trends", () => {
     expect(passing).toMatchObject({
       status: "pass",
       value: "1 evidence / 1 sessions / 4 profiles",
+    });
+  });
+
+  test("createVoiceRealCallEvidenceRuntimeWorker collects and reports health", async () => {
+    const traceStore = createVoiceMemoryTraceEventStore();
+    const evidenceStore = createVoiceSQLiteRealCallProfileEvidenceStore();
+    await traceStore.append(
+      createVoiceTraceEvent({
+        at: Date.UTC(2026, 4, 2, 13, 0, 0),
+        metadata: { profileId: "support-agent" },
+        payload: {
+          elapsedMs: 330,
+          kind: "llm",
+          provider: "openai",
+          status: "success",
+        },
+        sessionId: "worker-session",
+        type: "provider.decision",
+      }),
+    );
+    const runtime = createVoiceRealCallEvidenceRuntime({
+      evidenceStore,
+      history: {
+        generatedAt: "2026-05-02T13:01:00.000Z",
+        now: "2026-05-02T13:01:30.000Z",
+      },
+      now: () => new Date("2026-05-02T13:01:30.000Z"),
+      traceStore,
+    });
+    const worker = createVoiceRealCallEvidenceRuntimeWorker({
+      now: () => new Date("2026-05-02T13:01:31.000Z"),
+      runtime,
+    });
+
+    const report = await worker.collect();
+
+    expect(report.appended).toBe(1);
+    expect(worker.health()).toMatchObject({
+      collectCount: 1,
+      isRunning: false,
+      lastCollectedAt: "2026-05-02T13:01:31.000Z",
+      source: "real-call-evidence-runtime-worker",
+      status: "pass",
+    });
+  });
+
+  test("createVoiceRealCallEvidenceRuntimeWorkerLoop supports manual ticks and running state", async () => {
+    const evidenceStore = createVoiceSQLiteRealCallProfileEvidenceStore();
+    const runtime = createVoiceRealCallEvidenceRuntime({
+      evidenceStore,
+      history: {
+        generatedAt: "2026-05-02T14:01:00.000Z",
+        now: "2026-05-02T14:01:30.000Z",
+      },
+    });
+    await runtime.appendEvidence({
+      generatedAt: "2026-05-02T14:00:00.000Z",
+      ok: true,
+      profileId: "meeting-recorder",
+      providerP95Ms: 410,
+      sessionId: "loop-session",
+    });
+    const loop = createVoiceRealCallEvidenceRuntimeWorkerLoop({
+      now: () => new Date("2026-05-02T14:01:31.000Z"),
+      pollIntervalMs: 60_000,
+      runtime,
+    });
+
+    expect(loop.isRunning()).toBe(false);
+    loop.start();
+    expect(loop.isRunning()).toBe(true);
+    const report = await loop.tick();
+    loop.stop();
+
+    expect(report.summary.storedEvidence).toBe(1);
+    expect(loop.isRunning()).toBe(false);
+    expect(loop.health()).toMatchObject({
+      collectCount: 1,
+      isRunning: false,
+      lastStartedAt: "2026-05-02T14:01:31.000Z",
+      lastStoppedAt: "2026-05-02T14:01:31.000Z",
+      status: "pass",
     });
   });
 
