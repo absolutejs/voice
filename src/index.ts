@@ -967,6 +967,21 @@ export {
   renderVoiceOperationsRecordIncidentMarkdown,
 } from "./operationsRecord";
 export {
+  buildVoiceSessionObservabilityReport,
+  createVoiceSessionObservabilityRoutes,
+  renderVoiceSessionObservabilityHTML,
+  renderVoiceSessionObservabilityMarkdown,
+} from "./sessionObservability";
+export type {
+  VoiceSessionObservabilityLink,
+  VoiceSessionObservabilityReport,
+  VoiceSessionObservabilityReportOptions,
+  VoiceSessionObservabilityRoutesOptions,
+  VoiceSessionObservabilityStage,
+  VoiceSessionObservabilityStatus,
+  VoiceSessionObservabilityTurn,
+} from "./sessionObservability";
+export {
   assertVoiceObservabilityExportDeliveryEvidence,
   assertVoiceObservabilityExportRecord,
   assertVoiceObservabilityExportReplayEvidence,
