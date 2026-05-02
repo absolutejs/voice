@@ -16,6 +16,8 @@ import type {
 	VoiceAuditEventType
 } from './audit';
 import type { VoiceCallDebuggerReport } from './callDebugger';
+import type { VoiceIncidentBundle } from './incidentBundle';
+import type { VoiceIncidentRecoveryOutcomeReport } from './incidentTimeline';
 import {
 	buildVoiceOperationsRecord,
 	type VoiceOperationsRecord,
@@ -456,6 +458,7 @@ export const assertVoiceObservabilityExportRecord = (
 export type VoiceObservabilityExportArtifactKind =
 	| 'call-debugger'
 	| 'incident'
+	| 'incident-recovery-outcomes'
 	| 'markdown'
 	| 'operations-record'
 	| 'proof-pack'
@@ -516,6 +519,7 @@ export type VoiceObservabilityExportEnvelope = {
 export type VoiceObservabilityExportIssueCode =
 	| 'voice.observability.no_evidence'
 	| 'voice.observability.operation_failed'
+	| 'voice.observability.artifact_failed'
 	| 'voice.observability.artifact_missing'
 	| 'voice.observability.artifact_stale'
 	| 'voice.observability.audit_delivery_failed'
@@ -888,6 +892,14 @@ export type VoiceObservabilityExportOptions = {
 	callDebuggerReports?:
 		| VoiceCallDebuggerReport[]
 		| (() => VoiceCallDebuggerReport[] | Promise<VoiceCallDebuggerReport[]>);
+	incidentBundles?:
+		| VoiceIncidentBundle[]
+		| (() => VoiceIncidentBundle[] | Promise<VoiceIncidentBundle[]>);
+	incidentRecoveryOutcomeReports?:
+		| VoiceIncidentRecoveryOutcomeReport[]
+		| (() =>
+				| VoiceIncidentRecoveryOutcomeReport[]
+				| Promise<VoiceIncidentRecoveryOutcomeReport[]>);
 	operationsRecords?: VoiceOperationsRecord[];
 	onTiming?: (timing: VoiceObservabilityExportTiming) => void;
 	redact?: VoiceTraceRedactionConfig;
@@ -1028,6 +1040,59 @@ const createCallDebuggerArtifact = (
 	},
 	sessionId: report.sessionId,
 	status: 'pass'
+});
+
+const createIncidentBundleArtifact = (
+	bundle: VoiceIncidentBundle
+): VoiceObservabilityExportArtifact => ({
+	generatedAt: bundle.exportedAt,
+	id: `incident-bundle:${bundle.sessionId}`,
+	kind: 'incident',
+	label: `Incident bundle ${bundle.sessionId}`,
+	metadata: {
+		errors: bundle.summary.errors,
+		recoveryOutcomes: bundle.recoveryOutcomes
+			? {
+					failed: bundle.recoveryOutcomes.failed,
+					improved: bundle.recoveryOutcomes.improved,
+					regressed: bundle.recoveryOutcomes.regressed,
+					total: bundle.recoveryOutcomes.total,
+					unchanged: bundle.recoveryOutcomes.unchanged
+				}
+			: undefined,
+		status: bundle.summary.status
+	},
+	required: true,
+	sessionId: bundle.sessionId,
+	status:
+		bundle.summary.status === 'failed'
+			? 'fail'
+			: bundle.summary.status === 'warning'
+				? 'warn'
+				: 'pass'
+});
+
+const createIncidentRecoveryOutcomeArtifact = (
+	report: VoiceIncidentRecoveryOutcomeReport
+): VoiceObservabilityExportArtifact => ({
+	generatedAt: report.checkedAt,
+	id: `incident-recovery-outcomes:${report.checkedAt}`,
+	kind: 'incident-recovery-outcomes',
+	label: 'Incident recovery outcomes',
+	metadata: {
+		failed: report.failed,
+		improved: report.improved,
+		regressed: report.regressed,
+		total: report.total,
+		unchanged: report.unchanged
+	},
+	required: true,
+	status:
+		report.failed > 0 || report.regressed > 0
+			? 'fail'
+			: report.unchanged > 0
+				? 'warn'
+				: 'pass'
 });
 
 const unique = (values: string[]) => [...new Set(values)].sort();
@@ -2153,6 +2218,7 @@ const collectSessionIds = (input: {
 	auditEvents: StoredVoiceAuditEvent[];
 	callDebuggerReports: VoiceCallDebuggerReport[];
 	events: StoredVoiceTraceEvent[];
+	incidentBundles: VoiceIncidentBundle[];
 	operationsRecords: VoiceOperationsRecord[];
 	sessionIds?: string[];
 	sessionSnapshots: VoiceSessionSnapshot[];
@@ -2164,6 +2230,7 @@ const collectSessionIds = (input: {
 			.map((event) => event.sessionId)
 			.filter((sessionId): sessionId is string => Boolean(sessionId)),
 		...input.operationsRecords.map((record) => record.sessionId),
+		...input.incidentBundles.map((bundle) => bundle.sessionId),
 		...input.sessionSnapshots.map((snapshot) => snapshot.sessionId),
 		...input.callDebuggerReports.map((report) => report.sessionId)
 	]);
@@ -2199,6 +2266,18 @@ const collectIssues = (input: {
 		});
 	}
 	for (const artifact of input.artifacts) {
+		if (
+			artifact.required &&
+			(artifact.status === 'fail' || artifact.status === 'warn')
+		) {
+			issues.push({
+				code: 'voice.observability.artifact_failed',
+				detail: `${artifact.label} reported ${artifact.status}.`,
+				label: 'Artifact status',
+				severity: artifact.status,
+				value: artifact.id
+			});
+		}
 		if (
 			artifact.path &&
 			artifact.status !== 'pass' &&
@@ -2330,18 +2409,26 @@ export const buildVoiceObservabilityExport = async (
 		options.audit ? await options.audit.list() : []
 	);
 	const baseOperationsRecords = options.operationsRecords ?? [];
-	const [sessionSnapshots, callDebuggerReports] = await time(
+	const [
+		sessionSnapshots,
+		callDebuggerReports,
+		incidentBundles,
+		incidentRecoveryOutcomeReports
+	] = await time(
 		'supportArtifacts',
 		() =>
 			Promise.all([
 				resolveObservabilityExportList(options.sessionSnapshots),
-				resolveObservabilityExportList(options.callDebuggerReports)
+				resolveObservabilityExportList(options.callDebuggerReports),
+				resolveObservabilityExportList(options.incidentBundles),
+				resolveObservabilityExportList(options.incidentRecoveryOutcomeReports)
 			])
 	);
 	const sessionIds = await time('sessionIds', () => collectSessionIds({
 		auditEvents,
 		callDebuggerReports,
 		events,
+		incidentBundles,
 		operationsRecords: baseOperationsRecords,
 		sessionIds: options.sessionIds,
 		sessionSnapshots
@@ -2415,6 +2502,13 @@ export const buildVoiceObservabilityExport = async (
 			options.links?.callDebugger?.(report.sessionId)
 		)
 	));
+	const incidentBundleArtifacts = await time('incidentBundleArtifacts', () =>
+		incidentBundles.map(createIncidentBundleArtifact)
+	);
+	const incidentRecoveryOutcomeArtifacts = await time(
+		'incidentRecoveryOutcomeArtifacts',
+		() => incidentRecoveryOutcomeReports.map(createIncidentRecoveryOutcomeArtifact)
+	);
 	const artifacts = await time('artifacts', async () =>
 		addArtifactDownloadHrefs(
 			await verifyArtifacts(
@@ -2422,6 +2516,8 @@ export const buildVoiceObservabilityExport = async (
 					...operationArtifacts,
 					...sessionSnapshotArtifacts,
 					...callDebuggerArtifacts,
+					...incidentBundleArtifacts,
+					...incidentRecoveryOutcomeArtifacts,
 					...(options.artifacts ?? [])
 				],
 				options.artifactIntegrity

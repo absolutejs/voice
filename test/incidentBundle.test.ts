@@ -120,6 +120,25 @@ test('buildVoiceIncidentBundle exports redacted operations, trace, audit, and ma
 	const bundle = await buildVoiceIncidentBundle({
 		audit,
 		redact: true,
+		recoveryOutcomes: {
+			checkedAt: 300,
+			entries: [
+				{
+					actionId: 'proof.rerun',
+					afterStatus: 'pass',
+					at: 275,
+					beforeStatus: 'fail',
+					detail: 'Recovered alex@example.com proof path.',
+					eventId: 'audit-recovery-1',
+					outcome: 'improved'
+				}
+			],
+			failed: 0,
+			improved: 1,
+			regressed: 0,
+			total: 1,
+			unchanged: 0
+		},
 		sessionId: 'incident-1',
 		store: trace
 	});
@@ -143,6 +162,9 @@ test('buildVoiceIncidentBundle exports redacted operations, trace, audit, and ma
 	expect(JSON.stringify(bundle.record)).not.toContain('alex@example.com');
 	expect(bundle.markdown).toContain('Voice Incident incident-1');
 	expect(bundle.markdown).toContain('## Guardrail evidence');
+	expect(bundle.markdown).toContain('## Recovery Outcomes');
+	expect(bundle.markdown).toContain('Improved: 1');
+	expect(bundle.markdown).not.toContain('Recovered alex@example.com');
 	expect(bundle.markdown).toContain('assistant.guardrail assistant-output');
 	expect(bundle.markdown).toContain('incident-guardrail-proof');
 	expect(bundle.markdown).toContain('## Trace Evidence');

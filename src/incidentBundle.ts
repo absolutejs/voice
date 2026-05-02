@@ -9,6 +9,7 @@ import {
 	type VoiceOperationsRecord,
 	type VoiceOperationsRecordOptions
 } from './operationsRecord';
+import type { VoiceIncidentRecoveryOutcomeReport } from './incidentTimeline';
 import {
 	redactVoiceTraceEvents,
 	redactVoiceTraceText,
@@ -25,6 +26,7 @@ export type VoiceIncidentBundle = {
 	formatVersion: 1;
 	markdown: string;
 	record: VoiceOperationsRecord;
+	recoveryOutcomes?: VoiceIncidentRecoveryOutcomeReport;
 	redacted: boolean;
 	sessionId: string;
 	summary: VoiceIncidentBundleSummary;
@@ -72,6 +74,7 @@ export type VoiceIncidentBundleSummary = {
 
 export type VoiceIncidentBundleOptions = VoiceOperationsRecordOptions & {
 	redact?: VoiceTraceRedactionConfig;
+	recoveryOutcomes?: VoiceIncidentRecoveryOutcomeReport;
 	title?: string;
 };
 
@@ -268,10 +271,12 @@ const buildSummary = (
 const renderIncidentMarkdown = (input: {
 	auditMarkdown?: string;
 	record: VoiceOperationsRecord;
+	recoveryOutcomes?: VoiceIncidentRecoveryOutcomeReport;
 	summary: VoiceIncidentBundleSummary;
 	title?: string;
 	traceMarkdown: string;
 }) => {
+	const recoveryOutcomes = input.recoveryOutcomes;
 	const lines = [
 		`# ${input.title ?? `Voice Incident ${input.summary.sessionId}`}`,
 		'',
@@ -314,6 +319,25 @@ const renderIncidentMarkdown = (input: {
 						`- ${tool.toolName ?? 'tool'} ${tool.status ?? ''} ${tool.elapsedMs === undefined ? '' : `${tool.elapsedMs}ms`} ${tool.error ?? ''}`.trim()
 				)
 			: ['- none']),
+		'',
+		'## Recovery Outcomes',
+		'',
+		...(recoveryOutcomes
+			? [
+					`- Improved: ${recoveryOutcomes.improved}`,
+					`- Unchanged: ${recoveryOutcomes.unchanged}`,
+					`- Regressed: ${recoveryOutcomes.regressed}`,
+					`- Failed: ${recoveryOutcomes.failed}`,
+					`- Total actions: ${recoveryOutcomes.total}`,
+					'',
+					...(recoveryOutcomes.entries.length
+						? recoveryOutcomes.entries.map(
+								(entry) =>
+									`- ${entry.outcome}: ${entry.actionId} ${entry.beforeStatus ?? 'unknown'} -> ${entry.afterStatus ?? 'unknown'}${entry.detail ? ` - ${entry.detail}` : ''}`
+							)
+						: ['- no recovery actions recorded'])
+				]
+			: ['- no recovery outcome report attached']),
 		'',
 		renderVoiceOperationsRecordGuardrailMarkdown(input.record),
 		'',
@@ -404,6 +428,13 @@ export const buildVoiceIncidentBundle = async (
 		traceEvents: redactedTraceEvents
 	});
 	const summary = buildSummary(redactedRecord);
+	const recoveryOutcomes = options.recoveryOutcomes
+		? (redactRecordValue(
+				options.recoveryOutcomes,
+				redactedTraceEvents,
+				options.redact
+			) as VoiceIncidentRecoveryOutcomeReport)
+		: undefined;
 	const traceMarkdown = renderVoiceTraceMarkdown(record.traceEvents, {
 		evaluation: options.evaluation,
 		redact: options.redact,
@@ -418,6 +449,7 @@ export const buildVoiceIncidentBundle = async (
 	const markdown = renderIncidentMarkdown({
 		auditMarkdown,
 		record: redactedRecord,
+		recoveryOutcomes,
 		summary,
 		title: options.title,
 		traceMarkdown
@@ -429,6 +461,7 @@ export const buildVoiceIncidentBundle = async (
 		formatVersion: 1,
 		markdown,
 		record: redactedRecord,
+		recoveryOutcomes,
 		redacted: Boolean(options.redact),
 		sessionId: options.sessionId,
 		summary,

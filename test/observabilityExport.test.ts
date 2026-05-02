@@ -8,6 +8,7 @@ import {
 	assertVoiceObservabilityExportRecord,
 	assertVoiceObservabilityExportReplayEvidence,
 	assertVoiceObservabilityExportSchema,
+	buildVoiceIncidentBundle,
 	buildVoiceObservabilityExport,
 	buildVoiceObservabilityArtifactIndex,
 	buildVoiceObservabilityExportDeliveryHistory,
@@ -979,6 +980,86 @@ test('buildVoiceObservabilityExport creates customer-owned evidence manifest', a
 	);
 	expect(renderVoiceObservabilityExportMarkdown(report)).toContain(
 		'Provider SLO screenshot'
+	);
+});
+
+test('buildVoiceObservabilityExport indexes incident bundles and recovery outcomes', async () => {
+	const bundle = await buildVoiceIncidentBundle({
+		events: [
+			createVoiceTraceEvent({
+				at: 1_000,
+				payload: { error: 'provider unavailable' },
+				sessionId: 'session-incident',
+				type: 'session.error'
+			})
+		],
+		recoveryOutcomes: {
+			checkedAt: 1_500,
+			entries: [
+				{
+					actionId: 'delivery.retry',
+					afterStatus: 'warn',
+					at: 1_450,
+					beforeStatus: 'fail',
+					eventId: 'audit-recovery-1',
+					outcome: 'improved'
+				},
+				{
+					actionId: 'support.bundle',
+					afterStatus: 'fail',
+					at: 1_475,
+					beforeStatus: 'warn',
+					eventId: 'audit-recovery-2',
+					outcome: 'regressed'
+				}
+			],
+			failed: 0,
+			improved: 1,
+			regressed: 1,
+			total: 2,
+			unchanged: 0
+		},
+		sessionId: 'session-incident'
+	});
+	const report = await buildVoiceObservabilityExport({
+		incidentBundles: [bundle],
+		incidentRecoveryOutcomeReports: [bundle.recoveryOutcomes!]
+	});
+	const artifactIndex = buildVoiceObservabilityArtifactIndex(report);
+
+	expect(report.status).toBe('fail');
+	expect(report.sessionIds).toEqual(['session-incident']);
+	expect(report.artifacts).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				id: 'incident-bundle:session-incident',
+				kind: 'incident',
+				sessionId: 'session-incident',
+				status: 'fail'
+			}),
+			expect.objectContaining({
+				kind: 'incident-recovery-outcomes',
+				metadata: expect.objectContaining({
+					improved: 1,
+					regressed: 1,
+					total: 2
+				}),
+				status: 'fail'
+			})
+		])
+	);
+	expect(artifactIndex.artifacts).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				kind: 'incident-recovery-outcomes',
+				metadata: expect.objectContaining({
+					regressed: 1
+				})
+			})
+		])
+	);
+	expect(renderVoiceObservabilityExportMarkdown(report)).toContain(
+		'Incident recovery outcomes'
 	);
 });
 

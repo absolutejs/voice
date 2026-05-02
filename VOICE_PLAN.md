@@ -223,9 +223,9 @@ The biggest gaps versus Vapi/Retell/Bland are not raw code count. They are produ
 
 ## Latest Proof Status
 
-Current verified proof: core `@absolutejs/voice@0.0.22-beta.436` and the voice example were verified on May 2, 2026.
+Current verified proof: core `@absolutejs/voice@0.0.22-beta.437` and the voice example were verified on May 2, 2026.
 
-Latest full proof-pack output remains `.voice-runtime/proof-pack/2026-04-30T15-34-16.230Z` from April 30, 2026. The May 2 verification covered the incident-timeline primitive, audited executable incident recovery actions, recovery outcome summaries, the operational-status primitive, and the updated Absolute standalone build path; rerun `bun run proof:pack:server` when a fresh end-to-end proof artifact is needed.
+Latest full proof-pack output remains `.voice-runtime/proof-pack/2026-04-30T15-34-16.230Z` from April 30, 2026. The May 2 verification covered the incident-timeline primitive, audited executable incident recovery actions, recovery outcome summaries, incident support/export artifacts, the operational-status primitive, and the updated Absolute standalone build path; rerun `bun run proof:pack:server` when a fresh end-to-end proof artifact is needed.
 
 Verified:
 
@@ -235,8 +235,9 @@ Verified:
 - Incident timeline combines operational status, ops recovery issues, monitor issues, operations records, and failure replay into one chronological JSON/HTML/Markdown triage surface.
 - `@absolutejs/voice@0.0.22-beta.435` adds incident recovery action descriptors plus `GET /api/voice/incident-timeline/actions` and `POST /api/voice/incident-timeline/actions/:actionId` execution through app-supplied handlers, with optional operator-action audit/trace evidence that records before/after incident status.
 - `@absolutejs/voice@0.0.22-beta.436` adds `buildVoiceIncidentRecoveryOutcomeReport(...)`, `renderVoiceIncidentRecoveryOutcomeHTML(...)`, `/api/voice/incident-timeline/recovery-outcomes`, and `/voice/incident-recovery-outcomes` so audited recovery actions are summarized as improved, unchanged, regressed, or failed.
-- The voice example installs `@absolutejs/voice@0.0.22-beta.436`, mounts `/api/voice/operational-status`, `/voice/operational-status`, `/api/voice/incident-timeline`, `/voice/incident-timeline`, and `/voice/incident-timeline.md`, wires safe handlers for delivery retry, proof rerun, readiness refresh, and support bundle generation, connects those actions to audit/trace stores, inherits recovery outcome routes from the incident timeline primitive, installs `@absolutejs/absolute@0.19.0-beta.816`, and defines `"build": "absolute build"`.
-- May 2 verification passed: core `bun test test/incidentTimeline.test.ts`, core `bun run typecheck`, core `bun run build`, example `bun run typecheck`, and example `bun run build`.
+- `@absolutejs/voice@0.0.22-beta.437` folds recovery outcomes into support/export artifacts: incident bundles can embed redacted recovery outcome summaries, and observability export manifests/indexes can include required incident-bundle and incident-recovery-outcome artifacts that gate export status when failed or regressed evidence is present.
+- The voice example installs `@absolutejs/voice@0.0.22-beta.437`, mounts `/api/voice/operational-status`, `/voice/operational-status`, `/api/voice/incident-timeline`, `/voice/incident-timeline`, and `/voice/incident-timeline.md`, wires safe handlers for delivery retry, proof rerun, readiness refresh, and support bundle generation, connects those actions to audit/trace stores, inherits recovery outcome routes from the incident timeline primitive, installs `@absolutejs/absolute@0.19.0-beta.816`, and defines `"build": "absolute build"`.
+- May 2 verification passed: core `bun test test/incidentBundle.test.ts test/observabilityExport.test.ts test/incidentTimeline.test.ts`, core `bun run typecheck`, core `bun run build`, example `bun run typecheck`, and example `bun run build`.
 - Platform coverage passes across 13 hosted-platform replacement surfaces.
 - Production readiness evidence assertion passes.
 - Production readiness gate explanation assertion passes, including structured observed value, threshold, unit, remediation, and source link data for non-pass checks.
@@ -266,10 +267,11 @@ Verified:
 - `@absolutejs/voice@0.0.22-beta.432` adds the incident timeline/operational triage surface that answers what changed recently, which calls were affected, what failed or recovered, and where to investigate next.
 - `@absolutejs/voice@0.0.22-beta.435` adds executable incident recovery actions without owning the recovery workflow; apps provide the safe handlers, and the package can record operator-action audit/trace evidence.
 - `@absolutejs/voice@0.0.22-beta.436` adds recovery outcome summaries so incident actions can be judged by status impact instead of only execution success.
+- `@absolutejs/voice@0.0.22-beta.437` makes those outcomes portable by embedding them in incident bundles and customer-owned observability export artifacts.
 
 Recent package/example proof has moved provider orchestration from "primitive exists" to "buyer-visible evidence exists": provider orchestration reports, provider decision traces, fallback recovery, and operations-record provider recovery evidence are now part of the proof story.
 
-Next core-product wedge: incident recovery deltas in support artifacts. `buildVoiceIncidentRecoveryOutcomeReport(...)` now summarizes which actions improved, failed, regressed, or left incidents unchanged. The next buyer question is "can I export this incident story for support, customers, or postmortems?" AbsoluteJS Voice should fold timeline events, recovery actions, outcome summaries, and call-debugger links into support bundles and observability export manifests.
+Next core-product wedge: incident recovery readiness gates. Recovery outcomes are now visible in routes, support bundles, and export manifests. The next buyer question is "can failed or regressed incident recovery block a release automatically?" AbsoluteJS Voice should add a readiness check/assertion that fails or warns when recent recovery outcomes include failed/regressed actions or too many unchanged actions.
 
 ## Competitive Coverage And Depth Scorecard
 
