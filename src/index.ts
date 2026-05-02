@@ -291,6 +291,7 @@ export {
   buildVoiceRealCallProfileReadinessCheck,
   buildVoiceRealCallProfileRecoveryJobHistoryCheck,
   buildVoiceRealCallProfileRecoveryActions,
+  buildVoiceReconnectProfileEvidenceSummary,
   createVoiceInMemoryRealCallProfileRecoveryJobStore,
   createVoiceRealCallProfileTraceCollector,
   createVoiceSQLiteRealCallProfileEvidenceStore,
@@ -507,6 +508,8 @@ export type {
   VoiceRealCallProfileTraceEvidenceOptions,
   VoiceRealCallProfileTraceStoreEvidenceOptions,
   VoiceReconnectRealCallProfileEvidenceOptions,
+  VoiceReconnectProfileEvidenceSummary,
+  VoiceReconnectProfileEvidenceSummaryStatus,
   VoiceSQLiteRealCallProfileEvidenceStoreOptions,
 } from "./proofTrends";
 export {

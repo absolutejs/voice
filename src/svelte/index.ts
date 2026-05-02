@@ -5,6 +5,7 @@ export { createVoiceLiveOps } from "./createVoiceLiveOps";
 export { createVoiceOpsStatus } from "./createVoiceOpsStatus";
 export { createVoicePlatformCoverage } from "./createVoicePlatformCoverage";
 export { createVoiceProofTrends } from "./createVoiceProofTrends";
+export { createVoiceReconnectProfileEvidence } from "./createVoiceReconnectProfileEvidence";
 export { createVoiceCallDebugger } from "./createVoiceCallDebugger";
 export { createVoiceSessionSnapshot } from "./createVoiceSessionSnapshot";
 export { createVoiceProfileComparison } from "./createVoiceProfileComparison";

@@ -18,6 +18,7 @@ import {
   buildVoiceRealCallProfileReadinessCheck,
   buildVoiceRealCallProfileRecoveryJobHistoryCheck,
   buildVoiceRealCallProfileRecoveryActions,
+  buildVoiceReconnectProfileEvidenceSummary,
   createVoiceInMemoryRealCallProfileRecoveryJobStore,
   createVoiceRealCallProfileTraceCollector,
   createVoiceSQLiteRealCallProfileEvidenceStore,
@@ -981,6 +982,71 @@ describe("proof trends", () => {
       status: "pass",
       surfaces: ["reconnect"],
     });
+  });
+
+  test("buildVoiceReconnectProfileEvidenceSummary extracts durable reconnect profile evidence", () => {
+    const summary = buildVoiceReconnectProfileEvidenceSummary(
+      [
+        {
+          createdAt: "2026-05-02T20:00:00.000Z",
+          generatedAt: "2026-05-02T20:00:00.000Z",
+          id: "reconnect-resume:older",
+          ok: true,
+          profileId: "reconnect-resume",
+          profileLabel: "Reconnect resume",
+          reconnect: {
+            reconnected: true,
+            resumed: true,
+            resumeLatencyP95Ms: 540,
+            samples: 1,
+            snapshotCount: 3,
+            status: "pass",
+          },
+          sessionId: "older",
+          surfaces: ["browser", "reconnect"],
+        },
+        {
+          createdAt: "2026-05-02T20:02:00.000Z",
+          generatedAt: "2026-05-02T20:02:00.000Z",
+          id: "reconnect-resume:newer",
+          ok: true,
+          profileId: "reconnect-resume",
+          profileLabel: "Reconnect resume",
+          reconnect: {
+            reconnected: true,
+            resumed: true,
+            resumeLatencyP95Ms: 420,
+            samples: 2,
+            snapshotCount: 6,
+            status: "pass",
+          },
+          sessionId: "newer",
+          surfaces: ["browser", "reconnect"],
+        },
+        {
+          createdAt: "2026-05-02T20:03:00.000Z",
+          id: "meeting-recorder:ignored",
+          ok: true,
+          profileId: "meeting-recorder",
+          sessionId: "ignored",
+        },
+      ],
+      {
+        generatedAt: "2026-05-02T20:03:30.000Z",
+        sourceHref: "/api/voice/real-call-profile-history",
+      },
+    );
+
+    expect(summary).toMatchObject({
+      ok: true,
+      profileId: "reconnect-resume",
+      sampleCount: 3,
+      snapshotCount: 9,
+      sourceHref: "/api/voice/real-call-profile-history",
+      status: "pass",
+    });
+    expect(summary.latest?.sessionId).toBe("newer");
+    expect(summary.resumeLatencyP95Ms).toBe(540);
   });
 
   test("buildVoiceRealCallProfileEvidenceFromTraceEvents converts stored traces into profile evidence", () => {

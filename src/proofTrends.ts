@@ -196,6 +196,25 @@ export type VoiceRealCallProfileEvidenceRecord =
     id: string;
   };
 
+export type VoiceReconnectProfileEvidenceSummaryStatus =
+  | "empty"
+  | "fail"
+  | "pass"
+  | "warn";
+
+export type VoiceReconnectProfileEvidenceSummary = {
+  evidence: VoiceRealCallProfileEvidenceRecord[];
+  generatedAt: string;
+  latest?: VoiceRealCallProfileEvidenceRecord;
+  ok: boolean;
+  profileId: string;
+  resumeLatencyP95Ms?: number;
+  sampleCount: number;
+  snapshotCount: number;
+  sourceHref?: string;
+  status: VoiceReconnectProfileEvidenceSummaryStatus;
+};
+
 export type VoiceRealCallProfileEvidenceCreateInput =
   VoiceProofTrendRealCallProfileEvidence & {
     createdAt?: string;
@@ -239,11 +258,21 @@ export type VoiceSQLiteRealCallProfileEvidenceStoreOptions = {
 };
 
 export type VoiceReconnectRealCallProfileEvidenceOptions = {
-  operationsRecordHref?: string | ((report: VoiceReconnectProofReport | VoiceReconnectContractReport, index: number) => string | undefined);
+  operationsRecordHref?:
+    | string
+    | ((
+        report: VoiceReconnectProofReport | VoiceReconnectContractReport,
+        index: number,
+      ) => string | undefined);
   profileDescription?: string;
   profileId?: string;
   profileLabel?: string;
-  sessionId?: string | ((report: VoiceReconnectProofReport | VoiceReconnectContractReport, index: number) => string);
+  sessionId?:
+    | string
+    | ((
+        report: VoiceReconnectProofReport | VoiceReconnectContractReport,
+        index: number,
+      ) => string);
   surfaces?: readonly string[];
 };
 
@@ -989,6 +1018,69 @@ const maxNumber = (values: Array<number | undefined>) => {
   return finite.length > 0 ? Math.max(...finite) : undefined;
 };
 
+export const buildVoiceReconnectProfileEvidenceSummary = (
+  evidence: readonly VoiceRealCallProfileEvidenceRecord[],
+  options: {
+    generatedAt?: string;
+    profileId?: string;
+    sourceHref?: string;
+  } = {},
+): VoiceReconnectProfileEvidenceSummary => {
+  const profileId = options.profileId ?? "reconnect-resume";
+  const filtered = evidence
+    .filter((record) => record.profileId === profileId)
+    .sort((left, right) => {
+      const leftAt = Date.parse(left.generatedAt ?? left.createdAt);
+      const rightAt = Date.parse(right.generatedAt ?? right.createdAt);
+      return (
+        (Number.isFinite(rightAt) ? rightAt : 0) -
+        (Number.isFinite(leftAt) ? leftAt : 0)
+      );
+    });
+  const latest = filtered[0];
+  const sampleCount = filtered.reduce(
+    (total, record) => total + (record.reconnect?.samples ?? 1),
+    0,
+  );
+  const snapshotCount = filtered.reduce(
+    (total, record) => total + (record.reconnect?.snapshotCount ?? 0),
+    0,
+  );
+  const resumeLatencyP95Ms = maxNumber(
+    filtered.map((record) => record.reconnect?.resumeLatencyP95Ms),
+  );
+  const failed = filtered.some(
+    (record) => record.ok === false || record.reconnect?.status === "fail",
+  );
+  const passed = filtered.some(
+    (record) =>
+      record.ok === true &&
+      record.reconnect?.resumed === true &&
+      record.reconnect?.reconnected === true,
+  );
+  const status: VoiceReconnectProfileEvidenceSummaryStatus =
+    filtered.length === 0
+      ? "empty"
+      : failed
+        ? "fail"
+        : passed
+          ? "pass"
+          : "warn";
+
+  return {
+    evidence: filtered,
+    generatedAt: options.generatedAt ?? new Date().toISOString(),
+    latest,
+    ok: status === "pass",
+    profileId,
+    resumeLatencyP95Ms,
+    sampleCount,
+    snapshotCount,
+    sourceHref: options.sourceHref,
+    status,
+  };
+};
+
 const percentile = (values: number[], rank: number) => {
   const finite = values
     .filter((value) => Number.isFinite(value))
@@ -1036,9 +1128,7 @@ const readProofTrendMaxProviderP95 = (report: VoiceProofTrendReport) =>
 const readProofTrendMaxReconnectP95 = (report: VoiceProofTrendReport) =>
   report.summary.maxReconnectP95Ms ??
   report.summary.reconnect?.resumeLatencyP95Ms ??
-  maxNumber(
-    report.cycles.map((cycle) => cycle.reconnect?.resumeLatencyP95Ms),
-  );
+  maxNumber(report.cycles.map((cycle) => cycle.reconnect?.resumeLatencyP95Ms));
 
 const readProofTrendMaxTurnP95 = (report: VoiceProofTrendReport) =>
   report.summary.maxTurnP95Ms ??
@@ -1193,9 +1283,7 @@ const aggregateProofTrendReconnect = (
     resumeLatencyP95Ms: maxNumber(
       reconnects.map((reconnect) => reconnect.resumeLatencyP95Ms),
     ),
-    reconnected: reconnects.some(
-      (reconnect) => reconnect.reconnected === true,
-    ),
+    reconnected: reconnects.some((reconnect) => reconnect.reconnected === true),
     resumed: reconnects.some((reconnect) => reconnect.resumed === true),
     samples: reconnects.reduce(
       (total, reconnect) => total + (reconnect.samples ?? 0),
@@ -1226,7 +1314,9 @@ const summarizeReconnectTraceEvidence = (
   const statuses = reconnectEvents
     .map((event) => readString(readTraceRecord(event).status))
     .filter((status): status is string => status !== undefined);
-  const reconnectPayloads = reconnectEvents.map((event) => readTraceRecord(event));
+  const reconnectPayloads = reconnectEvents.map((event) =>
+    readTraceRecord(event),
+  );
 
   return {
     attempts: maxNumber(
@@ -1238,9 +1328,10 @@ const summarizeReconnectTraceEvidence = (
     ),
     resumeLatencyP95Ms: percentile(
       reconnectPayloads
-        .map((payload) =>
-          readNumber(payload.resumeLatencyP95Ms) ??
-          readNumber(payload.resumeLatencyMs),
+        .map(
+          (payload) =>
+            readNumber(payload.resumeLatencyP95Ms) ??
+            readNumber(payload.resumeLatencyMs),
         )
         .filter((value): value is number => value !== undefined),
       95,
@@ -1630,8 +1721,7 @@ export const loadVoiceRealCallProfileEvidenceFromStore = async (
   options: VoiceRealCallProfileEvidenceListOptions & {
     store: VoiceRealCallProfileEvidenceStore;
   },
-): Promise<VoiceRealCallProfileEvidenceRecord[]> =>
-  options.store.list(options);
+): Promise<VoiceRealCallProfileEvidenceRecord[]> => options.store.list(options);
 
 const realCallProfileTraceSignalTypes = new Set([
   "client.barge_in",

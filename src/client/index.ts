@@ -19,6 +19,10 @@ export {
   fetchVoiceProofTrends,
 } from "./proofTrends";
 export {
+  createVoiceReconnectProfileEvidenceStore,
+  fetchVoiceReconnectProfileEvidence,
+} from "./reconnectProfileEvidence";
+export {
   createVoiceSessionSnapshotStore,
   fetchVoiceSessionSnapshot,
 } from "./sessionSnapshot";
@@ -104,6 +108,13 @@ export {
   mountVoiceProofTrends,
   renderVoiceProofTrendsHTML,
 } from "./proofTrendsWidget";
+export {
+  createVoiceReconnectProfileEvidenceViewModel,
+  defineVoiceReconnectProfileEvidenceElement,
+  getVoiceReconnectProfileEvidenceCSS,
+  mountVoiceReconnectProfileEvidence,
+  renderVoiceReconnectProfileEvidenceHTML,
+} from "./reconnectProfileEvidenceWidget";
 export {
   createVoiceProfileComparisonViewModel,
   defineVoiceProfileComparisonElement,
@@ -268,6 +279,10 @@ export type {
   VoiceProfileComparisonSnapshot,
 } from "./profileComparison";
 export type {
+  VoiceReconnectProfileEvidenceClientOptions,
+  VoiceReconnectProfileEvidenceSnapshot,
+} from "./reconnectProfileEvidence";
+export type {
   VoiceProfileSwitchRecommendationClientOptions,
   VoiceProfileSwitchRecommendationSnapshot,
 } from "./profileSwitchRecommendation";
@@ -281,6 +296,11 @@ export type {
   VoiceProfileComparisonViewModel,
   VoiceProfileComparisonWidgetOptions,
 } from "./profileComparisonWidget";
+export type {
+  VoiceReconnectProfileEvidenceMetricView,
+  VoiceReconnectProfileEvidenceViewModel,
+  VoiceReconnectProfileEvidenceWidgetOptions,
+} from "./reconnectProfileEvidenceWidget";
 export type {
   VoiceOpsActionCenterClientOptions,
   VoiceOpsActionCenterPresetOptions,

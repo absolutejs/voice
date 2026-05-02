@@ -1,6 +1,7 @@
 export { VoiceOpsStatusService } from "./voice-ops-status.service";
 export { VoicePlatformCoverageService } from "./voice-platform-coverage.service";
 export { VoiceProofTrendsService } from "./voice-proof-trends.service";
+export { VoiceReconnectProfileEvidenceService } from "./voice-reconnect-profile-evidence.service";
 export { VoiceCallDebuggerService } from "./voice-call-debugger.service";
 export { VoiceSessionSnapshotService } from "./voice-session-snapshot.service";
 export { VoiceProfileComparisonService } from "./voice-profile-comparison.service";

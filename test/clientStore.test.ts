@@ -3,6 +3,7 @@ import { serverMessageToAction } from "../src/client/actions";
 import { createVoiceOpsStatusStore } from "../src/client/opsStatus";
 import { createVoicePlatformCoverageStore } from "../src/client/platformCoverage";
 import { createVoiceProofTrendsStore } from "../src/client/proofTrends";
+import { createVoiceReconnectProfileEvidenceStore } from "../src/client/reconnectProfileEvidence";
 import { createVoiceReadinessFailuresStore } from "../src/client/readinessFailures";
 import {
   createVoicePlatformCoverageViewModel,
@@ -12,6 +13,10 @@ import {
   createVoiceProofTrendsViewModel,
   renderVoiceProofTrendsHTML,
 } from "../src/client/proofTrendsWidget";
+import {
+  createVoiceReconnectProfileEvidenceViewModel,
+  renderVoiceReconnectProfileEvidenceHTML,
+} from "../src/client/reconnectProfileEvidenceWidget";
 import {
   createVoiceReadinessFailuresViewModel,
   renderVoiceReadinessFailuresHTML,
@@ -932,6 +937,87 @@ test("voice proof trends widget renders freshness and latency evidence", () => {
   expect(model.metrics.map((metric) => metric.label)).toContain("Artifact age");
   expect(html).toContain("Provider p95");
   expect(html).toContain("420ms");
+});
+
+test("voice reconnect profile evidence store fetches persisted reconnect summaries", async () => {
+  const store = createVoiceReconnectProfileEvidenceStore(
+    "/api/voice/reconnect-profile-evidence",
+    {
+      fetch: async (input) => {
+        expect(String(input)).toBe("/api/voice/reconnect-profile-evidence");
+        return new Response(
+          JSON.stringify({
+            evidence: [],
+            generatedAt: "2026-05-02T20:00:00.000Z",
+            ok: true,
+            profileId: "reconnect-resume",
+            resumeLatencyP95Ms: 540,
+            sampleCount: 2,
+            snapshotCount: 6,
+            status: "pass",
+          }),
+        );
+      },
+    },
+  );
+
+  await store.refresh();
+
+  expect(store.getSnapshot()).toMatchObject({
+    error: null,
+    isLoading: false,
+    report: {
+      ok: true,
+      sampleCount: 2,
+      status: "pass",
+    },
+  });
+  store.close();
+});
+
+test("voice reconnect profile evidence widget renders durable resume proof", () => {
+  const snapshot = {
+    error: null,
+    isLoading: false,
+    report: {
+      evidence: [],
+      generatedAt: "2026-05-02T20:00:00.000Z",
+      latest: {
+        createdAt: "2026-05-02T20:00:00.000Z",
+        generatedAt: "2026-05-02T20:00:00.000Z",
+        id: "reconnect-resume:session",
+        ok: true,
+        profileDescription: "Real browser reconnect/resume traces.",
+        profileId: "reconnect-resume",
+        profileLabel: "Reconnect resume",
+        reconnect: {
+          reconnected: true,
+          resumed: true,
+          resumeLatencyP95Ms: 540,
+          samples: 1,
+          snapshotCount: 3,
+          status: "pass",
+        },
+        sessionId: "session-1",
+        surfaces: ["browser", "reconnect"],
+      },
+      ok: true,
+      profileId: "reconnect-resume",
+      resumeLatencyP95Ms: 540,
+      sampleCount: 1,
+      snapshotCount: 3,
+      status: "pass" as const,
+    },
+  };
+
+  const model = createVoiceReconnectProfileEvidenceViewModel(snapshot);
+  const html = renderVoiceReconnectProfileEvidenceHTML(snapshot);
+
+  expect(model.label).toBe("Reconnect evidence passing");
+  expect(model.status).toBe("ready");
+  expect(model.metrics.map((metric) => metric.label)).toContain("Resume p95");
+  expect(html).toContain("Reconnect resume");
+  expect(html).toContain("540ms");
 });
 
 test("voice readiness failures store fetches production readiness reports", async () => {
