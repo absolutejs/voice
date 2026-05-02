@@ -23,6 +23,7 @@ import type {
   VoiceOperationsRecord,
   VoiceProductionReadinessReport,
   VoiceProviderSloReport,
+  VoiceSessionObservabilityReport,
   VoiceSessionSnapshot,
 } from "../src";
 
@@ -234,6 +235,12 @@ test("buildVoiceProofPackInput assembles common proof inputs with shared context
     sessionId: "builder-session",
     status: "pass",
   } as VoiceSessionSnapshot;
+  const observability = {
+    sessionId: "builder-session",
+    status: "healthy",
+    summary: { fallbacks: 0 },
+    turns: [{ turnId: "turn-1" }],
+  } as VoiceSessionObservabilityReport;
 
   const input = await buildVoiceProofPackInput({
     context,
@@ -255,7 +262,10 @@ test("buildVoiceProofPackInput assembles common proof inputs with shared context
     },
     loadSupportBundle: () => {
       now += 11;
-      return { sessionSnapshots: [snapshot] };
+      return {
+        sessionObservabilityReports: [observability],
+        sessionSnapshots: [snapshot],
+      };
     },
     runId: "builder-run",
   });
@@ -267,6 +277,7 @@ test("buildVoiceProofPackInput assembles common proof inputs with shared context
   expect(input.productionReadiness).toBe(productionReadiness);
   expect(input.providerSlo).toBe(providerSlo);
   expect(input.operationsRecords).toEqual([operation]);
+  expect(input.sessionObservabilityReports).toEqual([observability]);
   expect(input.sessionSnapshots).toEqual([snapshot]);
   expect(context.getTimings().map((timing) => timing.label)).toEqual([
     "productionReadiness",
@@ -305,10 +316,19 @@ test("proof pack builds rich sections from provider, operation, and support repo
     sessionId: "session-rich-proof",
     status: "healthy",
   } as VoiceCallDebuggerReport;
+  const observabilityReport = {
+    sessionId: "session-rich-proof",
+    status: "healthy",
+    summary: {
+      fallbacks: 1,
+    },
+    turns: [{ turnId: "turn-1" }, { turnId: "turn-2" }],
+  } as VoiceSessionObservabilityReport;
   const proofPack = buildVoiceProofPack({
     callDebuggerReports: [debuggerReport],
     operationsRecords: [operation],
     providerSlo,
+    sessionObservabilityReports: [observabilityReport],
     sessionSnapshots: [snapshot],
   });
 
@@ -321,6 +341,7 @@ test("proof pack builds rich sections from provider, operation, and support repo
   expect(
     createVoiceProofPackSupportBundleSection({
       callDebuggerReports: [debuggerReport],
+      sessionObservabilityReports: [observabilityReport],
       sessionSnapshots: [snapshot],
     }).status,
   ).toBe("pass");
@@ -330,6 +351,25 @@ test("proof pack builds rich sections from provider, operation, and support repo
     "Support bundle",
   ]);
   expect(proofPack.status).toBe("warn");
+  expect(proofPack.sections[2]?.evidence).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        label: "Session observability reports",
+        status: "pass",
+        value: 1,
+      }),
+      expect.objectContaining({
+        label: "Turn waterfalls",
+        status: "pass",
+        value: 2,
+      }),
+      expect.objectContaining({
+        label: "Provider fallbacks in observability reports",
+        status: "warn",
+        value: 1,
+      }),
+    ]),
+  );
 });
 
 test("buildVoiceProofPackFromObservabilityExport feeds artifact exports", async () => {

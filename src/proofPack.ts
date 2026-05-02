@@ -15,6 +15,7 @@ import type { VoiceCallDebuggerReport } from "./callDebugger";
 import type { VoiceOperationsRecord } from "./operationsRecord";
 import type { VoiceProductionReadinessReport } from "./productionReadiness";
 import type { VoiceProviderSloReport } from "./providerSlo";
+import type { VoiceSessionObservabilityReport } from "./sessionObservability";
 import type { VoiceSessionSnapshot } from "./sessionSnapshot";
 import {
   filterVoiceTraceEvents,
@@ -69,6 +70,7 @@ export type VoiceProofPackInput = {
   providerSlo?: VoiceProviderSloReport;
   runId?: string;
   sections?: VoiceProofPackSection[];
+  sessionObservabilityReports?: VoiceSessionObservabilityReport[];
   sessionSnapshots?: VoiceSessionSnapshot[];
 };
 
@@ -129,6 +131,7 @@ export type VoiceProofRefreshSnapshot = {
 
 export type VoiceProofPackInputBuilderSupportBundle = {
   callDebuggerReports?: VoiceCallDebuggerReport[];
+  sessionObservabilityReports?: VoiceSessionObservabilityReport[];
   sessionSnapshots?: VoiceSessionSnapshot[];
 };
 
@@ -148,6 +151,7 @@ export type VoiceProofPackInputBuilderOptions = Omit<
   | "operationsRecords"
   | "productionReadiness"
   | "providerSlo"
+  | "sessionObservabilityReports"
   | "sessionSnapshots"
 > & {
   callDebuggerReports?: VoiceCallDebuggerReport[];
@@ -170,6 +174,7 @@ export type VoiceProofPackInputBuilderOptions = Omit<
     | Promise<VoiceProofPackInputBuilderSupportBundle>
     | VoiceProofPackInputBuilderSupportBundle;
   operationsRecords?: VoiceOperationsRecord[];
+  sessionObservabilityReports?: VoiceSessionObservabilityReport[];
   sessionSnapshots?: VoiceSessionSnapshot[];
 };
 
@@ -426,6 +431,9 @@ export const buildVoiceProofPackInput = async (
     providerSlo,
     runId: options.runId,
     sections: options.sections,
+    sessionObservabilityReports:
+      supportBundle?.sessionObservabilityReports ??
+      options.sessionObservabilityReports,
     sessionSnapshots:
       supportBundle?.sessionSnapshots ?? options.sessionSnapshots,
   };
@@ -622,20 +630,34 @@ export const createVoiceProofPackOperationsRecordSection = (
 
 export const createVoiceProofPackSupportBundleSection = (input: {
   callDebuggerReports?: readonly VoiceCallDebuggerReport[];
+  sessionObservabilityReports?: readonly VoiceSessionObservabilityReport[];
   sessionSnapshots?: readonly VoiceSessionSnapshot[];
   title?: string;
 }): VoiceProofPackSection => {
   const snapshots = input.sessionSnapshots ?? [];
   const debuggerReports = input.callDebuggerReports ?? [];
+  const observabilityReports = input.sessionObservabilityReports ?? [];
   const failedSnapshots = snapshots.filter(
     (snapshot) => snapshot.status === "fail",
   ).length;
   const failedDebuggerReports = debuggerReports.filter(
     (report) => report.status === "failed",
   ).length;
+  const failedObservabilityReports = observabilityReports.filter(
+    (report) => report.status === "failed",
+  ).length;
   const warnings =
     snapshots.filter((snapshot) => snapshot.status === "warn").length +
-    debuggerReports.filter((report) => report.status === "warning").length;
+    debuggerReports.filter((report) => report.status === "warning").length +
+    observabilityReports.filter((report) => report.status === "warning").length;
+  const turnWaterfalls = observabilityReports.reduce(
+    (total, report) => total + report.turns.length,
+    0,
+  );
+  const fallbacks = observabilityReports.reduce(
+    (total, report) => total + report.summary.fallbacks,
+    0,
+  );
 
   return {
     evidence: [
@@ -645,12 +667,34 @@ export const createVoiceProofPackSupportBundleSection = (input: {
       numberEvidence("Call debugger reports", debuggerReports.length, {
         passWhenPositive: true,
       }),
+      numberEvidence(
+        "Session observability reports",
+        observabilityReports.length,
+        {
+          passWhenPositive: true,
+        },
+      ),
+      numberEvidence("Turn waterfalls", turnWaterfalls, {
+        passWhenPositive: true,
+      }),
       numberEvidence("Failed snapshots", failedSnapshots, {
         failWhenPositive: true,
       }),
       numberEvidence("Failed debugger reports", failedDebuggerReports, {
         failWhenPositive: true,
       }),
+      numberEvidence(
+        "Failed observability reports",
+        failedObservabilityReports,
+        {
+          failWhenPositive: true,
+        },
+      ),
+      {
+        label: "Provider fallbacks in observability reports",
+        status: fallbacks > 0 ? "warn" : "pass",
+        value: fallbacks,
+      },
       {
         label: "Warning support artifacts",
         status: warnings > 0 ? "warn" : "pass",
@@ -658,12 +702,15 @@ export const createVoiceProofPackSupportBundleSection = (input: {
       },
     ],
     status:
-      failedSnapshots > 0 || failedDebuggerReports > 0
+      failedSnapshots > 0 ||
+      failedDebuggerReports > 0 ||
+      failedObservabilityReports > 0
         ? "fail"
         : warnings > 0
           ? "warn"
           : "pass",
-    summary: "Support artifacts that make the latest call debuggable.",
+    summary:
+      "Support artifacts that make calls debuggable, including turn waterfalls and per-call observability links.",
     title: input.title ?? "Support bundle",
   };
 };
@@ -695,10 +742,13 @@ const buildDerivedProofPackSections = (
         }),
       ]
     : []),
-  ...(input.sessionSnapshots?.length || input.callDebuggerReports?.length
+  ...(input.sessionSnapshots?.length ||
+  input.callDebuggerReports?.length ||
+  input.sessionObservabilityReports?.length
     ? [
         createVoiceProofPackSupportBundleSection({
           callDebuggerReports: input.callDebuggerReports,
+          sessionObservabilityReports: input.sessionObservabilityReports,
           sessionSnapshots: input.sessionSnapshots,
         }),
       ]
