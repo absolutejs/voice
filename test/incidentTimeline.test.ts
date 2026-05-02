@@ -1,0 +1,224 @@
+import { expect, test } from 'bun:test';
+import {
+	buildVoiceIncidentTimelineReport,
+	createVoiceIncidentTimelineRoutes,
+	renderVoiceIncidentTimelineMarkdown
+} from '../src';
+import type {
+	VoiceFailureReplayReport,
+	VoiceOperationsRecord,
+	VoiceOperationalStatusReport
+} from '../src';
+
+const operationalStatus: VoiceOperationalStatusReport = {
+	checkedAt: 2_000,
+	checks: [
+		{
+			detail: 'Proof pack is stale.',
+			href: '/voice/proof-pack',
+			label: 'Proof pack freshness',
+			status: 'warn',
+			value: '90s old'
+		},
+		{
+			detail: 'Production readiness gate is open.',
+			label: 'Production readiness',
+			status: 'pass'
+		}
+	],
+	links: {},
+	status: 'warn',
+	summary: {
+		fail: 0,
+		pass: 1,
+		total: 2,
+		warn: 1
+	}
+};
+
+const operationsRecord = {
+	checkedAt: 3_000,
+	guardrails: {
+		decisions: [],
+		findings: [],
+		status: 'pass',
+		total: 0
+	},
+	handoffs: [],
+	outcome: {
+		assistantReplies: 0,
+		complete: false,
+		escalated: false,
+		noAnswer: false,
+		transferred: false,
+		voicemail: false
+	},
+	providerDecisions: [],
+	providerDecisionSummary: {
+		recoveredFallbacks: 0,
+		status: 'failed',
+		total: 0,
+		unresolvedFailures: 1
+	},
+	providers: [],
+	replay: {
+		events: [],
+		sessionId: 'session-1',
+		turns: []
+	},
+	sessionId: 'session-1',
+	status: 'failed',
+	summary: {
+		counts: {},
+		durationMs: 100,
+		firstAt: 1_000,
+		lastAt: 1_100,
+		sessionId: 'session-1',
+		total: 0
+	},
+	telephonyMedia: {
+		events: [],
+		inboundFrames: 0,
+		outboundFrames: 0,
+		status: 'pass',
+		streams: [],
+		total: 0
+	},
+	timeline: [],
+	tools: [],
+	traceEvents: [],
+	transcript: []
+} as unknown as VoiceOperationsRecord;
+
+const failureReplay: VoiceFailureReplayReport = {
+	incidentMarkdown: '# Incident',
+	media: {
+		audioBytes: 0,
+		clears: 0,
+		errors: 0,
+		issues: [],
+		steps: [],
+		total: 0
+	},
+	ok: false,
+	operationsRecordHref: '/voice-operations/session-1',
+	providers: {
+		degraded: 0,
+		errors: 1,
+		fallbacks: 0,
+		recoveryStatus: 'failed',
+		selected: 1,
+		steps: [
+			{
+				at: 4_000,
+				error: 'timeout',
+				provider: 'openai',
+				userHeard: []
+			}
+		],
+		total: 1
+	},
+	sessionId: 'session-1',
+	status: 'failed',
+	summary: {
+		issues: ['openai timed out'],
+		userHeard: []
+	},
+	turns: []
+};
+
+test('buildVoiceIncidentTimelineReport merges operational status calls and replay', async () => {
+	const report = await buildVoiceIncidentTimelineReport({
+		failureReplays: [failureReplay],
+		links: {
+			callDebugger: (sessionId) => `/voice-call-debugger/${sessionId}`,
+			operationsRecords: (sessionId) => `/voice-operations/${sessionId}`
+		},
+		now: 5_000,
+		operationalStatus,
+		operationsRecords: [operationsRecord]
+	});
+
+	expect(report.status).toBe('fail');
+	expect(report.summary).toMatchObject({
+		critical: 2,
+		total: 3,
+		warn: 1
+	});
+	expect(report.events.map((event) => event.id)).toEqual([
+		'failure-replay:session-1',
+		'operations-record:session-1',
+		'operational:Proof pack freshness'
+	]);
+	expect(report.events[1]?.action?.href).toBe('/voice-call-debugger/session-1');
+});
+
+test('buildVoiceIncidentTimelineReport filters old events and resolved monitor issues', async () => {
+	const report = await buildVoiceIncidentTimelineReport({
+		monitorIssues: [
+			{
+				createdAt: 1_000,
+				id: 'resolved',
+				impactedSessions: [],
+				label: 'Resolved issue',
+				lastSeenAt: 1_000,
+				monitorId: 'latency',
+				operationsRecordHrefs: [],
+				resolvedAt: 1_500,
+				severity: 'critical',
+				status: 'resolved'
+			},
+			{
+				createdAt: 4_500,
+				id: 'open',
+				impactedSessions: ['session-2'],
+				label: 'Open issue',
+				lastSeenAt: 4_500,
+				monitorId: 'latency',
+				operationsRecordHrefs: [],
+				severity: 'warn',
+				status: 'open'
+			}
+		],
+		now: 5_000,
+		operationalStatus,
+		windowMs: 1_000
+	});
+
+	expect(report.status).toBe('warn');
+	expect(report.events).toHaveLength(1);
+	expect(report.events[0]?.id).toBe('monitor:open');
+});
+
+test('createVoiceIncidentTimelineRoutes exposes json html and markdown', async () => {
+	const routes = createVoiceIncidentTimelineRoutes({
+		failureReplays: [failureReplay],
+		htmlPath: '/voice/incidents',
+		markdownPath: '/voice/incidents.md',
+		now: 5_000,
+		path: '/api/incidents'
+	});
+
+	const json = await routes.handle(new Request('http://localhost/api/incidents'));
+	const html = await routes.handle(new Request('http://localhost/voice/incidents'));
+	const markdown = await routes.handle(
+		new Request('http://localhost/voice/incidents.md')
+	);
+
+	expect(json.status).toBe(503);
+	await expect(json.json()).resolves.toMatchObject({
+		status: 'fail'
+	});
+	expect(await html.text()).toContain('Incident Timeline');
+	expect(await markdown.text()).toContain('Failure replay failed');
+});
+
+test('renderVoiceIncidentTimelineMarkdown renders empty reports', async () => {
+	const report = await buildVoiceIncidentTimelineReport({
+		now: 5_000
+	});
+
+	expect(renderVoiceIncidentTimelineMarkdown(report)).toContain(
+		'No incident timeline events'
+	);
+});

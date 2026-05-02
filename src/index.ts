@@ -555,6 +555,12 @@ export {
 	renderVoiceOperationalStatusHTML
 } from './operationalStatus';
 export {
+	buildVoiceIncidentTimelineReport,
+	createVoiceIncidentTimelineRoutes,
+	renderVoiceIncidentTimelineHTML,
+	renderVoiceIncidentTimelineMarkdown
+} from './incidentTimeline';
+export {
 	applyVoiceDataRetentionPolicy,
 	assertVoiceDataControlEvidence,
 	buildVoiceDataControlReport,
@@ -624,6 +630,17 @@ export type {
 	VoiceOperationalStatusRoutesOptions,
 	VoiceOperationalStatusValue
 } from './operationalStatus';
+export type {
+	VoiceIncidentTimelineAction,
+	VoiceIncidentTimelineEvent,
+	VoiceIncidentTimelineLinks,
+	VoiceIncidentTimelineOptions,
+	VoiceIncidentTimelineReport,
+	VoiceIncidentTimelineRoutesOptions,
+	VoiceIncidentTimelineSeverity,
+	VoiceIncidentTimelineStatus,
+	VoiceIncidentTimelineValue
+} from './incidentTimeline';
 export {
 	compareVoiceEvalBaseline,
 	createVoiceFileEvalBaselineStore,
