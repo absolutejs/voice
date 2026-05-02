@@ -557,9 +557,12 @@ export {
 export {
 	buildVoiceIncidentRecoveryOutcomeReport,
 	buildVoiceIncidentRecoveryOutcomeReadinessCheck,
+	buildVoiceIncidentRecoveryTrendReport,
 	buildVoiceIncidentTimelineReport,
 	createVoiceIncidentTimelineRoutes,
 	renderVoiceIncidentRecoveryOutcomeHTML,
+	renderVoiceIncidentRecoveryTrendHTML,
+	renderVoiceIncidentRecoveryTrendMarkdown,
 	renderVoiceIncidentTimelineHTML,
 	renderVoiceIncidentTimelineMarkdown
 } from './incidentTimeline';
@@ -643,6 +646,9 @@ export type {
 	VoiceIncidentRecoveryOutcomeOptions,
 	VoiceIncidentRecoveryOutcomeReadinessOptions,
 	VoiceIncidentRecoveryOutcomeReport,
+	VoiceIncidentRecoveryTrendCycle,
+	VoiceIncidentRecoveryTrendReport,
+	VoiceIncidentRecoveryTrendStatus,
 	VoiceIncidentTimelineAction,
 	VoiceIncidentTimelineEvent,
 	VoiceIncidentTimelineLinks,

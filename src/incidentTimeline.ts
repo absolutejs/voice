@@ -83,6 +83,47 @@ export type VoiceIncidentRecoveryOutcomeReport = {
 	unchanged: number;
 };
 
+export type VoiceIncidentRecoveryTrendStatus = 'empty' | 'fail' | 'pass' | 'warn';
+
+export type VoiceIncidentRecoveryTrendCycle = {
+	checkedAt: number;
+	failed: number;
+	failureRate: number;
+	improved: number;
+	improvementRate: number;
+	regressed: number;
+	regressionRate: number;
+	total: number;
+	unchanged: number;
+	unchangedRate: number;
+};
+
+export type VoiceIncidentRecoveryTrendReport = {
+	checkedAt: number;
+	cycles: VoiceIncidentRecoveryTrendCycle[];
+	latest?: VoiceIncidentRecoveryTrendCycle;
+	previous?: VoiceIncidentRecoveryTrendCycle;
+	status: VoiceIncidentRecoveryTrendStatus;
+	summary: {
+		cycles: number;
+		failed: number;
+		failureRate: number;
+		improved: number;
+		improvementRate: number;
+		regressed: number;
+		regressionRate: number;
+		total: number;
+		unchanged: number;
+		unchangedRate: number;
+	};
+	trend: {
+		failureRateDelta?: number;
+		improvementRateDelta?: number;
+		regressionRateDelta?: number;
+		unchangedRateDelta?: number;
+	};
+};
+
 export type VoiceIncidentRecoveryOutcomeOptions = {
 	audit?: VoiceAuditEventStore;
 	limit?: number;
@@ -186,6 +227,14 @@ export type VoiceIncidentTimelineRoutesOptions =
 		render?: (report: VoiceIncidentTimelineReport) => string | Promise<string>;
 		recoveryOutcomeHtmlPath?: false | string;
 		recoveryOutcomePath?: false | string;
+		recoveryTrendHtmlPath?: false | string;
+		recoveryTrendMarkdownPath?: false | string;
+		recoveryTrendPath?: false | string;
+		recoveryTrendReports?:
+			| VoiceIncidentRecoveryOutcomeReport[]
+			| (() =>
+					| VoiceIncidentRecoveryOutcomeReport[]
+					| Promise<VoiceIncidentRecoveryOutcomeReport[]>);
 		title?: string;
 		trace?: VoiceTraceEventStore;
 	};
@@ -473,6 +522,152 @@ export const buildVoiceIncidentRecoveryOutcomeReadinessCheck = (
 		status,
 		value: `${report.improved}/${report.total} improved`
 	};
+};
+
+const rate = (count: number, total: number) => (total > 0 ? count / total : 0);
+
+const toIncidentRecoveryTrendCycle = (
+	report: VoiceIncidentRecoveryOutcomeReport
+): VoiceIncidentRecoveryTrendCycle => ({
+	checkedAt: report.checkedAt,
+	failed: report.failed,
+	failureRate: rate(report.failed, report.total),
+	improved: report.improved,
+	improvementRate: rate(report.improved, report.total),
+	regressed: report.regressed,
+	regressionRate: rate(report.regressed, report.total),
+	total: report.total,
+	unchanged: report.unchanged,
+	unchangedRate: rate(report.unchanged, report.total)
+});
+
+export const buildVoiceIncidentRecoveryTrendReport = (
+	reports: readonly VoiceIncidentRecoveryOutcomeReport[] = []
+): VoiceIncidentRecoveryTrendReport => {
+	const cycles = reports
+		.map(toIncidentRecoveryTrendCycle)
+		.sort((left, right) => left.checkedAt - right.checkedAt);
+	const totals = cycles.reduce(
+		(summary, cycle) => ({
+			failed: summary.failed + cycle.failed,
+			improved: summary.improved + cycle.improved,
+			regressed: summary.regressed + cycle.regressed,
+			total: summary.total + cycle.total,
+			unchanged: summary.unchanged + cycle.unchanged
+		}),
+		{ failed: 0, improved: 0, regressed: 0, total: 0, unchanged: 0 }
+	);
+	const latest = cycles.at(-1);
+	const previous = cycles.at(-2);
+	const status: VoiceIncidentRecoveryTrendStatus =
+		cycles.length === 0
+			? 'empty'
+			: latest && (latest.failed > 0 || latest.regressed > 0)
+				? 'fail'
+				: latest &&
+					  previous &&
+					  (latest.improvementRate < previous.improvementRate ||
+							latest.unchangedRate > previous.unchangedRate)
+					? 'warn'
+					: 'pass';
+
+	return {
+		checkedAt: Date.now(),
+		cycles,
+		latest,
+		previous,
+		status,
+		summary: {
+			cycles: cycles.length,
+			failed: totals.failed,
+			failureRate: rate(totals.failed, totals.total),
+			improved: totals.improved,
+			improvementRate: rate(totals.improved, totals.total),
+			regressed: totals.regressed,
+			regressionRate: rate(totals.regressed, totals.total),
+			total: totals.total,
+			unchanged: totals.unchanged,
+			unchangedRate: rate(totals.unchanged, totals.total)
+		},
+		trend: {
+			failureRateDelta:
+				latest && previous
+					? latest.failureRate - previous.failureRate
+					: undefined,
+			improvementRateDelta:
+				latest && previous
+					? latest.improvementRate - previous.improvementRate
+					: undefined,
+			regressionRateDelta:
+				latest && previous
+					? latest.regressionRate - previous.regressionRate
+					: undefined,
+			unchangedRateDelta:
+				latest && previous
+					? latest.unchangedRate - previous.unchangedRate
+					: undefined
+		}
+	};
+};
+
+const percent = (value: number | undefined) =>
+	value === undefined ? 'n/a' : `${Math.round(value * 100)}%`;
+
+export const renderVoiceIncidentRecoveryTrendMarkdown = (
+	report: VoiceIncidentRecoveryTrendReport,
+	options: { title?: string } = {}
+) => {
+	const title = options.title ?? 'Voice Incident Recovery Trend';
+	const rows = report.cycles
+		.map(
+			(cycle) =>
+				`| ${new Date(cycle.checkedAt).toISOString()} | ${cycle.total} | ${cycle.improved} | ${cycle.unchanged} | ${cycle.regressed} | ${cycle.failed} | ${percent(cycle.improvementRate)} | ${percent(cycle.regressionRate)} |`
+		)
+		.join('\n');
+
+	return `# ${title}
+
+Generated: ${new Date(report.checkedAt).toISOString()}
+
+Status: **${report.status}**
+
+Cycles: ${report.summary.cycles}
+
+Total actions: ${report.summary.total}
+
+Improvement rate: ${percent(report.summary.improvementRate)}
+
+Regression rate: ${percent(report.summary.regressionRate)}
+
+Failure rate: ${percent(report.summary.failureRate)}
+
+Unchanged rate: ${percent(report.summary.unchangedRate)}
+
+Improvement delta: ${percent(report.trend.improvementRateDelta)}
+
+Regression delta: ${percent(report.trend.regressionRateDelta)}
+
+## Cycles
+
+| Checked at | Total | Improved | Unchanged | Regressed | Failed | Improve % | Regress % |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+${rows || '| n/a | 0 | 0 | 0 | 0 | 0 | n/a | n/a |'}
+`;
+};
+
+export const renderVoiceIncidentRecoveryTrendHTML = (
+	report: VoiceIncidentRecoveryTrendReport,
+	options: { title?: string } = {}
+) => {
+	const title = options.title ?? 'AbsoluteJS Voice Incident Recovery Trend';
+	const rows = report.cycles
+		.map(
+			(cycle) =>
+				`<tr><td>${escapeHtml(new Date(cycle.checkedAt).toLocaleString())}</td><td>${String(cycle.total)}</td><td>${String(cycle.improved)}</td><td>${String(cycle.unchanged)}</td><td>${String(cycle.regressed)}</td><td>${String(cycle.failed)}</td><td>${escapeHtml(percent(cycle.improvementRate))}</td><td>${escapeHtml(percent(cycle.regressionRate))}</td></tr>`
+		)
+		.join('');
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10120d;color:#fbf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero,table{background:#181711;border:1px solid #39301d;border-radius:24px}.hero{margin-bottom:16px;padding:24px}h1{font-size:clamp(2rem,6vw,4.5rem);line-height:.95}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{border:1px solid #4a3f23;border-radius:999px;padding:8px 12px}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #39301d;padding:12px;text-align:left}.pass{color:#86efac}.warn,.empty{color:#fcd34d}.fail{color:#fca5a5}p{color:#cfc5a8}</style></head><body><main><section class="hero"><span>Recovery trend</span><h1>${escapeHtml(title)}</h1><p class="${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><div class="summary"><span>${String(report.summary.cycles)} cycles</span><span>${String(report.summary.total)} actions</span><span>${escapeHtml(percent(report.summary.improvementRate))} improved</span><span>${escapeHtml(percent(report.summary.regressionRate))} regressed</span><span>${escapeHtml(percent(report.trend.improvementRateDelta))} improvement delta</span></div></section><table><thead><tr><th>Checked at</th><th>Total</th><th>Improved</th><th>Unchanged</th><th>Regressed</th><th>Failed</th><th>Improve %</th><th>Regress %</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No recovery outcome history has been recorded.</td></tr>'}</tbody></table></main></body></html>`;
 };
 
 const pushOperationalStatusEvents = (
@@ -844,6 +1039,31 @@ export const createVoiceIncidentTimelineRoutes = (
 		options.recoveryOutcomeHtmlPath === undefined
 			? '/voice/incident-recovery-outcomes'
 			: options.recoveryOutcomeHtmlPath;
+	const recoveryTrendPath =
+		options.recoveryTrendPath === undefined
+			? '/api/voice/incident-timeline/recovery-trends'
+			: options.recoveryTrendPath;
+	const recoveryTrendHtmlPath =
+		options.recoveryTrendHtmlPath === undefined
+			? '/voice/incident-recovery-trends'
+			: options.recoveryTrendHtmlPath;
+	const recoveryTrendMarkdownPath =
+		options.recoveryTrendMarkdownPath === undefined
+			? '/voice/incident-recovery-trends.md'
+			: options.recoveryTrendMarkdownPath;
+	const buildRecoveryTrendReport = async () => {
+		const reports =
+			typeof options.recoveryTrendReports === 'function'
+				? await options.recoveryTrendReports()
+				: options.recoveryTrendReports;
+		return buildVoiceIncidentRecoveryTrendReport(
+			reports ?? [
+				await buildVoiceIncidentRecoveryOutcomeReport({
+					audit: options.audit
+				})
+			]
+		);
+	};
 	const routes = new Elysia({
 		name: options.name ?? 'absolutejs-voice-incident-timeline'
 	}).get(path, async () => {
@@ -1024,6 +1244,55 @@ export const createVoiceIncidentTimelineRoutes = (
 				{
 					headers: {
 						'Content-Type': 'text/html; charset=utf-8',
+						...options.headers
+					}
+				}
+			);
+		});
+	}
+
+	if (recoveryTrendPath !== false) {
+		routes.get(recoveryTrendPath, async () => {
+			const report = await buildRecoveryTrendReport();
+
+			return new Response(JSON.stringify(report), {
+				headers: {
+					'Content-Type': 'application/json; charset=utf-8',
+					...options.headers
+				}
+			});
+		});
+	}
+
+	if (recoveryTrendHtmlPath !== false) {
+		routes.get(recoveryTrendHtmlPath, async () => {
+			const report = await buildRecoveryTrendReport();
+
+			return new Response(
+				renderVoiceIncidentRecoveryTrendHTML(report, {
+					title: `${options.title ?? 'AbsoluteJS Voice Incident Timeline'} Recovery Trend`
+				}),
+				{
+					headers: {
+						'Content-Type': 'text/html; charset=utf-8',
+						...options.headers
+					}
+				}
+			);
+		});
+	}
+
+	if (recoveryTrendMarkdownPath !== false) {
+		routes.get(recoveryTrendMarkdownPath, async () => {
+			const report = await buildRecoveryTrendReport();
+
+			return new Response(
+				renderVoiceIncidentRecoveryTrendMarkdown(report, {
+					title: `${options.title ?? 'AbsoluteJS Voice Incident Timeline'} Recovery Trend`
+				}),
+				{
+					headers: {
+						'Content-Type': 'text/markdown; charset=utf-8',
 						...options.headers
 					}
 				}

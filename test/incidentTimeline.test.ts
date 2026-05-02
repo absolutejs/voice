@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
 	buildVoiceIncidentRecoveryOutcomeReport,
 	buildVoiceIncidentRecoveryOutcomeReadinessCheck,
+	buildVoiceIncidentRecoveryTrendReport,
 	buildVoiceIncidentTimelineReport,
 	createVoiceMemoryAuditEventStore,
 	createVoiceMemoryTraceEventStore,
@@ -436,6 +437,64 @@ test('buildVoiceIncidentRecoveryOutcomeReadinessCheck gates failed and regressed
 	expect(warnOnly.gateExplanation?.thresholdLabel).toBe(
 		'Incident recovery outcome budget'
 	);
+});
+
+test('buildVoiceIncidentRecoveryTrendReport summarizes recovery effectiveness history', async () => {
+	const first = {
+		checkedAt: 1_000,
+		entries: [],
+		failed: 0,
+		improved: 1,
+		regressed: 0,
+		total: 2,
+		unchanged: 1
+	};
+	const second = {
+		checkedAt: 2_000,
+		entries: [],
+		failed: 0,
+		improved: 3,
+		regressed: 0,
+		total: 3,
+		unchanged: 0
+	};
+	const report = buildVoiceIncidentRecoveryTrendReport([second, first]);
+	const routes = createVoiceIncidentTimelineRoutes({
+		failureReplays: [failureReplay],
+		now: 5_000,
+		recoveryTrendReports: [first, second]
+	});
+	const json = await routes.handle(
+		new Request('http://localhost/api/voice/incident-timeline/recovery-trends')
+	);
+	const html = await routes.handle(
+		new Request('http://localhost/voice/incident-recovery-trends')
+	);
+	const markdown = await routes.handle(
+		new Request('http://localhost/voice/incident-recovery-trends.md')
+	);
+
+	expect(report).toMatchObject({
+		status: 'pass',
+		summary: {
+			cycles: 2,
+			improved: 4,
+			total: 5
+		},
+		trend: {
+			improvementRateDelta: 0.5
+		}
+	});
+	expect(report.cycles.map((cycle) => cycle.checkedAt)).toEqual([1_000, 2_000]);
+	expect(json.status).toBe(200);
+	await expect(json.json()).resolves.toMatchObject({
+		status: 'pass',
+		summary: {
+			cycles: 2
+		}
+	});
+	expect(await html.text()).toContain('Recovery Trend');
+	expect(await markdown.text()).toContain('Improvement delta');
 });
 
 test('renderVoiceIncidentTimelineMarkdown renders empty reports', async () => {
