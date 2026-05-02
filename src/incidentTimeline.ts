@@ -1,10 +1,13 @@
 import { Elysia } from 'elysia';
+import { recordVoiceOpsActionAudit } from './opsActionAuditRoutes';
 import type {
 	VoiceFailureReplayReport,
 	VoiceOperationsRecord
 } from './operationsRecord';
 import type { VoiceOperationalStatusReport } from './operationalStatus';
 import type { VoiceOpsRecoveryReport } from './opsRecovery';
+import type { VoiceAuditEventStore } from './audit';
+import type { VoiceTraceEventStore } from './trace';
 import type { VoiceMonitorIssue } from './voiceMonitoring';
 
 export type VoiceIncidentTimelineStatus = 'fail' | 'pass' | 'warn';
@@ -30,6 +33,8 @@ export type VoiceIncidentRecoveryAction = {
 
 export type VoiceIncidentRecoveryActionResult = {
 	actionId: string;
+	afterStatus?: VoiceIncidentTimelineStatus;
+	beforeStatus?: VoiceIncidentTimelineStatus;
 	detail?: string;
 	href?: string;
 	ok: boolean;
@@ -129,6 +134,7 @@ export type VoiceIncidentTimelineRoutesOptions =
 	VoiceIncidentTimelineOptions & {
 		actionHandlers?: Record<string, VoiceIncidentRecoveryActionHandler>;
 		actionPath?: false | string;
+		audit?: VoiceAuditEventStore;
 		headers?: HeadersInit;
 		htmlPath?: false | string;
 		markdownPath?: false | string;
@@ -136,6 +142,7 @@ export type VoiceIncidentTimelineRoutesOptions =
 		path?: string;
 		render?: (report: VoiceIncidentTimelineReport) => string | Promise<string>;
 		title?: string;
+		trace?: VoiceTraceEventStore;
 	};
 
 const escapeHtml = (value: string) =>
@@ -746,13 +753,40 @@ export const createVoiceIncidentTimelineRoutes = (
 					report,
 					request
 				});
+				const status = result.ok ? 200 : 500;
+				const afterReport = await buildVoiceIncidentTimelineReport(options);
+				const resultWithStatus: VoiceIncidentRecoveryActionResult = {
+					...result,
+					afterStatus: result.afterStatus ?? afterReport.status,
+					beforeStatus: result.beforeStatus ?? report.status
+				};
+				await recordVoiceOpsActionAudit(
+					{
+						actionId: `incident.${actionId}`,
+						body: {
+							action,
+							afterStatus: resultWithStatus.afterStatus,
+							beforeStatus: resultWithStatus.beforeStatus,
+							eventIds: report.events.map((event) => event.id),
+							result
+						},
+						error: result.ok ? undefined : result.detail ?? result.status,
+						ok: result.ok,
+						ranAt: Date.now(),
+						status
+					},
+					{
+						audit: options.audit,
+						trace: options.trace
+					}
+				);
 
-				return new Response(JSON.stringify(result), {
+				return new Response(JSON.stringify(resultWithStatus), {
 					headers: {
 						'Content-Type': 'application/json; charset=utf-8',
 						...options.headers
 					},
-					status: result.ok ? 200 : 500
+					status
 				});
 			});
 	}

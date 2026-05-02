@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import {
 	buildVoiceIncidentTimelineReport,
+	createVoiceMemoryAuditEventStore,
+	createVoiceMemoryTraceEventStore,
 	createVoiceIncidentTimelineRoutes,
 	renderVoiceIncidentTimelineMarkdown
 } from '../src';
@@ -221,7 +223,9 @@ test('createVoiceIncidentTimelineRoutes exposes json html and markdown', async (
 });
 
 test('createVoiceIncidentTimelineRoutes exposes and executes recovery actions', async () => {
+	const audit = createVoiceMemoryAuditEventStore();
 	const calls: string[] = [];
+	const trace = createVoiceMemoryTraceEventStore();
 	const routes = createVoiceIncidentTimelineRoutes({
 		actionHandlers: {
 			'proof.rerun': ({ actionId }) => {
@@ -234,6 +238,7 @@ test('createVoiceIncidentTimelineRoutes exposes and executes recovery actions', 
 				};
 			}
 		},
+		audit,
 		failureReplays: [failureReplay],
 		now: 5_000,
 		recoveryActions: [
@@ -247,7 +252,8 @@ test('createVoiceIncidentTimelineRoutes exposes and executes recovery actions', 
 				label: 'Open support bundle',
 				method: 'GET'
 			}
-		]
+		],
+		trace
 	});
 
 	const actions = await routes.handle(
@@ -277,11 +283,34 @@ test('createVoiceIncidentTimelineRoutes exposes and executes recovery actions', 
 	});
 	expect(run.status).toBe(200);
 	await expect(run.json()).resolves.toMatchObject({
+		beforeStatus: 'fail',
+		afterStatus: 'fail',
 		ok: true,
 		status: 'queued'
 	});
 	expect(blocked.status).toBe(409);
 	expect(calls).toEqual(['proof.rerun']);
+	expect(await audit.list({ type: 'operator.action' })).toMatchObject([
+		{
+			action: 'incident.proof.rerun',
+			outcome: 'success',
+			payload: {
+				body: {
+					afterStatus: 'fail',
+					beforeStatus: 'fail'
+				}
+			}
+		}
+	]);
+	expect(await trace.list({ type: 'operator.action' })).toMatchObject([
+		{
+			payload: {
+				actionId: 'incident.proof.rerun',
+				ok: true,
+				status: 200
+			}
+		}
+	]);
 });
 
 test('renderVoiceIncidentTimelineMarkdown renders empty reports', async () => {
