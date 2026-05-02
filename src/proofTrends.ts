@@ -469,6 +469,18 @@ export type VoiceRealCallEvidenceRuntimeReadinessCheckOptions = {
   sourceHref?: string;
 };
 
+export type VoiceRealCallEvidenceRuntimeWorkerReadinessCheckOptions = {
+  collectHref?: string;
+  failOnNotRunning?: boolean;
+  failOnStale?: boolean;
+  href?: string;
+  label?: string;
+  maxLastCollectedAgeMs?: number;
+  now?: () => Date;
+  requireRunning?: boolean;
+  sourceHref?: string;
+};
+
 export type VoiceProofTrendRealCallProfileReportOptions =
   VoiceProofTrendProfileSummaryOptions & {
     baseUrl?: string;
@@ -2246,12 +2258,18 @@ export const createVoiceRealCallEvidenceRuntimeWorkerLoop = (
 
   return {
     collect: tick,
-    health: () => ({
-      ...worker.health(),
-      isRunning: isRunning(),
-      lastStartedAt,
-      lastStoppedAt,
-    }),
+    health: () => {
+      const health = worker.health();
+      const running = isRunning();
+
+      return {
+        ...health,
+        isRunning: running,
+        lastStartedAt,
+        lastStoppedAt,
+        status: running && health.status === "idle" ? "running" : health.status,
+      };
+    },
     isRunning,
     start: () => {
       if (timer) {
@@ -2272,6 +2290,95 @@ export const createVoiceRealCallEvidenceRuntimeWorkerLoop = (
       lastStoppedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
     },
     tick,
+  };
+};
+
+export const buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck = (
+  health: VoiceRealCallEvidenceRuntimeWorkerHealthReport,
+  options: VoiceRealCallEvidenceRuntimeWorkerReadinessCheckOptions = {},
+): VoiceProductionReadinessCheck => {
+  const requireRunning = options.requireRunning ?? true;
+  const issues: string[] = [];
+  const warnings: string[] = [];
+  const now = options.now ?? (() => new Date());
+  const sourceHref =
+    options.sourceHref ?? "/api/voice/real-call-evidence-runtime/worker";
+  const href = options.href ?? "/voice/real-call-evidence-runtime";
+
+  if (health.error) {
+    issues.push(`Real-call evidence auto-collector error: ${health.error}.`);
+  }
+  if (health.status === "fail") {
+    issues.push("Real-call evidence auto-collector is failing.");
+  }
+  if (requireRunning && !health.isRunning) {
+    const message =
+      "Real-call evidence auto-collector is not running; evidence is only collected manually.";
+    if (options.failOnNotRunning) {
+      issues.push(message);
+    } else {
+      warnings.push(message);
+    }
+  }
+  if (health.collectCount === 0) {
+    warnings.push("Real-call evidence auto-collector has not collected yet.");
+  }
+  if (options.maxLastCollectedAgeMs && health.lastCollectedAt) {
+    const ageMs = now().getTime() - new Date(health.lastCollectedAt).getTime();
+    if (Number.isFinite(ageMs) && ageMs > options.maxLastCollectedAgeMs) {
+      const message = `Last real-call evidence auto-collection is ${String(ageMs)}ms old.`;
+      if (options.failOnStale) {
+        issues.push(message);
+      } else {
+        warnings.push(message);
+      }
+    }
+  }
+
+  const status =
+    issues.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass";
+
+  return {
+    actions: [
+      {
+        description:
+          "Run one collection cycle immediately and update worker health.",
+        href:
+          options.collectHref ??
+          "/api/voice/real-call-evidence-runtime/collect",
+        label: "Collect real-call evidence",
+        method: "POST",
+      },
+      {
+        description:
+          "Open rolling real-call evidence and inspect worker health.",
+        href,
+        label: "Open real-call evidence runtime",
+      },
+    ],
+    detail:
+      status === "pass"
+        ? `Auto-collector is running with ${String(health.collectCount)} collection(s).`
+        : [...issues, ...warnings].join(" "),
+    gateExplanation: {
+      evidenceHref: sourceHref,
+      observed: health.isRunning ? "running" : "manual",
+      remediation:
+        "Enable the real-call evidence worker loop in production, keep it healthy, and run real traffic so rolling evidence stays fresh.",
+      sourceHref: href,
+      threshold: requireRunning ? "running" : "available",
+      thresholdLabel: "Real-call evidence collection mode",
+      unit: "status",
+    },
+    href,
+    label: options.label ?? "Real-call evidence auto-collector",
+    proofSource: {
+      href: sourceHref,
+      source: health.source,
+      sourceLabel: "Real-call evidence worker health",
+    },
+    status,
+    value: `${health.isRunning ? "running" : "manual"} / ${String(health.collectCount)} collections / ${health.status}`,
   };
 };
 

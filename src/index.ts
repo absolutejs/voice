@@ -289,6 +289,7 @@ export {
   buildVoiceRealCallProfileHistoryReport,
   buildVoiceRealCallProfileHistoryReportFromStore,
   buildVoiceRealCallEvidenceRuntimeReadinessCheck,
+  buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck,
   buildVoiceRealCallProfileReadinessCheck,
   buildVoiceRealCallProfileRecoveryJobHistoryCheck,
   buildVoiceRealCallProfileRecoveryActions,
@@ -529,6 +530,7 @@ export type {
   VoiceRealCallEvidenceRuntimeWorkerLoop,
   VoiceRealCallEvidenceRuntimeWorkerLoopOptions,
   VoiceRealCallEvidenceRuntimeWorkerOptions,
+  VoiceRealCallEvidenceRuntimeWorkerReadinessCheckOptions,
   VoiceRealCallEvidenceRuntimeWorkerStatus,
   VoiceSQLiteRealCallProfileEvidenceStoreOptions,
 } from "./proofTrends";

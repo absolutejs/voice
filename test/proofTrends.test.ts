@@ -16,6 +16,7 @@ import {
   buildVoiceRealCallProfileHistoryReport,
   buildVoiceRealCallProfileHistoryReportFromStore,
   buildVoiceRealCallEvidenceRuntimeReadinessCheck,
+  buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck,
   buildVoiceRealCallProfileReadinessCheck,
   buildVoiceRealCallProfileRecoveryJobHistoryCheck,
   buildVoiceRealCallProfileRecoveryActions,
@@ -1532,6 +1533,46 @@ describe("proof trends", () => {
       lastStartedAt: "2026-05-02T14:01:31.000Z",
       lastStoppedAt: "2026-05-02T14:01:31.000Z",
       status: "pass",
+    });
+  });
+
+  test("buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck gates continuous collection health", () => {
+    const manual = buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck({
+      collectCount: 0,
+      isRunning: false,
+      source: "real-call-evidence-runtime-worker",
+      status: "idle",
+    });
+
+    expect(manual).toMatchObject({
+      status: "warn",
+      value: "manual / 0 collections / idle",
+    });
+
+    const strictManual = buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck(
+      {
+        collectCount: 0,
+        isRunning: false,
+        source: "real-call-evidence-runtime-worker",
+        status: "idle",
+      },
+      { failOnNotRunning: true },
+    );
+
+    expect(strictManual.status).toBe("fail");
+
+    const running = buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck({
+      collectCount: 2,
+      isRunning: true,
+      lastCollectedAt: "2026-05-02T15:00:00.000Z",
+      source: "real-call-evidence-runtime-worker",
+      status: "pass",
+    });
+
+    expect(running).toMatchObject({
+      detail: "Auto-collector is running with 2 collection(s).",
+      status: "pass",
+      value: "running / 2 collections / pass",
     });
   });
 
