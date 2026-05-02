@@ -797,6 +797,48 @@ test('buildVoiceProductionReadinessReport gates observability export proof', asy
 	);
 });
 
+test('buildVoiceProductionReadinessReport gates incident recovery outcomes', async () => {
+	const report = await buildVoiceProductionReadinessReport({
+		incidentRecoveryOutcomes: {
+			checkedAt: 1_000,
+			entries: [
+				{
+					actionId: 'support.bundle',
+					afterStatus: 'fail',
+					at: 950,
+					beforeStatus: 'warn',
+					eventId: 'audit-recovery-1',
+					outcome: 'regressed'
+				}
+			],
+			failed: 0,
+			improved: 0,
+			regressed: 1,
+			total: 1,
+			unchanged: 0
+		},
+		incidentRecoveryOutcomeReadiness: {
+			href: '/voice/incident-recovery-outcomes'
+		},
+		store: createVoiceMemoryTraceEventStore()
+	});
+
+	expect(report.summary.incidentRecoveryOutcomes).toMatchObject({
+		regressed: 1,
+		status: 'fail',
+		total: 1
+	});
+	expect(report.checks).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				href: '/voice/incident-recovery-outcomes',
+				label: 'Incident recovery outcomes',
+				status: 'fail'
+			})
+		])
+	);
+});
+
 test('buildVoiceProductionReadinessReport gates observability export delivery history', async () => {
 	const store = createVoiceMemoryTraceEventStore();
 	const receipts = createVoiceMemoryObservabilityExportDeliveryReceiptStore();

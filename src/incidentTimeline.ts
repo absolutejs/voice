@@ -6,6 +6,7 @@ import type {
 } from './operationsRecord';
 import type { VoiceOperationalStatusReport } from './operationalStatus';
 import type { VoiceOpsRecoveryReport } from './opsRecovery';
+import type { VoiceProductionReadinessCheck } from './productionReadiness';
 import type { StoredVoiceAuditEvent, VoiceAuditEventStore } from './audit';
 import type { VoiceTraceEventStore } from './trace';
 import type { VoiceMonitorIssue } from './voiceMonitoring';
@@ -85,6 +86,15 @@ export type VoiceIncidentRecoveryOutcomeReport = {
 export type VoiceIncidentRecoveryOutcomeOptions = {
 	audit?: VoiceAuditEventStore;
 	limit?: number;
+};
+
+export type VoiceIncidentRecoveryOutcomeReadinessOptions = {
+	failOnFailed?: boolean;
+	failOnRegressed?: boolean;
+	href?: string;
+	label?: string;
+	maxUnchanged?: number;
+	warnWhenEmpty?: boolean;
 };
 
 export type VoiceIncidentTimelineEvent = {
@@ -408,6 +418,61 @@ export const renderVoiceIncidentRecoveryOutcomeHTML = (
 		.join('');
 
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10120d;color:#fbf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,article{background:#181711;border:1px solid #39301d;border-radius:24px;padding:20px}.hero{margin-bottom:16px}h1{font-size:clamp(2rem,6vw,4.5rem);line-height:.95}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{border:1px solid #4a3f23;border-radius:999px;padding:8px 12px}section{display:grid;gap:12px}article.improved{border-color:rgba(34,197,94,.65)}article.failed,article.regressed{border-color:rgba(239,68,68,.8)}article.unchanged{border-color:rgba(245,158,11,.7)}article span{color:#fcd34d;font-weight:900;letter-spacing:.08em}article strong{display:block;font-size:1.4rem;margin:.5rem 0}p{color:#cfc5a8}</style></head><body><main><section class="hero"><span>Recovery proof</span><h1>${escapeHtml(title)}</h1><div class="summary"><span>${String(report.improved)} improved</span><span>${String(report.unchanged)} unchanged</span><span>${String(report.regressed)} regressed</span><span>${String(report.failed)} failed</span><span>${String(report.total)} total</span></div></section><section>${rows || '<p>No incident recovery actions have been recorded.</p>'}</section></main></body></html>`;
+};
+
+export const buildVoiceIncidentRecoveryOutcomeReadinessCheck = (
+	report: VoiceIncidentRecoveryOutcomeReport,
+	options: VoiceIncidentRecoveryOutcomeReadinessOptions = {}
+): VoiceProductionReadinessCheck => {
+	const failOnFailed = options.failOnFailed ?? true;
+	const failOnRegressed = options.failOnRegressed ?? true;
+	const warnWhenEmpty = options.warnWhenEmpty ?? false;
+	const maxUnchanged = options.maxUnchanged ?? Number.POSITIVE_INFINITY;
+	const tooManyUnchanged = report.unchanged > maxUnchanged;
+	const status =
+		(failOnFailed && report.failed > 0) ||
+		(failOnRegressed && report.regressed > 0)
+			? 'fail'
+			: report.failed > 0 ||
+					report.regressed > 0 ||
+					tooManyUnchanged ||
+					(warnWhenEmpty && report.total === 0)
+				? 'warn'
+				: 'pass';
+
+	return {
+		actions:
+			status === 'pass'
+				? []
+				: [
+						{
+							description:
+								'Open incident recovery outcomes to inspect failed, regressed, or unchanged operator actions.',
+							href:
+								options.href ??
+								'/api/voice/incident-timeline/recovery-outcomes',
+							label: 'Open recovery outcomes'
+						}
+					],
+		detail:
+			status === 'pass'
+				? `${report.improved} improved recovery action(s), ${report.unchanged} unchanged, ${report.regressed} regressed, and ${report.failed} failed.`
+				: `${report.failed} failed, ${report.regressed} regressed, and ${report.unchanged} unchanged incident recovery action(s) need review.`,
+		gateExplanation: {
+			evidenceHref:
+				options.href ?? '/api/voice/incident-timeline/recovery-outcomes',
+			observed: `${report.failed} failed, ${report.regressed} regressed, ${report.unchanged} unchanged`,
+			remediation:
+				'Inspect recent incident recovery actions, fix failed or regressed handlers, rerun the recovery, and refresh readiness before deploy.',
+			threshold: `failed <= ${failOnFailed ? 0 : 'warn'}, regressed <= ${failOnRegressed ? 0 : 'warn'}, unchanged <= ${Number.isFinite(maxUnchanged) ? maxUnchanged : 'unbounded'}`,
+			thresholdLabel: 'Incident recovery outcome budget',
+			unit: 'count'
+		},
+		href: options.href ?? '/api/voice/incident-timeline/recovery-outcomes',
+		label: options.label ?? 'Incident recovery outcomes',
+		status,
+		value: `${report.improved}/${report.total} improved`
+	};
 };
 
 const pushOperationalStatusEvents = (

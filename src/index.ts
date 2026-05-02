@@ -556,6 +556,7 @@ export {
 } from './operationalStatus';
 export {
 	buildVoiceIncidentRecoveryOutcomeReport,
+	buildVoiceIncidentRecoveryOutcomeReadinessCheck,
 	buildVoiceIncidentTimelineReport,
 	createVoiceIncidentTimelineRoutes,
 	renderVoiceIncidentRecoveryOutcomeHTML,
@@ -640,6 +641,7 @@ export type {
 	VoiceIncidentRecoveryOutcome,
 	VoiceIncidentRecoveryOutcomeEntry,
 	VoiceIncidentRecoveryOutcomeOptions,
+	VoiceIncidentRecoveryOutcomeReadinessOptions,
 	VoiceIncidentRecoveryOutcomeReport,
 	VoiceIncidentTimelineAction,
 	VoiceIncidentTimelineEvent,

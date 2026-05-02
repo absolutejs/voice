@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
 	buildVoiceIncidentRecoveryOutcomeReport,
+	buildVoiceIncidentRecoveryOutcomeReadinessCheck,
 	buildVoiceIncidentTimelineReport,
 	createVoiceMemoryAuditEventStore,
 	createVoiceMemoryTraceEventStore,
@@ -398,6 +399,43 @@ test('buildVoiceIncidentRecoveryOutcomeReport summarizes audited incident action
 		total: 3
 	});
 	expect(await html.text()).toContain('Recovery Outcomes');
+});
+
+test('buildVoiceIncidentRecoveryOutcomeReadinessCheck gates failed and regressed recovery outcomes', () => {
+	const check = buildVoiceIncidentRecoveryOutcomeReadinessCheck({
+		checkedAt: 1_000,
+		entries: [],
+		failed: 1,
+		improved: 2,
+		regressed: 1,
+		total: 4,
+		unchanged: 0
+	});
+	const warnOnly = buildVoiceIncidentRecoveryOutcomeReadinessCheck(
+		{
+			checkedAt: 1_000,
+			entries: [],
+			failed: 0,
+			improved: 1,
+			regressed: 0,
+			total: 3,
+			unchanged: 2
+		},
+		{ maxUnchanged: 1 }
+	);
+
+	expect(check).toMatchObject({
+		label: 'Incident recovery outcomes',
+		status: 'fail',
+		value: '2/4 improved'
+	});
+	expect(check.actions?.[0]?.href).toBe(
+		'/api/voice/incident-timeline/recovery-outcomes'
+	);
+	expect(warnOnly.status).toBe('warn');
+	expect(warnOnly.gateExplanation?.thresholdLabel).toBe(
+		'Incident recovery outcome budget'
+	);
 });
 
 test('renderVoiceIncidentTimelineMarkdown renders empty reports', async () => {

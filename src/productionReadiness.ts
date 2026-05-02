@@ -68,6 +68,11 @@ import {
 	type VoiceOpsRecoveryReport
 } from './opsRecovery';
 import {
+	buildVoiceIncidentRecoveryOutcomeReadinessCheck,
+	type VoiceIncidentRecoveryOutcomeReadinessOptions,
+	type VoiceIncidentRecoveryOutcomeReport
+} from './incidentTimeline';
+import {
 	buildVoiceObservabilityExportDeliveryHistory,
 	replayVoiceObservabilityExport,
 	type VoiceObservabilityExportDeliveryHistory,
@@ -448,6 +453,14 @@ export type VoiceProductionReadinessReport = {
 			status: VoiceProductionReadinessStatus;
 			unresolvedProviderFailures: number;
 		};
+		incidentRecoveryOutcomes?: {
+			failed: number;
+			improved: number;
+			regressed: number;
+			status: VoiceProductionReadinessStatus;
+			total: number;
+			unchanged: number;
+		};
 		observabilityExport?: {
 			artifacts: number;
 			auditEvents: number;
@@ -807,6 +820,18 @@ export type VoiceProductionReadinessRoutesOptions = {
 				query: Record<string, unknown>;
 				request: Request;
 		  }) => Promise<VoiceOpsRecoveryReport> | VoiceOpsRecoveryReport);
+	incidentRecoveryOutcomes?:
+		| false
+		| VoiceIncidentRecoveryOutcomeReport
+		| ((input: {
+				query: Record<string, unknown>;
+				request: Request;
+		  }) =>
+				| Promise<VoiceIncidentRecoveryOutcomeReport>
+				| VoiceIncidentRecoveryOutcomeReport);
+	incidentRecoveryOutcomeReadiness?:
+		| false
+		| VoiceIncidentRecoveryOutcomeReadinessOptions;
 	observabilityExport?:
 		| false
 		| VoiceObservabilityExportReport
@@ -2024,6 +2049,19 @@ const resolveOpsRecovery = async (
 	return options.opsRecovery;
 };
 
+const resolveIncidentRecoveryOutcomes = async (
+	options: VoiceProductionReadinessRoutesOptions,
+	input: { query: Record<string, unknown>; request: Request }
+): Promise<VoiceIncidentRecoveryOutcomeReport | undefined> => {
+	if (!options.incidentRecoveryOutcomes) {
+		return undefined;
+	}
+	if (typeof options.incidentRecoveryOutcomes === 'function') {
+		return options.incidentRecoveryOutcomes(input);
+	}
+	return options.incidentRecoveryOutcomes;
+};
+
 const resolveObservabilityExport = async (
 	options: VoiceProductionReadinessRoutesOptions,
 	input: { query: Record<string, unknown>; request: Request }
@@ -2514,6 +2552,7 @@ export const buildVoiceProductionReadinessReport = async (
 		bargeInReports,
 		campaignReadiness,
 		opsRecovery,
+		incidentRecoveryOutcomes,
 		observabilityExport,
 		observabilityExportDeliveryHistory,
 		observabilityExportReplay,
@@ -2585,6 +2624,9 @@ export const buildVoiceProductionReadinessReport = async (
 			resolveCampaignReadiness(options, { query, request })
 		),
 		time('opsRecovery', () => resolveOpsRecovery(options, { query, request })),
+		time('incidentRecoveryOutcomes', () =>
+			resolveIncidentRecoveryOutcomes(options, { query, request })
+		),
 		time('observabilityExport', () =>
 			resolveObservabilityExport(options, { query, request })
 		),
@@ -2620,6 +2662,18 @@ export const buildVoiceProductionReadinessReport = async (
 		mediaPipeline,
 		telephonyMedia
 	});
+	const incidentRecoveryOutcomeReadiness =
+		incidentRecoveryOutcomes && options.incidentRecoveryOutcomeReadiness !== false
+			? buildVoiceIncidentRecoveryOutcomeReadinessCheck(
+					incidentRecoveryOutcomes,
+					{
+						href:
+							options.incidentRecoveryOutcomeReadiness?.href ??
+							'/api/voice/incident-timeline/recovery-outcomes',
+						...options.incidentRecoveryOutcomeReadiness
+					}
+				)
+			: undefined;
 	const checks: VoiceProductionReadinessCheck[] = [
 		{
 			detail:
@@ -2732,6 +2786,9 @@ export const buildVoiceProductionReadinessReport = async (
 									]
 					} satisfies VoiceProductionReadinessCheck
 				]
+			: []),
+		...(incidentRecoveryOutcomeReadiness
+			? [incidentRecoveryOutcomeReadiness]
 			: []),
 		{
 			detail:
@@ -3366,6 +3423,19 @@ export const buildVoiceProductionReadinessReport = async (
 				VoiceProductionReadinessReport['summary']['observabilityExport']
 			>)
 		: undefined;
+	const incidentRecoveryOutcomeSummary =
+		incidentRecoveryOutcomes && incidentRecoveryOutcomeReadiness
+			? ({
+					failed: incidentRecoveryOutcomes.failed,
+					improved: incidentRecoveryOutcomes.improved,
+					regressed: incidentRecoveryOutcomes.regressed,
+					status: incidentRecoveryOutcomeReadiness.status,
+					total: incidentRecoveryOutcomes.total,
+					unchanged: incidentRecoveryOutcomes.unchanged
+				} satisfies NonNullable<
+					VoiceProductionReadinessReport['summary']['incidentRecoveryOutcomes']
+				>)
+			: undefined;
 	const observabilityExportDeliveryHistorySummary =
 		observabilityExportDeliveryHistory
 			? (() => {
@@ -4373,6 +4443,7 @@ export const buildVoiceProductionReadinessReport = async (
 				total: handoffs.total
 			},
 			liveLatency,
+			incidentRecoveryOutcomes: incidentRecoveryOutcomeSummary,
 			mediaPipeline: mediaPipelineSummary,
 			monitoring: monitoringSummary,
 			monitoringNotifierDelivery: monitoringNotifierDeliverySummary,
