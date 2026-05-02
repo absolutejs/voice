@@ -412,6 +412,17 @@ export type VoiceRealCallEvidenceRuntimeRoutesOptions =
     title?: string;
   };
 
+export type VoiceRealCallEvidenceRuntimeReadinessCheckOptions = {
+  collectHref?: string;
+  failOnWarnings?: boolean;
+  href?: string;
+  label?: string;
+  minProfiles?: number;
+  minSessions?: number;
+  minStoredEvidence?: number;
+  sourceHref?: string;
+};
+
 export type VoiceProofTrendRealCallProfileReportOptions =
   VoiceProofTrendProfileSummaryOptions & {
     baseUrl?: string;
@@ -2026,6 +2037,99 @@ export const createVoiceRealCallEvidenceRuntime = (
         limit: options.existingEvidenceLimit ?? 5000,
         ...listOptions,
       }),
+  };
+};
+
+export const buildVoiceRealCallEvidenceRuntimeReadinessCheck = (
+  report: VoiceRealCallEvidenceRuntimeReport,
+  options: VoiceRealCallEvidenceRuntimeReadinessCheckOptions = {},
+): VoiceProductionReadinessCheck => {
+  const minStoredEvidence = options.minStoredEvidence ?? 1;
+  const minSessions = options.minSessions ?? 1;
+  const minProfiles = options.minProfiles ?? 1;
+  const issues: string[] = [];
+  const warnings: string[] = [];
+
+  if (report.summary.storedEvidence < minStoredEvidence) {
+    issues.push(
+      `Expected at least ${String(minStoredEvidence)} stored real-call evidence record(s), observed ${String(report.summary.storedEvidence)}.`,
+    );
+  }
+  if (report.summary.sessions < minSessions) {
+    issues.push(
+      `Expected at least ${String(minSessions)} real-call session(s), observed ${String(report.summary.sessions)}.`,
+    );
+  }
+  if (report.summary.profiles < minProfiles) {
+    issues.push(
+      `Expected at least ${String(minProfiles)} real-call profile(s), observed ${String(report.summary.profiles)}.`,
+    );
+  }
+  if (report.summary.failedProfiles > 0) {
+    issues.push(
+      `${String(report.summary.failedProfiles)} rolling real-call profile(s) are failing.`,
+    );
+  }
+  if (report.status === "empty" || report.status === "stale") {
+    issues.push(`Real-call evidence runtime is ${report.status}.`);
+  } else if (report.status === "fail") {
+    issues.push("Real-call evidence runtime has failing evidence.");
+  }
+  if (report.status !== "pass" && options.failOnWarnings === true) {
+    warnings.push(...report.issues);
+  }
+
+  const status =
+    issues.length > 0
+      ? "fail"
+      : warnings.length > 0 && options.failOnWarnings === true
+        ? "fail"
+        : warnings.length > 0
+          ? "warn"
+          : "pass";
+  const sourceHref =
+    options.sourceHref ?? "/api/voice/real-call-evidence-runtime";
+  const href = options.href ?? "/voice/real-call-evidence-runtime";
+
+  return {
+    actions: [
+      {
+        description:
+          "Collect fresh real browser, phone, reconnect, provider, and latency evidence into the runtime store.",
+        href: options.collectHref ?? `${sourceHref}/collect`,
+        label: "Collect real-call evidence",
+        method: "POST",
+      },
+      {
+        description:
+          "Open rolling real-call evidence and inspect profile/session depth.",
+        href,
+        label: "Open real-call evidence runtime",
+      },
+    ],
+    detail:
+      status === "pass"
+        ? `${String(report.summary.storedEvidence)} stored evidence record(s), ${String(report.summary.sessions)} session(s), ${String(report.summary.profiles)} profile(s).`
+        : [...issues, ...warnings].join(" "),
+    gateExplanation: {
+      evidenceHref: sourceHref,
+      observed: report.summary.storedEvidence,
+      remediation:
+        "Run real browser or phone traffic, collect runtime evidence, and ensure rolling profile history is passing before promotion.",
+      sourceHref: href,
+      threshold: minStoredEvidence,
+      thresholdLabel: "Minimum stored real-call evidence",
+      unit: "count",
+    },
+    href,
+    label: options.label ?? "Real-call evidence runtime",
+    proofSource: {
+      href: sourceHref,
+      source: report.source,
+      sourceLabel: "Real-call evidence runtime",
+    },
+    status,
+    value: `${String(report.summary.storedEvidence)} evidence / ${String(report.summary.sessions)} sessions / ${String(report.summary.profiles)} profiles`,
   };
 };
 

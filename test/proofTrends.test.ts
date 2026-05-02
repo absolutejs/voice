@@ -15,6 +15,7 @@ import {
   buildVoiceRealCallProfileEvidenceFromTraceEvents,
   buildVoiceRealCallProfileHistoryReport,
   buildVoiceRealCallProfileHistoryReportFromStore,
+  buildVoiceRealCallEvidenceRuntimeReadinessCheck,
   buildVoiceRealCallProfileReadinessCheck,
   buildVoiceRealCallProfileRecoveryJobHistoryCheck,
   buildVoiceRealCallProfileRecoveryActions,
@@ -1388,6 +1389,66 @@ describe("proof trends", () => {
       },
     });
     expect(await html.text()).toContain("Real-call evidence runtime");
+  });
+
+  test("buildVoiceRealCallEvidenceRuntimeReadinessCheck gates rolling real-call evidence", async () => {
+    const evidenceStore = createVoiceSQLiteRealCallProfileEvidenceStore();
+    const runtime = createVoiceRealCallEvidenceRuntime({
+      evidenceStore,
+      history: {
+        generatedAt: "2026-05-02T12:01:00.000Z",
+        now: "2026-05-02T12:01:30.000Z",
+      },
+    });
+    const empty = buildVoiceRealCallEvidenceRuntimeReadinessCheck(
+      await runtime.buildReport(),
+      {
+        minProfiles: 1,
+        minSessions: 1,
+        minStoredEvidence: 1,
+      },
+    );
+
+    expect(empty).toMatchObject({
+      label: "Real-call evidence runtime",
+      status: "fail",
+      value: "0 evidence / 0 sessions / 4 profiles",
+    });
+    expect(empty.actions?.[0]).toMatchObject({
+      href: "/api/voice/real-call-evidence-runtime/collect",
+      method: "POST",
+    });
+
+    const passing = buildVoiceRealCallEvidenceRuntimeReadinessCheck(
+      await runtime.appendEvidence({
+        generatedAt: "2026-05-02T12:00:00.000Z",
+        liveP95Ms: 420,
+        ok: true,
+        profileId: "support-agent",
+        providerP95Ms: 380,
+        providers: [
+          {
+            id: "llm:openai",
+            p95Ms: 380,
+            role: "llm",
+            samples: 3,
+            status: "pass",
+          },
+        ],
+        sessionId: "real-readiness-session",
+        surfaces: ["browser", "live"],
+      }),
+      {
+        minProfiles: 1,
+        minSessions: 1,
+        minStoredEvidence: 1,
+      },
+    );
+
+    expect(passing).toMatchObject({
+      status: "pass",
+      value: "1 evidence / 1 sessions / 4 profiles",
+    });
   });
 
   test("createVoiceRealCallProfileTraceCollector ignores unprofiled traffic until a profile is present", async () => {
