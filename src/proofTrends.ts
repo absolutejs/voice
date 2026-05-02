@@ -316,6 +316,102 @@ export type VoiceRealCallProfileTraceCollector<
   ) => Promise<VoiceProofTrendRealCallProfileEvidence[]>;
 };
 
+export type VoiceRealCallEvidenceRuntimeSourceOptions = {
+  existingEvidenceLimit?: number;
+  evidenceStore: VoiceRealCallProfileEvidenceStore;
+  history?: Omit<VoiceRealCallProfileHistoryOptions, "evidence">;
+  reconnectEvidence?: VoiceReconnectRealCallProfileEvidenceOptions;
+  reconnectReports?:
+    | ((
+        options: VoiceRealCallEvidenceRuntimeCollectOptions,
+      ) =>
+        | Promise<
+            | VoiceReconnectProofReport
+            | VoiceReconnectContractReport
+            | readonly (
+                | VoiceReconnectProofReport
+                | VoiceReconnectContractReport
+              )[]
+            | undefined
+          >
+        | VoiceReconnectProofReport
+        | VoiceReconnectContractReport
+        | readonly (VoiceReconnectProofReport | VoiceReconnectContractReport)[]
+        | undefined)
+    | VoiceReconnectProofReport
+    | VoiceReconnectContractReport
+    | readonly (VoiceReconnectProofReport | VoiceReconnectContractReport)[];
+  traceEvidence?: VoiceRealCallProfileTraceCollectorEvidenceOptions;
+  traceStore?: VoiceTraceEventStore;
+};
+
+export type VoiceRealCallEvidenceRuntimeOptions =
+  VoiceRealCallEvidenceRuntimeSourceOptions & {
+    dedupe?: boolean;
+    now?: () => Date;
+  };
+
+export type VoiceRealCallEvidenceRuntimeCollectOptions =
+  Partial<VoiceRealCallEvidenceRuntimeSourceOptions> & {
+    dedupe?: boolean;
+    now?: () => Date;
+  };
+
+export type VoiceRealCallEvidenceRuntimeReport = {
+  appended: number;
+  collected: VoiceProofTrendRealCallProfileEvidence[];
+  duplicateKeys: string[];
+  evidence: VoiceRealCallProfileEvidenceRecord[];
+  generatedAt: string;
+  history: VoiceRealCallProfileHistoryReport;
+  issues: string[];
+  ok: boolean;
+  skippedDuplicates: number;
+  source: string;
+  status: VoiceProofTrendStatus;
+  summary: {
+    collectedEvidence: number;
+    failedProfiles: number;
+    profiles: number;
+    sessions: number;
+    storedEvidence: number;
+  };
+};
+
+export type VoiceRealCallEvidenceRuntime = {
+  appendEvidence: (
+    evidence:
+      | VoiceProofTrendRealCallProfileEvidence
+      | readonly VoiceProofTrendRealCallProfileEvidence[],
+    options?: Pick<VoiceRealCallEvidenceRuntimeCollectOptions, "dedupe">,
+  ) => Promise<VoiceRealCallEvidenceRuntimeReport>;
+  buildHistoryReport: (
+    options?: Omit<VoiceRealCallProfileHistoryOptions, "evidence"> &
+      VoiceRealCallProfileEvidenceListOptions,
+  ) => Promise<VoiceRealCallProfileHistoryReport>;
+  buildReport: (
+    options?: VoiceRealCallEvidenceRuntimeCollectOptions,
+  ) => Promise<VoiceRealCallEvidenceRuntimeReport>;
+  collect: (
+    options?: VoiceRealCallEvidenceRuntimeCollectOptions,
+  ) => Promise<VoiceRealCallEvidenceRuntimeReport>;
+  listEvidence: (
+    options?: VoiceRealCallProfileEvidenceListOptions,
+  ) => Promise<VoiceRealCallProfileEvidenceRecord[]>;
+};
+
+export type VoiceRealCallEvidenceRuntimeRoutesOptions =
+  VoiceRealCallEvidenceRuntimeOptions & {
+    collectPath?: false | string;
+    headers?: HeadersInit;
+    htmlPath?: false | string;
+    jsonPath?: string;
+    markdownPath?: false | string;
+    name?: string;
+    runtime?: VoiceRealCallEvidenceRuntime;
+    title?: string;
+  };
+
 export type VoiceProofTrendRealCallProfileReportOptions =
   VoiceProofTrendProfileSummaryOptions & {
     baseUrl?: string;
@@ -1722,6 +1818,216 @@ export const loadVoiceRealCallProfileEvidenceFromStore = async (
     store: VoiceRealCallProfileEvidenceStore;
   },
 ): Promise<VoiceRealCallProfileEvidenceRecord[]> => options.store.list(options);
+
+const readRealCallEvidenceRuntimeKey = (
+  evidence: VoiceProofTrendRealCallProfileEvidence,
+) =>
+  [evidence.profileId, evidence.sessionId, evidence.generatedAt ?? ""].join(
+    "\u0000",
+  );
+
+const resolveRealCallEvidenceRuntimeReconnectReports = async (
+  reports: VoiceRealCallEvidenceRuntimeSourceOptions["reconnectReports"],
+  options: VoiceRealCallEvidenceRuntimeCollectOptions,
+) => {
+  const resolved =
+    typeof reports === "function" ? await reports(options) : reports;
+  if (!resolved) {
+    return [];
+  }
+  return Array.isArray(resolved) ? resolved : [resolved];
+};
+
+const mergeRealCallEvidenceRuntimeOptions = (
+  base: VoiceRealCallEvidenceRuntimeOptions,
+  override: VoiceRealCallEvidenceRuntimeCollectOptions = {},
+): VoiceRealCallEvidenceRuntimeOptions => ({
+  dedupe: override.dedupe ?? base.dedupe,
+  evidenceStore: override.evidenceStore ?? base.evidenceStore,
+  existingEvidenceLimit:
+    override.existingEvidenceLimit ?? base.existingEvidenceLimit,
+  history: {
+    ...(base.history ?? {}),
+    ...(override.history ?? {}),
+  },
+  now: override.now ?? base.now,
+  reconnectEvidence: {
+    ...(base.reconnectEvidence ?? {}),
+    ...(override.reconnectEvidence ?? {}),
+  },
+  reconnectReports: override.reconnectReports ?? base.reconnectReports,
+  traceEvidence: mergeRealCallProfileCollectorOptions(
+    base.traceEvidence ?? {},
+    override.traceEvidence ?? {},
+  ),
+  traceStore: override.traceStore ?? base.traceStore,
+});
+
+const buildRealCallEvidenceRuntimeReport = async (
+  options: VoiceRealCallEvidenceRuntimeOptions,
+  input: {
+    appended?: number;
+    collected?: VoiceProofTrendRealCallProfileEvidence[];
+    duplicateKeys?: string[];
+    skippedDuplicates?: number;
+  } = {},
+): Promise<VoiceRealCallEvidenceRuntimeReport> => {
+  const evidence = await options.evidenceStore.list({
+    limit: options.existingEvidenceLimit ?? 5000,
+  });
+  const history = await buildVoiceRealCallProfileHistoryReportFromStore({
+    ...(options.history ?? {}),
+    limit: options.existingEvidenceLimit ?? 5000,
+    store: options.evidenceStore,
+  });
+  const generatedAt = (options.now ?? (() => new Date()))().toISOString();
+  const sessions = new Set(evidence.map((record) => record.sessionId)).size;
+  const failedProfiles = history.summary.profiles?.filter(
+    (profile) => profile.status === "fail",
+  ).length;
+  const issues = [
+    ...(evidence.length === 0
+      ? ["No real-call profile evidence has been collected yet."]
+      : []),
+    ...history.issues,
+  ];
+  const status: VoiceProofTrendStatus =
+    evidence.length === 0
+      ? "empty"
+      : issues.length > 0
+        ? history.status === "pass"
+          ? "fail"
+          : history.status
+        : history.status;
+
+  return {
+    appended: input.appended ?? 0,
+    collected: input.collected ?? [],
+    duplicateKeys: input.duplicateKeys ?? [],
+    evidence,
+    generatedAt,
+    history,
+    issues,
+    ok: status === "pass" && issues.length === 0,
+    skippedDuplicates: input.skippedDuplicates ?? 0,
+    source: "real-call-evidence-runtime",
+    status,
+    summary: {
+      collectedEvidence: input.collected?.length ?? 0,
+      failedProfiles: failedProfiles ?? 0,
+      profiles: history.summary.profileCount,
+      sessions,
+      storedEvidence: evidence.length,
+    },
+  };
+};
+
+const collectVoiceRealCallEvidenceRuntimeEvidence = async (
+  options: VoiceRealCallEvidenceRuntimeOptions,
+) => {
+  const evidence: VoiceProofTrendRealCallProfileEvidence[] = [];
+  if (options.traceStore) {
+    evidence.push(
+      ...buildVoiceRealCallProfileEvidenceFromTraceEvents(
+        await options.traceStore.list({
+          limit: options.traceEvidence?.limit ?? 5000,
+        }),
+        options.traceEvidence,
+      ),
+    );
+  }
+  const reconnectReports = await resolveRealCallEvidenceRuntimeReconnectReports(
+    options.reconnectReports,
+    options,
+  );
+  if (reconnectReports.length > 0) {
+    evidence.push(
+      ...buildVoiceRealCallProfileEvidenceFromReconnectProofReports(
+        reconnectReports,
+        options.reconnectEvidence,
+      ),
+    );
+  }
+  return evidence;
+};
+
+export const createVoiceRealCallEvidenceRuntime = (
+  options: VoiceRealCallEvidenceRuntimeOptions,
+): VoiceRealCallEvidenceRuntime => {
+  const appendEvidence = async (
+    evidenceInput:
+      | VoiceProofTrendRealCallProfileEvidence
+      | readonly VoiceProofTrendRealCallProfileEvidence[],
+    collectOptions: Pick<
+      VoiceRealCallEvidenceRuntimeCollectOptions,
+      "dedupe"
+    > = {},
+  ) => {
+    const merged = mergeRealCallEvidenceRuntimeOptions(options, collectOptions);
+    const evidence = Array.isArray(evidenceInput)
+      ? [...evidenceInput]
+      : [evidenceInput];
+    const dedupe = merged.dedupe ?? true;
+    const existing = dedupe
+      ? await merged.evidenceStore.list({
+          limit: merged.existingEvidenceLimit ?? 5000,
+        })
+      : [];
+    const seen = new Set(existing.map(readRealCallEvidenceRuntimeKey));
+    const incomingSeen = new Set<string>();
+    const duplicateKeys: string[] = [];
+    let appended = 0;
+
+    for (const item of evidence) {
+      const key = readRealCallEvidenceRuntimeKey(item);
+      if (dedupe && (seen.has(key) || incomingSeen.has(key))) {
+        duplicateKeys.push(key);
+        continue;
+      }
+      incomingSeen.add(key);
+      await merged.evidenceStore.append(item);
+      appended += 1;
+    }
+
+    return buildRealCallEvidenceRuntimeReport(merged, {
+      appended,
+      collected: evidence,
+      duplicateKeys,
+      skippedDuplicates: duplicateKeys.length,
+    });
+  };
+
+  return {
+    appendEvidence,
+    buildHistoryReport: async (historyOptions = {}) =>
+      buildVoiceRealCallProfileHistoryReportFromStore({
+        ...(options.history ?? {}),
+        ...historyOptions,
+        limit: historyOptions.limit ?? options.existingEvidenceLimit ?? 5000,
+        store: options.evidenceStore,
+      }),
+    buildReport: async (collectOptions = {}) =>
+      buildRealCallEvidenceRuntimeReport(
+        mergeRealCallEvidenceRuntimeOptions(options, collectOptions),
+      ),
+    collect: async (collectOptions = {}) => {
+      const merged = mergeRealCallEvidenceRuntimeOptions(
+        options,
+        collectOptions,
+      );
+      const evidence =
+        await collectVoiceRealCallEvidenceRuntimeEvidence(merged);
+      return appendEvidence(evidence, {
+        dedupe: merged.dedupe,
+      });
+    },
+    listEvidence: async (listOptions = {}) =>
+      await options.evidenceStore.list({
+        limit: options.existingEvidenceLimit ?? 5000,
+        ...listOptions,
+      }),
+  };
+};
 
 const realCallProfileTraceSignalTypes = new Set([
   "client.barge_in",
@@ -4789,6 +5095,55 @@ export const renderVoiceRealCallProfileHistoryHTML = (
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111510;color:#f6f0dd;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article,.card{background:#182117;border:1px solid #32412d;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(132,204,22,.16),rgba(20,184,166,.12))}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #52624b;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #32412d;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real-call benchmark history</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Reports ${String(report.reports)}</span><span class="pill">Profiles ${String(report.summary.profileCount)}</span><span class="pill">Defaults ${String(report.defaults.summary.actionableProfiles)}/${String(report.defaults.summary.profileCount)}</span><span class="pill">Cycles ${String(report.summary.cycles ?? 0)}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.recommendations.bestProviders))}</span></div></section><section class="card"><h2>Profiles</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Live p95</th><th>Provider p95</th><th>Turn p95</th><th>Provider mix</th></tr></thead><tbody>${profileRows}</tbody></table></section><section class="card"><h2>Actionable Defaults</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Provider routes</th><th>Live budget</th><th>Provider budget</th><th>Turn budget</th></tr></thead><tbody>${defaultRows}</tbody></table></section>${recommendations}<section class="card"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
 };
 
+export const renderVoiceRealCallEvidenceRuntimeMarkdown = (
+  report: VoiceRealCallEvidenceRuntimeReport,
+  title = "Voice Real-Call Evidence Runtime",
+) =>
+  [
+    `# ${title}`,
+    "",
+    `- Status: ${report.status}`,
+    `- Stored evidence: ${String(report.summary.storedEvidence)}`,
+    `- Collected evidence: ${String(report.summary.collectedEvidence)}`,
+    `- Appended: ${String(report.appended)}`,
+    `- Skipped duplicates: ${String(report.skippedDuplicates)}`,
+    `- Sessions: ${String(report.summary.sessions)}`,
+    `- Profiles: ${String(report.summary.profiles)}`,
+    "",
+    "## Rolling Profile History",
+    "",
+    renderVoiceRealCallProfileHistoryMarkdown(
+      report.history,
+      "Rolling Real-Call Profile History",
+    ),
+    "",
+    "## Issues",
+    "",
+    ...(report.issues.length
+      ? report.issues.map((issue) => `- ${issue}`)
+      : ["- None"]),
+  ].join("\n");
+
+export const renderVoiceRealCallEvidenceRuntimeHTML = (
+  report: VoiceRealCallEvidenceRuntimeReport,
+  title = "Voice Real-Call Evidence Runtime",
+) => {
+  const issueItems =
+    report.issues.length === 0
+      ? "<li>None</li>"
+      : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
+  const profileRows = report.history.summary.profiles?.length
+    ? report.history.summary.profiles
+        .map(
+          (profile) =>
+            `<tr><td>${escapeHtml(profile.label ?? profile.id)}</td><td>${escapeHtml(profile.status ?? "unknown")}</td><td>${escapeHtml(profile.sessionCount ?? "n/a")}</td><td>${escapeHtml(profile.maxLiveP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.maxProviderP95Ms ?? "n/a")}</td><td>${escapeHtml(formatProviderMix(profile.providers ?? []))}</td></tr>`,
+        )
+        .join("")
+    : '<tr><td colspan="6">No profile history has been collected yet.</td></tr>';
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0f1618;color:#f2f7f2;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,.card{background:#162225;border:1px solid #2f4548;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(132,204,22,.1))}.eyebrow{color:#99f6e4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.1rem,6vw,4.3rem);letter-spacing:-.06em;line-height:.94;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #4b6669;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail,.empty,.stale{border-color:rgba(239,68,68,.75)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2f4548;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real-call evidence runtime</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill ${escapeHtml(report.status)}">Status ${escapeHtml(report.status)}</span><span class="pill">Stored ${String(report.summary.storedEvidence)}</span><span class="pill">Collected ${String(report.summary.collectedEvidence)}</span><span class="pill">Appended ${String(report.appended)}</span><span class="pill">Duplicates ${String(report.skippedDuplicates)}</span><span class="pill">Sessions ${String(report.summary.sessions)}</span><span class="pill">Profiles ${String(report.summary.profiles)}</span></div></section><section class="card"><h2>Rolling Profile History</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Sessions</th><th>Live p95</th><th>Provider p95</th><th>Provider mix</th></tr></thead><tbody>${profileRows}</tbody></table></section><section class="card"><h2>Issues</h2><ul>${issueItems}</ul></section></main></body></html>`;
+};
+
 export const createVoiceProofTrendRecommendationRoutes = (
   options: VoiceProofTrendRecommendationRoutesOptions,
 ) => {
@@ -4916,6 +5271,73 @@ export const createVoiceRealCallProfileHistoryRoutes = (
       const report = await loadReport();
       return new Response(
         renderVoiceRealCallProfileHistoryMarkdown(report, title),
+        {
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  return routes;
+};
+
+export const createVoiceRealCallEvidenceRuntimeRoutes = (
+  options: VoiceRealCallEvidenceRuntimeRoutesOptions,
+) => {
+  const path = options.jsonPath ?? "/api/voice/real-call-evidence-runtime";
+  const collectPath =
+    options.collectPath === undefined ? `${path}/collect` : options.collectPath;
+  const htmlPath =
+    options.htmlPath === undefined
+      ? "/voice/real-call-evidence-runtime"
+      : options.htmlPath;
+  const markdownPath =
+    options.markdownPath === undefined
+      ? "/voice/real-call-evidence-runtime.md"
+      : options.markdownPath;
+  const title = options.title ?? "Voice Real-Call Evidence Runtime";
+  const runtime =
+    options.runtime ??
+    createVoiceRealCallEvidenceRuntime({
+      ...options,
+    });
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-real-call-evidence-runtime",
+  });
+
+  routes.get(path, async () =>
+    Response.json(await runtime.buildReport(), { headers: options.headers }),
+  );
+
+  if (collectPath !== false) {
+    routes.post(collectPath, async () =>
+      Response.json(await runtime.collect(), { headers: options.headers }),
+    );
+  }
+
+  if (htmlPath !== false) {
+    routes.get(htmlPath, async () => {
+      const report = await runtime.buildReport();
+      return new Response(
+        renderVoiceRealCallEvidenceRuntimeHTML(report, title),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  if (markdownPath !== false) {
+    routes.get(markdownPath, async () => {
+      const report = await runtime.buildReport();
+      return new Response(
+        renderVoiceRealCallEvidenceRuntimeMarkdown(report, title),
         {
           headers: {
             "content-type": "text/markdown; charset=utf-8",

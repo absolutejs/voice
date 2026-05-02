@@ -19,6 +19,8 @@ import {
   buildVoiceRealCallProfileRecoveryJobHistoryCheck,
   buildVoiceRealCallProfileRecoveryActions,
   buildVoiceReconnectProfileEvidenceSummary,
+  createVoiceRealCallEvidenceRuntime,
+  createVoiceRealCallEvidenceRuntimeRoutes,
   createVoiceInMemoryRealCallProfileRecoveryJobStore,
   createVoiceRealCallProfileTraceCollector,
   createVoiceSQLiteRealCallProfileEvidenceStore,
@@ -1260,6 +1262,132 @@ describe("proof trends", () => {
     expect(history.defaults.profiles[0]?.providerRoutes).toMatchObject({
       llm: "llm:openai",
     });
+  });
+
+  test("createVoiceRealCallEvidenceRuntime collects trace evidence into rolling history without duplicates", async () => {
+    const traceStore = createVoiceMemoryTraceEventStore();
+    const evidenceStore = createVoiceSQLiteRealCallProfileEvidenceStore({
+      idPrefix: "runtime-evidence",
+    });
+
+    await traceStore.append(
+      createVoiceTraceEvent({
+        at: Date.UTC(2026, 4, 2, 10, 0, 0),
+        metadata: { profileId: "meeting-recorder" },
+        payload: {
+          elapsedMs: 310,
+          kind: "llm",
+          provider: "openai",
+          status: "success",
+        },
+        sessionId: "runtime-real-session",
+        type: "provider.decision",
+      }),
+    );
+    await traceStore.append(
+      createVoiceTraceEvent({
+        at: Date.UTC(2026, 4, 2, 10, 0, 1),
+        metadata: { profileId: "meeting-recorder" },
+        payload: { latencyMs: 440 },
+        sessionId: "runtime-real-session",
+        type: "client.live_latency",
+      }),
+    );
+
+    const runtime = createVoiceRealCallEvidenceRuntime({
+      evidenceStore,
+      history: {
+        generatedAt: "2026-05-02T10:01:00.000Z",
+        now: "2026-05-02T10:01:30.000Z",
+      },
+      now: () => new Date("2026-05-02T10:01:30.000Z"),
+      traceStore,
+    });
+
+    const first = await runtime.collect();
+    const second = await runtime.collect();
+
+    expect(first).toMatchObject({
+      appended: 1,
+      ok: true,
+      status: "pass",
+      summary: {
+        sessions: 1,
+        storedEvidence: 1,
+      },
+    });
+    expect(first.summary.profiles).toBeGreaterThanOrEqual(1);
+    expect(
+      first.history.summary.profiles?.some(
+        (profile) =>
+          profile.id === "meeting-recorder" && profile.sessionCount === 1,
+      ),
+    ).toBe(true);
+    expect(second.appended).toBe(0);
+    expect(second.skippedDuplicates).toBe(1);
+    expect(await runtime.listEvidence()).toHaveLength(1);
+    expect(
+      (await runtime.buildHistoryReport()).summary.profiles?.[0],
+    ).toMatchObject({
+      id: "meeting-recorder",
+      sessionCount: 1,
+    });
+  });
+
+  test("createVoiceRealCallEvidenceRuntimeRoutes exposes status and collection routes", async () => {
+    const traceStore = createVoiceMemoryTraceEventStore();
+    const evidenceStore = createVoiceSQLiteRealCallProfileEvidenceStore();
+    await traceStore.append(
+      createVoiceTraceEvent({
+        at: Date.UTC(2026, 4, 2, 11, 0, 0),
+        metadata: { profileId: "support-agent" },
+        payload: {
+          elapsedMs: 390,
+          kind: "llm",
+          provider: "openai",
+          status: "success",
+        },
+        sessionId: "runtime-route-session",
+        type: "provider.decision",
+      }),
+    );
+
+    const app = createVoiceRealCallEvidenceRuntimeRoutes({
+      evidenceStore,
+      history: {
+        generatedAt: "2026-05-02T11:01:00.000Z",
+        now: "2026-05-02T11:01:30.000Z",
+      },
+      traceStore,
+    });
+    const collected = await app.handle(
+      new Request(
+        "http://localhost/api/voice/real-call-evidence-runtime/collect",
+        {
+          method: "POST",
+        },
+      ),
+    );
+    const status = await app.handle(
+      new Request("http://localhost/api/voice/real-call-evidence-runtime"),
+    );
+    const html = await app.handle(
+      new Request("http://localhost/voice/real-call-evidence-runtime"),
+    );
+
+    await expect(collected.json()).resolves.toMatchObject({
+      appended: 1,
+      summary: {
+        storedEvidence: 1,
+      },
+    });
+    await expect(status.json()).resolves.toMatchObject({
+      status: "pass",
+      summary: {
+        storedEvidence: 1,
+      },
+    });
+    expect(await html.text()).toContain("Real-call evidence runtime");
   });
 
   test("createVoiceRealCallProfileTraceCollector ignores unprofiled traffic until a profile is present", async () => {
