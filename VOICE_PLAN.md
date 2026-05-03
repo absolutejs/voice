@@ -1,6 +1,6 @@
 # AbsoluteJS Voice Market Plan
 
-Last researched: May 2, 2026
+Last researched: May 3, 2026
 
 ## North Star
 
@@ -23,6 +23,35 @@ Package boundary:
 - `@absolutejs/voice` owns voice-agent product primitives: assistants, tools, provider routing, telephony, traces, readiness, reviews, operations records, campaigns, post-call workflow, guardrails, framework bindings, and voice proof routes.
 - `@absolutejs/media` owns generic realtime media primitives: media frames, transport lifecycle reports, processor graphs, calibration, resampling, VAD/speech segments, interruption reports, and future media quality/WebRTC/serializer work.
 - `VOICE_PLAN.md` tracks what a voice buyer needs. `../media/MEDIA_PLAN.md` tracks the lower-level media roadmap that voice consumes.
+
+## Current Stopping Point
+
+Status as of May 3, 2026 UTC / May 2, 2026 EDT:
+
+- Core package: `@absolutejs/voice@0.0.22-beta.463`, committed and pushed at `4942fda`.
+- Media dependency: `@absolutejs/media@0.0.1-beta.14`, committed and pushed at `75a8022`.
+- Adapter monorepo: `https://github.com/absolutejs/voice-adapters.git`, committed and pushed at `ec8eabb`.
+- Real example: `https://github.com/alexkahndev/absolutejs-voice-example.git`, committed and pushed at `a4e643a`.
+- Fresh isolated proof pack passed in the real example at `.voice-runtime/proof-pack/runtime/2026-05-03T02-31-37.685Z/proof-pack/latest.json`.
+- Latest proof summary: `ok: true`, six-framework browser proof passed for React/Vue/Svelte/Angular/HTML/HTMX, production readiness passed with 0 failures and 0 warnings, sustained proof trends passed 6 cycles, and real-call evidence runtime reported 21 stored evidence records across 21 sessions and 4 profiles.
+- Repo state target: all voice-related repos should remain clean before the break; if any new work lands, commit/push it before resuming feature work.
+
+## Next Work Split
+
+Independent voice work:
+
+- Reduce proof-pack console noise and artifact payload verbosity so failures surface fast without dumping full realtime-channel internals.
+- Turn real-call evidence runtime into an obvious buyer-facing path in docs and example UI: what it collects, how to keep it running, and how it gates deploys.
+- Deepen incident action execution: more recovery actions should actually mutate state, re-run proof, and produce before/after outcomes instead of only linking diagnostic surfaces.
+- Make the first-success path sharper: one README path for browser agent, one for phone agent, one for production proof, all mapping to primitives rather than app-kit opinions.
+- Keep provider/adapter contract tests aligned with core `RealtimeAdapter`, STT, TTS, and model-routing surfaces.
+
+Combined voice/media work:
+
+- Voice should consume media graph snapshots and richer media lifecycle reports in operations records, proof-pack assertions, and production-readiness checks.
+- Voice should keep media quality calculations in `@absolutejs/media`; voice only decides product meaning: readiness failure, operations-record warning, incident timeline item, or proof-pack artifact.
+- Browser and telephony media evidence should continue moving toward real captured media events first, deterministic proof envelopes second.
+- Any future WebRTC/signaling/transport split should be decided in `../media/MEDIA_PLAN.md`; voice should depend on those primitives but not own generic signaling/media runtime code.
 
 ## Competitor Baseline
 
@@ -223,9 +252,9 @@ The biggest gaps versus Vapi/Retell/Bland are not raw code count. They are produ
 
 ## Latest Proof Status
 
-Current verified proof: core `@absolutejs/voice@0.0.22-beta.459` and the voice example were verified on May 2, 2026.
+Current verified proof: core `@absolutejs/voice@0.0.22-beta.463`, `@absolutejs/media@0.0.1-beta.14`, and the real voice example were verified on May 3, 2026 UTC / May 2, 2026 EDT.
 
-Latest full proof-pack output remains `.voice-runtime/proof-pack/2026-04-30T15-34-16.230Z` from April 30, 2026. The May 2 verification covered the incident-timeline primitive, audited executable incident recovery actions, recovery outcome summaries, incident support/export artifacts, the operational-status primitive, the updated Absolute standalone build path, reconnect-proof routes accepted by production readiness, package-level `simulateDisconnect()` support across framework wrappers, HTMX production-bootstrap hardening, and a six-framework parallel browser reconnect proof. Rerun `bun run proof:pack:server` when a fresh end-to-end proof artifact is needed.
+Latest full proof-pack output is `.voice-runtime/proof-pack/runtime/2026-05-03T02-31-37.685Z/proof-pack/latest.json` from the real example. `bun run proof:pack:server` passed against a fresh isolated runtime, not a shared stale `.voice-runtime` output. The proof covered six-framework browser WebSocket/microphone-byte evidence, real-call profile evidence, real-call evidence runtime collection, production-readiness gates, sustained proof trends, provider SLOs, operations records, media pipeline proof, observability export delivery/replay, guardrails, failure replay, campaign proof, telephony webhook/security evidence, and Vapi-switching coverage.
 
 Verified:
 
