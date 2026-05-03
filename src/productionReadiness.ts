@@ -2986,7 +2986,7 @@ export const buildVoiceProductionReadinessReport = async (
         )
       : undefined;
   const sessionObservabilityEvidenceSummary =
-    sessionObservability && sessionObservabilityEvidence !== false
+    sessionObservability
       ? evaluateVoiceSessionObservabilityEvidence(
           sessionObservability,
           sessionObservabilityEvidence ?? {},
