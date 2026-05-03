@@ -10,6 +10,8 @@ import {
   buildVoiceProofTrendRecommendationReport,
   buildVoiceProofTrendReportFromRealCallProfiles,
   buildVoiceProofTrendReport,
+  buildVoiceRealCallProfileEvidenceFromRuntimeProviderRoles,
+  buildVoiceRealCallProfileEvidenceFromRuntimeSurface,
   buildVoiceRealCallProfileEvidenceFromReconnectProofReports,
   buildVoiceRealCallProfileDefaults,
   buildVoiceRealCallProfileEvidenceFromTraceEvents,
@@ -1335,6 +1337,127 @@ describe("proof trends", () => {
     ).toMatchObject({
       id: "meeting-recorder",
       sessionCount: 1,
+    });
+  });
+
+  test("runtime surface evidence builders normalize browser and provider role proof", () => {
+    const browser = buildVoiceRealCallProfileEvidenceFromRuntimeSurface(
+      {
+        generatedAt: "2026-05-02T12:00:00.000Z",
+        profileId: "support-agent",
+        sessionId: "browser-proof-session",
+      },
+      {
+        defaultProfileId: "browser-call",
+        defaultSessionPrefix: "browser-call",
+        defaultSurfaces: ["browser"],
+      },
+    );
+    const providerRoles =
+      buildVoiceRealCallProfileEvidenceFromRuntimeProviderRoles({
+        generatedAt: "2026-05-02T12:00:01.000Z",
+        profileId: "support-agent",
+        providers: [
+          {
+            id: "openai",
+            role: "llm",
+            samples: 1,
+            status: "pass",
+          },
+        ],
+        sessionId: "provider-proof-session",
+      });
+
+    expect(browser).toEqual([
+      expect.objectContaining({
+        profileId: "support-agent",
+        sessionId: "browser-proof-session",
+        surfaces: ["browser"],
+      }),
+    ]);
+    expect(providerRoles).toEqual([
+      expect.objectContaining({
+        profileId: "support-agent",
+        providers: [
+          expect.objectContaining({
+            id: "openai",
+            role: "llm",
+          }),
+        ],
+        sessionId: "provider-proof-session",
+        surfaces: ["provider-path"],
+      }),
+    ]);
+  });
+
+  test("createVoiceRealCallEvidenceRuntime collects browser phone and provider-role evidence", async () => {
+    const evidenceStore = createVoiceSQLiteRealCallProfileEvidenceStore({
+      idPrefix: "runtime-surface-evidence",
+    });
+    const runtime = createVoiceRealCallEvidenceRuntime({
+      browserEvidence: {
+        generatedAt: "2026-05-02T12:00:00.000Z",
+        profileId: "support-agent",
+        sessionId: "support-browser-proof",
+      },
+      evidenceStore,
+      history: {
+        generatedAt: "2026-05-02T12:01:00.000Z",
+        now: "2026-05-02T12:01:30.000Z",
+        requiredProviderRoles: ["llm", "stt", "tts"],
+      },
+      phoneEvidence: () => ({
+        generatedAt: "2026-05-02T12:00:01.000Z",
+        profileId: "support-agent",
+        sessionId: "support-phone-proof",
+      }),
+      providerRoleEvidence: {
+        generatedAt: "2026-05-02T12:00:02.000Z",
+        profileId: "support-agent",
+        providers: [
+          {
+            id: "openai",
+            role: "llm",
+            samples: 1,
+            status: "pass",
+          },
+          {
+            id: "deepgram",
+            role: "stt",
+            samples: 1,
+            status: "pass",
+          },
+          {
+            id: "elevenlabs",
+            role: "tts",
+            samples: 1,
+            status: "pass",
+          },
+        ],
+        sessionId: "support-provider-proof",
+      },
+    });
+
+    const report = await runtime.collect();
+    const profile = report.history.summary.profiles?.find(
+      (item) => item.id === "support-agent",
+    );
+    const defaults = report.history.defaults.profiles.find(
+      (item) => item.profileId === "support-agent",
+    );
+
+    expect(report.appended).toBe(3);
+    expect(report.summary.storedEvidence).toBe(3);
+    expect(profile).toMatchObject({
+      id: "support-agent",
+      sessionCount: 3,
+      surfaces: ["browser", "phone", "provider-path", "telephony"],
+      status: "pass",
+    });
+    expect(defaults?.providerRoutes).toMatchObject({
+      llm: "openai",
+      stt: "deepgram",
+      tts: "elevenlabs",
     });
   });
 

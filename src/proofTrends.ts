@@ -317,9 +317,12 @@ export type VoiceRealCallProfileTraceCollector<
 };
 
 export type VoiceRealCallEvidenceRuntimeSourceOptions = {
+  browserEvidence?: VoiceRealCallEvidenceRuntimeSurfaceEvidenceSource;
   existingEvidenceLimit?: number;
   evidenceStore: VoiceRealCallProfileEvidenceStore;
   history?: Omit<VoiceRealCallProfileHistoryOptions, "evidence">;
+  phoneEvidence?: VoiceRealCallEvidenceRuntimeSurfaceEvidenceSource;
+  providerRoleEvidence?: VoiceRealCallEvidenceRuntimeProviderRoleEvidenceSource;
   reconnectEvidence?: VoiceReconnectRealCallProfileEvidenceOptions;
   reconnectReports?:
     | ((
@@ -344,6 +347,53 @@ export type VoiceRealCallEvidenceRuntimeSourceOptions = {
   traceEvidence?: VoiceRealCallProfileTraceCollectorEvidenceOptions;
   traceStore?: VoiceTraceEventStore;
 };
+
+export type VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions = Omit<
+  VoiceProofTrendRealCallProfileEvidence,
+  "profileId" | "providers" | "sessionId" | "surfaces"
+> & {
+  profileId?: string;
+  providers?: readonly VoiceProofTrendProviderSummary[];
+  sessionId?: string;
+  surfaces?: readonly string[];
+};
+
+export type VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions = Omit<
+  VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions,
+  "providers"
+> & {
+  providers: readonly VoiceProofTrendProviderSummary[];
+};
+
+export type VoiceRealCallEvidenceRuntimeSurfaceEvidenceSource =
+  | VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions
+  | readonly VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions[]
+  | ((
+      options: VoiceRealCallEvidenceRuntimeCollectOptions,
+    ) =>
+      | Promise<
+          | VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions
+          | readonly VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions[]
+          | undefined
+        >
+      | VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions
+      | readonly VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions[]
+      | undefined);
+
+export type VoiceRealCallEvidenceRuntimeProviderRoleEvidenceSource =
+  | VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions
+  | readonly VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions[]
+  | ((
+      options: VoiceRealCallEvidenceRuntimeCollectOptions,
+    ) =>
+      | Promise<
+          | VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions
+          | readonly VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions[]
+          | undefined
+        >
+      | VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions
+      | readonly VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions[]
+      | undefined);
 
 export type VoiceRealCallEvidenceRuntimeOptions =
   VoiceRealCallEvidenceRuntimeSourceOptions & {
@@ -1907,10 +1957,95 @@ const resolveRealCallEvidenceRuntimeReconnectReports = async (
   return Array.isArray(resolved) ? resolved : [resolved];
 };
 
+const resolveRealCallEvidenceRuntimeSurfaceEvidence = async <
+  TEvidence extends VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions,
+>(
+  source:
+    | TEvidence
+    | readonly TEvidence[]
+    | ((
+        options: VoiceRealCallEvidenceRuntimeCollectOptions,
+      ) =>
+        | Promise<TEvidence | readonly TEvidence[] | undefined>
+        | TEvidence
+        | readonly TEvidence[]
+        | undefined)
+    | undefined,
+  options: VoiceRealCallEvidenceRuntimeCollectOptions,
+) => {
+  const resolved =
+    typeof source === "function" ? await source(options) : source;
+  if (!resolved) {
+    return [];
+  }
+  return Array.isArray(resolved) ? [...resolved] : [resolved];
+};
+
+const createRealCallEvidenceRuntimeSessionId = (
+  prefix: string,
+  generatedAt: string,
+) =>
+  `${prefix}-${Date.parse(generatedAt) || Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
+export const buildVoiceRealCallProfileEvidenceFromRuntimeSurface = (
+  input:
+    | VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions
+    | readonly VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions[],
+  options: {
+    defaultProfileId: string;
+    defaultSessionPrefix: string;
+    defaultSurfaces: readonly string[];
+    now?: () => Date;
+  },
+): VoiceProofTrendRealCallProfileEvidence[] => {
+  const evidence = Array.isArray(input) ? input : [input];
+
+  return evidence.map((item) => {
+    const generatedAt =
+      item.generatedAt ?? (options.now ?? (() => new Date()))().toISOString();
+    return {
+      ...item,
+      generatedAt,
+      profileId: item.profileId ?? options.defaultProfileId,
+      providers: item.providers ? [...item.providers] : undefined,
+      sessionId:
+        item.sessionId ??
+        createRealCallEvidenceRuntimeSessionId(
+          options.defaultSessionPrefix,
+          generatedAt,
+        ),
+      surfaces: [
+        ...new Set([...(item.surfaces ?? []), ...options.defaultSurfaces]),
+      ].sort(),
+    };
+  });
+};
+
+export const buildVoiceRealCallProfileEvidenceFromRuntimeProviderRoles = (
+  input:
+    | VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions
+    | readonly VoiceRealCallEvidenceRuntimeProviderRoleEvidenceOptions[],
+  options: {
+    defaultProfileId?: string;
+    defaultSessionPrefix?: string;
+    now?: () => Date;
+  } = {},
+): VoiceProofTrendRealCallProfileEvidence[] =>
+  buildVoiceRealCallProfileEvidenceFromRuntimeSurface(input, {
+    defaultProfileId: options.defaultProfileId ?? "provider-role-evidence",
+    defaultSessionPrefix:
+      options.defaultSessionPrefix ?? "provider-role-evidence",
+    defaultSurfaces: ["provider-path"],
+    now: options.now,
+  });
+
 const mergeRealCallEvidenceRuntimeOptions = (
   base: VoiceRealCallEvidenceRuntimeOptions,
   override: VoiceRealCallEvidenceRuntimeCollectOptions = {},
 ): VoiceRealCallEvidenceRuntimeOptions => ({
+  browserEvidence: override.browserEvidence ?? base.browserEvidence,
   dedupe: override.dedupe ?? base.dedupe,
   evidenceStore: override.evidenceStore ?? base.evidenceStore,
   existingEvidenceLimit:
@@ -1920,6 +2055,9 @@ const mergeRealCallEvidenceRuntimeOptions = (
     ...(override.history ?? {}),
   },
   now: override.now ?? base.now,
+  phoneEvidence: override.phoneEvidence ?? base.phoneEvidence,
+  providerRoleEvidence:
+    override.providerRoleEvidence ?? base.providerRoleEvidence,
   reconnectEvidence: {
     ...(base.reconnectEvidence ?? {}),
     ...(override.reconnectEvidence ?? {}),
@@ -1995,6 +2133,49 @@ const collectVoiceRealCallEvidenceRuntimeEvidence = async (
   options: VoiceRealCallEvidenceRuntimeOptions,
 ) => {
   const evidence: VoiceProofTrendRealCallProfileEvidence[] = [];
+  const browserEvidence = await resolveRealCallEvidenceRuntimeSurfaceEvidence(
+    options.browserEvidence,
+    options,
+  );
+  if (browserEvidence.length > 0) {
+    evidence.push(
+      ...buildVoiceRealCallProfileEvidenceFromRuntimeSurface(browserEvidence, {
+        defaultProfileId: "browser-call",
+        defaultSessionPrefix: "browser-call",
+        defaultSurfaces: ["browser"],
+        now: options.now,
+      }),
+    );
+  }
+  const phoneEvidence = await resolveRealCallEvidenceRuntimeSurfaceEvidence(
+    options.phoneEvidence,
+    options,
+  );
+  if (phoneEvidence.length > 0) {
+    evidence.push(
+      ...buildVoiceRealCallProfileEvidenceFromRuntimeSurface(phoneEvidence, {
+        defaultProfileId: "phone-agent",
+        defaultSessionPrefix: "phone-agent",
+        defaultSurfaces: ["phone", "telephony"],
+        now: options.now,
+      }),
+    );
+  }
+  const providerRoleEvidence =
+    await resolveRealCallEvidenceRuntimeSurfaceEvidence(
+      options.providerRoleEvidence,
+      options,
+    );
+  if (providerRoleEvidence.length > 0) {
+    evidence.push(
+      ...buildVoiceRealCallProfileEvidenceFromRuntimeProviderRoles(
+        providerRoleEvidence,
+        {
+          now: options.now,
+        },
+      ),
+    );
+  }
   if (options.traceStore) {
     evidence.push(
       ...buildVoiceRealCallProfileEvidenceFromTraceEvents(
