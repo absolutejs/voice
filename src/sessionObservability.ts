@@ -69,6 +69,50 @@ export type VoiceSessionObservabilityReport = {
   turns: VoiceSessionObservabilityTurn[];
 };
 
+export type VoiceSessionObservabilityEvidenceStatus = "pass" | "warn" | "fail";
+
+export type VoiceSessionObservabilityEvidenceInput = {
+  requireHealthy?: boolean;
+  minStageCount?: number;
+  minTurns?: number;
+  minTurnWaterfalls?: number;
+  minProviderDecisions?: number;
+  minToolCalls?: number;
+  requireOperationsRecordLink?: boolean;
+  requireTraceTimelineLink?: boolean;
+  requireCallDebuggerLink?: boolean;
+  requireIncidentMarkdownLink?: boolean;
+  requireIncidentMarkdown?: boolean;
+  maxErrors?: number;
+  maxFallbacks?: number;
+  requireProviderRecoveryStatus?:
+    | VoiceOperationsRecord["providerDecisionSummary"]["recoveryStatus"]
+    | readonly VoiceOperationsRecord["providerDecisionSummary"]["recoveryStatus"][];
+};
+
+export type VoiceSessionObservabilityEvidenceReport = {
+  checkedAt: number;
+  issues: string[];
+  ok: boolean;
+  status: VoiceSessionObservabilityEvidenceStatus;
+  summary: {
+    incidentMarkdownLength: number;
+    providerDecisions: number;
+    providerRecoveryStatus: VoiceOperationsRecord["providerDecisionSummary"]["recoveryStatus"];
+    reportStatus: VoiceSessionObservabilityStatus;
+    stages: number;
+    turns: number;
+    turnsWithWaterfalls: number;
+    toolCalls: number;
+    links: {
+      callDebugger: boolean;
+      incidentMarkdown: boolean;
+      operationsRecord: boolean;
+      traceTimeline: boolean;
+    };
+  };
+};
+
 export type VoiceSessionObservabilityReportOptions = Omit<
   VoiceOperationsRecordOptions,
   "sessionId"
@@ -412,8 +456,166 @@ export const renderVoiceSessionObservabilityHTML = (
 ) =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? "Voice Session Observability")}</title><style>body{background:#0d1412;color:#f7f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.eyebrow{color:#fbbf24;font-size:.78rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.8rem);line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #425046;border-radius:999px;display:inline-flex;padding:8px 12px}.healthy{color:#86efac}.warning{color:#fbbf24}.failed,.error{color:#fca5a5}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.actions a{background:#fbbf24;border-radius:999px;color:#111827;font-weight:900;padding:10px 14px;text-decoration:none}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:22px 0}.card,.turn,.incident{background:#17201c;border:1px solid #2e3c35;border-radius:20px;padding:16px}.card span,.muted,dt{color:#a8b4ad}.card strong{display:block;font-size:2rem}section{margin-top:30px}.turn{margin:16px 0}.turn header{align-items:center;display:flex;justify-content:space-between;gap:14px}dl{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin:14px 0}dd{font-weight:900;margin:3px 0 0}table{border-collapse:collapse;margin-top:14px;width:100%}td,th{border-top:1px solid #2e3c35;padding:10px;text-align:left}pre{background:#08100d;border:1px solid #2e3c35;border-radius:16px;color:#d9f99d;overflow:auto;padding:14px}@media(max-width:760px){main{padding:20px}table{font-size:.9rem}}</style></head><body><main><header><p class="eyebrow">Session observability</p><h1>${escapeHtml(report.sessionId)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p>${renderLinks(report.links)}<p class="muted">One support/debug report across trace timeline, operations record, provider recovery, turn waterfalls, guardrails, tools, handoffs, failure replay, and incident handoff.</p></header><section class="grid"><article class="card"><span>Events</span><strong>${String(report.summary.events)}</strong></article><article class="card"><span>Turns</span><strong>${String(report.summary.turns)}</strong></article><article class="card"><span>Errors</span><strong>${String(report.summary.errors)}</strong></article><article class="card"><span>Duration</span><strong>${formatMs(report.summary.durationMs)}</strong></article><article class="card"><span>Fallbacks</span><strong>${String(report.summary.fallbacks)}</strong></article><article class="card"><span>Tools</span><strong>${String(report.summary.toolCalls)}</strong></article><article class="card"><span>Handoffs</span><strong>${String(report.summary.handoffs)}</strong></article><article class="card"><span>Guardrails blocked</span><strong>${String(report.summary.guardrailBlocks)}</strong></article><article class="card"><span>Telephony media</span><strong>${String(report.summary.telephonyMediaEvents)}</strong></article></section><section><h2>Turn Waterfalls</h2>${renderTurns(report.turns)}</section><section class="incident"><h2>Incident Handoff</h2><pre><code>${escapeHtml(report.incidentMarkdown)}</code></pre></section></main></body></html>`;
 
-const routeSessionId = (params: Record<string, unknown>) =>
+  const routeSessionId = (params: Record<string, unknown>) =>
   typeof params.sessionId === "string" ? params.sessionId : "";
+
+const linkByRel = (links: readonly VoiceSessionObservabilityLink[]) => {
+  const map = new Map<VoiceSessionObservabilityLink["rel"], boolean>();
+  for (const link of links) {
+    map.set(link.rel, true);
+  }
+  return (rel: VoiceSessionObservabilityLink["rel"]) => map.get(rel) ?? false;
+};
+
+export const evaluateVoiceSessionObservabilityEvidence = (
+  report: VoiceSessionObservabilityReport,
+  input: VoiceSessionObservabilityEvidenceInput = {},
+): VoiceSessionObservabilityEvidenceReport => {
+  const issues: string[] = [];
+  const has = linkByRel(report.links);
+  const status =
+    report.status === "healthy"
+      ? ("pass" as const)
+      : report.status === "warning"
+        ? ("warn" as const)
+        : ("fail" as const);
+
+  const turnsWithWaterfalls = report.turns.filter(
+    (turn) => turn.stages.length > 0,
+  ).length;
+  const stages = report.turns.reduce(
+    (total, turn) => total + turn.stages.length,
+    0,
+  );
+  const providerDecisions = report.turns.reduce(
+    (total, turn) => total + turn.providerDecisions,
+    0,
+  );
+  const toolCalls = report.turns.reduce(
+    (total, turn) => total + turn.toolCalls,
+    0,
+  );
+
+  if (input.requireHealthy && report.status !== "healthy") {
+    issues.push("Expected a healthy session observability report.");
+  }
+  if (input.minTurns !== undefined && report.summary.turns < input.minTurns) {
+    issues.push(
+      `Expected at least ${String(input.minTurns)} turn(s), found ${String(report.summary.turns)}.`,
+    );
+  }
+  if (
+    input.minTurnWaterfalls !== undefined &&
+    turnsWithWaterfalls < input.minTurnWaterfalls
+  ) {
+    issues.push(
+      `Expected at least ${String(input.minTurnWaterfalls)} turn(s) with stage data, found ${String(turnsWithWaterfalls)}.`,
+    );
+  }
+  if (input.minStageCount !== undefined && stages < input.minStageCount) {
+    issues.push(
+      `Expected at least ${String(input.minStageCount)} turn stages, found ${String(stages)}.`,
+    );
+  }
+  if (
+    input.minProviderDecisions !== undefined &&
+    providerDecisions < input.minProviderDecisions
+  ) {
+    issues.push(
+      `Expected at least ${String(input.minProviderDecisions)} provider decision stage(s), found ${String(providerDecisions)}.`,
+    );
+  }
+  if (
+    input.minToolCalls !== undefined &&
+    toolCalls < input.minToolCalls
+  ) {
+    issues.push(
+      `Expected at least ${String(input.minToolCalls)} tool call stage(s), found ${String(toolCalls)}.`,
+    );
+  }
+  if (input.maxErrors !== undefined && report.summary.errors > input.maxErrors) {
+    issues.push(
+      `Expected at most ${String(input.maxErrors)} error(s), found ${String(report.summary.errors)}.`,
+    );
+  }
+  if (input.maxFallbacks !== undefined && report.summary.fallbacks > input.maxFallbacks) {
+    issues.push(
+      `Expected at most ${String(input.maxFallbacks)} fallback(s), found ${String(report.summary.fallbacks)}.`,
+    );
+  }
+  if (input.requireOperationsRecordLink && !has("operations-record")) {
+    issues.push("Expected operations-record link in session observability evidence.");
+  }
+  if (input.requireTraceTimelineLink && !has("trace-timeline")) {
+    issues.push("Expected trace-timeline link in session observability evidence.");
+  }
+  if (input.requireCallDebuggerLink && !has("call-debugger")) {
+    issues.push("Expected call-debugger link in session observability evidence.");
+  }
+  if (input.requireIncidentMarkdownLink && !has("incident-markdown")) {
+    issues.push("Expected incident-markdown link in session observability evidence.");
+  }
+  if (
+    input.requireIncidentMarkdown &&
+    (!report.incidentMarkdown ||
+      report.incidentMarkdown.trim().length < 24 ||
+      !report.incidentMarkdown.toLowerCase().includes("incident handoff"))
+  ) {
+    issues.push("Expected readable incident markdown payload.");
+  }
+  if (
+    input.requireProviderRecoveryStatus !== undefined &&
+    (Array.isArray(input.requireProviderRecoveryStatus)
+      ? input.requireProviderRecoveryStatus
+      : [input.requireProviderRecoveryStatus]
+    ).indexOf(report.summary.providerRecoveryStatus) === -1
+  ) {
+    issues.push(
+      `Expected provider recovery status ${String(input.requireProviderRecoveryStatus)}, found ${report.summary.providerRecoveryStatus}.`,
+    );
+  }
+
+  return {
+    checkedAt: Date.now(),
+    issues,
+    ok: issues.length === 0,
+    status:
+      issues.length > 0
+        ? status === "fail"
+          ? "fail"
+          : "warn"
+        : status,
+    summary: {
+      incidentMarkdownLength: report.incidentMarkdown.length,
+      providerDecisions,
+      providerRecoveryStatus: report.summary.providerRecoveryStatus,
+      reportStatus: report.status,
+      stages,
+      turns: report.turns.length,
+      turnsWithWaterfalls,
+      toolCalls,
+      links: {
+        callDebugger: has("call-debugger"),
+        incidentMarkdown: has("incident-markdown"),
+        operationsRecord: has("operations-record"),
+        traceTimeline: has("trace-timeline"),
+      },
+    },
+  };
+};
+
+export const assertVoiceSessionObservabilityEvidence = (
+  report: VoiceSessionObservabilityReport,
+  input: VoiceSessionObservabilityEvidenceInput = {},
+): VoiceSessionObservabilityEvidenceReport => {
+  const assertion = evaluateVoiceSessionObservabilityEvidence(report, input);
+  if (!assertion.ok) {
+    throw new Error(
+      `Voice session observability evidence assertion failed: ${assertion.issues.join(" ")}`,
+    );
+  }
+  return assertion;
+};
 
 export const createVoiceSessionObservabilityRoutes = (
   options: VoiceSessionObservabilityRoutesOptions,

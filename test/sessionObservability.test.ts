@@ -4,6 +4,8 @@ import {
   createVoiceMemoryTraceEventStore,
   createVoiceProviderDecisionTraceEvent,
   createVoiceSessionObservabilityRoutes,
+  evaluateVoiceSessionObservabilityEvidence,
+  assertVoiceSessionObservabilityEvidence,
   createVoiceTraceEvent,
   renderVoiceSessionObservabilityMarkdown,
 } from "../src";
@@ -237,4 +239,59 @@ test("session observability client primitives expose a reusable view model", asy
   expect(html).toContain("Session Observability");
 
   store.close();
+});
+
+test("session observability evidence evaluator passes with healthy proof signals", async () => {
+  const report = await buildVoiceSessionObservabilityReport({
+    events: createSessionEvents(),
+    callDebuggerHref: "/voice/debug/:sessionId",
+    incidentMarkdownHref: "/voice/observability/:sessionId/incident.md",
+    operationsRecordHref: "/voice/operations/:sessionId",
+    traceTimelineHref: "/voice/traces/:sessionId",
+    sessionId: "session-observable",
+  });
+  const evidence = evaluateVoiceSessionObservabilityEvidence(report, {
+    maxErrors: 0,
+    minTurnWaterfalls: 1,
+    minTurns: 1,
+    requireCallDebuggerLink: true,
+    requireIncidentMarkdown: true,
+    requireOperationsRecordLink: true,
+    requireTraceTimelineLink: true,
+  });
+
+  expect(evidence).toMatchObject({
+    ok: true,
+    status: "pass",
+    summary: {
+      stages: 6,
+      turns: 1,
+      turnsWithWaterfalls: 1,
+      toolCalls: 1,
+    },
+  });
+});
+
+test("session observability evidence assertion can fail for unmet proof thresholds", async () => {
+  const report = await buildVoiceSessionObservabilityReport({
+    events: createSessionEvents(),
+    sessionId: "session-observable",
+  });
+  const evidence = evaluateVoiceSessionObservabilityEvidence(report, {
+    minTurns: 2,
+  });
+
+  expect(evidence.ok).toBe(false);
+  expect(evidence.status).toBe("warn");
+  expect(evidence.issues).toContain(
+    "Expected at least 2 turn(s), found 1.",
+  );
+
+  expect(() =>
+    assertVoiceSessionObservabilityEvidence(report, {
+      minTurns: 2,
+    }),
+  ).toThrowError(
+    "Voice session observability evidence assertion failed: Expected at least 2 turn(s), found 1.",
+  );
 });

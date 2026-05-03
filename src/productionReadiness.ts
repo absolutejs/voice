@@ -64,6 +64,11 @@ import {
   type VoiceProviderSloReport,
   type VoiceProviderSloReportOptions,
 } from "./providerSlo";
+import {
+  evaluateVoiceSessionObservabilityEvidence,
+  type VoiceSessionObservabilityEvidenceInput,
+  type VoiceSessionObservabilityReport,
+} from "./sessionObservability";
 import type { VoiceProviderOrchestrationReport } from "./providerOrchestration";
 import type { VoiceCampaignReadinessProofReport } from "./campaign";
 import {
@@ -374,6 +379,7 @@ export type VoiceProductionReadinessReport = {
     resilience?: string;
     sessions?: string;
     sloReadinessThresholds?: string;
+    sessionObservability?: string;
     traceDeliveries?: string;
   };
   profile?: VoiceProductionReadinessProfileExplanation;
@@ -577,6 +583,13 @@ export type VoiceProductionReadinessReport = {
       resumeLatencyP95Ms?: number;
       status: VoiceProductionReadinessStatus;
       total: number;
+    };
+    sessionObservability?: {
+      failed: number;
+      passed: number;
+      status: VoiceProductionReadinessStatus;
+      total: number;
+      warnings: number;
     };
     quality: {
       status: "fail" | "pass";
@@ -1024,6 +1037,28 @@ export type VoiceProductionReadinessRoutesOptions = {
   store: VoiceTraceEventStore;
   sttProviders?: readonly string[];
   title?: string;
+  sessionObservability?:
+    | false
+    | VoiceSessionObservabilityReport
+    | ((
+        input: {
+          query: Record<string, unknown>;
+          request: Request;
+        },
+      ) =>
+        | Promise<VoiceSessionObservabilityReport>
+        | VoiceSessionObservabilityReport);
+  sessionObservabilityEvidence?:
+    | false
+    | VoiceSessionObservabilityEvidenceInput
+    | ((
+        input: {
+          query: Record<string, unknown>;
+          request: Request;
+        },
+      ) =>
+        | Promise<VoiceSessionObservabilityEvidenceInput>
+        | VoiceSessionObservabilityEvidenceInput);
   traceDeliveries?: false | VoiceProductionReadinessTraceDeliveryOptions;
   ttsProviders?: readonly string[];
   traceMaxAgeMs?: number;
@@ -1308,6 +1343,7 @@ const readinessGateCodes: Record<string, string> = {
   "Reconnect recovery contracts": "voice.readiness.reconnect_contracts",
   "Routing evidence": "voice.readiness.routing_evidence",
   "Session health": "voice.readiness.session_health",
+  "Session observability evidence": "voice.readiness.session_observability_evidence",
   "Trace sink delivery": "voice.readiness.trace_sink_delivery",
 };
 
@@ -1702,6 +1738,44 @@ const resolveMonitoringNotifierDelivery = async (
   return typeof options.monitoringNotifierDelivery === "function"
     ? await options.monitoringNotifierDelivery(input)
     : options.monitoringNotifierDelivery;
+};
+
+const resolveSessionObservability = async (
+  options: VoiceProductionReadinessRoutesOptions,
+  input: {
+    query: Record<string, unknown>;
+    request: Request;
+  },
+) => {
+  if (
+    options.sessionObservability === false ||
+    options.sessionObservability === undefined
+  ) {
+    return undefined;
+  }
+
+  return typeof options.sessionObservability === "function"
+    ? await options.sessionObservability(input)
+    : options.sessionObservability;
+};
+
+const resolveSessionObservabilityEvidence = async (
+  options: VoiceProductionReadinessRoutesOptions,
+  input: {
+    query: Record<string, unknown>;
+    request: Request;
+  },
+) => {
+  if (
+    options.sessionObservabilityEvidence === false ||
+    options.sessionObservabilityEvidence === undefined
+  ) {
+    return undefined;
+  }
+
+  return typeof options.sessionObservabilityEvidence === "function"
+    ? await options.sessionObservabilityEvidence(input)
+    : options.sessionObservabilityEvidence;
 };
 
 const resolveMediaPipeline = async (
@@ -2726,6 +2800,8 @@ export const buildVoiceProductionReadinessReport = async (
     mediaPipeline,
     browserMedia,
     telephonyMedia,
+    sessionObservability,
+    sessionObservabilityEvidence,
     telephonyWebhookSecurity,
     reconnectContracts,
     bargeInReports,
@@ -2808,6 +2884,12 @@ export const buildVoiceProductionReadinessReport = async (
     ),
     time("telephonyMedia", () =>
       resolveTelephonyMedia(options, { query, request }),
+    ),
+    time("sessionObservability", () =>
+      resolveSessionObservability(options, { query, request }),
+    ),
+    time("sessionObservabilityEvidence", () =>
+      resolveSessionObservabilityEvidence(options, { query, request }),
     ),
     time("telephonyWebhookSecurity", () =>
       resolveTelephonyWebhookSecurity(options, { query, request }),
@@ -2903,6 +2985,35 @@ export const buildVoiceProductionReadinessReport = async (
           },
         )
       : undefined;
+  const sessionObservabilityEvidenceSummary =
+    sessionObservability && sessionObservabilityEvidence !== false
+      ? evaluateVoiceSessionObservabilityEvidence(
+          sessionObservability,
+          sessionObservabilityEvidence ?? {},
+        )
+      : undefined;
+  const sessionObservabilitySummary =
+    sessionObservability && sessionObservabilityEvidenceSummary
+      ? ({
+          failed:
+            sessionObservabilityEvidenceSummary.status === "fail" ? 1 : 0,
+          passed:
+            sessionObservabilityEvidenceSummary.status === "pass" ? 1 : 0,
+          status: sessionObservabilityEvidenceSummary.status,
+          total: 1,
+          warnings:
+            sessionObservabilityEvidenceSummary.status === "warn" ? 1 : 0,
+        } satisfies NonNullable<
+          VoiceProductionReadinessReport["summary"]["sessionObservability"]
+        >)
+      : undefined;
+  const proofSource = (...keys: string[]) =>
+    keys
+      .map((key) => proofSources?.[key])
+      .find(
+        (source): source is VoiceProductionReadinessProofSource =>
+          source !== undefined,
+      );
   const checks: VoiceProductionReadinessCheck[] = [
     {
       detail:
@@ -3095,6 +3206,34 @@ export const buildVoiceProductionReadinessReport = async (
             ]
           : [],
     },
+    ...(sessionObservability && sessionObservabilitySummary
+      ? [
+          {
+            detail:
+              sessionObservabilitySummary.status === "pass"
+                ? `Session observability is healthy with ${sessionObservabilityEvidenceSummary?.summary.turnsWithWaterfalls ?? 0} turn(s) containing waterfall stages and ${sessionObservabilityEvidenceSummary?.summary.providerDecisions ?? 0} provider decision stage(s).`
+                : `${sessionObservabilityEvidenceSummary?.issues.join("; ") ?? "Session observability has unresolved issues."}`,
+            href: options.links?.sessionObservability ?? "/voice/session-observability",
+            label: "Session observability evidence",
+            proofSource: proofSource("sessionObservability", "sessionObservability"),
+            status: sessionObservabilitySummary.status,
+            value: `${sessionObservabilitySummary.passed}/${sessionObservabilitySummary.total}`,
+            actions:
+              sessionObservabilitySummary.status === "pass"
+                ? []
+                : [
+                    {
+                      description:
+                        "Open session observability report and address missing turns, provider decisions, tool calls, links, and incident markdown coverage.",
+                      href:
+                        options.links?.sessionObservability ??
+                        "/voice/session-observability",
+                      label: "Open session observability",
+                    },
+                  ],
+          } satisfies VoiceProductionReadinessCheck,
+        ]
+      : []),
     {
       detail:
         routingEvents.length > 0
@@ -3118,13 +3257,6 @@ export const buildVoiceProductionReadinessReport = async (
     },
   ];
   checks.push(...additionalChecks);
-  const proofSource = (...keys: string[]) =>
-    keys
-      .map((key) => proofSources?.[key])
-      .find(
-        (source): source is VoiceProductionReadinessProofSource =>
-          source !== undefined,
-      );
   const calibratedThresholdActions = (): VoiceProductionReadinessAction[] =>
     options.links?.sloReadinessThresholds
       ? [
@@ -4821,6 +4953,7 @@ export const buildVoiceProductionReadinessReport = async (
       profileSwitchLiveDecisions: "/voice/profile-switch-live-decisions",
       profileSwitchPolicy: "/voice/profile-switch-policy",
       profileSwitchReadiness: "/voice/profile-switch-readiness",
+      sessionObservability: "/voice/session-observability",
       telephonyMedia: "/voice/telephony-media",
       telephonyWebhookSecurity: "/api/voice/telephony/webhook-security",
       providerContracts: "/provider-contracts",
@@ -4897,6 +5030,7 @@ export const buildVoiceProductionReadinessReport = async (
       providerRoutingContracts: providerRoutingContractSummary,
       providerSlo: providerSloSummary,
       reconnectContracts: reconnectContractSummary,
+      sessionObservability: sessionObservabilitySummary,
       quality: {
         status: quality.status,
       },

@@ -28,8 +28,10 @@ import {
   createVoiceTelephonyCarrierMatrix,
   createVoiceTraceEvent,
   createVoiceTraceSinkDeliveryRecord,
+  buildVoiceSessionObservabilityReport,
   recordVoiceOpsActionAudit,
   renderVoiceProductionReadinessHTML,
+  createVoiceProviderDecisionTraceEvent,
   runVoiceCampaignReadinessProof,
   evaluateVoiceProductionReadinessEvidence,
   summarizeVoiceProductionReadinessGate,
@@ -113,6 +115,90 @@ const raw24k = {
   encoding: "pcm_s16le",
   sampleRateHz: 24_000,
 } as const;
+
+const createSessionObservabilityEvents = () => [
+  createVoiceTraceEvent({
+    at: 100,
+    payload: { type: "start" },
+    sessionId: "session-observable",
+    type: "call.lifecycle",
+  }),
+  createVoiceTraceEvent({
+    at: 125,
+    payload: {
+      elapsedMs: 25,
+      isFinal: true,
+      provider: "deepgram",
+      providerStatus: "success",
+      text: "I need to reschedule.",
+    },
+    sessionId: "session-observable",
+    turnId: "turn-1",
+    type: "turn.transcript",
+  }),
+  createVoiceTraceEvent({
+    at: 140,
+    payload: {
+      text: "I need to reschedule.",
+    },
+    sessionId: "session-observable",
+    turnId: "turn-1",
+    type: "turn.committed",
+  }),
+  createVoiceProviderDecisionTraceEvent({
+    at: 165,
+    elapsedMs: 60,
+    fallbackProvider: "anthropic",
+    kind: "llm",
+    provider: "openai",
+    reason: "primary model exceeded the live turn budget",
+    selectedProvider: "openai",
+    sessionId: "session-observable",
+    status: "selected",
+    surface: "live-call",
+    turnId: "turn-1",
+  }),
+  createVoiceProviderDecisionTraceEvent({
+    at: 185,
+    elapsedMs: 90,
+    fallbackProvider: "anthropic",
+    kind: "llm",
+    provider: "openai",
+    reason: "fallback recovered the turn",
+    selectedProvider: "anthropic",
+    sessionId: "session-observable",
+    status: "fallback",
+    surface: "live-call",
+    turnId: "turn-1",
+  }),
+  createVoiceTraceEvent({
+    at: 210,
+    payload: {
+      elapsedMs: 30,
+      status: "ok",
+      toolCallId: "tool-1",
+      toolName: "reschedule_appointment",
+    },
+    sessionId: "session-observable",
+    turnId: "turn-1",
+    type: "agent.tool",
+  }),
+  createVoiceTraceEvent({
+    at: 250,
+    payload: {
+      text: "I can help reschedule that appointment.",
+    },
+    sessionId: "session-observable",
+    turnId: "turn-1",
+    type: "turn.assistant",
+  }),
+  createVoiceTraceEvent({
+    at: 300,
+    payload: { disposition: "completed", type: "end" },
+    sessionId: "session-observable",
+    type: "call.lifecycle",
+  }),
+];
 
 test("buildVoiceProductionReadinessReport warns when deployment has no runtime proof", async () => {
   const report = await buildVoiceProductionReadinessReport({
@@ -346,6 +432,82 @@ test("buildVoiceProductionReadinessReport includes campaign readiness proof", as
         label: "Campaign readiness proof",
         status: "pass",
         value: `${campaignReadiness.checks.length}/${campaignReadiness.checks.length}`,
+      }),
+    ]),
+  );
+});
+
+test("buildVoiceProductionReadinessReport includes session observability evidence check", async () => {
+  const sessionObservability = await buildVoiceSessionObservabilityReport({
+    callDebuggerHref: "/voice/debug/:sessionId",
+    events: createSessionObservabilityEvents(),
+    incidentMarkdownHref: "/voice/observability/:sessionId/incident.md",
+    operationsRecordHref: "/voice/operations/:sessionId",
+    sessionId: "session-observable",
+    traceTimelineHref: "/voice/traces/:sessionId",
+  });
+  const report = await buildVoiceProductionReadinessReport({
+    links: {
+      sessionObservability: "/voice/session-observability",
+    },
+    sessionObservability,
+    store: createVoiceMemoryTraceEventStore(),
+  });
+
+  expect(report.summary.sessionObservability).toMatchObject({
+    failed: 0,
+    passed: 1,
+    status: "pass",
+    total: 1,
+    warnings: 0,
+  });
+  expect(report.checks).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        href: "/voice/session-observability",
+        label: "Session observability evidence",
+        status: "pass",
+        value: "1/1",
+      }),
+    ]),
+  );
+});
+
+test("buildVoiceProductionReadinessReport warns on weak session observability evidence", async () => {
+  const sessionObservability = await buildVoiceSessionObservabilityReport({
+    callDebuggerHref: "/voice/debug/:sessionId",
+    events: createSessionObservabilityEvents(),
+    incidentMarkdownHref: "/voice/observability/:sessionId/incident.md",
+    operationsRecordHref: "/voice/operations/:sessionId",
+    sessionId: "session-observable",
+    traceTimelineHref: "/voice/traces/:sessionId",
+  });
+  const report = await buildVoiceProductionReadinessReport({
+    links: {
+      sessionObservability: "/voice/session-observability",
+    },
+    sessionObservability,
+    sessionObservabilityEvidence: {
+      minTurns: 2,
+      minProviderDecisions: 3,
+    },
+    store: createVoiceMemoryTraceEventStore(),
+  });
+
+  expect(report.summary.sessionObservability).toMatchObject({
+    failed: 0,
+    passed: 0,
+    status: "warn",
+    total: 1,
+    warnings: 1,
+  });
+  expect(report.checks).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        href: "/voice/session-observability",
+        label: "Session observability evidence",
+        status: "warn",
+        value: "0/1",
       }),
     ]),
   );

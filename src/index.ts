@@ -969,11 +969,16 @@ export {
 export {
   buildVoiceSessionObservabilityReport,
   createVoiceSessionObservabilityRoutes,
+  assertVoiceSessionObservabilityEvidence,
+  evaluateVoiceSessionObservabilityEvidence,
   renderVoiceSessionObservabilityHTML,
   renderVoiceSessionObservabilityMarkdown,
 } from "./sessionObservability";
 export type {
   VoiceSessionObservabilityLink,
+  VoiceSessionObservabilityEvidenceInput,
+  VoiceSessionObservabilityEvidenceReport,
+  VoiceSessionObservabilityEvidenceStatus,
   VoiceSessionObservabilityReport,
   VoiceSessionObservabilityReportOptions,
   VoiceSessionObservabilityRoutesOptions,
