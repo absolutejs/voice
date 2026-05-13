@@ -93,8 +93,17 @@ const COSHE_TARGET_COUNT = 4;
 
 const parser = new TextDecoder();
 
+// Opportunistic HTTP/2 multiplexing for outbound HTTPS (Bun 1.3.14+).
+// Corpus build fans out parallel downloads to a handful of dataset hosts
+// (HuggingFace, etc.) — multiplexing eliminates per-fetch TLS handshake.
+// The `protocol` option lands in @types/bun 1.3.14; widen locally for now.
+// Hard-skip on non-HTTPS — Bun's h2 client throws HTTP2Unsupported on h2c.
+type H2Init = RequestInit & { protocol?: "http2" };
+const h2IfHttps = (url: string): H2Init =>
+  url.startsWith("https://") ? { protocol: "http2" } : {};
+
 const fetchText = async (url: string) => {
-  const response = await fetch(url);
+  const response = await fetch(url, h2IfHttps(url));
   if (!response.ok) {
     throw new Error(
       `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
@@ -105,7 +114,7 @@ const fetchText = async (url: string) => {
 };
 
 const fetchJson = async <T>(url: string): Promise<T> => {
-  const response = await fetch(url);
+  const response = await fetch(url, h2IfHttps(url));
   if (!response.ok) {
     throw new Error(
       `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
