@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/voice",
-  "version": "0.0.22-beta.464",
+  "version": "0.0.22-beta.465",
   "description": "Voice primitives and Elysia plugin for AbsoluteJS",
   "repository": {
     "type": "git",
@@ -160,7 +160,7 @@
     "bench:stt": "bun run ./scripts/benchmark-stt.ts all",
     "bench:assemblyai:sessions": "bun run ./scripts/benchmark-session.ts assemblyai",
     "bench:openai:sessions": "bun run ./scripts/benchmark-session.ts openai",
-    "build": "bun run ./scripts/build-htmx-bootstrap-asset.ts && rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
+    "build": "bun run ./scripts/build-htmx-bootstrap-asset.ts && rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute --external @absolutejs/media && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
     "format": "prettier --write \"./**/*.{js,jsx,ts,tsx,json,md}\"",
     "lint": "eslint ./src",
     "release": "bun run format && bun run build && bun publish",
@@ -246,7 +246,7 @@
     }
   },
   "dependencies": {
-    "@absolutejs/media": "0.0.1-beta.15"
+    "@absolutejs/media": "0.0.1-beta.16"
   },
   "devDependencies": {
     "@absolutejs/absolute": "0.19.0-beta.646",
