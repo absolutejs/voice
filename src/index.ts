@@ -161,6 +161,7 @@ export {
   evaluateVoiceMediaPipelineEvidence,
   renderVoiceMediaPipelineHTML,
   renderVoiceMediaPipelineMarkdown,
+  summarizeVoiceMediaPipelineReport,
 } from "./mediaPipelineRoutes";
 export {
   buildVoiceTelephonyMediaReport,
@@ -185,10 +186,30 @@ export {
 export type {
   VoiceMediaPipelineAssertionInput,
   VoiceMediaPipelineAssertionReport,
+  VoiceMediaPipelineCalibrationSummary,
+  VoiceMediaPipelineProofArtifactLinks,
+  VoiceMediaPipelineProofSummary,
+  VoiceMediaPipelineProofSummaryOptions,
   VoiceMediaPipelineReport,
   VoiceMediaPipelineReportOptions,
   VoiceMediaPipelineRoutesOptions,
 } from "./mediaPipelineRoutes";
+export {
+  buildVoiceMediaPipelineIncidentEvents,
+  buildVoiceMediaPipelineReadinessChecks,
+  extractVoiceMediaPipelineIssueEntries,
+  writeVoiceMediaPipelineArtifacts,
+} from "./mediaPipelineSurfaces";
+export type {
+  VoiceMediaPipelineArtifactKind,
+  VoiceMediaPipelineArtifactRecord,
+  VoiceMediaPipelineArtifactWriteOptions,
+  VoiceMediaPipelineArtifactWriteResult,
+  VoiceMediaPipelineIncidentOptions,
+  VoiceMediaPipelineIssueEntry,
+  VoiceMediaPipelineIssueSource,
+  VoiceMediaPipelineReadinessOptions,
+} from "./mediaPipelineSurfaces";
 export type {
   VoiceTelephonyMediaCarrierInput,
   VoiceTelephonyMediaCarrierReport,

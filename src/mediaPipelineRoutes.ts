@@ -5,15 +5,22 @@ import {
   buildMediaQualityReport,
   buildMediaResamplingPlan,
   buildMediaVadReport,
+  summarizeMediaProcessorGraphReport,
+  summarizeMediaQualityReport,
+  summarizeMediaTransportReport,
   type MediaFrame,
   type MediaInterruptionReport,
+  type MediaPipelineCalibrationIssue,
   type MediaPipelineCalibrationInput,
   type MediaPipelineCalibrationReport,
   type MediaPipelineStatus,
   type MediaProcessorGraphReport,
+  type MediaProcessorGraphSummary,
   type MediaQualityReport,
+  type MediaQualitySummary,
   type MediaResamplingPlan,
   type MediaTransportReport,
+  type MediaTransportSummary,
   type MediaVadReport,
 } from "@absolutejs/media";
 
@@ -520,4 +527,144 @@ export const createVoiceMediaPipelineRoutes = (
   }
 
   return app;
+};
+
+const PROOF_SUMMARY_ISSUE_LIMIT = 8;
+
+export type VoiceMediaPipelineCalibrationSummary = {
+  assistantAudioFrames: number;
+  backpressureFrames: number;
+  firstAudioLatencyMs?: number;
+  inputAudioFrames: number;
+  interruptionFrames: number;
+  issueCodes: readonly string[];
+  jitterMs?: number;
+  resamplingRequired: boolean;
+  status: MediaPipelineStatus;
+  surface: string;
+  traceLinkedFrames: number;
+  turnCommitFrames: number;
+};
+
+export type VoiceMediaPipelineProofArtifactLinks = {
+  processorGraph?: string;
+  quality?: string;
+  transport?: string;
+};
+
+export type VoiceMediaPipelineProofSummary = {
+  artifacts?: VoiceMediaPipelineProofArtifactLinks;
+  calibration: VoiceMediaPipelineCalibrationSummary;
+  checkedAt: number;
+  frames: number;
+  interruption: {
+    interruptionFrames: number;
+    issueCodes: readonly string[];
+    latenciesMs: readonly number[];
+    status: MediaPipelineStatus;
+  };
+  issueCodes: readonly string[];
+  issues: readonly MediaPipelineCalibrationIssue[];
+  ok: boolean;
+  processorGraph?: MediaProcessorGraphSummary;
+  quality: MediaQualitySummary;
+  resampling?: {
+    ratio: number;
+    required: boolean;
+    status: MediaPipelineStatus;
+  };
+  sessionIds: readonly string[];
+  status: MediaPipelineStatus;
+  surface: string;
+  transport?: MediaTransportSummary;
+  vad: {
+    inputAudioFrames: number;
+    segmentCount: number;
+    status: MediaPipelineStatus;
+  };
+};
+
+export type VoiceMediaPipelineProofSummaryOptions = {
+  artifacts?: VoiceMediaPipelineProofArtifactLinks;
+};
+
+const collectIssueCodes = (
+  issues: readonly MediaPipelineCalibrationIssue[],
+): readonly string[] =>
+  Array.from(new Set(issues.map((issue) => issue.code)));
+
+export const summarizeVoiceMediaPipelineReport = (
+  report: VoiceMediaPipelineReport,
+  options: VoiceMediaPipelineProofSummaryOptions = {},
+): VoiceMediaPipelineProofSummary => {
+  const calibration = report.calibration;
+  const quality = summarizeMediaQualityReport(report.quality);
+  const processorGraph = report.processorGraph
+    ? summarizeMediaProcessorGraphReport(report.processorGraph)
+    : undefined;
+  const transport = report.transport
+    ? summarizeMediaTransportReport(report.transport)
+    : undefined;
+  const interruptionIssueCodes = collectIssueCodes(
+    report.interruption.issues,
+  );
+  const issueCodes = Array.from(
+    new Set([
+      ...collectIssueCodes(calibration.issues),
+      ...quality.issueCodes,
+      ...interruptionIssueCodes,
+      ...(processorGraph?.issueCodes ?? []),
+    ]),
+  );
+  const issues = [
+    ...calibration.issues,
+    ...report.quality.issues,
+    ...report.interruption.issues,
+  ].slice(0, PROOF_SUMMARY_ISSUE_LIMIT);
+  return {
+    artifacts: options.artifacts,
+    calibration: {
+      assistantAudioFrames: calibration.assistantAudioFrames,
+      backpressureFrames: calibration.backpressureFrames,
+      firstAudioLatencyMs: calibration.firstAudioLatencyMs,
+      inputAudioFrames: calibration.inputAudioFrames,
+      interruptionFrames: calibration.interruptionFrames,
+      issueCodes: collectIssueCodes(calibration.issues),
+      jitterMs: calibration.jitterMs,
+      resamplingRequired: calibration.resamplingRequired,
+      status: calibration.status,
+      surface: calibration.surface,
+      traceLinkedFrames: calibration.traceLinkedFrames,
+      turnCommitFrames: calibration.turnCommitFrames,
+    },
+    checkedAt: report.checkedAt,
+    frames: report.frames,
+    interruption: {
+      interruptionFrames: report.interruption.interruptionFrames,
+      issueCodes: interruptionIssueCodes,
+      latenciesMs: report.interruption.latenciesMs,
+      status: report.interruption.status,
+    },
+    issueCodes,
+    issues,
+    ok: report.ok,
+    processorGraph,
+    quality,
+    resampling: report.resampling
+      ? {
+          ratio: report.resampling.ratio,
+          required: report.resampling.required,
+          status: report.resampling.status,
+        }
+      : undefined,
+    sessionIds: report.sessionIds,
+    status: report.status,
+    surface: report.surface,
+    transport,
+    vad: {
+      inputAudioFrames: report.vad.inputAudioFrames,
+      segmentCount: report.vad.segments.length,
+      status: report.vad.status,
+    },
+  };
 };
