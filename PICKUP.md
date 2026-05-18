@@ -9,10 +9,12 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.463`
-- Latest pushed voice commit before this pickup file: `9e06430 Update voice stopping point plan`
-- Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-03T02-31-37.685Z/proof-pack/latest.json`
-- Latest proof status: `ok: true`; six-framework browser proof passed; production readiness passed with 0 failures and 0 warnings; sustained trends passed 6 cycles; real-call evidence runtime had 21 stored evidence records across 21 sessions and 4 profiles.
+- Current package: `@absolutejs/voice@0.0.22-beta.465`
+- Companion media package: `@absolutejs/media@0.0.1-beta.16`
+- Latest pushed voice commit: `317b267 Externalize @absolutejs/media and bump to media beta.16`
+- Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-18T23-42-25.003Z/proof-pack/latest.json`
+- Latest proof status: `ok: true`; mediaPipelineCalibrationAssertion summary trimmed from ~35 KB to ~1.7 KB (95% reduction); total proof JSON dropped from ~170 KB to ~114 KB; per-report media artifacts (`media-quality.{json,md}`, `media-transport.{json,md}`, `media-processor-graph.{json,md}`) persisted in the proof-pack run directory and linked from the assertion's `artifacts` field.
+- Stable issue codes now exposed: `summary.issueCodes` aggregates calibration/quality/interruption/processor-graph codes; `summary.calibration.issueCodes` and `summary.processorGraph.issueCodes` are also present for per-category gating.
 
 ## Companion Repos
 
@@ -42,18 +44,21 @@ Voice should not own generic media runtime semantics:
 
 ## Next Recommended Work
 
-Start with combined voice/media artifact readability.
+Compact-artifact readability is shipped end-to-end. Helpers now in place:
 
-Voice side:
+- `summarizeVoiceMediaPipelineReport(report, { artifacts })` — compact proof envelope, accepts artifact hrefs.
+- `writeVoiceMediaPipelineArtifacts({ dir, report, hrefBase })` — persists media-{quality,transport,processor-graph}.{json,md}.
+- `extractVoiceMediaPipelineIssueEntries(report)` — flat list of media issues with source attribution.
+- `buildVoiceMediaPipelineReadinessChecks(report, { baseHref, label })` — drop-in `VoiceProductionReadinessCheck[]`.
+- `buildVoiceMediaPipelineIncidentEvents(report, { now, source, category })` — drop-in `VoiceIncidentTimelineEvent[]`.
 
-- Replace verbose proof-pack realtime/media dumps with compact linked artifacts.
-- Add proof-pack assertions that summarize media failures by issue code and link to readable media artifacts.
-- Surface media quality/transport/graph failures in operations records, incident timelines, production readiness, and failure replay.
-- Keep real browser/phone evidence first and deterministic proof envelopes second.
+Next steps:
 
-Media side dependency:
-
-- Consume compact media Markdown/artifact helpers from `@absolutejs/media` once they exist.
+- Wire `buildVoiceMediaPipelineReadinessChecks` output into the example's `productionReadiness` report so media checks show up in the readiness page and gate explanations.
+- Wire `buildVoiceMediaPipelineIncidentEvents` into the example's incident timeline endpoint(s) so media incidents surface in `/voice-incidents/...`.
+- Surface media issue codes in `VoiceOperationsRecord` (new field or existing `telephonyMedia`-style summary).
+- Consider lifting `buildVoiceFailureReplay` to attach `media.graph_*` and `media.transport_*` codes to failure-replay output.
+- Optional: write the README/CHANGELOG entries for the new media beta and voice beta surfaces.
 
 ## Verification Expectations
 
