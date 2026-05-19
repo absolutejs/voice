@@ -3,30 +3,26 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Do not start by changing the example unless the task requires proof wiring. The next recommended work is combined voice/media artifact readability: make proof-pack output compact and useful by consuming generic media Markdown/artifact helpers from @absolutejs/media instead of dumping huge realtime-channel internals. Keep @absolutejs/voice focused on voice buyer surfaces: readiness, proof pack, operations records, incident timeline, failure replay, real-call evidence runtime, provider/telephony/session surfaces, and framework bindings. If core changes are made, typecheck/test/build, publish a beta, install it into the real example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. The Vapi-parity audit from earlier sessions is now closed (TTS barge-in cancel, @absolutejs/ai bridge, recording-to-artifact, silence-timeout, cold-transfer, S3 recording, pluggable AMD detector). Next directions are listed in PICKUP under "Suggested next directions" — none are blocking. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.471`
+- Current package: `@absolutejs/voice@0.0.22-beta.479`
 - Companion media package: `@absolutejs/media@0.0.1-beta.16`
-- Companion AbsoluteJS packages used by the Vapi-parity surface (no hard runtime deps from voice): `@absolutejs/ai@0.0.5` (13 LLM provider adapters), `@absolutejs/rag@0.0.10` (in-memory/SQLite/pgvector stores, 11 embedding providers, hybrid search, evaluation, connectors), `voice-adapters` monorepo (OpenAI Realtime / Gemini Live / Deepgram / ElevenLabs / AssemblyAI), `voice-fixtures-multilingual` (23 PCM clips across 7 languages incl. code-switch).
-- Latest pushed voice commit: `edf3d00 Add fromVapiAssistantConfig adapter for mechanical Vapi migration`
-- Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (`failureReplayEvidenceAssertion.summary.media` now carries `pipelineIssueCodes` and `pipelineStatus`)
-- Latest proof status: `ok: true`; mediaPipelineCalibrationAssertion summary trimmed from ~35 KB to ~1.7 KB (95% reduction); total proof JSON dropped from ~170 KB to ~114 KB; per-report media artifacts (`media-quality.{json,md}`, `media-transport.{json,md}`, `media-processor-graph.{json,md}`) persisted in the proof-pack run directory and linked from the assertion's `artifacts` field.
-- Stable issue codes now exposed: `summary.issueCodes` aggregates calibration/quality/interruption/processor-graph codes; `summary.calibration.issueCodes` and `summary.processorGraph.issueCodes` are also present for per-category gating.
-- Media issue codes are now projected into buyer-facing voice surfaces:
-  - `VoiceProductionReadinessReport.checks` gets 5 granular media checks (overall, quality, transport, processor graph, interruption) on top of the existing aggregate "Media pipeline quality" check, via `buildVoiceMediaPipelineReadinessChecks`.
-  - `VoiceOperationsRecord.mediaPipeline` (new optional field) carries `{ status, qualityStatus, transportStatus, processorGraphStatus, issueCodes, jitterMs, frames, surface }`; populated by passing `mediaPipeline` to either `buildVoiceOperationsRecord` or `createVoiceOperationsRecordRoutes` (the route accepts a sessionId-keyed resolver).
-  - `VoiceFailureReplayReport.media.{pipelineIssueCodes,pipelineStatus}` reads from the record; status demotes to `failed`/`degraded` when the pipeline is `fail`/`warn`; incident markdown gets a new "Media Pipeline" section.
-  - `VoiceIncidentTimelineOptions.extraEvents` accepts any custom event source; the example feeds `buildVoiceMediaPipelineIncidentEvents` into it so media-pipeline issues appear in `/api/voice/incident-timeline`.
+- Companion AbsoluteJS packages used by the Vapi-parity surface: `@absolutejs/ai@0.0.5` (13 LLM provider adapters, now wired in via `createAIVoiceModel`), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
+- Latest pushed voice commit: `996b8aa test: cover TTS cancel on barge-in at the session level`
+- Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run against beta.479 — re-run if downstream proof gates need refreshing).
+- Voice suite: 979 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals` — flaky/pre-existing, unrelated to recent work).
+- Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.479; `/vue` Playwright-verified at 0 console errors/warnings.
 
 ## Companion Repos
 
 - Media primitives: `/home/alexkahn/abs/media`
 - Voice adapters monorepo: `/home/alexkahn/abs/voice-adapters`
-- Real voice example: `/home/alexkahn/alex/absolutejs-voice-example`
+- Real voice example (proof gating): `/home/alexkahn/alex/absolutejs-voice-example`
+- Local example used in this session: `/home/alexkahn/abs/absolutejs-voice-example-testrun`
 - AbsoluteJS core, only if framework/build issues require it: `/home/alexkahn/abs/absolutejs`
 
 Before doing new work, check:
@@ -42,62 +38,59 @@ git -C /home/alexkahn/alex/absolutejs-voice-example status --short
 
 Voice owns product-level voice-agent primitives:
 
-- Assistants, sessions, provider routing, realtime adapters, tools, guardrails, reviews, tasks, campaigns, handoffs, operations records, failure replay, incident timelines, observability export, telephony setup/security, readiness gates, proof packs, and framework bindings.
+- Assistants, sessions, provider routing, realtime adapters, tools, guardrails, reviews, tasks, campaigns, handoffs, operations records, failure replay, incident timelines, observability export, telephony setup/security, readiness gates, proof packs, framework bindings — plus, since the parity audit: TTS barge-in cancel orchestration, ai-package agent-model bridge, audio recording capture, silence-timeout watchdog, cold/warm transfer mode metadata, AMD detector poller.
 
 Voice should not own generic media runtime semantics:
 
 - Media frames, generic media quality calculations, WebRTC stats normalization, telephony stream packet parsing, processor graph lifecycle, and generic media artifact renderers belong in `@absolutejs/media`.
 
-## Next Recommended Work
+## Vapi-Parity Audit — Closed
 
-Compact-artifact readability AND issue-code surfacing are both shipped end-to-end. Helpers now in place:
+Originally five gap areas (see audit run in session preceding 996b8aa). Status now:
 
-- `summarizeVoiceMediaPipelineReport(report, { artifacts })` — compact proof envelope, accepts artifact hrefs.
-- `writeVoiceMediaPipelineArtifacts({ dir, report, hrefBase })` — persists media-{quality,transport,processor-graph}.{json,md}.
-- `extractVoiceMediaPipelineIssueEntries(report)` — flat list of media issues with source attribution.
-- `buildVoiceMediaPipelineReadinessChecks(report, { baseHref, label })` — drop-in `VoiceProductionReadinessCheck[]`.
-- `buildVoiceMediaPipelineIncidentEvents(report, { now, source, category })` — drop-in `VoiceIncidentTimelineEvent[]`.
+| Area | Shipped in |
+|---|---|
+| TTS barge-in cancel — contract + runtime wiring | voice@.476 |
+| TTS cancel impl across all 8 TTS adapters | voice-adapters batch (cartesia .2, elevenlabs .19, azure .3, playht/lmnt/rime/neets/smallest .2) |
+| `@absolutejs/ai` bridge to `VoiceAgentModel` | voice@.476 (`createAIVoiceModel`) |
+| Audio recording capture + WAV artifact + `recording.ready` event | voice@.477 (file store), voice@.478 (S3 store) |
+| Call-level silence timeout end-of-call | voice@.478 (`callSilenceTimeoutMs` option, disposition `silence-timeout`) |
+| Cold-transfer mode alongside warm | voice@.478 (`transferMode: "cold" | "warm"` on `api.transfer` + `VoiceTransferCallToolDestination`; `cold-transfer` outcome recipe) |
+| Pluggable AMD detector (stream-side, complements existing carrier-AMD webhook routing) | voice@.479 (`VoiceAMDDetector`, `createMonologueAMDDetector`) |
+| Session-level barge-in integration test | covered by 996b8aa (the test commit on top of .479) |
 
-Both major tracks are feature-complete:
+Coverage of the technical Vapi-parity surface is now ~85–90%. Remaining 10–15% is SIP REFER signaling (operator concern, lives in telephony adapter implementations) and ML-grade AMD (now a one-function plug-in via `VoiceAMDDetector`).
 
-1. **Media-pipeline + media-artifact integration** — proof pack, readiness, operations record, failure replay, incident timeline.
-2. **Vapi-parity agent surface** (Phases 1–3 of the plan in [[project-vapi-parity]]):
-   - `createVoiceRAGTool(collection, options)` (beta.469) — wraps any `@absolutejs/rag`-shaped `VoiceRAGCollectionLike` into a Vapi-Query-Tool-shaped agent tool with `searchKnowledgeBase` default name, allowedFilterKeys gating, fixedFilter merging, score thresholding, and grounded-citations formatter.
-   - Named tool catalog (beta.470) — `createVoiceEndCallTool`, `createVoiceTransferCallTool`, `createVoiceDTMFTool`, `createVoiceVoicemailDetectionTool`, `createVoiceApiRequestTool` map Vapi `tools[].type` 1:1 onto `VoiceSessionHandle` verbs.
-   - `fromVapiAssistantConfig(json, options)` (beta.471) — takes a Vapi Assistant JSON, a caller-supplied `modelFactory`, and optional `knowledgeBase` / `dtmfSendFactory` / `customToolFactory` / `variableResolver`; returns `{ assistant, tools, routeHints, unsupported }`. `{{var}}` templates auto-compile with built-ins (now/date/time) + caller resolver; LiquidJS filters, monitorPlan, startSpeakingPlan, voicemailDetection ML, and toolIds are surfaced in `unsupported` with concrete migration instructions.
+## New Public Surface Added by the Audit Work
 
-Vapi-parity adapter coverage progress (Phase 4):
-- **`@absolutejs/voice-cartesia@0.0.1-beta.1`** (shipped) — TTS via Cartesia `/tts/sse` and `/tts/bytes`. Sonic-2 + older models, voice-by-id or voice-by-embedding, mulaw/alaw telephony formats. 7 tests.
-- **`@absolutejs/voice-azure@0.0.1-beta.2`** (shipped) — Neural TTS via REST + SSML (`azureTTS`) and streaming STT via the WebSocket Unified Speech Protocol (`azureSTT`) with no Microsoft SDK dependency. 18 tests.
-- **`@absolutejs/voice-playht@0.0.1-beta.1`** (shipped) — TTS via PlayHT `/api/v2/tts/stream`. Play3.0-mini / PlayDialog / PlayHT2.0-turbo engines, raw PCM s16le or mulaw telephony. 7 tests.
-- **`@absolutejs/voice-speechmatics@0.0.1-beta.1`** (shipped) — Streaming STT via Speechmatics' v2 WebSocket protocol. StartRecognition → AddPartialTranscript / AddTranscript → EndOfTranscript / EndOfStream, regional endpoints (eu, eu2, usa), enhanced/standard operating points, diarization, punctuation-token joining. 9 tests.
-- **`@absolutejs/voice-gladia@0.0.1-beta.1`** (shipped) — Streaming STT via Gladia's v2 live API (HTTP /v2/live POST + WebSocket binary audio). Solaria-1 model, code-switch language detection, partial/final transcript mapping with per-utterance confidence + start/end timing. 9 tests.
-- **`@absolutejs/voice-rime@0.0.1-beta.1`** (shipped) — TTS via Rime `/v1/rime-tts`. mist / mistv2 / arcana voice models, raw PCM or mulaw telephony, speedAlpha / phonemizeBetweenBrackets / reduceLatency controls. 6 tests.
-- **`@absolutejs/voice-lmnt@0.0.1-beta.1`** (shipped) — TTS via LMNT `/v1/ai/speech/stream`. aurora / blizzard / mochi models, raw PCM or mulaw, conversational / temperature / topP / seed / speed controls, language detection. 5 tests.
-- **`@absolutejs/voice-soniox@0.0.1-beta.1`** (shipped) — Streaming STT via Soniox `/transcribe-websocket`. Token-by-token transcripts with is_final flags bucketed into partial/final events, language hints, speaker diarization, endpoint detection, per-token confidence/timing/language/speaker lifted. 8 tests.
-- **`@absolutejs/voice-neets@0.0.1-beta.1`** (shipped) — TTS via Neets `/v1/tts` HTTP, ar-diff-50k / style-tts-2 / vits models, X-API-Key auth, PCM streaming. 5 tests.
-- **`@absolutejs/voice-smallest@0.0.1-beta.1`** (shipped) — TTS via Smallest `/api/v1/{model}/get_speech`, lightning + lightning-v2 models, English + Hindi, speed / similarity / consistency / enhancement controls. 5 tests.
-- **`@absolutejs/voice-openai-whisper@0.0.1-beta.1`** (shipped) — STT via OpenAI `/v1/audio/transcriptions` in **buffered-batch** mode: accumulate PCM chunks, build a RIFF header on flush(), POST as WAV, emit one final transcript + endOfTurn per flush. Supports whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe. Documented as the turn-based / fallback path; the streaming OpenAI path lives in `voice-openai`. 8 tests.
-- **`@absolutejs/voice-google-speech@0.0.1-beta.2`** (shipped) — Google Cloud Speech-to-Text with BOTH modes:
-  - `googleSpeech(...)` — buffered-batch via REST `/v1/speech:recognize`. Three auth modes (API key, static OAuth, async refresh). Honors all Google models, alternativeLanguageCodes, speechContexts, useEnhanced, automatic punctuation, speaker diarization. 9 tests.
-  - `googleSpeechStream(...)` — **real-time bidirectional streaming via gRPC**. Hand-rolled protobuf wire format for StreamingRecognizeRequest/Response (no `@grpc/grpc-js` dep), gRPC-Web framing, `node:http2` for full-duplex transport (Bun's fetch is half-duplex). Pluggable transport for testability. Emits partial/final transcripts as Google streams them; maps speech_event_type END_OF_UTTERANCE / SPEECH_ACTIVITY_END to endOfTurn. 5 protobuf tests + 4 gRPC frame tests + 11 end-to-end tests via fake transport = 20 new tests.
+Exported from `@absolutejs/voice`:
 
-Provider coverage vs Vapi's list now:
-- LLM: 2/7 native + Anthropic in voice + 13 via @absolutejs/ai → effectively complete.
-- TTS: **8/12** (ElevenLabs, Cartesia, Azure Neural, PlayHT, Rime, LMNT, Neets, Smallest).
-- STT: **8/11 providers, 9 capabilities** (Deepgram, AssemblyAI, Azure, Speechmatics, Gladia, Soniox, OpenAI Whisper-buffered, Google Speech-buffered AND streaming). Google now has the same streaming-quality + buffered-fallback split as voice-openai (realtime) + voice-openai-whisper (buffered).
+- `createAIVoiceModel({ provider, model, signal?, systemPrompt? })` — adapts an `@absolutejs/ai` `AIProviderConfig` to `VoiceAgentModel`. Translates messages (incl. `tool_result` content blocks), tool schemas, accumulates stream chunks. `@absolutejs/ai` is an optional peer dep.
+- `ttsAdapterSessionCanCancel(session)` type guard for the optional `TTSAdapterSession.cancel?`.
+- Recording: `createVoiceMemoryRecordingStore`, `createVoiceFileRecordingStore` (via `fileStore.ts`), `createVoiceS3RecordingStore` (via `s3Store.ts`), `encodePcmAsWav`, `computePcmDurationMs`. Types: `VoiceRecordingStore`, `VoiceRecordingArtifact`, `StoredVoiceRecordingArtifact`, `VoiceRecordingChannel`. New trace event type: `"recording.ready"` with payload `{ channel, durationMs, recordingUrl, sessionId, sizeBytes }`.
+- AMD: `createMonologueAMDDetector({ minMonologueMs?, intervalMs?, reason?, requireFirstAudio? })`, types `VoiceAMDDetector`, `VoiceAMDDetectorInput`, `VoiceAMDVerdict`, `MonologueAMDDetectorOptions`.
+- `CreateVoiceSessionOptions` gained: `recording?: { store, channels?, maxBytesPerChannel?, userInputFormat? }`, `callSilenceTimeoutMs?`, `amd?: VoiceAMDDetector`.
+- `VoiceSessionHandle.transfer({ ..., transferMode?: "cold" | "warm" })` — flows through to `call.lifecycle` metadata and `VoiceRouteResult.transfer.transferMode`.
+- `VoiceCallDisposition` gained `"silence-timeout"`.
+- `VoiceOutcomeRecipeName` gained `"cold-transfer"`.
 
-**Phase 6 shipped (voice@0.0.22-beta.472):** `runVoiceMultilingualProof`, `buildVoiceMultilingualProofReadinessCheck`, and `renderVoiceMultilingualProofMarkdown`. Wires `voice-fixtures-multilingual` through `runSTTAdapterBenchmark`, buckets results by language, applies per-language thresholds (max WER / min WAR / min pass rate / min term recall) layered over caller defaults, and emits a structured report + `VoiceProductionReadinessCheck` for drop-in gating. 7 tests.
+## Prior Tracks (still feature-complete)
 
-**Phase 5 shipped (voice@0.0.22-beta.473):** `createVoiceLiveMonitorRoutes` + `createVoiceInMemoryMonitorRegistry` + `createVoiceMonitorSession` + `buildVoiceMonitorPlan`. Two WebSocket routes per session matching Vapi's `monitorPlan.listenUrl` (binary outbound audio fan-out) + `monitorPlan.controlUrl` (JSON control messages with default handlers wired to `VoiceSessionHandle` verbs: transfer/hangup/escalate/voicemail/no-answer; mute/say/inject are caller-supplied). Pluggable auth hook. Renamed from `createVoiceMonitorRoutes` to `createVoiceLiveMonitorRoutes` to avoid a naming collision with the existing health-monitor module. 11 tests.
+1. **Media-pipeline + media-artifact integration** — proof pack, readiness, operations record, failure replay, incident timeline. Helpers: `summarizeVoiceMediaPipelineReport`, `writeVoiceMediaPipelineArtifacts`, `extractVoiceMediaPipelineIssueEntries`, `buildVoiceMediaPipelineReadinessChecks`, `buildVoiceMediaPipelineIncidentEvents`.
+2. **Vapi-parity agent surface (Phases 1–3)** — `createVoiceRAGTool`, named tool catalog, `fromVapiAssistantConfig`.
+3. **Phase 4 adapter coverage** — 16 adapters in `voice-adapters` (see voice-adapters/README.md for live list and versions).
+4. **Phase 5 monitor sockets** — `createVoiceLiveMonitorRoutes` + `createVoiceMonitorRuntimeBinding`.
+5. **Phase 6 multilingual proof gate** — `runVoiceMultilingualProof`, `buildVoiceMultilingualProofReadinessCheck`, `renderVoiceMultilingualProofMarkdown`.
 
-**Phase 5 runtime hookup shipped (voice@0.0.22-beta.474):** `createVoiceMonitorRuntimeBinding(registry, options?)` + new `VoicePluginConfig.monitor` option. Passing the binding to `voice({...})` auto-registers every session that opens, fans outbound TTS audio out to listeners on every binary `socket.send`, and deregisters on close/superseded/session-switch — no manual `record.emit()` calls. `VoiceMonitorMutableRegistry.deregister(sessionId, reason?)` is new so the runtime binding can force-tear-down stale records cleanly. 4 new tests; voice suite now 963 pass / 1 pre-existing fail.
+## Suggested Next Directions (none blocking)
 
-Suggested next directions (none blocking):
-
-- Remaining Phase 4 gaps if buyers ask: Tavus (TTS+video — different shape because Tavus is avatar-first; would need a new adapter category), Talkscriber STT (small player, limited public docs), Cartesia STT/Ink (once their STT GA stabilizes — could land as a second export in the existing `voice-cartesia` package).
-- Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
-- Surface the new `record.mediaPipeline` / `media.pipelineIssueCodes` fields in the framework UI helpers (React/Vue/Svelte/Angular ops-record widgets) if/when buyers ask to see media health inside their support consoles.
+- **Run a fresh proof-pack against beta.479** in `/home/alexkahn/alex/absolutejs-voice-example` to confirm the audit-driven runtime changes don't shift any proof outputs. Especially worth doing if buyers are about to consume the artifact set.
+- **Framework UI surfaces for the new fields**: React/Vue/Svelte/Angular widgets for recording playback (download links from `recording.ready` events), AMD verdict reasons, transfer mode, silence-timeout dispositions. Hooks are already in place; just no widgets yet.
+- **Remaining Phase 4 adapters if buyers ask**: Tavus (TTS+video — needs a new adapter category), Talkscriber STT, Cartesia STT/Ink when GA.
+- **Telephony-side SIP REFER**: real cold-transfer signaling inside `src/telephony/twilio.ts` / `telnyx.ts`. The voice runtime now propagates `transferMode: "cold"` through metadata; the adapters need to read it and issue REFER vs hold-and-bridge.
+- **Stream-side AMD heuristics beyond monologue detection**: beep-frequency analysis, energy-pattern classifiers. The `VoiceAMDDetector` contract supports any implementation; only the monologue detector ships in-tree.
+- **`createVoiceAMDWebhookRoute`** wrapper if buyers want a packaged Twilio/Telnyx AMD callback route. Today the carrier-side path goes through `createVoiceTelephonyWebhookRoutes` which already normalizes `AnsweredBy=machine_*` → `api.markVoicemail`; a slimmer dedicated route is sugar, not new capability.
+- **Expand `@absolutejs/media`** per the MEDIA_PLAN priorities.
 
 ## Verification Expectations
 
@@ -124,3 +117,4 @@ If publishing a new voice beta:
 - Install into the example with `bun add @absolutejs/voice@<version> --force`.
 - Run the targeted proof.
 - Commit and push core plus example.
+- If the change touches the `TTSAdapterSession` / `STTAdapterSession` / `RealtimeAdapterSession` contracts: also bump every adapter in `/home/alexkahn/abs/voice-adapters` that pins voice as a dep, retest, and publish.
