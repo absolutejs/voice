@@ -8,6 +8,61 @@ Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you wan
 
 ## What's new
 
+### 0.0.22-beta.473 · Phase 5 — live listen + control monitor sockets (Vapi `monitorPlan` parity)
+
+Two new WebSocket routes per session that mirror Vapi's `monitorPlan.listenUrl` + `monitorPlan.controlUrl`. Supervisors can subscribe to a live call's outbound audio and send control commands (transfer, hangup, escalate, voicemail, no-answer, plus caller-defined mute/say/inject) without touching the call itself.
+
+```ts
+import { Elysia } from "elysia";
+import {
+  buildVoiceMonitorPlan,
+  createVoiceInMemoryMonitorRegistry,
+  createVoiceLiveMonitorRoutes,
+  createVoiceMonitorSession,
+} from "@absolutejs/voice";
+
+const registry = createVoiceInMemoryMonitorRegistry();
+
+// In your runtime: when a session opens, register it so supervisors can listen.
+const record = createVoiceMonitorSession({ handle, sessionId: handle.id });
+const deregister = registry.register(record);
+// When audio leaves the assistant, fan it out:
+//   record.emit({ at: Date.now(), chunk, format, source: 'assistant' });
+// On call end:
+//   deregister();
+
+const app = new Elysia()
+  .use(
+    createVoiceLiveMonitorRoutes({
+      authenticate: async ({ sessionId, route, request }) =>
+        await verifySupervisorJWT(request),
+      controlHandlers: {
+        say: async ({ message, session }) => {
+          await yourTtsRuntime.sayInSession(session.sessionId, message.text);
+          return { detail: `Said: ${message.text}`, ok: true, type: "say" };
+        },
+      },
+      htmlPath: "/voice/monitor",
+      registry,
+    }),
+  );
+
+const plan = buildVoiceMonitorPlan({
+  baseUrl: "wss://api.example.com",
+  sessionId: handle.id,
+});
+// plan.listenUrl  → wss://api.example.com/api/voice/monitor/<sessionId>/listen
+// plan.controlUrl → wss://api.example.com/api/voice/monitor/<sessionId>/control
+```
+
+Surface summary:
+- **`createVoiceInMemoryMonitorRegistry()`** — `{ register, get, list, emit, emitClose }`. Voice's session runtime (or any caller) wires `register()` on open + the returned deregister on close; `emit()` fans out outbound audio frames; `emitClose()` notifies listeners that the call ended.
+- **`createVoiceLiveMonitorRoutes(options)`** — Elysia plugin that mounts two `.ws()` routes per session: `:sessionId/listen` (read-only outbound audio as binary frames) and `:sessionId/control` (JSON control messages). Default handlers map `transfer`/`hangup`/`escalate`/`voicemail`/`no-answer` onto `VoiceSessionHandle` verbs; `mute`/`say`/`inject` require caller-supplied handlers via `controlHandlers`.
+- **`buildVoiceMonitorPlan(input)`** — Vapi-shaped helper returning `{ listenUrl, controlUrl }` for inclusion in your call-create API response.
+- **Auth hook** — `authenticate?: ({ sessionId, route, request }) => Promise<boolean>` runs at the start of both routes; rejected connections get a 4401 close.
+
+This is a **primitive**: wiring voice's existing `activeSessions` runtime into the registry (so audio actually flows from a real call without manual `record.emit()` calls) is the next step and intentionally left out to keep this change additive. Until then, registries built by hand (e.g. from a custom telephony adapter where you control the outbound audio buffer) work out of the box.
+
 ### 0.0.22-beta.472 · Phase 6 — multilingual STT proof gate
 
 `runVoiceMultilingualProof(...)` turns the `voice-fixtures-multilingual` corpus (FLEURS + BSC Catalan-Spanish code-switch + CoSHE Hindi-English code-switch) into a gateable readiness/proof artifact. Buyers evaluating Vapi-replacement can now run any combination of STT adapters against the multilingual corpus and assert per-language WER / pass-rate / term-recall budgets in CI.
