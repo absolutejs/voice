@@ -1555,6 +1555,23 @@ export const renderVoiceOperationsRecordIncidentMarkdown = (
         return `- ${event.event}: ${parts.join("; ")}`;
       })
     : ["- none recorded"];
+  const mediaPipelineLine = record.mediaPipeline
+    ? [
+        `status=${record.mediaPipeline.status}`,
+        `surface=${record.mediaPipeline.surface}`,
+        `quality=${record.mediaPipeline.qualityStatus}`,
+        `transport=${record.mediaPipeline.transportStatus ?? "n/a"}`,
+        `graph=${record.mediaPipeline.processorGraphStatus ?? "n/a"}`,
+        `frames=${String(record.mediaPipeline.frames)}`,
+        `jitter=${record.mediaPipeline.jitterMs === undefined ? "n/a" : `${String(record.mediaPipeline.jitterMs)}ms`}`,
+        `issueCodes=${record.mediaPipeline.issueCodes.join(", ") || "none"}`,
+      ].join("; ")
+    : "not provided";
+  const mediaPipelineCodeLines = record.mediaPipeline
+    ? record.mediaPipeline.issueCodes.length
+      ? record.mediaPipeline.issueCodes.map((code) => `- ${code}`)
+      : ["- none"]
+    : ["- media pipeline report not attached to this record"];
 
   return [
     `# Voice incident handoff: ${record.sessionId}`,
@@ -1570,6 +1587,7 @@ export const renderVoiceOperationsRecordIncidentMarkdown = (
     `- Guardrails: ${String(record.guardrails.blocked)} blocked / ${String(record.guardrails.warned)} warned / ${String(record.guardrails.total)} decisions`,
     `- Provider recovery: ${providerRecoveryLine}`,
     `- Telephony media: ${telephonyMediaLine}`,
+    `- Media pipeline: ${mediaPipelineLine}`,
     "",
     "## Provider decisions",
     "",
@@ -1578,6 +1596,10 @@ export const renderVoiceOperationsRecordIncidentMarkdown = (
     "## Telephony media",
     "",
     ...telephonyMediaLines,
+    "",
+    "## Media pipeline issue codes",
+    "",
+    ...mediaPipelineCodeLines,
     "",
     renderVoiceOperationsRecordGuardrailMarkdown(record),
     "",
@@ -1715,6 +1737,24 @@ export const renderVoiceOperationsRecordHTML = (
         })
         .join("")
     : "<li>No telephony media trace events recorded.</li>";
+  const mediaPipelineSection = record.mediaPipeline
+    ? `<section id="media-pipeline"><h2>Media Pipeline</h2><p class="muted">Surface: ${escapeHtml(record.mediaPipeline.surface)} · Status: ${escapeHtml(record.mediaPipeline.status)} · Quality: ${escapeHtml(record.mediaPipeline.qualityStatus)} · Transport: ${escapeHtml(record.mediaPipeline.transportStatus ?? "n/a")} · Graph: ${escapeHtml(record.mediaPipeline.processorGraphStatus ?? "n/a")} · Frames: ${String(record.mediaPipeline.frames)} · Jitter: ${record.mediaPipeline.jitterMs === undefined ? "n/a" : `${String(record.mediaPipeline.jitterMs)}ms`}</p><ul>${
+        record.mediaPipeline.issueCodes.length
+          ? record.mediaPipeline.issueCodes
+              .map(
+                (code) =>
+                  `<li><strong>${escapeHtml(code)}</strong></li>`,
+              )
+              .join("")
+          : "<li>No media pipeline issue codes.</li>"
+      }</ul></section>`
+    : "";
+  const mediaPipelineCard = record.mediaPipeline
+    ? `<div class="card"><span>Media pipeline</span><strong>${escapeHtml(record.mediaPipeline.status)}</strong><span>${String(record.mediaPipeline.issueCodes.length)} issue code(s)</span></div>`
+    : "";
+  const mediaPipelineNavLink = record.mediaPipeline
+    ? '<a href="#media-pipeline">Media pipeline</a>'
+    : "";
   const snippet = escapeHtml(`app.use(
 	createVoiceOperationsRecordRoutes({
 		audit: auditStore,
@@ -1736,7 +1776,7 @@ export const renderVoiceOperationsRecordHTML = (
     ? `<a href="${escapeHtml(options.incidentHref)}">Download incident.md</a>`
     : "";
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? "Voice Operations Record")}</title><style>body{background:#101417;color:#f9f4e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.eyebrow{color:#fbbf24;font-size:.8rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.8rem);line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #475569;border-radius:999px;display:inline-flex;padding:8px 12px}.healthy{color:#86efac}.warning{color:#fbbf24}.failed,.error{color:#fca5a5}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:20px 0}.card,.primitive{background:#182025;border:1px solid #2d3a43;border-radius:20px;padding:16px}.card span,.muted,.label{color:#a9b4bd}.label{display:block;font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.card strong{display:block;font-size:2rem}section{margin-top:28px}article{display:grid;gap:8px}ul{display:grid;gap:10px;list-style:none;padding:0}li{background:#182025;border:1px solid #2d3a43;border-radius:16px;padding:14px}pre{background:#080d10;border:1px solid #2d3a43;border-radius:16px;color:#dbeafe;overflow:auto;padding:14px}.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.hero-actions a{background:#fbbf24;border-radius:999px;color:#111827;font-weight:900;padding:10px 14px;text-decoration:none}.two-column{display:grid;gap:18px;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr)}@media(max-width:860px){main{padding:20px}.two-column{grid-template-columns:1fr}}</style></head><body><main><p class="eyebrow">Call log replacement</p><h1>${escapeHtml(options.title ?? "Voice Operations Record")}</h1><p class="status ${escapeHtml(record.status)}">${escapeHtml(record.status)}</p><div class="hero-actions"><a href="#transcript">Transcript</a><a href="#provider-decisions">Provider decisions</a><a href="#telephony-media">Telephony media</a><a href="#guardrails">Guardrails</a><a href="#incident-handoff">Incident handoff</a>${incidentLink}</div><section class="grid"><div class="card"><span>Events</span><strong>${String(record.summary.eventCount)}</strong></div><div class="card"><span>Turns</span><strong>${String(record.summary.turnCount)}</strong></div><div class="card"><span>Errors</span><strong>${String(record.summary.errorCount)}</strong></div><div class="card"><span>Duration</span><strong>${formatMs(record.summary.callDurationMs)}</strong></div><div class="card"><span>Provider recovery</span><strong>${escapeHtml(providerDecisionSummary.recoveryStatus)}</strong><span>${String(providerDecisionSummary.fallbacks)} fallback / ${String(providerDecisionSummary.degraded)} degraded / ${String(providerDecisionSummary.errors)} errors</span></div><div class="card"><span>Telephony media</span><strong>${String(record.telephonyMedia.media)}</strong><span>${String(record.telephonyMedia.inbound)} inbound / ${String(record.telephonyMedia.outbound)} outbound / ${String(record.telephonyMedia.clears)} clears</span></div><div class="card"><span>Guardrails</span><strong>${String(record.guardrails.blocked)}</strong></div><div class="card"><span>Audit</span><strong>${String(record.audit?.total ?? 0)}</strong></div><div class="card"><span>Reviews</span><strong>${String(record.reviews?.total ?? 0)}</strong></div><div class="card"><span>Tasks</span><strong>${String(record.tasks?.total ?? 0)}</strong></div><div class="card"><span>Integrations</span><strong>${String(record.integrationEvents?.total ?? 0)}</strong></div></section><section class="two-column"><div><h2 id="transcript">Transcript</h2><ul>${transcript}</ul></div><div><h2 id="provider-decisions">Provider Decisions</h2><ul>${providerDecisions}</ul></div></section><section id="telephony-media"><h2>Telephony Media</h2><p class="muted">Live <code>client.telephony_media</code> stream lifecycle evidence attached to this session. Carriers: ${escapeHtml(record.telephonyMedia.carriers.join(", ") || "none")}. Streams: ${escapeHtml(record.telephonyMedia.streamIds.join(", ") || "none")}. Inbound: ${String(record.telephonyMedia.inbound)}. Outbound: ${String(record.telephonyMedia.outbound)}. Marks: ${String(record.telephonyMedia.marks)}. Clears: ${String(record.telephonyMedia.clears)}.</p><ul>${telephonyMedia}</ul></section><section id="guardrails"><h2>Guardrail Evidence</h2><p class="muted">Live <code>assistant.guardrail</code> decisions attached to this session.</p><ul>${guardrails}</ul></section><section id="incident-handoff"><h2>Copyable Incident Handoff</h2><p class="muted">Paste this into Slack, Linear, Zendesk, or an incident review. ${incidentLink}</p><pre><code>${incidentMarkdown}</code></pre></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceOperationsRecordRoutes(...)</code> gives every call one debuggable object</h2><p class="muted">Use this as the support/debug payload across traces, provider routing, tools, handoffs, guardrails, audit, latency, replay, reviews, tasks, media streams, and webhook delivery.</p><pre><code>${snippet}</code></pre></section><section><h2>Provider Summary</h2><div class="grid">${providers}</div></section><section><h2>Handoffs</h2><ul>${handoffs}</ul></section><section><h2>Tools</h2><ul>${tools}</ul></section><section><h2>Reviews</h2><ul>${reviews}</ul></section><section><h2>Tasks</h2><ul>${tasks}</ul></section><section><h2>Integration Events</h2><ul>${integrationEvents}</ul></section></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? "Voice Operations Record")}</title><style>body{background:#101417;color:#f9f4e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.eyebrow{color:#fbbf24;font-size:.8rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.8rem);line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #475569;border-radius:999px;display:inline-flex;padding:8px 12px}.healthy{color:#86efac}.warning{color:#fbbf24}.failed,.error{color:#fca5a5}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:20px 0}.card,.primitive{background:#182025;border:1px solid #2d3a43;border-radius:20px;padding:16px}.card span,.muted,.label{color:#a9b4bd}.label{display:block;font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.card strong{display:block;font-size:2rem}section{margin-top:28px}article{display:grid;gap:8px}ul{display:grid;gap:10px;list-style:none;padding:0}li{background:#182025;border:1px solid #2d3a43;border-radius:16px;padding:14px}pre{background:#080d10;border:1px solid #2d3a43;border-radius:16px;color:#dbeafe;overflow:auto;padding:14px}.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.hero-actions a{background:#fbbf24;border-radius:999px;color:#111827;font-weight:900;padding:10px 14px;text-decoration:none}.two-column{display:grid;gap:18px;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr)}@media(max-width:860px){main{padding:20px}.two-column{grid-template-columns:1fr}}</style></head><body><main><p class="eyebrow">Call log replacement</p><h1>${escapeHtml(options.title ?? "Voice Operations Record")}</h1><p class="status ${escapeHtml(record.status)}">${escapeHtml(record.status)}</p><div class="hero-actions"><a href="#transcript">Transcript</a><a href="#provider-decisions">Provider decisions</a><a href="#telephony-media">Telephony media</a>${mediaPipelineNavLink}<a href="#guardrails">Guardrails</a><a href="#incident-handoff">Incident handoff</a>${incidentLink}</div><section class="grid"><div class="card"><span>Events</span><strong>${String(record.summary.eventCount)}</strong></div><div class="card"><span>Turns</span><strong>${String(record.summary.turnCount)}</strong></div><div class="card"><span>Errors</span><strong>${String(record.summary.errorCount)}</strong></div><div class="card"><span>Duration</span><strong>${formatMs(record.summary.callDurationMs)}</strong></div><div class="card"><span>Provider recovery</span><strong>${escapeHtml(providerDecisionSummary.recoveryStatus)}</strong><span>${String(providerDecisionSummary.fallbacks)} fallback / ${String(providerDecisionSummary.degraded)} degraded / ${String(providerDecisionSummary.errors)} errors</span></div><div class="card"><span>Telephony media</span><strong>${String(record.telephonyMedia.media)}</strong><span>${String(record.telephonyMedia.inbound)} inbound / ${String(record.telephonyMedia.outbound)} outbound / ${String(record.telephonyMedia.clears)} clears</span></div><div class="card"><span>Guardrails</span><strong>${String(record.guardrails.blocked)}</strong></div><div class="card"><span>Audit</span><strong>${String(record.audit?.total ?? 0)}</strong></div><div class="card"><span>Reviews</span><strong>${String(record.reviews?.total ?? 0)}</strong></div><div class="card"><span>Tasks</span><strong>${String(record.tasks?.total ?? 0)}</strong></div><div class="card"><span>Integrations</span><strong>${String(record.integrationEvents?.total ?? 0)}</strong></div>${mediaPipelineCard}</section><section class="two-column"><div><h2 id="transcript">Transcript</h2><ul>${transcript}</ul></div><div><h2 id="provider-decisions">Provider Decisions</h2><ul>${providerDecisions}</ul></div></section><section id="telephony-media"><h2>Telephony Media</h2><p class="muted">Live <code>client.telephony_media</code> stream lifecycle evidence attached to this session. Carriers: ${escapeHtml(record.telephonyMedia.carriers.join(", ") || "none")}. Streams: ${escapeHtml(record.telephonyMedia.streamIds.join(", ") || "none")}. Inbound: ${String(record.telephonyMedia.inbound)}. Outbound: ${String(record.telephonyMedia.outbound)}. Marks: ${String(record.telephonyMedia.marks)}. Clears: ${String(record.telephonyMedia.clears)}.</p><ul>${telephonyMedia}</ul></section>${mediaPipelineSection}<section id="guardrails"><h2>Guardrail Evidence</h2><p class="muted">Live <code>assistant.guardrail</code> decisions attached to this session.</p><ul>${guardrails}</ul></section><section id="incident-handoff"><h2>Copyable Incident Handoff</h2><p class="muted">Paste this into Slack, Linear, Zendesk, or an incident review. ${incidentLink}</p><pre><code>${incidentMarkdown}</code></pre></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceOperationsRecordRoutes(...)</code> gives every call one debuggable object</h2><p class="muted">Use this as the support/debug payload across traces, provider routing, tools, handoffs, guardrails, audit, latency, replay, reviews, tasks, media streams, and webhook delivery.</p><pre><code>${snippet}</code></pre></section><section><h2>Provider Summary</h2><div class="grid">${providers}</div></section><section><h2>Handoffs</h2><ul>${handoffs}</ul></section><section><h2>Tools</h2><ul>${tools}</ul></section><section><h2>Reviews</h2><ul>${reviews}</ul></section><section><h2>Tasks</h2><ul>${tasks}</ul></section><section><h2>Integration Events</h2><ul>${integrationEvents}</ul></section></main></body></html>`;
 };
 
 export const createVoiceOperationsRecordRoutes = (
