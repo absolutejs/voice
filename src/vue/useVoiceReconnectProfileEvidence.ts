@@ -1,4 +1,4 @@
-import { onUnmounted, ref, shallowRef } from "vue";
+import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import {
   createVoiceReconnectProfileEvidenceStore,
   type VoiceReconnectProfileEvidenceClientOptions,
@@ -25,9 +25,9 @@ export function useVoiceReconnectProfileEvidence(
   };
   const unsubscribe = store.subscribe(sync);
   sync();
-  if (typeof window !== "undefined") {
+  onMounted(() => {
     void store.refresh().catch(() => {});
-  }
+  });
 
   onUnmounted(() => {
     unsubscribe();

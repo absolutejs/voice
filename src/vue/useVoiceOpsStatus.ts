@@ -1,4 +1,4 @@
-import { onUnmounted, ref, shallowRef } from "vue";
+import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import {
   createVoiceOpsStatusStore,
   type VoiceOpsStatusClientOptions,
@@ -23,9 +23,9 @@ export function useVoiceOpsStatus(
   };
   const unsubscribe = store.subscribe(sync);
   sync();
-  if (typeof window !== "undefined") {
+  onMounted(() => {
     void store.refresh().catch(() => {});
-  }
+  });
 
   onUnmounted(() => {
     unsubscribe();

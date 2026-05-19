@@ -1,4 +1,4 @@
-import { onBeforeUnmount, readonly, ref } from "vue";
+import { onMounted, onBeforeUnmount, readonly, ref } from "vue";
 import {
   createVoiceReadinessFailuresStore,
   type VoiceReadinessFailuresClientOptions,
@@ -23,9 +23,9 @@ export const useVoiceReadinessFailures = (
   };
   const unsubscribe = store.subscribe(sync);
   sync();
-  if (typeof window !== "undefined") {
+  onMounted(() => {
     void store.refresh().catch(() => {});
-  }
+  });
   onBeforeUnmount(() => {
     unsubscribe();
     store.close();

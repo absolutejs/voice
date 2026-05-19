@@ -1,0 +1,505 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "AbsoluteJS AbsoluteJS" [ref=e3] [cursor=pointer]:
+      - /url: /
+      - img "AbsoluteJS" [ref=e4]
+      - text: AbsoluteJS
+    - navigation [ref=e5]:
+      - link "React" [ref=e6] [cursor=pointer]:
+        - /url: /react
+      - link "Svelte" [ref=e7] [cursor=pointer]:
+        - /url: /svelte
+      - link "Vue" [ref=e8] [cursor=pointer]:
+        - /url: /vue
+      - link "Angular" [ref=e9] [cursor=pointer]:
+        - /url: /angular
+      - link "HTML" [ref=e10] [cursor=pointer]:
+        - /url: /html
+      - link "HTMX" [ref=e11] [cursor=pointer]:
+        - /url: /htmx
+      - link "Reviews" [ref=e12] [cursor=pointer]:
+        - /url: /reviews
+      - link "Traces" [ref=e13] [cursor=pointer]:
+        - /url: /traces
+      - link "Carriers" [ref=e14] [cursor=pointer]:
+        - /url: /carriers
+      - link "Phone Agent" [ref=e15] [cursor=pointer]:
+        - /url: /phone-agent
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - article [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]:
+            - generic [ref=e21]: React Hook
+            - heading "Chat-style voice demo in React" [level=2] [ref=e22]
+            - paragraph [ref=e23]: React uses useVoiceStream so the page reacts to partials, committed turns, and completion state without custom wiring.
+            - generic [ref=e24]:
+              - generic [ref=e25]: Deepgram Flux
+              - generic [ref=e26]: Phrase hint correction
+              - generic [ref=e27]: Reconnect-aware sessions
+          - generic [ref=e28]:
+            - generic [ref=e29]:
+              - generic [ref=e30]: Connection
+              - text: Waiting
+            - generic [ref=e31]:
+              - generic [ref=e32]: Scenario
+              - text: Choose one
+            - generic [ref=e33]:
+              - generic [ref=e34]: Saved captures
+              - text: "0"
+            - generic [ref=e35]:
+              - generic [ref=e36]: Model
+              - text: Deterministic local model
+            - generic [ref=e37]:
+              - generic [ref=e38]: Routing
+              - text: Balanced routing
+            - generic [ref=e39]:
+              - generic [ref=e40]: Guarded profile
+              - text: Unknown
+              - generic [ref=e41]: Waiting for session guard
+      - article [ref=e42]:
+        - generic [ref=e43]: Model Provider
+        - heading "Choose the assistant brain" [level=2] [ref=e44]
+        - paragraph [ref=e45]: Switch providers before starting the microphone. The voice route receives the selected provider on every session.
+        - generic [ref=e46]:
+          - generic [ref=e47]: Provider
+          - combobox "Provider" [ref=e48]:
+            - option "Deterministic local model" [selected]
+            - option "OpenAI"
+            - option "Anthropic Claude"
+            - option "Google Gemini"
+        - generic [ref=e49]:
+          - generic [ref=e50]: Voice profile
+          - combobox "Voice profile" [ref=e51]:
+            - option "Meeting recorder" [selected]
+            - option "Support agent"
+            - option "Appointment scheduler"
+            - option "Noisy phone call"
+        - generic [ref=e52]:
+          - generic [ref=e53]: STT routing
+          - combobox "STT routing" [ref=e54]:
+            - option "Balanced routing" [selected]
+            - option "Fastest realtime"
+            - option "Cheapest acceptable"
+            - option "Quality first"
+        - generic [ref=e55]:
+          - generic [ref=e56]: Speech engine
+          - combobox "Speech engine" [ref=e57]:
+            - option "Cascaded STT + LLM + TTS" [selected]
+            - option "OpenAI Realtime"
+        - paragraph [ref=e58]: Meeting recorder uses General browser recording with meeting-focused defaults.
+      - article [ref=e59]:
+        - generic [ref=e60]: Proof dashboards
+        - heading "Open the production evidence" [level=2] [ref=e61]
+        - paragraph [ref=e62]: "The same trace-backed package routes work in every framework: interruption, live timing, turn waterfalls, readiness, and provider contracts."
+        - generic [ref=e63]:
+          - link "Run full proof One action runs the demo proof suite and links every surface." [ref=e64] [cursor=pointer]:
+            - /url: /demo-proof
+            - strong [ref=e65]: Run full proof
+            - generic [ref=e66]: One action runs the demo proof suite and links every surface.
+          - link "Barge-in Interruption stop latency from browser barge-in events." [ref=e67] [cursor=pointer]:
+            - /url: /barge-in
+            - strong [ref=e68]: Barge-in
+            - generic [ref=e69]: Interruption stop latency from browser barge-in events.
+          - link "Live latency Speech-to-assistant timing from live browser traces." [ref=e70] [cursor=pointer]:
+            - /url: /live-latency
+            - strong [ref=e71]: Live latency
+            - generic [ref=e72]: Speech-to-assistant timing from live browser traces.
+          - link "Turn waterfall Turn waterfall from speech detection through first audio." [ref=e73] [cursor=pointer]:
+            - /url: /turn-latency
+            - strong [ref=e74]: Turn waterfall
+            - generic [ref=e75]: Turn waterfall from speech detection through first audio.
+          - link "Sustained trends Repeated provider, turn, live-latency, recovery, and readiness trends." [ref=e76] [cursor=pointer]:
+            - /url: /voice/proof-trends
+            - strong [ref=e77]: Sustained trends
+            - generic [ref=e78]: Repeated provider, turn, live-latency, recovery, and readiness trends.
+          - link "Trace timelines Session timelines across providers, tools, and recovery." [ref=e79] [cursor=pointer]:
+            - /url: /traces
+            - strong [ref=e80]: Trace timelines
+            - generic [ref=e81]: Session timelines across providers, tools, and recovery.
+          - link "Operations record Single-session trace, audit, handoff, and tool support record." [ref=e82] [cursor=pointer]:
+            - /url: /voice-operations/demo-incident-bundle
+            - strong [ref=e83]: Operations record
+            - generic [ref=e84]: Single-session trace, audit, handoff, and tool support record.
+          - link "Incident handoff Copyable incident handoff generated from the operations record." [ref=e85] [cursor=pointer]:
+            - /url: /voice-operations/demo-incident-bundle/incident.md
+            - strong [ref=e86]: Incident handoff
+            - generic [ref=e87]: Copyable incident handoff generated from the operations record.
+          - link "Incident bundle Redacted Markdown export for support and incident response." [ref=e88] [cursor=pointer]:
+            - /url: /voice-incidents/demo-incident-bundle/markdown
+            - strong [ref=e89]: Incident bundle
+            - generic [ref=e90]: Redacted Markdown export for support and incident response.
+          - link "Readiness Deploy gate for runtime, providers, sinks, and proof." [ref=e91] [cursor=pointer]:
+            - /url: /production-readiness
+            - strong [ref=e92]: Readiness
+            - generic [ref=e93]: Deploy gate for runtime, providers, sinks, and proof.
+          - link "Ops recovery Provider fallback, queue failures, handoffs, live ops, and latency SLOs." [ref=e94] [cursor=pointer]:
+            - /url: /ops-recovery
+            - strong [ref=e95]: Ops recovery
+            - generic [ref=e96]: Provider fallback, queue failures, handoffs, live ops, and latency SLOs.
+          - link "Data control Redaction, retention dry-runs, audit exports, and provider key posture." [ref=e97] [cursor=pointer]:
+            - /url: /data-control
+            - strong [ref=e98]: Data control
+            - generic [ref=e99]: Redaction, retention dry-runs, audit exports, and provider key posture.
+          - link "Provider contracts Configured provider capability and fallback matrix." [ref=e100] [cursor=pointer]:
+            - /url: /provider-contracts
+            - strong [ref=e101]: Provider contracts
+            - generic [ref=e102]: Configured provider capability and fallback matrix.
+          - link "Profile policy Auto, recommend, off, allowed, blocked, and max-switch guard policies." [ref=e103] [cursor=pointer]:
+            - /url: /voice/profile-switch-policy
+            - strong [ref=e104]: Profile policy
+            - generic [ref=e105]: Auto, recommend, off, allowed, blocked, and max-switch guard policies.
+          - link "Profile decisions Real profile guard decisions from audit and trace evidence." [ref=e106] [cursor=pointer]:
+            - /url: /voice/profile-switch-live-decisions
+            - strong [ref=e107]: Profile decisions
+            - generic [ref=e108]: Real profile guard decisions from audit and trace evidence.
+          - link "Profile readiness Deploy-facing gate for profile switch policy, audit, trace, and live evidence." [ref=e109] [cursor=pointer]:
+            - /url: /voice/profile-switch-readiness
+            - strong [ref=e110]: Profile readiness
+            - generic [ref=e111]: Deploy-facing gate for profile switch policy, audit, trace, and live evidence.
+      - article [ref=e112]:
+        - generic [ref=e113]: Real-Call Evidence Collector
+        - heading "Checking collector" [level=2] [ref=e114]
+        - paragraph [ref=e115]: React renders whether rolling real-call evidence is automatic or manual, backed by the same worker health route used by readiness.
+      - generic [ref=e116]:
+        - generic [ref=e117]:
+          - generic [ref=e118]: Vapi Replacement Coverage
+          - strong [ref=e119]: No coverage report
+        - paragraph [ref=e120]: React renders the package coverage component against the same proof-backed route used by the server.
+        - paragraph [ref=e121]: Run the proof pack to populate platform coverage evidence.
+        - paragraph [ref=e122]:
+          - link "Switching guide" [ref=e123] [cursor=pointer]:
+            - /url: /switching-from-vapi
+          - link "Coverage JSON" [ref=e124] [cursor=pointer]:
+            - /url: /api/voice/vapi-coverage
+      - generic [ref=e125]:
+        - generic [ref=e126]:
+          - generic [ref=e127]: Sustained Proof Trends
+          - strong [ref=e128]: No trend report
+        - paragraph [ref=e129]: React renders sustained proof freshness, provider p95, turn p95, and live p95 from the package proof-trends widget.
+        - paragraph [ref=e130]: Run the sustained proof trends script to populate evidence.
+        - paragraph [ref=e131]:
+          - link "Trend page" [ref=e132] [cursor=pointer]:
+            - /url: /voice/proof-trends
+          - link "Trend JSON" [ref=e133] [cursor=pointer]:
+            - /url: /api/voice/proof-trends
+      - generic [ref=e134]:
+        - generic [ref=e135]:
+          - generic [ref=e136]: Profile + Reconnect Evidence
+          - strong [ref=e137]: No profile evidence
+        - paragraph [ref=e138]: React renders measured profile defaults and persisted reconnect resume evidence so users can see why each voice stack was selected.
+        - paragraph [ref=e139]: Run real-call profile collection to populate profile comparisons.
+        - paragraph [ref=e140]:
+          - link "Profile history" [ref=e141] [cursor=pointer]:
+            - /url: /voice/real-call-profile-history
+          - link "JSON" [ref=e142] [cursor=pointer]:
+            - /url: /api/voice/real-call-profile-history
+      - generic [ref=e143]:
+        - generic [ref=e144]:
+          - generic [ref=e145]: Persisted Reconnect Evidence
+          - strong [ref=e146]: No reconnect evidence
+        - paragraph [ref=e147]: React renders persisted real browser reconnect/resume traces from the package reconnect evidence primitive.
+        - generic [ref=e148]:
+          - article [ref=e149]:
+            - text: Samples
+            - strong [ref=e150]: "0"
+          - article [ref=e151]:
+            - text: Snapshots
+            - strong [ref=e152]: "0"
+          - article [ref=e153]:
+            - text: Resume p95
+            - strong [ref=e154]: n/a
+          - article [ref=e155]:
+            - text: Last proof
+            - strong [ref=e156]: No evidence
+        - paragraph [ref=e157]: No persisted reconnect profile evidence yet.
+        - paragraph [ref=e158]:
+          - link "Reconnect contract" [ref=e159] [cursor=pointer]:
+            - /url: /voice/reconnect-contract
+          - link "Profile history JSON" [ref=e160] [cursor=pointer]:
+            - /url: /api/voice/real-call-profile-history
+      - generic [ref=e162]:
+        - generic [ref=e163]:
+          - generic [ref=e164]: Profile Switch Recommendation
+          - strong [ref=e165]: No recommendation
+        - paragraph [ref=e166]: React compares the latest session signals against measured profile evidence and recommends whether to switch stacks.
+        - paragraph [ref=e167]: Run session traffic to populate a recommendation.
+      - generic [ref=e168]:
+        - generic [ref=e169]:
+          - generic [ref=e170]: Readiness Gate Explanations
+          - strong [ref=e171]: No readiness report
+        - paragraph [ref=e172]: React renders structured deploy-gate explanations from production readiness JSON when calibrated gates warn or fail.
+        - paragraph [ref=e173]: No calibrated readiness gate explanations are open.
+        - paragraph [ref=e174]:
+          - link "Readiness page" [ref=e175] [cursor=pointer]:
+            - /url: /production-readiness
+          - link "Gate thresholds" [ref=e176] [cursor=pointer]:
+            - /url: /voice/slo-readiness-thresholds
+      - generic [ref=e177]:
+        - generic [ref=e178]:
+          - generic [ref=e179]: Session Debug Snapshot
+          - strong [ref=e180]: No snapshot
+        - paragraph [ref=e181]: React renders a downloadable support bundle with session media graph, provider routing, and turn-quality evidence.
+        - paragraph [ref=e182]: Load a session snapshot to see support diagnostics.
+      - generic [ref=e183]:
+        - generic [ref=e184]:
+          - generic [ref=e185]: Session Observability
+          - strong [ref=e186]: No session loaded
+        - paragraph [ref=e187]: React renders one per-call support report with turn waterfalls, provider recovery, tools, handoffs, guardrails, and incident handoff links.
+        - paragraph [ref=e188]: Open a voice session to see turn waterfalls.
+      - generic [ref=e189]:
+        - generic [ref=e190]:
+          - generic [ref=e191]: Debug Latest Call
+          - strong [ref=e192]: No call loaded
+        - paragraph [ref=e193]: React opens the latest full call debugger with snapshot, replay, provider path, transcript, and incident markdown.
+        - link "Open debugger" [ref=e194] [cursor=pointer]:
+          - /url: /voice-call-debugger/latest
+        - paragraph [ref=e195]: Load a call debugger report to see the latest support artifact.
+      - generic [ref=e196]:
+        - generic [ref=e197]:
+          - generic [ref=e198]: Voice Routing
+          - strong [ref=e199]: No routing yet
+        - paragraph [ref=e200]: Latest provider routing decision from the self-hosted trace store.
+        - paragraph [ref=e201]: Start a voice session to see the selected provider.
+      - article [ref=e202]:
+        - generic [ref=e203]: Agent Squad
+        - heading "Specialist routing is live" [level=2] [ref=e204]
+        - paragraph [ref=e205]: Say “I have a billing question about my invoice” to route from the front desk to billing with a compact context policy.
+        - generic [ref=e206]:
+          - generic [ref=e207]:
+            - generic: Current specialist
+            - strong [ref=e208]: front-desk
+          - generic [ref=e209]:
+            - generic: Context policy
+            - strong [ref=e210]: handoff-summary-current-turn
+          - generic [ref=e211]:
+            - generic: Handoffs
+            - strong [ref=e212]: "0"
+          - generic [ref=e213]:
+            - generic: Messages sent
+            - strong [ref=e214]: ready
+        - paragraph [ref=e215]: No specialist handoff in this session yet.
+        - paragraph [ref=e216]:
+          - link "Open squad contract proof" [ref=e217] [cursor=pointer]:
+            - /url: /agent-squad-contract
+      - generic [ref=e218]:
+        - generic [ref=e219]:
+          - generic [ref=e220]: Voice Providers
+          - strong [ref=e221]: No provider traffic
+        - paragraph [ref=e222]: Live provider health, fallback counts, latency, and suppression state from your self-hosted trace store.
+        - paragraph [ref=e223]: Run voice traffic to see provider health.
+      - generic [ref=e224]:
+        - generic [ref=e225]:
+          - generic [ref=e226]: Provider Capabilities
+          - strong [ref=e227]: No capabilities
+        - paragraph [ref=e228]: Configured, selected, and healthy voice providers for this deployment.
+        - paragraph [ref=e229]: Configure provider capabilities to see deployment coverage.
+      - generic [ref=e230]:
+        - generic [ref=e231]:
+          - generic [ref=e232]: Provider Contracts
+          - strong [ref=e233]: No contracts
+        - paragraph [ref=e234]: Production contract coverage for provider env, latency, fallback, streaming, and capabilities.
+        - paragraph [ref=e235]: Configure provider contracts to see production coverage.
+      - generic [ref=e236]:
+        - generic [ref=e237]:
+          - generic [ref=e238]: STT Failure Simulation
+          - strong [ref=e239]: 2 configured
+        - paragraph [ref=e240]: Prove Deepgram STT failover to AssemblyAI without changing credentials.
+        - generic [ref=e241]:
+          - button "Simulate deepgram STT failure" [ref=e242] [cursor=pointer]
+          - button "Mark deepgram recovered" [ref=e243] [cursor=pointer]
+          - button "Mark assemblyai recovered" [ref=e244] [cursor=pointer]
+      - generic [ref=e245]:
+        - generic [ref=e246]:
+          - generic [ref=e247]: Turn Quality
+          - strong [ref=e248]: No turns
+        - paragraph [ref=e249]: Per-turn STT confidence, fallback selection, corrections, and transcript coverage.
+        - paragraph [ref=e250]: Complete a voice turn to see STT quality diagnostics.
+      - generic [ref=e251]:
+        - generic [ref=e252]:
+          - generic [ref=e253]: Turn Latency
+          - strong [ref=e254]: No turns
+        - paragraph [ref=e255]: Per-turn timing from first transcript to commit and assistant response start.
+        - button "Run latency proof" [ref=e256] [cursor=pointer]
+        - paragraph [ref=e257]: Complete a voice turn to see latency diagnostics.
+      - article [ref=e258]:
+        - generic [ref=e259]: Campaign Dialer Proof
+        - heading "Carrier dialer dry-run" [level=2] [ref=e260]
+        - paragraph [ref=e261]: Twilio, Telnyx, and Plivo campaign dials run through the shared React hook, attach campaign metadata, and resolve synthetic webhook outcomes.
+        - button "Run campaign dialer proof" [ref=e262] [cursor=pointer]
+        - paragraph [ref=e263]: Ready for twilio, telnyx, plivo.
+        - paragraph [ref=e264]:
+          - link "Open full proof" [ref=e265] [cursor=pointer]:
+            - /url: /voice/campaigns/dialer-proof
+      - generic [ref=e266]:
+        - generic [ref=e267]:
+          - generic [ref=e268]: Voice Ops Status
+          - strong [ref=e269]: Checking
+        - paragraph [ref=e270]: Certified workflow, provider, and handoff readiness from your AbsoluteJS voice app.
+        - generic [ref=e271]:
+          - generic [ref=e272]: 0 passing
+          - generic [ref=e273]: 0 failing
+          - generic [ref=e274]: 0 checks
+        - list [ref=e275]:
+          - listitem [ref=e276]:
+            - generic [ref=e277]: Status
+            - strong [ref=e278]: Waiting for first check
+      - generic [ref=e279]:
+        - generic [ref=e280]:
+          - generic [ref=e281]: Voice Delivery Runtime
+          - strong [ref=e282]: Checking
+        - paragraph [ref=e283]: Audit and trace delivery worker health from your AbsoluteJS voice app.
+        - list [ref=e284]:
+          - listitem [ref=e285]:
+            - text: Audit delivery
+            - strong [ref=e286]: Worker disabled
+            - generic [ref=e287]: 0 failed / 0 dead-lettered
+          - listitem [ref=e288]:
+            - text: Trace delivery
+            - strong [ref=e289]: Worker disabled
+            - generic [ref=e290]: 0 failed / 0 dead-lettered
+        - generic [ref=e291]:
+          - button "Tick workers" [ref=e292]
+          - button "Requeue dead letters" [disabled] [ref=e293]
+      - generic [ref=e294]:
+        - generic [ref=e295]:
+          - generic [ref=e296]: Voice Ops Action Center
+          - strong [ref=e297]: Ready
+        - paragraph [ref=e298]: Run production voice proofs and operator actions from one primitive panel.
+        - generic [ref=e299]:
+          - button "Refresh readiness" [ref=e300]
+          - button "Tick delivery workers" [ref=e301]
+          - button "Requeue dead letters" [ref=e302]
+          - button "Run latency proof" [ref=e303]
+          - button "Simulate deepgram failure" [ref=e304]
+          - button "Recover deepgram" [ref=e305]
+          - button "Simulate assemblyai failure" [ref=e306]
+          - button "Recover assemblyai" [ref=e307]
+        - paragraph [ref=e308]: No action has run yet.
+      - generic [ref=e311]:
+        - generic [ref=e312]:
+          - generic [ref=e313]: Voice Traces
+          - strong [ref=e314]: No traces yet
+        - paragraph [ref=e315]: Latest call timelines with provider latency, fallbacks, handoffs, and errors from your self-hosted trace store.
+        - paragraph [ref=e316]: Run a voice session to see call timelines.
+      - article [ref=e319]:
+        - generic [ref=e320]: Live Latency Proof
+        - heading "Waiting for speech" [level=2] [ref=e321]
+        - paragraph [ref=e322]: Measures real browser speech audio sent to the voice websocket until the next assistant audio or text is observed.
+        - generic [ref=e323]:
+          - generic [ref=e324]:
+            - generic: Status
+            - strong: empty
+          - generic [ref=e325]:
+            - generic: Last live turn
+            - strong: n/a
+          - generic [ref=e326]:
+            - generic: Target
+            - strong: < 3200ms
+          - generic [ref=e327]:
+            - generic: Passed
+            - strong: "0"
+        - paragraph [ref=e328]: Start the microphone and speak; this card updates when the assistant responds.
+      - article [ref=e329]:
+        - heading "Run the guided voice test" [level=2] [ref=e330]
+        - list [ref=e331]:
+          - listitem [ref=e332]: Click Start voice test to begin the first prompt.
+          - listitem [ref=e333]: Answer in your own words, then pause so the turn commits.
+          - listitem [ref=e334]: You can also say operational phrases like transfer me to billing, escalate this, send it to voicemail, or no answer.
+          - listitem [ref=e335]: Keep following the next prompt after each committed turn, or click Stop microphone when you are done.
+      - article [ref=e336]:
+        - generic [ref=e337]: Assistant API
+        - heading "support" [level=2] [ref=e338]
+        - paragraph [ref=e339]: Powered by createVoiceAssistant with a support-triage artifact plan.
+        - generic [ref=e340]:
+          - generic [ref=e341]:
+            - generic [ref=e342]: Tools
+            - list [ref=e343]:
+              - listitem [ref=e344]: intake classifier
+              - listitem [ref=e345]: lifecycle router
+              - listitem [ref=e346]: review/task recorder
+          - generic [ref=e347]:
+            - generic [ref=e348]: Guardrails
+            - list [ref=e349]:
+              - listitem [ref=e350]: Escalate when the caller asks for a human
+              - listitem [ref=e351]: Route transfer, voicemail, and no-answer intents into call outcomes
+          - generic [ref=e352]:
+            - generic [ref=e353]: Experiments
+            - list [ref=e354]:
+              - listitem [ref=e355]: baseline guide copy
+              - listitem [ref=e356]: direct support copy
+          - generic [ref=e357]:
+            - generic [ref=e358]: Artifacts
+            - list [ref=e359]:
+              - listitem [ref=e360]: review artifact
+              - listitem [ref=e361]: ops task
+              - listitem [ref=e362]: integration event
+              - listitem [ref=e363]: trace-ready session
+        - paragraph [ref=e364]:
+          - link "Open analytics" [ref=e365] [cursor=pointer]:
+            - /url: /assistant
+          - text: ·
+          - link "Open tasks" [ref=e366] [cursor=pointer]:
+            - /url: /tasks
+          - text: ·
+          - link "Open integration events" [ref=e367] [cursor=pointer]:
+            - /url: /integrations
+          - text: ·
+          - link "Open barge-in proof" [ref=e368] [cursor=pointer]:
+            - /url: /barge-in
+      - article [ref=e369]:
+        - heading "Conversation" [level=2] [ref=e370]
+        - generic [ref=e371]:
+          - generic [ref=e372]:
+            - generic [ref=e373]: Voice status
+            - generic [ref=e374]: idle
+          - generic [ref=e375]:
+            - generic [ref=e376]: Reconnect
+            - generic [ref=e377]: idle
+          - generic [ref=e378]:
+            - generic [ref=e379]: Current prompt
+            - generic [ref=e380]: Choose a scenario to begin. Guided test asks follow-up prompts. General recording just captures what you say.
+          - generic [ref=e381]:
+            - generic [ref=e382]: Microphone
+            - generic [ref=e383]: Ready. Start guided test or general recording to begin.
+          - generic [ref=e384]:
+            - generic [ref=e385]: Current utterance
+            - generic [ref=e386]: No speech captured yet
+          - generic [ref=e387]:
+            - generic [ref=e388]: Errors
+            - generic [ref=e389]: None
+          - generic [ref=e390]:
+            - generic [ref=e391]: Call lifecycle
+            - generic [ref=e392]: Not started
+        - article [ref=e394]:
+          - generic [ref=e395]: Voice demo
+          - paragraph [ref=e396]: Pick a scenario to begin the demo.
+        - generic [ref=e397]:
+          - generic [ref=e398]:
+            - generic [ref=e399]: Input monitor
+            - generic [ref=e400]: Microphone idle
+          - img "Microphone waveform" [ref=e402]
+        - generic [ref=e403]:
+          - button "Start guided test" [ref=e404] [cursor=pointer]
+          - button "Start general recording" [ref=e405] [cursor=pointer]
+        - generic [ref=e406]:
+          - button "Transfer to billing" [ref=e407] [cursor=pointer]
+          - button "Escalate" [ref=e408] [cursor=pointer]
+          - button "Send voicemail" [ref=e409] [cursor=pointer]
+          - button "No answer" [ref=e410] [cursor=pointer]
+        - paragraph [ref=e411]: This demo uses the dev-only in-memory voice session store. Real deployments should replace it with Redis or Postgres.
+      - article [ref=e412]:
+        - heading "Saved captures" [level=2] [ref=e413]
+        - paragraph [ref=e414]:
+          - text: Open
+          - link "the latest review" [ref=e415] [cursor=pointer]:
+            - /url: /reviews/latest
+          - text: or
+          - link "browse all reviews" [ref=e416] [cursor=pointer]:
+            - /url: /reviews
+          - text: after a completed demo call.
+        - paragraph [ref=e418]: No saved captures yet.
+    - paragraph [ref=e419]:
+      - text: Powered by
+      - link "AbsoluteJS" [ref=e420] [cursor=pointer]:
+        - /url: https://absolutejs.com

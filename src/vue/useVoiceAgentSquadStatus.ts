@@ -1,4 +1,4 @@
-import { onUnmounted, ref, shallowRef } from "vue";
+import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import {
   createVoiceAgentSquadStatusStore,
   type VoiceAgentSquadSpecialist,
@@ -26,9 +26,9 @@ export function useVoiceAgentSquadStatus(
   };
   const unsubscribe = store.subscribe(sync);
   sync();
-  if (typeof window !== "undefined") {
+  onMounted(() => {
     void store.refresh().catch(() => {});
-  }
+  });
 
   onUnmounted(() => {
     unsubscribe();

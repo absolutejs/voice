@@ -1,4 +1,4 @@
-import { onUnmounted, shallowRef } from "vue";
+import { onMounted, onUnmounted, shallowRef } from "vue";
 import {
   createVoiceCampaignDialerProofStore,
   type VoiceCampaignDialerProofClientOptions,
@@ -28,9 +28,9 @@ export function useVoiceCampaignDialerProof(
   };
   const unsubscribe = store.subscribe(sync);
   sync();
-  if (typeof window !== "undefined") {
+  onMounted(() => {
     void store.refresh().catch(() => {});
-  }
+  });
   onUnmounted(() => {
     unsubscribe();
     store.close();

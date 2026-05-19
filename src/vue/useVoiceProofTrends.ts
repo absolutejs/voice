@@ -1,4 +1,4 @@
-import { onUnmounted, ref, shallowRef } from "vue";
+import { onMounted, onUnmounted, ref, shallowRef } from "vue";
 import {
   createVoiceProofTrendsStore,
   type VoiceProofTrendsClientOptions,
@@ -23,9 +23,9 @@ export function useVoiceProofTrends(
   };
   const unsubscribe = store.subscribe(sync);
   sync();
-  if (typeof window !== "undefined") {
+  onMounted(() => {
     void store.refresh().catch(() => {});
-  }
+  });
 
   onUnmounted(() => {
     unsubscribe();
