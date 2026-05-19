@@ -3,18 +3,18 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491; cross-platform competitive gaps shipped through beta.509. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.507` (next-tier app-dev kit + cost predictor + browser support probe + ICE helpers + traffic analytics + live agent console)
+- Current package: `@absolutejs/voice@0.0.22-beta.509` (hold audio / wait-filler driver + prompt-injection guard + framework-wide live-agent console UI + in-call NPS/CSAT survey + DTMF input collector)
 - Companion media package: `@absolutejs/media@0.0.1-beta.18` (audio redaction + noise suppression contract + ffmpeg adapter)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `2c571a2 0.0.22-beta.507: 5 next-tier app-dev gaps closed`
+- Latest pushed voice commit: `281b654 0.0.22-beta.509: 5 more pragmatic pieces (hold audio, prompt-injection guard, live-agent console UI, post-call survey, DTMF collector)`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
-- Voice suite: **1208 pass / 1 flaky fail** (`fileStore.test.ts` filesystem-timing test passes when isolated; intermittent only under full-suite load).
+- Voice suite: **1241 pass / 1 flaky fail** (`fileStore.test.ts` filesystem-timing test passes when isolated; intermittent only under full-suite load; passed cleanly on last run).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.505; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .505.
 
 ## Companion Repos
@@ -190,6 +190,16 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 |---|---|---|
 | Multimodal image/screen-share mid-call | medium | Frame types in `media`, image-frame on session timeline in voice, `@absolutejs/ai` already supports multimodal LLMs |
 | Prosody-aware TTS + sentiment-aware STT | medium | Hume EVI adapter as the marquee surface, ElevenLabs/Cartesia style controls pass-through, sentiment-tag tool via `@absolutejs/ai` |
+
+### voice@0.0.22-beta.509 — 5 more pragmatic pieces
+
+| Gap | Surface |
+|---|---|
+| Hold-audio / wait-filler injection | `createVoiceHoldAudioDriver({ onCue, cues?, thinkingThresholdMs?, cooldownMs? })` returns `{ noteThinking, noteResponse, reset }`. Fires "let me check" cues when the agent thinks too long. Default cues, configurable threshold + cooldown |
+| Prompt-injection / adversarial input guard | `createVoicePromptInjectionGuard({ rules?, sanitizedReplacement? })` returns `{ evaluate, sanitize, rules }`. `DEFAULT_VOICE_PROMPT_INJECTION_RULES` covers ignore-prior-instructions, role-override, system-prompt-leak, developer-impersonation, jailbreak-persona, tool-misuse-request |
+| Live-agent console UI (all 4 frameworks) | `VoiceLiveAgentConsole` React component + `VoiceLiveAgentConsoleProps`; Vue `VoiceLiveAgentConsole` defineComponent; Svelte `createVoiceLiveAgentConsole` + `renderVoiceLiveAgentConsoleHTML`; Angular `VoiceLiveAgentConsoleService`. All route through the existing `createLiveAgentConsole` view-model |
+| In-call NPS / CSAT collector | `createVoicePostCallSurvey({ sessionId, questions?, now? })` returns `{ next, record, skip, complete, getResponse, questions }`. `DEFAULT_VOICE_POST_CALL_SURVEY_QUESTIONS` (NPS 0–10, resolved bool, free-text comment). `summarizeVoicePostCallSurveys(responses)` rolls up NPS / promoters / detractors / completion |
+| DTMF input collector | `collectVoiceDTMFInput({ prompt, minLength?, maxLength?, terminator?, timeoutMs?, interDigitTimeoutMs?, validator?, now? })` returns `{ feed, tick, cancel, getState, subscribe }`. `validateVoiceDTMFLuhn` ships as a built-in validator for card numbers. Rejection reasons: `invalid`, `timeout`, `too-short` |
 
 ### Out of scope — adapter-only
 
