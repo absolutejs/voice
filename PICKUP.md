@@ -75,15 +75,18 @@ Vapi-parity adapter coverage progress (Phase 4):
 - **`@absolutejs/voice-rime@0.0.1-beta.1`** (shipped) — TTS via Rime `/v1/rime-tts`. mist / mistv2 / arcana voice models, raw PCM or mulaw telephony, speedAlpha / phonemizeBetweenBrackets / reduceLatency controls. 6 tests.
 - **`@absolutejs/voice-lmnt@0.0.1-beta.1`** (shipped) — TTS via LMNT `/v1/ai/speech/stream`. aurora / blizzard / mochi models, raw PCM or mulaw, conversational / temperature / topP / seed / speed controls, language detection. 5 tests.
 - **`@absolutejs/voice-soniox@0.0.1-beta.1`** (shipped) — Streaming STT via Soniox `/transcribe-websocket`. Token-by-token transcripts with is_final flags bucketed into partial/final events, language hints, speaker diarization, endpoint detection, per-token confidence/timing/language/speaker lifted. 8 tests.
+- **`@absolutejs/voice-neets@0.0.1-beta.1`** (shipped) — TTS via Neets `/v1/tts` HTTP, ar-diff-50k / style-tts-2 / vits models, X-API-Key auth, PCM streaming. 5 tests.
+- **`@absolutejs/voice-smallest@0.0.1-beta.1`** (shipped) — TTS via Smallest `/api/v1/{model}/get_speech`, lightning + lightning-v2 models, English + Hindi, speed / similarity / consistency / enhancement controls. 5 tests.
+- **`@absolutejs/voice-openai-whisper@0.0.1-beta.1`** (shipped) — STT via OpenAI `/v1/audio/transcriptions` in **buffered-batch** mode: accumulate PCM chunks, build a RIFF header on flush(), POST as WAV, emit one final transcript + endOfTurn per flush. Supports whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe. Documented as the turn-based / fallback path; the streaming OpenAI path lives in `voice-openai`. 8 tests.
 
 Provider coverage vs Vapi's list now:
 - LLM: 2/7 native + Anthropic in voice + 13 via @absolutejs/ai → effectively complete.
-- TTS: **6/12** (ElevenLabs, Cartesia, Azure Neural, PlayHT, Rime, LMNT).
-- STT: **6/11** (Deepgram, AssemblyAI, Azure, Speechmatics, Gladia, Soniox).
+- TTS: **8/12** (ElevenLabs, Cartesia, Azure Neural, PlayHT, Rime, LMNT, Neets, Smallest).
+- STT: **7/11** (Deepgram, AssemblyAI, Azure, Speechmatics, Gladia, Soniox, OpenAI Whisper-buffered).
 
 Suggested next directions (none blocking):
 
-- Remaining Phase 4 gaps if buyers ask: Neets TTS, Smallest TTS, Tavus (TTS+video), Google Cloud Speech STT, OpenAI Whisper STT (one-shot), Cartesia STT (once their STT GA matures), Talkscriber STT. Each is ~1 day in the voice-adapters monorepo.
+- Remaining Phase 4 gaps if buyers ask: Tavus (TTS+video — different shape because Tavus is avatar-first; would need a new adapter category), Google Cloud Speech STT (canonical path is gRPC streaming, ~1.5 day to wrap without `@grpc/grpc-js`), Cartesia STT (Ink, once GA stabilizes — could go in the existing `voice-cartesia` package as a second export), Talkscriber STT.
 - Phase 5: build a `voiceListenAndControlSocket` primitive equivalent to Vapi's `monitorPlan.listenUrl` + `controlUrl` (supervisor barge-in over WebSocket).
 - Phase 6: wire `voice-fixtures-multilingual` into a Vapi-parity proof gate (run the corpus against several STT adapters, assert WER < threshold per language).
 - Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
