@@ -851,6 +851,22 @@ export type {
   VoiceAgentUIInput,
   VoiceAgentUIState,
 } from "./agentState";
+export {
+  createInMemoryDNCList,
+  isPhoneOnDNC,
+  isWithinCampaignWindow,
+  normalizePhoneNumber,
+  shouldRetryCampaignAttempt,
+  summarizeVoiceCampaignDispositions,
+} from "./campaignControls";
+export type {
+  VoiceCampaignDisposition,
+  VoiceCampaignDispositionRetryPolicy,
+  VoiceCampaignDispositionRetryRule,
+  VoiceCampaignDispositionSummary,
+  VoiceCampaignWindowCheckInput,
+  VoiceDNCList,
+} from "./campaignControls";
 export { createVoiceBackchannelDriver } from "./backchannel";
 export type {
   VoiceBackchannelCue,
