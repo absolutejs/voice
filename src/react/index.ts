@@ -45,6 +45,8 @@ export { VoiceCallPlayer } from "./VoiceCallPlayer";
 export type { VoiceCallPlayerProps } from "./VoiceCallPlayer";
 export { VoiceCostDashboard } from "./VoiceCostDashboard";
 export type { VoiceCostDashboardProps } from "./VoiceCostDashboard";
+export { VoiceLiveAgentConsole } from "./VoiceLiveAgentConsole";
+export type { VoiceLiveAgentConsoleProps } from "./VoiceLiveAgentConsole";
 export { VoiceLiveCallViewer } from "./VoiceLiveCallViewer";
 export type { VoiceLiveCallViewerProps } from "./VoiceLiveCallViewer";
 export { VoiceReplayTimeline } from "./VoiceReplayTimeline";

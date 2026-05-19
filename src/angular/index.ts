@@ -5,6 +5,8 @@ export { VoiceCallPlayerService } from "./voice-call-player.service";
 export type { VoiceCallPlayerServiceOptions } from "./voice-call-player.service";
 export { VoiceCostDashboardService } from "./voice-cost-dashboard.service";
 export type { VoiceCostDashboardServiceOptions } from "./voice-cost-dashboard.service";
+export { VoiceLiveAgentConsoleService } from "./voice-live-agent-console.service";
+export type { VoiceLiveAgentConsoleServiceOptions } from "./voice-live-agent-console.service";
 export { VoiceLiveCallViewerService } from "./voice-live-call-viewer.service";
 export type { VoiceLiveCallViewerServiceOptions } from "./voice-live-call-viewer.service";
 export { VoiceReplayTimelineService } from "./voice-replay-timeline.service";

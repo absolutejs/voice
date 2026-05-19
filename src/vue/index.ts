@@ -34,6 +34,7 @@ export { useVoiceController } from "./useVoiceController";
 export { VoiceWidget } from "./VoiceWidget";
 export { VoiceCallPlayer } from "./VoiceCallPlayer";
 export { VoiceCostDashboard } from "./VoiceCostDashboard";
+export { VoiceLiveAgentConsole } from "./VoiceLiveAgentConsole";
 export { VoiceLiveCallViewer } from "./VoiceLiveCallViewer";
 export { VoiceReplayTimeline } from "./VoiceReplayTimeline";
 export type {

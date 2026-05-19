@@ -2787,4 +2787,62 @@ export type {
   VoiceMonitorRuntimeBindingOptions,
   VoiceMonitorSessionRecord,
 } from "./monitor";
+export {
+  compareVoiceCostScenarios,
+  predictVoiceCallCost,
+} from "./costPredictor";
+export type {
+  PredictVoiceCallCostInput,
+  VoiceCostPrediction,
+  VoiceCostProfile,
+  VoiceCostScenarioComparison,
+} from "./costPredictor";
+export {
+  createCoturnIceServers,
+  createTwilioNTSIceServers,
+} from "./iceServers";
+export type {
+  CreateCoturnIceServersInput,
+  CreateTwilioNTSIceServersInput,
+  VoiceIceServer,
+} from "./iceServers";
+export { createVoiceHoldAudioDriver } from "./holdAudio";
+export type {
+  VoiceHoldAudioCue,
+  VoiceHoldAudioDriver,
+  VoiceHoldAudioDriverOptions,
+} from "./holdAudio";
+export {
+  createVoicePromptInjectionGuard,
+  DEFAULT_VOICE_PROMPT_INJECTION_RULES,
+} from "./promptInjectionGuard";
+export type {
+  VoicePromptInjectionRule,
+  VoicePromptInjectionVerdict,
+  VoicePromptInjectionGuard,
+  CreateVoicePromptInjectionGuardOptions,
+} from "./promptInjectionGuard";
+export {
+  createVoicePostCallSurvey,
+  DEFAULT_VOICE_POST_CALL_SURVEY_QUESTIONS,
+  summarizeVoicePostCallSurveys,
+} from "./postCallSurvey";
+export type {
+  VoicePostCallSurvey,
+  VoicePostCallSurveyAnswer,
+  VoicePostCallSurveyQuestion,
+  VoicePostCallSurveyResponse,
+  CreateVoicePostCallSurveyOptions,
+} from "./postCallSurvey";
+export {
+  collectVoiceDTMFInput,
+  validateVoiceDTMFLuhn,
+  VOICE_DTMF_DIGITS,
+} from "./dtmfCollector";
+export type {
+  VoiceDTMFCollector,
+  VoiceDTMFCollectorState,
+  VoiceDTMFDigit,
+  CreateVoiceDTMFCollectorOptions,
+} from "./dtmfCollector";
 export * from "./types";

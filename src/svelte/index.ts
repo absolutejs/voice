@@ -17,6 +17,11 @@ export {
 } from "./createVoiceCostDashboard";
 export type { CreateVoiceCostDashboardOptions } from "./createVoiceCostDashboard";
 export {
+  createVoiceLiveAgentConsole,
+  renderVoiceLiveAgentConsoleHTML,
+} from "./createVoiceLiveAgentConsole";
+export type { CreateVoiceLiveAgentConsoleSvelteOptions } from "./createVoiceLiveAgentConsole";
+export {
   createVoiceLiveCallViewer,
   renderVoiceLiveCallViewerHTML,
 } from "./createVoiceLiveCallViewer";
