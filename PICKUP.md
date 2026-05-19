@@ -78,15 +78,16 @@ Vapi-parity adapter coverage progress (Phase 4):
 - **`@absolutejs/voice-neets@0.0.1-beta.1`** (shipped) — TTS via Neets `/v1/tts` HTTP, ar-diff-50k / style-tts-2 / vits models, X-API-Key auth, PCM streaming. 5 tests.
 - **`@absolutejs/voice-smallest@0.0.1-beta.1`** (shipped) — TTS via Smallest `/api/v1/{model}/get_speech`, lightning + lightning-v2 models, English + Hindi, speed / similarity / consistency / enhancement controls. 5 tests.
 - **`@absolutejs/voice-openai-whisper@0.0.1-beta.1`** (shipped) — STT via OpenAI `/v1/audio/transcriptions` in **buffered-batch** mode: accumulate PCM chunks, build a RIFF header on flush(), POST as WAV, emit one final transcript + endOfTurn per flush. Supports whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe. Documented as the turn-based / fallback path; the streaming OpenAI path lives in `voice-openai`. 8 tests.
+- **`@absolutejs/voice-google-speech@0.0.1-beta.1`** (shipped) — STT via Google Cloud `/v1/speech:recognize` in buffered-batch mode (same pattern as Whisper). Three auth modes: API key, static OAuth bearer, or async getAccessToken refresh hook. Honors latest_short / latest_long / telephony / chirp / chirp_2 models, alternativeLanguageCodes when languageStrategy is allow-switching, speechContexts vocabulary biasing, useEnhanced, automatic punctuation, speaker diarization. Streaming via gRPC-Web is a future package update documented in the README roadmap. 9 tests.
 
 Provider coverage vs Vapi's list now:
 - LLM: 2/7 native + Anthropic in voice + 13 via @absolutejs/ai → effectively complete.
 - TTS: **8/12** (ElevenLabs, Cartesia, Azure Neural, PlayHT, Rime, LMNT, Neets, Smallest).
-- STT: **7/11** (Deepgram, AssemblyAI, Azure, Speechmatics, Gladia, Soniox, OpenAI Whisper-buffered).
+- STT: **8/11** (Deepgram, AssemblyAI, Azure, Speechmatics, Gladia, Soniox, OpenAI Whisper-buffered, Google Speech-buffered).
 
 Suggested next directions (none blocking):
 
-- Remaining Phase 4 gaps if buyers ask: Tavus (TTS+video — different shape because Tavus is avatar-first; would need a new adapter category), Google Cloud Speech STT (canonical path is gRPC streaming, ~1.5 day to wrap without `@grpc/grpc-js`), Cartesia STT (Ink, once GA stabilizes — could go in the existing `voice-cartesia` package as a second export), Talkscriber STT.
+- Remaining Phase 4 gaps if buyers ask: Tavus (TTS+video — different shape because Tavus is avatar-first; would need a new adapter category), Talkscriber STT (small player, limited public docs), Cartesia STT/Ink (once their STT GA stabilizes — could land as a second export in the existing `voice-cartesia` package), Google Cloud Speech streaming via gRPC-Web (would land as `googleSpeechStream` in `voice-google-speech` without breaking the existing buffered-batch export).
 - Phase 5: build a `voiceListenAndControlSocket` primitive equivalent to Vapi's `monitorPlan.listenUrl` + `controlUrl` (supervisor barge-in over WebSocket).
 - Phase 6: wire `voice-fixtures-multilingual` into a Vapi-parity proof gate (run the corpus against several STT adapters, assert WER < threshold per language).
 - Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
