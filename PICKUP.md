@@ -9,13 +9,13 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.494`
+- Current package: `@absolutejs/voice@0.0.22-beta.495`
 - Companion media package: `@absolutejs/media@0.0.1-beta.17` (audio redaction + noise suppression contract shipped)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `94c4081 0.0.22-beta.494: dropin <VoiceWidget> React component`
+- Latest pushed voice commit: `6cde051 0.0.22-beta.495: VoiceWidget for Vue + Svelte + Angular + shared view-model`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
 - Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
-- Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.479; needs a `bun add @absolutejs/voice@0.0.22-beta.484 --force` re-pin before next demo run.
+- Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.495; `/vue` Playwright-verified at 0 console errors/warnings against .495.
 
 ## Companion Repos
 
@@ -110,11 +110,15 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Audio bleep primitive | `applyAudioRedaction(pcm, format, ranges, options?)` with silence or tone fill; `mergeAudioRedactionRanges`. Pairs with voice's text redaction (.481) |
 | Noise suppression contract | `NoiseSuppressor` interface; `createPassThroughNoiseSuppressor`, `createEnergyGateNoiseSuppressor`, `composeNoiseSuppressors`. Third-party Krisp/RNNoise adapters slot in via the interface |
 
-### voice@0.0.22-beta.494 — Embeddable widget shipped
+### voice@0.0.22-beta.494/.495 — Embeddable widget shipped (all 4 frameworks)
 
 | Gap | Surface |
 |---|---|
-| Dropin `<VoiceWidget>` React component | `import { VoiceWidget } from "@absolutejs/voice/react"`. Wraps `useVoiceController` + `deriveVoiceAgentUIState`. Inline-styled with configurable theme/labels/title, status dot indicator, live partial transcript, start/mute/end controls. Vue/Svelte/Angular variants are follow-ups on the same primitives |
+| Shared view-model | `createVoiceWidgetViewModel`, `renderVoiceWidgetHTML`, `DEFAULT_VOICE_WIDGET_THEME`, `DEFAULT_VOICE_WIDGET_LABELS` in `src/client/voiceWidgetView.ts`. Derives agent state, merges theme/labels with defaults, picks status label, computes `canStart/canMute/canEnd`. HTML rendering escapes user-controlled strings. All framework wrappers route through it. |
+| React (.494/.495) | `<VoiceWidget />` from `@absolutejs/voice/react` |
+| Vue (.495) | `<VoiceWidget />` from `@absolutejs/voice/vue` |
+| Svelte (.495) | `createVoiceWidget(path, options)` from `@absolutejs/voice/svelte`. Returns `{ startCall, mute, endCall, subscribe, getSnapshot, getViewModel, getHTML }` |
+| Angular (.495) | `VoiceWidgetService.connect(path, options)` from `@absolutejs/voice/angular` |
 
 ### `@absolutejs/media` (2)
 
