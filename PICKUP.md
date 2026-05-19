@@ -10,8 +10,8 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 
 - Core repo: `/home/alexkahn/abs/voice`
 - Current package: `@absolutejs/voice@0.0.22-beta.493`
-- Companion media package: `@absolutejs/media@0.0.1-beta.16`
-- Companion AbsoluteJS packages: `@absolutejs/ai@0.0.5` (13 LLM provider adapters, wired in via `createAIVoiceModel`), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
+- Companion media package: `@absolutejs/media@0.0.1-beta.17` (audio redaction + noise suppression contract shipped)
+- Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
 - Latest pushed voice commit: `59c4d43 0.0.22-beta.493: OAuth2 token source for custom LLM endpoints`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
 - Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
@@ -93,11 +93,22 @@ Organized by package + ordered by leverage. Free to pick any block; each is inde
 
 The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` components on top of `deriveVoiceAgentUIState` (.490) can be added as thin renderers if buyers ask; the state derivation is the harder half and is done.
 
-### `@absolutejs/ai`
+### `@absolutejs/ai@0.0.6` — Shipped this session
 
-| Gap | Size | Hook |
-|---|---|---|
-| Add `tokenSource?: () => Promise<string>` to `openaiCompatible({ apiKey OR tokenSource, baseUrl })` | tiny | Today voice@.493 ships `createVoiceOAuth2TokenSource`; once ai accepts a tokenSource natively, callers can wire one to the other without reconstructing the provider each turn |
+| Gap | Surface |
+|---|---|
+| Sampling parameters | `temperature`, `topP`, `maxTokens`, `stopSequences`, `seed`, `frequencyPenalty`, `presencePenalty` on `AIProviderStreamParams`, wired through all 5 native providers |
+| toolChoice + parallelToolCalls | `AIProviderToolChoice = 'auto' \| 'none' \| 'required' \| { name }` |
+| JSON mode / structured output | `AIProviderResponseFormat = { type: 'text' \| 'json_object' } \| { type: 'json_schema', name, schema, strict? }` |
+| OAuth `tokenSource` | `openai({ tokenSource })` + `openaiCompatible({ tokenSource })`. Composes with `createVoiceOAuth2TokenSource` from voice@.493 |
+| `onUsage` + `onSpan` instrumentation | New `providers/instrumentation.ts` wraps every provider to tap `AIDoneChunk.usage`; cost + OTEL flow into operator callbacks |
+
+### `@absolutejs/media@0.0.1-beta.17` — Shipped this session
+
+| Gap | Surface |
+|---|---|
+| Audio bleep primitive | `applyAudioRedaction(pcm, format, ranges, options?)` with silence or tone fill; `mergeAudioRedactionRanges`. Pairs with voice's text redaction (.481) |
+| Noise suppression contract | `NoiseSuppressor` interface; `createPassThroughNoiseSuppressor`, `createEnergyGateNoiseSuppressor`, `composeNoiseSuppressors`. Third-party Krisp/RNNoise adapters slot in via the interface |
 
 ### `@absolutejs/media` (2)
 
