@@ -161,7 +161,7 @@ export type VoiceAssistantExperimentOptions<
   variants: Array<VoiceAssistantVariant<TContext, TSession, TResult>>;
 };
 
-type VoiceAssistantAgentSource<
+export type VoiceAssistantAgentSource<
   TContext,
   TSession extends VoiceSessionRecord,
   TResult,

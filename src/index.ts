@@ -806,6 +806,11 @@ export type {
   VoiceRedactionPattern,
   VoiceTranscriptRedactor,
 } from "./redaction";
+export { deriveVoiceRecordingRedactionRanges } from "./recordingRedaction";
+export type {
+  DeriveVoiceRecordingRedactionRangesInput,
+  VoiceRecordingRedactionRange,
+} from "./recordingRedaction";
 export {
   DEFAULT_VOICE_PRICE_BOOK,
   createVoiceCostAccountant,
@@ -959,6 +964,65 @@ export {
   createVoiceTransferCallTool,
   createVoiceVoicemailDetectionTool,
 } from "./agentTools";
+export { defineVoiceAssistant } from "./defineVoiceAssistant";
+export type {
+  DefinedVoiceAssistant,
+  VoiceAssistantDefinition,
+  VoiceAssistantObservabilityConfig,
+  VoiceAssistantSessionInput,
+  VoiceAssistantVoiceConfig,
+} from "./defineVoiceAssistant";
+export { createInMemoryVoiceCallQuota } from "./callQuota";
+export type {
+  CreateInMemoryVoiceCallQuotaOptions,
+  VoiceCallQuota,
+  VoiceCallQuotaRejection,
+  VoiceCallQuotaResult,
+  VoiceCallQuotaTier,
+  VoiceCallReservation,
+} from "./callQuota";
+export {
+  createVoiceBearerAuthVerifier,
+  createVoiceHMACAuthVerifier,
+  createVoiceRouteAuth,
+} from "./routeAuth";
+export type {
+  VoiceRouteAuthDecision,
+  VoiceRouteAuthInput,
+  VoiceRouteAuthOptions,
+  VoiceRouteAuthVerifier,
+} from "./routeAuth";
+export { buildVoiceCostDashboardReport } from "./client/costDashboard";
+export type {
+  VoiceCostDashboardBucket,
+  VoiceCostDashboardOptions,
+  VoiceCostDashboardReport,
+} from "./client/costDashboard";
+export { createLiveCallViewer } from "./client/liveCallViewer";
+export type {
+  CreateLiveCallViewerOptions,
+  LiveCallEventKind,
+  LiveCallTimelineEvent,
+  LiveCallViewState,
+  LiveCallViewer,
+} from "./client/liveCallViewer";
+export { buildReplayTimelineReport } from "./client/replayTimeline";
+export type {
+  ReplayTimelineEvent,
+  ReplayTimelineInput,
+  ReplayTimelineReport,
+} from "./client/replayTimeline";
+export {
+  createVoiceRetentionScheduler,
+  purgeVoiceRetentionStore,
+} from "./retention";
+export type {
+  CreateVoiceRetentionSchedulerOptions,
+  VoicePurgeReport,
+  VoiceRetentionPolicyOptions,
+  VoiceRetentionScheduler,
+  VoiceRetentionStore,
+} from "./retention";
 export { fromVapiAssistantConfig } from "./vapiAdapter";
 export type {
   VapiAssistantConfig,
