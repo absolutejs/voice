@@ -1,10 +1,17 @@
 import { Elysia } from "elysia";
 import {
+  summarizeMediaProcessorGraphReport,
+  summarizeMediaQualityReport,
+  summarizeMediaTransportReport,
+  type MediaPipelineStatus,
+} from "@absolutejs/media";
+import {
   filterVoiceAuditEvents,
   type StoredVoiceAuditEvent,
   type VoiceAuditEventStore,
   type VoiceAuditOutcome,
 } from "./audit";
+import type { VoiceMediaPipelineReport } from "./mediaPipelineRoutes";
 import { redactVoiceAuditEvents } from "./auditExport";
 import type {
   StoredVoiceIntegrationEvent,
@@ -195,6 +202,17 @@ export type VoiceOperationsRecordTelephonyMediaSummary = {
   total: number;
 };
 
+export type VoiceOperationsRecordMediaPipelineSummary = {
+  frames: number;
+  issueCodes: readonly string[];
+  jitterMs?: number;
+  processorGraphStatus?: MediaPipelineStatus;
+  qualityStatus: MediaPipelineStatus;
+  status: MediaPipelineStatus;
+  surface: string;
+  transportStatus?: MediaPipelineStatus;
+};
+
 export type VoiceOperationsRecordGuardrailAssertionInput = {
   minBlocked?: number;
   minDecisions?: number;
@@ -257,6 +275,7 @@ export type VoiceOperationsRecord = {
   guardrails: VoiceOperationsRecordGuardrailSummary;
   handoffs: VoiceOperationsRecordAgentHandoff[];
   integrationEvents?: VoiceOperationsRecordIntegrationEventSummary;
+  mediaPipeline?: VoiceOperationsRecordMediaPipelineSummary;
   outcome: VoiceOperationsRecordOutcome;
   providerDecisions: VoiceOperationsRecordProviderDecision[];
   providerDecisionSummary: VoiceOperationsRecordProviderDecisionSummary;
@@ -322,6 +341,8 @@ export type VoiceFailureReplayReport = {
     clears: number;
     errors: number;
     issues: string[];
+    pipelineIssueCodes: readonly string[];
+    pipelineStatus?: MediaPipelineStatus;
     steps: VoiceFailureReplayMediaStep[];
     total: number;
   };
@@ -357,6 +378,7 @@ export type VoiceOperationsRecordOptions = {
   evaluation?: VoiceTraceEvaluationOptions;
   events?: StoredVoiceTraceEvent[];
   integrationEvents?: VoiceIntegrationEventStore;
+  mediaPipeline?: VoiceMediaPipelineReport;
   redact?: VoiceTraceRedactionConfig;
   reviews?: VoiceCallReviewStore;
   sessionId: string;
@@ -574,6 +596,40 @@ const toTelephonyMediaEvent = (
     event: eventName,
     sequenceNumber,
     streamId,
+  };
+};
+
+const summarizeMediaPipelineForOperationsRecord = (
+  report: VoiceMediaPipelineReport,
+): VoiceOperationsRecordMediaPipelineSummary => {
+  const quality = summarizeMediaQualityReport(report.quality);
+  const transport = report.transport
+    ? summarizeMediaTransportReport(report.transport)
+    : undefined;
+  const processorGraph = report.processorGraph
+    ? summarizeMediaProcessorGraphReport(report.processorGraph)
+    : undefined;
+  const calibrationCodes = report.calibration.issues.map((issue) => issue.code);
+  const interruptionCodes = report.interruption.issues.map(
+    (issue) => issue.code,
+  );
+  const issueCodes = Array.from(
+    new Set([
+      ...calibrationCodes,
+      ...quality.issueCodes,
+      ...interruptionCodes,
+      ...(processorGraph?.issueCodes ?? []),
+    ]),
+  );
+  return {
+    frames: report.frames,
+    issueCodes,
+    jitterMs: report.quality.jitterMs,
+    processorGraphStatus: processorGraph?.status,
+    qualityStatus: quality.status,
+    status: report.status,
+    surface: report.surface,
+    transportStatus: transport?.status,
   };
 };
 
@@ -902,6 +958,9 @@ export const buildVoiceOperationsRecord = async (
           total: tasks.length,
         }
       : undefined,
+    mediaPipeline: options.mediaPipeline
+      ? summarizeMediaPipelineForOperationsRecord(options.mediaPipeline)
+      : undefined,
     telephonyMedia: summarizeTelephonyMedia(traceEvents),
     timeline: timelineSession?.events ?? [],
     tools: traceEvents
@@ -1229,6 +1288,7 @@ export const buildVoiceFailureReplay = (
             : "failed before recovery";
       return `${provider} ${recovery}${step.reason ? `: ${step.reason}` : ""}`;
     });
+  const pipelineIssueCodes = record.mediaPipeline?.issueCodes ?? [];
   const mediaIssues = [
     ...mediaSteps
       .map((step) => step.issue)
@@ -1239,15 +1299,21 @@ export const buildVoiceFailureReplay = (
     record.telephonyMedia.total > 0 && record.telephonyMedia.outbound === 0
       ? "Carrier stream has no outbound assistant media/control evidence."
       : undefined,
+    ...pipelineIssueCodes.map(
+      (code) => `Media pipeline issue: ${code}.`,
+    ),
   ].filter((issue): issue is string => typeof issue === "string");
   const userHeard = [
     ...new Set(record.transcript.flatMap((turn) => turn.assistantReplies)),
   ];
+  const mediaPipelineStatus = record.mediaPipeline?.status;
   const status: VoiceFailureReplayStatus =
     record.providerDecisionSummary.errors > 0 ||
-    record.telephonyMedia.errors > 0
+    record.telephonyMedia.errors > 0 ||
+    mediaPipelineStatus === "fail"
       ? "failed"
-      : record.providerDecisionSummary.degraded > 0
+      : record.providerDecisionSummary.degraded > 0 ||
+          mediaPipelineStatus === "warn"
         ? "degraded"
         : record.providerDecisionSummary.fallbacks > 0 || mediaIssues.length > 0
           ? "recovered"
@@ -1273,6 +1339,8 @@ export const buildVoiceFailureReplay = (
       clears: record.telephonyMedia.clears,
       errors: record.telephonyMedia.errors,
       issues: mediaIssues,
+      pipelineIssueCodes,
+      pipelineStatus: record.mediaPipeline?.status,
       steps: mediaSteps,
       total: record.telephonyMedia.total,
     },
@@ -1356,6 +1424,9 @@ export const renderVoiceFailureReplayMarkdown = (
     ? report.summary.issues.map((issue) => `- ${issue}`).join("\n")
     : "- none";
 
+  const pipelineCodes = report.media.pipelineIssueCodes.length
+    ? report.media.pipelineIssueCodes.map((code) => `- ${code}`).join("\n")
+    : "- none";
   return [
     `# Voice Failure Replay: ${report.sessionId}`,
     "",
@@ -1371,6 +1442,9 @@ export const renderVoiceFailureReplayMarkdown = (
     "",
     "## Media Path",
     mediaSteps,
+    "",
+    `## Media Pipeline (status: ${report.media.pipelineStatus ?? "n/a"})`,
+    pipelineCodes,
     "",
     "## What The User Heard",
     heard,

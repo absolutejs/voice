@@ -210,6 +210,9 @@ export type VoiceIncidentTimelineLinks = {
 };
 
 export type VoiceIncidentTimelineOptions = {
+  extraEvents?: VoiceIncidentTimelineValue<
+    readonly VoiceIncidentTimelineEvent[]
+  >;
   failureReplays?: VoiceIncidentTimelineValue<
     readonly VoiceFailureReplayReport[]
   >;
@@ -1053,12 +1056,14 @@ export const buildVoiceIncidentTimelineReport = async (
     monitorIssues,
     operationsRecords,
     failureReplays,
+    extraEvents,
   ] = await Promise.all([
     resolveValue(options.operationalStatus),
     resolveValue(options.opsRecovery),
     resolveValue(options.monitorIssues),
     resolveValue(options.operationsRecords),
     resolveValue(options.failureReplays),
+    resolveValue(options.extraEvents),
   ]);
   const events: VoiceIncidentTimelineEvent[] = [];
 
@@ -1067,6 +1072,9 @@ export const buildVoiceIncidentTimelineReport = async (
   pushMonitorEvents(events, monitorIssues, links);
   pushOperationsRecordEvents(events, operationsRecords, links);
   pushFailureReplayEvents(events, failureReplays, links);
+  if (extraEvents && extraEvents.length > 0) {
+    events.push(...extraEvents);
+  }
 
   const filtered = events
     .filter((event) => withinWindow(event, now, options.windowMs))

@@ -198,6 +198,32 @@ test("buildVoiceIncidentTimelineReport filters old events and resolved monitor i
   expect(report.events[0]?.id).toBe("monitor:open");
 });
 
+test("buildVoiceIncidentTimelineReport appends extraEvents into the merged timeline", async () => {
+  const report = await buildVoiceIncidentTimelineReport({
+    extraEvents: async () => [
+      {
+        at: 4_900,
+        category: "monitor",
+        detail: "Jitter spike on demo-session",
+        href: "/voice/media-pipeline",
+        id: "media-pipeline:quality:media.quality_jitter:0",
+        label: "Media quality warning: media.quality_jitter",
+        severity: "warn",
+        source: "media-pipeline-test",
+        value: "media.quality_jitter",
+      },
+    ],
+    now: 5_000,
+  });
+
+  expect(report.events).toHaveLength(1);
+  expect(report.events[0]?.id).toBe(
+    "media-pipeline:quality:media.quality_jitter:0",
+  );
+  expect(report.events[0]?.source).toBe("media-pipeline-test");
+  expect(report.status).toBe("warn");
+});
+
 test("createVoiceIncidentTimelineRoutes exposes json html and markdown", async () => {
   const routes = createVoiceIncidentTimelineRoutes({
     failureReplays: [failureReplay],
