@@ -1,4 +1,6 @@
 export { VoiceOpsStatusService } from "./voice-ops-status.service";
+export { VoiceWidgetService } from "./voice-widget.service";
+export type { CreateVoiceWidgetServiceOptions } from "./voice-widget.service";
 export { VoicePlatformCoverageService } from "./voice-platform-coverage.service";
 export { VoiceProofTrendsService } from "./voice-proof-trends.service";
 export { VoiceReconnectProfileEvidenceService } from "./voice-reconnect-profile-evidence.service";

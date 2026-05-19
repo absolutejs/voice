@@ -1,4 +1,11 @@
 export { createVoiceCampaignDialerProof } from "./createVoiceCampaignDialerProof";
+export { createVoiceWidget } from "./createVoiceWidget";
+export type {
+  CreateVoiceWidgetOptions,
+  VoiceWidgetLabels,
+  VoiceWidgetTheme,
+  VoiceWidgetViewModel,
+} from "./createVoiceWidget";
 export { createVoiceDeliveryRuntime } from "./createVoiceDeliveryRuntime";
 export { createVoiceOpsActionCenter } from "./createVoiceOpsActionCenter";
 export { createVoiceLiveOps } from "./createVoiceLiveOps";
