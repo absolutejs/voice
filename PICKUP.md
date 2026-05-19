@@ -3,18 +3,18 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. The first Vapi-parity audit (5 gap areas) shipped through beta.479; a second broader audit against Vapi + Retell + Bland + Pipecat + LiveKit + Hume + Deepgram + OpenAI Realtime identified 21 more gaps, of which the top-5 shipped through beta.484. The roadmap for the remaining 16 is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.484`
+- Current package: `@absolutejs/voice@0.0.22-beta.491`
 - Companion media package: `@absolutejs/media@0.0.1-beta.16`
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.5` (13 LLM provider adapters, wired in via `createAIVoiceModel`), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `bc65cc2 0.0.22-beta.484: S2S assistant mode + realtime adapter capability surface`
+- Latest pushed voice commit: `4d21745 0.0.22-beta.491: outbound campaign retry policy + DNC + window enforcement`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
-- Voice suite: 1015 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
+- Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.479; needs a `bun add @absolutejs/voice@0.0.22-beta.484 --force` re-pin before next demo run.
 
 ## Companion Repos
@@ -71,22 +71,28 @@ Second audit against Vapi + Retell + Bland + Pipecat + LiveKit + Hume + Deepgram
 | 4 | Semantic turn detection | voice@.483 | `VoiceSemanticTurnDetector` interface, `createPunctuationSemanticTurnDetector`, `createRegexSemanticTurnDetector`, wired into `handleFinal` to commit before silence timer |
 | 5 | S2S first-class assistant mode | voice@.484 | `VoiceAssistantMode`, `resolveVoiceAssistantMode`, semanticVAD/modalities/promptCacheKey on `RealtimeAdapterOpenOptions`, mode-tagged trace events |
 
-## Vapi-Parity Audit #2 — Remaining 16 Gaps (the roadmap)
+## Vapi-Parity Audit #2 — Second-Tier Voice Gaps Shipped
+
+| Gap | Beta | Public surface |
+|---|---|---|
+| Webhook signature verification helper | voice@.485 | `verifyVoiceWebhookSignature`, `signVoiceWebhookBody`, `extractVoiceWebhookSignatureFromHeaders`, `VOICE_WEBHOOK_SIGNATURE_HEADER`/`_TIMESTAMP_HEADER` |
+| OTEL exporter for turn-by-turn latency | voice@.486 | `createVoiceOTELHTTPExporter`, `aggregateVoiceTurnLatencySpans`, `buildVoiceOTELPayload`, `buildOTELTraceId`/`SpanId` |
+| Per-caller persistent memory | voice@.487 | `createVoiceCallerMemoryNamespace`, `buildVoiceCallerMemoryNamespace`, `summarizeVoiceCallerTranscript`, `VOICE_CALLER_MEMORY_KEY`, types `VoiceCallerIdentity`/`VoiceCallerMemorySnapshot` |
+| Pre-agent IVR plan | voice@.488 | `evaluateVoiceIVRPlan`, `createVoiceIVRSession`, `describeVoiceIVRPlan`, types `VoiceIVRPlan`/`VoiceIVRBranch`/`VoiceIVRMatch`/`VoiceIVRDecision`/`VoiceIVRInput`/`VoiceIVRSession` |
+| Backchannel injection driver | voice@.489 | `createVoiceBackchannelDriver`, types `VoiceBackchannelCue`/`VoiceBackchannelDriver`/`VoiceBackchannelDriverOptions` |
+| Mid-call UI state derivation | voice@.490 | `deriveVoiceAgentUIState`, `describeVoiceAgentUIState`, `voiceAgentUIStateOrder`, types `VoiceAgentUIState`/`VoiceAgentUIInput` |
+| Outbound campaign retry/DNC/window | voice@.491 | `shouldRetryCampaignAttempt`, `isWithinCampaignWindow`, `createInMemoryDNCList`, `isPhoneOnDNC`, `normalizePhoneNumber`, `summarizeVoiceCampaignDispositions`, types `VoiceCampaignDisposition`/`VoiceCampaignDispositionRetryPolicy`/`VoiceCampaignDispositionSummary`/`VoiceDNCList` |
+
+## Vapi-Parity Audit #2 — Remaining Roadmap
 
 Organized by package + ordered by leverage. Free to pick any block; each is independent unless noted.
 
-### `@absolutejs/voice` (8 left)
+### `@absolutejs/voice` (1 left)
 
 | Gap | Size | Hook |
 |---|---|---|
-| Per-caller persistent memory keyed by E.164/email/external-id | small | Extend existing `assistantMemory.ts` + memoryStore; rolling summaries via `@absolutejs/ai` |
-| Outbound campaign retry rules + DNC + time-of-day windows | medium | On top of `campaign.ts`/`campaignDialers.ts`; add retry-policy DSL, DNC list type, time-of-day enforcement |
-| Webhook HMAC signing + replay protection | tiny | `auditDeliveryRoutes`/`traceDeliveryRoutes` config; `verifyVoiceWebhook` helper |
-| OTEL exporter for turn-by-turn latency | small | `liveLatency.ts`/`latencySlo.ts`/`turnLatency.ts` already emit timestamps; add an OTEL exporter |
-| Custom LLM endpoint with OAuth2 (OpenAI-compatible) | tiny | Confirm `@absolutejs/ai` openaiCompatible accepts arbitrary base URL + OAuth2; expose as single config knob |
-| Backchannel / filler injection ("mm-hmm" during user speech) | small | New `backchannel.ts` hooked to VAD; emits short pre-rendered audio clips through TTS adapter |
-| Pre-agent IVR plan (DTMF routing trees) | small | `src/telephony/` — `IVRPlan` config that branches before agent loop on DTMF/speech |
-| Mid-call client UI primitives | small | `react/`/`vue/`/`svelte/` — `<AgentState>`, `<InterruptButton>`, `<TypingIndicator>` driven off existing duplex client |
+| Framework-specific components on top of `deriveVoiceAgentUIState` | small | `<AgentState>`, `<InterruptButton>`, `<TypingIndicator>` for React/Vue/Svelte/Angular. State derivation already shipped in .490 — these are thin renderers around it |
+| Custom LLM endpoint with OAuth2 (OpenAI-compatible) | tiny | Confirm `@absolutejs/ai` openaiCompatible accepts arbitrary base URL + OAuth2; expose as single config knob (mostly an ai-package + docs task) |
 
 ### `@absolutejs/media` (2)
 
