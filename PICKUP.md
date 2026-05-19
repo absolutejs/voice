@@ -69,10 +69,18 @@ Both major tracks are feature-complete:
 Vapi-parity adapter coverage progress (Phase 4):
 - **`@absolutejs/voice-cartesia@0.0.1-beta.1`** (shipped) — TTS via Cartesia `/tts/sse` and `/tts/bytes`. Sonic-2 + older models, voice-by-id or voice-by-embedding, mulaw/alaw telephony formats. 7 tests.
 - **`@absolutejs/voice-azure@0.0.1-beta.2`** (shipped) — Neural TTS via REST + SSML (`azureTTS`) and streaming STT via the WebSocket Unified Speech Protocol (`azureSTT`) with no Microsoft SDK dependency. 18 tests.
+- **`@absolutejs/voice-playht@0.0.1-beta.1`** (shipped) — TTS via PlayHT `/api/v2/tts/stream`. Play3.0-mini / PlayDialog / PlayHT2.0-turbo engines, raw PCM s16le or mulaw telephony. 7 tests.
+- **`@absolutejs/voice-speechmatics@0.0.1-beta.1`** (shipped) — Streaming STT via Speechmatics' v2 WebSocket protocol. StartRecognition → AddPartialTranscript / AddTranscript → EndOfTranscript / EndOfStream, regional endpoints (eu, eu2, usa), enhanced/standard operating points, diarization, punctuation-token joining. 9 tests.
+- **`@absolutejs/voice-gladia@0.0.1-beta.1`** (shipped) — Streaming STT via Gladia's v2 live API (HTTP /v2/live POST + WebSocket binary audio). Solaria-1 model, code-switch language detection, partial/final transcript mapping with per-utterance confidence + start/end timing. 9 tests.
+
+Provider coverage vs Vapi's list now:
+- LLM: 2/7 native + Anthropic in voice + 13 via @absolutejs/ai → effectively complete.
+- TTS: 4/12 (ElevenLabs, Cartesia, Azure Neural, PlayHT).
+- STT: 5/11 (Deepgram, AssemblyAI, Azure, Speechmatics, Gladia).
 
 Suggested next directions (none blocking):
 
-- More Phase 4 adapters as buyers ask: PlayHT TTS, Speechmatics STT, Gladia STT, Soniox STT, Rime TTS, LMNT TTS, Cartesia STT (once their STT GA matures). Each is ~1 day in the voice-adapters monorepo (~6 hours if HTTP-only TTS, ~8-12 hours if WebSocket streaming STT).
+- More Phase 4 adapters as buyers ask: Rime TTS, LMNT TTS, Neets TTS, Smallest TTS, Tavus (TTS+video), Soniox STT, Google Cloud Speech STT, OpenAI Whisper STT, Cartesia STT (once their STT GA matures). Each is ~1 day in the voice-adapters monorepo (~6 hours if HTTP-only TTS, ~8-12 hours if WebSocket streaming STT).
 - Phase 5: build a `voiceListenAndControlSocket` primitive equivalent to Vapi's `monitorPlan.listenUrl` + `controlUrl` (supervisor barge-in over WebSocket).
 - Phase 6: wire `voice-fixtures-multilingual` into a Vapi-parity proof gate (run the corpus against several STT adapters, assert WER < threshold per language).
 - Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
