@@ -822,6 +822,16 @@ export type {
   VoiceProviderRates,
 } from "./costAccounting";
 export {
+  describeVoiceAssistantMode,
+  resolveVoiceAssistantMode,
+} from "./assistantMode";
+export type {
+  VoiceAssistantMode,
+  VoiceAssistantModality,
+  VoiceAssistantModeDescriptor,
+  VoiceSemanticVADConfig,
+} from "./assistantMode";
+export {
   createPunctuationSemanticTurnDetector,
   createRegexSemanticTurnDetector,
 } from "./semanticTurn";

@@ -45,6 +45,7 @@ import type {
 } from "./types";
 import { ttsAdapterSessionCanCancel } from "./types";
 import { computePcmDurationMs } from "./recordingStore";
+import { resolveVoiceAssistantMode } from "./assistantMode";
 
 const DEFAULT_RECONNECT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
@@ -1986,15 +1987,22 @@ export const createVoiceSession = <
       );
     }
 
-    const openedSession = await inputAdapter.open({
-      format: options.realtime
-        ? (options.realtimeInputFormat ?? DEFAULT_REALTIME_FORMAT)
-        : DEFAULT_FORMAT,
-      languageStrategy: options.languageStrategy,
-      lexicon,
-      phraseHints,
-      sessionId: options.id,
-    });
+    const openedSession = await (options.realtime
+      ? options.realtime.open({
+          format: options.realtimeInputFormat ?? DEFAULT_REALTIME_FORMAT,
+          languageStrategy: options.languageStrategy,
+          lexicon,
+          modalities: options.modalities,
+          phraseHints,
+          sessionId: options.id,
+        })
+      : inputAdapter.open({
+          format: DEFAULT_FORMAT,
+          languageStrategy: options.languageStrategy,
+          lexicon,
+          phraseHints,
+          sessionId: options.id,
+        }));
     const generation = ++adapterGenerationCounter;
     sttSession = openedSession;
     activeAdapterGeneration = generation;
@@ -2194,9 +2202,10 @@ export const createVoiceSession = <
       });
       await appendTrace({
         payload: {
+          assistantMode: resolveVoiceAssistantMode(options),
+          realtimeConfigured: Boolean(options.realtime),
           text: output.assistantText,
           ttsConfigured: Boolean(options.tts),
-          realtimeConfigured: Boolean(options.realtime),
         },
         session,
         turnId: turn.id,

@@ -281,7 +281,10 @@ export type RealtimeAdapterOpenOptions = {
   format: AudioFormat;
   languageStrategy?: VoiceLanguageStrategy;
   lexicon?: VoiceLexiconEntry[];
+  modalities?: ReadonlyArray<"audio" | "text">;
   phraseHints?: VoicePhraseHint[];
+  promptCacheKey?: string;
+  semanticVAD?: import("./assistantMode").VoiceSemanticVADConfig;
   signal?: AbortSignal;
 };
 
@@ -1090,6 +1093,8 @@ export type CreateVoiceSessionOptions<
   costTelephony?: { provider?: string };
   redact?: import("./redaction").VoiceTranscriptRedactor;
   semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
+  assistantMode?: import("./assistantMode").VoiceAssistantMode;
+  modalities?: ReadonlyArray<"audio" | "text">;
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;
