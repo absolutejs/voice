@@ -3,18 +3,18 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491; cross-platform competitive gaps shipped through beta.509; outbound + compliance kit shipped through beta.510; supervisor / live-coaching kit shipped through beta.511. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps shipped through beta.491; cross-platform competitive gaps through beta.509; outbound + compliance kit through beta.510; supervisor kit through beta.511; appointment booking kit through beta.512. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.511` (supervisor / live-coaching kit: whisper channel, live coach nudges, transcript annotator, supervisor presence, permission tiers)
+- Current package: `@absolutejs/voice@0.0.22-beta.512` (appointment booking kit: slot generator, calendar adapter, booking flow state machine, no-show predictor, reminder scheduler)
 - Companion media package: `@absolutejs/media@0.0.1-beta.18` (audio redaction + noise suppression contract + ffmpeg adapter)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `0d7809c 0.0.22-beta.511: supervisor / live-coaching kit (whisper, live coach, annotator, presence, permissions)`
+- Latest pushed voice commit: `a77e65b 0.0.22-beta.512: appointment booking kit (slot generator, calendar adapter, booking flow, no-show predictor, reminder scheduler)`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
-- Voice suite: **1314 pass / 0 fail** on last run (flaky `fileStore.test.ts` filesystem-mtime test passed cleanly).
+- Voice suite: **1347 pass / 0 fail** on last run (flaky `fileStore.test.ts` filesystem-mtime test passed cleanly).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.505; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .505.
 
 ## Companion Repos
@@ -220,6 +220,16 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Transcript annotator | `createVoiceTranscriptAnnotator({ sessionId, generateId?, now? })` returns `{ add, remove, list, summarize }`. Kinds: `great-recovery`/`missed-objection`/`compliance-concern`/`tone-issue`/`knowledge-gap`/`follow-up-needed`/`custom`. `DEFAULT_VOICE_ANNOTATION_KIND_SEVERITY` defaults severity (info/minor/major). `list({ kind, supervisorId, severity, fromMs, toMs })` filters; `summarize()` rolls up |
 | Supervisor presence | `createVoiceSupervisorPresence({ staleAfterMs?, now? })` returns `{ join, leave, heartbeat, setRole, list, sessionsWatchedBy, subscribe }`. Per-session watcher map, automatic stale-pruning, role tracking (`viewer`/`coach`/`whisperer`/`owner`), `join`/`leave`/`role-change`/`heartbeat` events |
 | Permission tiers | `createVoiceSupervisorPermissions({ defaultTier?, permissions?, now? })` returns `{ can, capabilitiesFor, enforce, grant, revoke, get, tiers }`. Tiers: `monitor-only`/`annotate`/`coach`/`whisper`/`full-control`. 10 capabilities (monitor, annotate, coach, whisper, barge, takeover, release, end-call, view-pii, export-recording). Expiry, extra/denied capability overrides, `enforce` throws on deny |
+
+### voice@0.0.22-beta.512 — Appointment booking kit
+
+| Gap | Surface |
+|---|---|
+| Calendar slot generator | `generateVoiceCalendarSlots({ fromMs, toMs, durationMinutes, bufferMinutes?, granularityMinutes?, timezone?, businessHours, blackoutDates?, bookedRanges?, maxSlots? })`. Honors per-weekday business hours, blackout dates, booked-range conflicts with buffer, slot granularity. `summarizeVoiceCalendarSlot(slot, { timezone?, locale? })` renders natural-language summary |
+| Availability adapter contract | `VoiceCalendarAdapter` interface: `{ providerName, listAvailability, book, cancel, get, reschedule }`. `createVoiceInMemoryCalendarAdapter({ businessHours, timezone?, bookedRanges?, generateId?, now? })` ships as the default implementation; Google/Outlook/Calendly adapters plug into the same interface |
+| Booking flow state machine | `createVoiceBookingFlow({ adapter, calendarId, services?, defaultDurationMinutes?, initialStep?, maxSlotsPerDay? })` returns `{ chooseService, proposeSlotsForDay, chooseSlot, confirm, reset, getState, subscribe }`. Steps: `ask-service` → `ask-date` → `ask-time` → `confirm` → `booking` → `booked`/`failed`. Idempotent state transitions, subscriber notifications |
+| No-show risk predictor | `scoreVoiceNoShowRisk({ appointmentStartMs, bookedAtMs, history?, reminderConfirmed?, weatherDisruption?, callbackDistanceHours? })` returns `{ score, band, drivers }`. Bands `low`/`moderate`/`high`. Drivers: lead-time, weekday, hour-of-day, prior no-show/kept counts, reminder confirmation, weather disruption. `summarizeVoiceNoShowVerdict(verdict)` renders human-readable summary |
+| Reminder scheduler | `createVoiceReminderScheduler({ generateJobId?, now?, defaultTriggers?, maxAttempts? })` returns `{ schedule, due, markInFlight, markSent, markFailed, cancelForAppointment, list, subscribe }`. `DEFAULT_VOICE_REMINDER_TRIGGERS` ships SMS-24h + SMS-2h + call-30m. Channels: `call`/`sms`/`email`. Retry-on-failure with bounded attempts, automatic cancellation when appointment cancelled |
 
 ### Out of scope — adapter-only
 
