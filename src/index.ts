@@ -868,6 +868,12 @@ export type {
   VoiceDNCList,
 } from "./campaignControls";
 export { createVoiceBackchannelDriver } from "./backchannel";
+export { createVoiceOAuth2TokenSource } from "./oauth2TokenSource";
+export type {
+  CreateVoiceOAuth2TokenSourceOptions,
+  VoiceOAuth2TokenResponse,
+  VoiceOAuth2TokenSource,
+} from "./oauth2TokenSource";
 export type {
   VoiceBackchannelCue,
   VoiceBackchannelDriver,
