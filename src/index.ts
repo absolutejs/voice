@@ -2845,4 +2845,59 @@ export type {
   VoiceDTMFDigit,
   CreateVoiceDTMFCollectorOptions,
 } from "./dtmfCollector";
+export {
+  createVoiceDNCRegistry,
+  importVoiceDNCFromCSV,
+} from "./dncRegistry";
+export type {
+  VoiceDNCEntry,
+  VoiceDNCExternalLookup,
+  VoiceDNCLookupVerdict,
+  VoiceDNCRegistry,
+  VoiceDNCSource,
+  CreateVoiceDNCRegistryOptions,
+} from "./dncRegistry";
+export {
+  createVoiceCallingWindow,
+  VOICE_TCPA_DEFAULT_WINDOW,
+} from "./callingWindow";
+export type {
+  VoiceCallingDayKey,
+  VoiceCallingTimeRange,
+  VoiceCallingWindow,
+  VoiceCallingWindowOptions,
+  VoiceCallingWindowVerdict,
+} from "./callingWindow";
+export {
+  createVoiceCallDispositionTagger,
+  DEFAULT_VOICE_CALL_DISPOSITIONS,
+} from "./callDisposition";
+export type {
+  VoiceCallDispositionDefinition,
+  VoiceCallDispositionTag,
+  VoiceCallDispositionTagger,
+  VoiceCallDispositionTaxonomy,
+  CreateVoiceCallDispositionTaggerOptions,
+} from "./callDisposition";
+export { createVoiceRetryPolicy } from "./retryPolicy";
+export type {
+  VoiceRetryAttempt,
+  VoiceRetryDecision,
+  VoiceRetryDispositionAction,
+  VoiceRetryDispositionRule,
+  VoiceRetryPolicy,
+  CreateVoiceRetryPolicyOptions,
+} from "./retryPolicy";
+export {
+  collectVoiceCampaignTemplateVariables,
+  DEFAULT_VOICE_CAMPAIGN_TEMPLATE_FILTERS,
+  resolveVoiceCampaignTemplate,
+} from "./campaignTemplate";
+export type {
+  ResolveVoiceCampaignTemplateOptions,
+  VoiceCampaignTemplateFilter,
+  VoiceCampaignTemplateResolveResult,
+  VoiceCampaignTemplateScope,
+  VoiceCampaignTemplateValue,
+} from "./campaignTemplate";
 export * from "./types";
