@@ -44,28 +44,16 @@ const formatRelative = (ms: number) => {
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 };
 
-export type VoiceDashboardHTMXAttributes = {
-  /** Set true to wrap the fragment in an hx-get + hx-trigger="every Ns" polling shell. */
-  poll?: boolean;
-  /** Polling cadence when poll is true. Default 5 seconds. */
-  pollIntervalMs?: number;
-  /** Route the renderer points hx-get at. Default mirrors the route the handler is mounted on. */
-  refreshUrl?: string;
-  /** hx-swap value. Default 'outerHTML'. */
-  swap?: string;
-};
+import {
+  buildVoiceHTMXAttributes,
+  type VoiceHTMXPollingAttributes,
+} from "./htmxAttributes";
+
+export type VoiceDashboardHTMXAttributes = VoiceHTMXPollingAttributes;
 
 const polledWrapperAttributes = (
   attrs: VoiceDashboardHTMXAttributes | undefined,
-): string => {
-  if (!attrs?.poll || !attrs.refreshUrl) return "";
-  const intervalSec = Math.max(
-    1,
-    Math.round((attrs.pollIntervalMs ?? 5_000) / 1_000),
-  );
-  const swap = attrs.swap ?? "outerHTML";
-  return ` hx-get="${escapeHtml(attrs.refreshUrl)}" hx-trigger="every ${intervalSec}s" hx-swap="${escapeHtml(swap)}"`;
-};
+): string => buildVoiceHTMXAttributes(attrs);
 
 export type VoiceCostDashboardHTMXInput = {
   attributes?: VoiceDashboardHTMXAttributes;

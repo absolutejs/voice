@@ -992,6 +992,48 @@ export type {
   VoiceRouteAuthOptions,
   VoiceRouteAuthVerifier,
 } from "./routeAuth";
+export {
+  buildVoiceHTMXAttributes,
+  wrapVoiceHTMLInHTMXContainer,
+  wrapVoiceHTMLWithHTMXPolling,
+} from "./client/htmxAttributes";
+export type { VoiceHTMXPollingAttributes } from "./client/htmxAttributes";
+export {
+  createLiveCallViewerFromOptions,
+  renderVoiceCostDashboardFromEvents,
+  renderVoiceCostDashboardHTMX,
+  renderVoiceLiveCallViewerFromState,
+  renderVoiceLiveCallViewerFromViewer,
+  renderVoiceLiveCallViewerHTMX,
+  renderVoiceReplayTimelineFromArtifact,
+  renderVoiceReplayTimelineHTMX,
+  resolveVoiceDashboardRenderers,
+} from "./client/htmxDashboardRenderers";
+export type {
+  ResolvedVoiceDashboardRenderers,
+  VoiceCostDashboardHTMXInput,
+  VoiceCostDashboardRenderer,
+  VoiceDashboardHTMXAttributes,
+  VoiceDashboardHTMXRendererConfig,
+  VoiceLiveCallViewerHTMXInput,
+  VoiceLiveCallViewerRenderer,
+  VoiceReplayTimelineHTMXInput,
+  VoiceReplayTimelineRenderer,
+} from "./client/htmxDashboardRenderers";
+export {
+  createVoiceCostDashboardHTMXRoute,
+  createVoiceHTMXDashboardRoutes,
+  createVoiceHTMXDashboardRoutesFromStores,
+  createVoiceLiveCallViewerHTMXRoute,
+  createVoiceReplayTimelineHTMXRoute,
+} from "./htmxDashboardRoutes";
+export type {
+  CreateVoiceHTMXDashboardRoutesFromStoresOptions,
+  VoiceHTMXCostDashboardRoutesOptions,
+  VoiceHTMXDashboardRoutesOptions,
+  VoiceHTMXLiveCallViewerRoutesOptions,
+  VoiceHTMXReplayTimelineRoutesOptions,
+} from "./htmxDashboardRoutes";
 export { buildVoiceCostDashboardReport } from "./client/costDashboard";
 export type {
   VoiceCostDashboardBucket,
