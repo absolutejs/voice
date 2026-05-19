@@ -4,6 +4,7 @@ import { createVoiceCostAccountant } from "../src/costAccounting";
 import { createVoiceMemoryStore } from "../src/memoryStore";
 import { createVoiceMemoryRecordingStore } from "../src/recordingStore";
 import { createVoiceTranscriptRedactor } from "../src/redaction";
+import { createPunctuationSemanticTurnDetector } from "../src/semanticTurn";
 import { createVoiceSession } from "../src/session";
 import { createVoiceMemoryTraceEventStore } from "../src/trace";
 import type {
@@ -2875,5 +2876,59 @@ test("voice session redacts PII out of transcripts before they enter the session
   expect(finalText).toContain("[REDACTED:EMAIL]");
   expect(finalText).not.toContain("4242");
   expect(finalText).not.toContain("user@example.com");
+});
+
+test("voice session commits a turn immediately when semantic detector signals end-of-turn", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const turnTexts: string[] = [];
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-semantic",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => {
+        turnTexts.push(turn.text);
+        return {};
+      },
+    },
+    semanticTurnDetector: createPunctuationSemanticTurnDetector({
+      minPartialWords: 2,
+    }),
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      // intentionally large — semantic detector should commit before silence fires
+      silenceMs: 5_000,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.9,
+      id: "final-semantic",
+      isFinal: true,
+      text: "I need help with my account.",
+      vendor: "fake-stt",
+    },
+    type: "final",
+  });
+  await Bun.sleep(40);
+
+  expect(turnTexts).toEqual(["I need help with my account."]);
 });
 

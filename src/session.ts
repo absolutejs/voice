@@ -1918,6 +1918,24 @@ export const createVoiceSession = <
       session,
       type: "turn.transcript",
     });
+
+    if (options.semanticTurnDetector) {
+      const verdict = await Promise.resolve(
+        options.semanticTurnDetector.evaluate({
+          lastFinalTranscript: transcript,
+          partialText: session.currentTurn.partialText,
+          silenceMs:
+            session.currentTurn.silenceStartedAt !== undefined
+              ? Date.now() - session.currentTurn.silenceStartedAt
+              : 0,
+          transcripts: session.currentTurn.transcripts,
+        }),
+      );
+      if (verdict.endOfTurn) {
+        clearSilenceTimer();
+        await requestTurnCommit("vendor");
+      }
+    }
   };
 
   const resumePendingTurnCommit = (session: TSession) => {

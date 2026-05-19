@@ -821,6 +821,17 @@ export type {
   VoicePriceBook,
   VoiceProviderRates,
 } from "./costAccounting";
+export {
+  createPunctuationSemanticTurnDetector,
+  createRegexSemanticTurnDetector,
+} from "./semanticTurn";
+export type {
+  CreatePunctuationSemanticTurnDetectorOptions,
+  CreateRegexSemanticTurnDetectorOptions,
+  VoiceSemanticTurnDetector,
+  VoiceSemanticTurnInput,
+  VoiceSemanticTurnVerdict,
+} from "./semanticTurn";
 export { createMonologueAMDDetector } from "./amdDetector";
 export type {
   MonologueAMDDetectorOptions,

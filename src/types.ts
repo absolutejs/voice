@@ -1089,6 +1089,7 @@ export type CreateVoiceSessionOptions<
   costAccountant?: import("./costAccounting").VoiceCostAccountant;
   costTelephony?: { provider?: string };
   redact?: import("./redaction").VoiceTranscriptRedactor;
+  semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;
