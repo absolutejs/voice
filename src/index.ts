@@ -843,6 +843,20 @@ export {
   verifyVoiceWebhookSignature,
 } from "./webhookVerification";
 export {
+  VOICE_CALLER_MEMORY_KEY,
+  buildVoiceCallerMemoryNamespace,
+  createVoiceCallerMemoryNamespace,
+  summarizeVoiceCallerTranscript,
+} from "./callerMemory";
+export type {
+  CreateVoiceCallerMemoryNamespaceOptions,
+  SummarizeVoiceCallerTranscriptOptions,
+  VoiceCallerIdentity,
+  VoiceCallerMemoryCompletion,
+  VoiceCallerMemorySnapshot,
+  VoiceCallerMemorySummarizerInput,
+} from "./callerMemory";
+export {
   aggregateVoiceTurnLatencySpans,
   buildOTELSpanId,
   buildOTELTraceId,
