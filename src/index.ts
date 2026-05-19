@@ -3088,4 +3088,33 @@ export {
   visualizeVoicePathway,
 } from "./pathwayVisualizer";
 export type { VoicePathwayVisualization } from "./pathwayVisualizer";
+export { createVoiceCRMRegistry } from "./crmContract";
+export type {
+  CreateVoiceCRMRegistryOptions,
+  VoiceCRMCallActivityInput,
+  VoiceCRMContactSummary,
+  VoiceCRMContract,
+  VoiceCRMLeadInput,
+  VoiceCRMNoteInput,
+  VoiceCRMRegistry,
+  VoiceCRMTaskInput,
+} from "./crmContract";
+export {
+  createInMemoryVoiceCallerCRMLinkCache,
+  createVoiceCallerCRMLinker,
+} from "./callerCRMLinker";
+export type {
+  CreateVoiceCallerCRMLinkerOptions,
+  VoiceCallerCRMLinkCacheStore,
+  VoiceCallerCRMLinker,
+  VoiceCallerCRMLinkRecord,
+} from "./callerCRMLinker";
+export { createVoiceCRMCallLogger } from "./crmCallLogger";
+export type {
+  CreateVoiceCRMCallLoggerOptions,
+  VoiceCRMCallLogErrorPolicy,
+  VoiceCRMCallLogger,
+  VoiceCRMCallLoggerInput,
+  VoiceCRMCallLogResult,
+} from "./crmCallLogger";
 export * from "./types";
