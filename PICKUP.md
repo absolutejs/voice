@@ -9,12 +9,17 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.465`
+- Current package: `@absolutejs/voice@0.0.22-beta.467`
 - Companion media package: `@absolutejs/media@0.0.1-beta.16`
-- Latest pushed voice commit: `317b267 Externalize @absolutejs/media and bump to media beta.16`
+- Latest pushed voice commit: `6bf471d createVoiceOperationsRecordRoutes accepts a per-session mediaPipeline resolver`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-18T23-42-25.003Z/proof-pack/latest.json`
 - Latest proof status: `ok: true`; mediaPipelineCalibrationAssertion summary trimmed from ~35 KB to ~1.7 KB (95% reduction); total proof JSON dropped from ~170 KB to ~114 KB; per-report media artifacts (`media-quality.{json,md}`, `media-transport.{json,md}`, `media-processor-graph.{json,md}`) persisted in the proof-pack run directory and linked from the assertion's `artifacts` field.
 - Stable issue codes now exposed: `summary.issueCodes` aggregates calibration/quality/interruption/processor-graph codes; `summary.calibration.issueCodes` and `summary.processorGraph.issueCodes` are also present for per-category gating.
+- Media issue codes are now projected into buyer-facing voice surfaces:
+  - `VoiceProductionReadinessReport.checks` gets 5 granular media checks (overall, quality, transport, processor graph, interruption) on top of the existing aggregate "Media pipeline quality" check, via `buildVoiceMediaPipelineReadinessChecks`.
+  - `VoiceOperationsRecord.mediaPipeline` (new optional field) carries `{ status, qualityStatus, transportStatus, processorGraphStatus, issueCodes, jitterMs, frames, surface }`; populated by passing `mediaPipeline` to either `buildVoiceOperationsRecord` or `createVoiceOperationsRecordRoutes` (the route accepts a sessionId-keyed resolver).
+  - `VoiceFailureReplayReport.media.{pipelineIssueCodes,pipelineStatus}` reads from the record; status demotes to `failed`/`degraded` when the pipeline is `fail`/`warn`; incident markdown gets a new "Media Pipeline" section.
+  - `VoiceIncidentTimelineOptions.extraEvents` accepts any custom event source; the example feeds `buildVoiceMediaPipelineIncidentEvents` into it so media-pipeline issues appear in `/api/voice/incident-timeline`.
 
 ## Companion Repos
 
@@ -44,7 +49,7 @@ Voice should not own generic media runtime semantics:
 
 ## Next Recommended Work
 
-Compact-artifact readability is shipped end-to-end. Helpers now in place:
+Compact-artifact readability AND issue-code surfacing are both shipped end-to-end. Helpers now in place:
 
 - `summarizeVoiceMediaPipelineReport(report, { artifacts })` — compact proof envelope, accepts artifact hrefs.
 - `writeVoiceMediaPipelineArtifacts({ dir, report, hrefBase })` — persists media-{quality,transport,processor-graph}.{json,md}.
@@ -52,13 +57,11 @@ Compact-artifact readability is shipped end-to-end. Helpers now in place:
 - `buildVoiceMediaPipelineReadinessChecks(report, { baseHref, label })` — drop-in `VoiceProductionReadinessCheck[]`.
 - `buildVoiceMediaPipelineIncidentEvents(report, { now, source, category })` — drop-in `VoiceIncidentTimelineEvent[]`.
 
-Next steps:
+Possible follow-ups (optional, none blocking):
 
-- Wire `buildVoiceMediaPipelineReadinessChecks` output into the example's `productionReadiness` report so media checks show up in the readiness page and gate explanations.
-- Wire `buildVoiceMediaPipelineIncidentEvents` into the example's incident timeline endpoint(s) so media incidents surface in `/voice-incidents/...`.
-- Surface media issue codes in `VoiceOperationsRecord` (new field or existing `telephonyMedia`-style summary).
-- Consider lifting `buildVoiceFailureReplay` to attach `media.graph_*` and `media.transport_*` codes to failure-replay output.
-- Optional: write the README/CHANGELOG entries for the new media beta and voice beta surfaces.
+- Extend `renderVoiceOperationsRecordIncidentMarkdown` (and the HTML renderer) to include a "Media pipeline" section pulling from `record.mediaPipeline`. Currently only failure replay's markdown renderer surfaces it.
+- Re-run the full proof pack with the new operations-record/incident-timeline wiring to capture an updated `.voice-runtime/proof-pack/...` artifact reflecting the new fields.
+- Write README/CHANGELOG entries for the new media beta (0.0.1-beta.16) and voice betas (0.0.22-beta.464 → 467).
 
 ## Verification Expectations
 
