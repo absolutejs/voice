@@ -2827,6 +2827,62 @@ test("voice session emits cost.ready trace event with TTS, STT, telephony breakd
   expect(payload.totalUsd).toBeGreaterThan(0);
 });
 
+test("voice session attaches user media to the next committed turn", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-attach",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.attachUserMedia({
+    data: "iVBORw0KGgo=",
+    kind: "image",
+    mediaType: "image/png",
+  });
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.9,
+      id: "final-attach",
+      isFinal: true,
+      text: "what's in the photo",
+      vendor: "fake-stt",
+    },
+    type: "final",
+  });
+  await session.commitTurn("manual");
+
+  const snapshot = await session.snapshot();
+  const turn = snapshot.turns.at(-1);
+  expect(turn?.attachments).toHaveLength(1);
+  expect(turn?.attachments?.[0]).toMatchObject({
+    kind: "image",
+    mediaType: "image/png",
+  });
+});
+
 test("voice session redacts PII out of transcripts before they enter the session record", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();

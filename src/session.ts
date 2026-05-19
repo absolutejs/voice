@@ -487,6 +487,8 @@ export const createVoiceSession = <
   let activeAdapterGeneration = 0;
   let activeTTSTurnId: string | undefined;
   const currentTurnAudio: BufferedAudioChunk[] = [];
+  const pendingUserAttachments: import("./agent").VoiceAgentMessageAttachment[] =
+    [];
   let fallbackAttemptsForCurrentTurn = 0;
   let fallbackReplayAudioMsForCurrentTurn = 0;
 
@@ -2452,7 +2454,12 @@ export const createVoiceSession = <
       });
     }
 
+    const drainedAttachments =
+      pendingUserAttachments.length > 0
+        ? pendingUserAttachments.splice(0, pendingUserAttachments.length)
+        : undefined;
     const turn: VoiceTurnRecord<TResult> = {
+      attachments: drainedAttachments,
       committedAt: Date.now(),
       id: createId(),
       text: finalText,
@@ -2865,6 +2872,9 @@ export const createVoiceSession = <
 
   const api: VoiceSessionHandle<TContext, TSession, TResult> = {
     id: options.id,
+    attachUserMedia: async (attachment) => {
+      pendingUserAttachments.push(attachment);
+    },
     close: async (reason?: string) => {
       await runSerial("api.close", async () => {
         const disposition: VoiceCallDisposition =

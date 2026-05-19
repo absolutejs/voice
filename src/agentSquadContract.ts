@@ -177,6 +177,7 @@ const createContractApi = <
   session: TSession,
 ): VoiceSessionHandle<TContext, TSession, TResult> =>
   ({
+    attachUserMedia: async () => {},
     close: async () => {},
     commitTurn: async () => {},
     complete: async () => {},

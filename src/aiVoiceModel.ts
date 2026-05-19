@@ -44,6 +44,40 @@ const toProviderMessages = (
       out.push({ content: message.content, role: "user" });
       continue;
     }
+    if (
+      message.role === "user" &&
+      message.attachments &&
+      message.attachments.length > 0
+    ) {
+      const blocks: AIProviderMessage["content"] = [];
+      if (message.content) {
+        blocks.push({ content: message.content, type: "text" });
+      }
+      for (const attachment of message.attachments) {
+        if (attachment.kind === "image") {
+          blocks.push({
+            source: {
+              data: attachment.data,
+              media_type: attachment.mediaType,
+              type: "base64",
+            },
+            type: "image",
+          });
+        } else if (attachment.kind === "document") {
+          blocks.push({
+            name: attachment.name,
+            source: {
+              data: attachment.data,
+              media_type: attachment.mediaType,
+              type: "base64",
+            },
+            type: "document",
+          });
+        }
+      }
+      out.push({ content: blocks, role: "user" });
+      continue;
+    }
     out.push({ content: message.content, role: message.role });
   }
   return out;

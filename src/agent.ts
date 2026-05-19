@@ -16,7 +16,27 @@ import {
 
 export type VoiceAgentMessageRole = "assistant" | "system" | "tool" | "user";
 
+export type VoiceAgentImageMediaType =
+  | "image/gif"
+  | "image/jpeg"
+  | "image/png"
+  | "image/webp";
+
+export type VoiceAgentMessageAttachment =
+  | {
+      data: string;
+      kind: "image";
+      mediaType: VoiceAgentImageMediaType;
+    }
+  | {
+      data: string;
+      kind: "document";
+      mediaType: "application/pdf";
+      name?: string;
+    };
+
 export type VoiceAgentMessage = {
+  attachments?: VoiceAgentMessageAttachment[];
   content: string;
   metadata?: Record<string, unknown>;
   name?: string;
@@ -264,8 +284,13 @@ const createHistoryMessages = <TResult>(
       continue;
     }
 
-    if (previousTurn.text.trim()) {
+    const previousAttachments =
+      previousTurn.attachments && previousTurn.attachments.length > 0
+        ? previousTurn.attachments
+        : undefined;
+    if (previousTurn.text.trim() || previousAttachments) {
       messages.push({
+        attachments: previousAttachments,
         content: previousTurn.text,
         role: "user",
       });
@@ -279,7 +304,12 @@ const createHistoryMessages = <TResult>(
     }
   }
 
+  const currentAttachments =
+    turn.attachments && turn.attachments.length > 0
+      ? turn.attachments
+      : undefined;
   messages.push({
+    attachments: currentAttachments,
     content: turn.text,
     role: "user",
   });

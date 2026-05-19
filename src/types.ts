@@ -324,6 +324,7 @@ export type VoiceTurnRecord<TResult = unknown> = {
   quality?: VoiceTranscriptQuality;
   transcripts: Transcript[];
   assistantText?: string;
+  attachments?: import("./agent").VoiceAgentMessageAttachment[];
   committedAt: number;
   result?: TResult;
 };
@@ -643,6 +644,9 @@ export type VoiceSessionHandle<
   id: string;
   connect: (socket: VoiceSocket) => Promise<void>;
   receiveAudio: (audio: AudioChunk) => Promise<void>;
+  attachUserMedia: (
+    attachment: import("./agent").VoiceAgentMessageAttachment,
+  ) => Promise<void>;
   commitTurn: (reason?: VoiceEndOfTurnEvent["reason"]) => Promise<void>;
   disconnect: (event?: VoiceCloseEvent) => Promise<void>;
   complete: (result?: TResult) => Promise<void>;
