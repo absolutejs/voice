@@ -393,6 +393,7 @@ export type VoiceCallDisposition =
   | "voicemail"
   | "no-answer"
   | "failed"
+  | "silence-timeout"
   | "closed";
 
 export type VoiceCallLifecycleEvent = {
@@ -661,6 +662,7 @@ export type VoiceSessionHandle<
     reason?: string;
     result?: TResult;
     target: string;
+    transferMode?: "cold" | "warm";
   }) => Promise<void>;
   close: (reason?: string) => Promise<void>;
   snapshot: () => Promise<TSession>;
@@ -674,6 +676,7 @@ export type VoiceRouteResult<TResult = unknown> = {
     metadata?: Record<string, unknown>;
     reason?: string;
     target: string;
+    transferMode?: "cold" | "warm";
   };
   escalate?: {
     metadata?: Record<string, unknown>;
@@ -1081,6 +1084,7 @@ export type CreateVoiceSessionOptions<
   store: VoiceSessionStore<TSession>;
   trace?: VoiceTraceEventStore;
   recording?: VoiceSessionRecordingConfig;
+  callSilenceTimeoutMs?: number;
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;

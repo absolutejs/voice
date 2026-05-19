@@ -14,6 +14,7 @@ import type {
 
 export type VoiceOutcomeRecipeName =
   | "appointment-booking"
+  | "cold-transfer"
   | "lead-qualification"
   | "support-triage"
   | "voicemail-callback"
@@ -131,6 +132,21 @@ const RECIPE_DEFAULTS: Record<VoiceOutcomeRecipeName, RecipeDefaults> = {
     defaultQueue: "transfer-verification",
     description:
       "Creates transfer verification work for transferred calls and escalation work when the handoff fails.",
+    escalationQueue: "transfer-escalations",
+  },
+  "cold-transfer": {
+    completedAction:
+      "Verify the SIP REFER landed and the caller reached the destination without re-introduction.",
+    completedDescription:
+      "The call was cold-transferred (SIP REFER) — confirm the destination picked up.",
+    completedKind: "transfer-check",
+    completedTitle: "Verify cold transfer",
+    defaultCompletedCreatesTask: false,
+    defaultDueInMs: 5 * 60_000,
+    defaultPriority: "normal",
+    defaultQueue: "transfer-verification",
+    description:
+      "Creates verification work for cold-transferred (REFER) calls and escalation work when the handoff fails.",
     escalationQueue: "transfer-escalations",
   },
 };
@@ -311,7 +327,7 @@ export const resolveVoiceOutcomeRecipe = <
       name: `${name}-transfer-check`,
       priority: options.priority ?? defaults.defaultPriority,
       queue:
-        name === "warm-transfer"
+        name === "warm-transfer" || name === "cold-transfer"
           ? (options.queue ?? defaults.defaultQueue)
           : "transfer-verification",
     },

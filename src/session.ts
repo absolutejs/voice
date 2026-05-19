@@ -488,6 +488,34 @@ export const createVoiceSession = <
   let fallbackAttemptsForCurrentTurn = 0;
   let fallbackReplayAudioMsForCurrentTurn = 0;
 
+  const callSilenceTimeoutMs =
+    options.callSilenceTimeoutMs && options.callSilenceTimeoutMs > 0
+      ? options.callSilenceTimeoutMs
+      : undefined;
+  let callSilenceWatchdog: ReturnType<typeof setTimeout> | null = null;
+  let callSilenceFired = false;
+  const clearCallSilenceWatchdog = () => {
+    if (callSilenceWatchdog) {
+      clearTimeout(callSilenceWatchdog);
+      callSilenceWatchdog = null;
+    }
+  };
+  const fireCallSilenceTimeout = () => {
+    callSilenceWatchdog = null;
+    if (callSilenceFired) {
+      return;
+    }
+    callSilenceFired = true;
+    void api.close("silence-timeout");
+  };
+  const kickCallSilenceWatchdog = () => {
+    if (callSilenceTimeoutMs === undefined || callSilenceFired) {
+      return;
+    }
+    clearCallSilenceWatchdog();
+    callSilenceWatchdog = setTimeout(fireCallSilenceTimeout, callSilenceTimeoutMs);
+  };
+
   const recordingConfig = options.recording;
   const recordingChannels = new Set<"assistant" | "user">(
     recordingConfig?.channels ?? ["assistant", "user"],
@@ -879,6 +907,7 @@ export const createVoiceSession = <
             );
 
     captureRecordingChunk("assistant", normalizedChunk, input.format);
+    kickCallSilenceWatchdog();
 
     await send({
       chunkBase64: encodeBase64(normalizedChunk),
@@ -1162,20 +1191,26 @@ export const createVoiceSession = <
     reason?: string;
     result?: TResult;
     target: string;
+    transferMode?: "cold" | "warm";
   }) => {
+    const transferMetadata =
+      input.transferMode === undefined
+        ? input.metadata
+        : { ...(input.metadata ?? {}), transferMode: input.transferMode };
     const session = await writeSession((currentSession) => {
       pushCallLifecycleEvent(currentSession, {
-        metadata: input.metadata,
+        metadata: transferMetadata,
         reason: input.reason,
         target: input.target,
         type: "transfer",
       });
     });
     await appendTrace({
-      metadata: input.metadata,
+      metadata: transferMetadata,
       payload: {
         reason: input.reason,
         target: input.target,
+        transferMode: input.transferMode,
         type: "transfer",
       },
       session,
@@ -2529,6 +2564,7 @@ export const createVoiceSession = <
 
     await ensureAdapter();
     warmTTSSession();
+    kickCallSilenceWatchdog();
   };
 
   const disconnectInternal = async (event?: VoiceCloseEvent) => {
@@ -2612,6 +2648,7 @@ export const createVoiceSession = <
       }
       speechDetected = true;
       clearSilenceTimer();
+      kickCallSilenceWatchdog();
     } else if (speechDetected) {
       const currentSession = await readSession();
       const hasTurnText = Boolean(
@@ -2633,48 +2670,58 @@ export const createVoiceSession = <
     await adapter.send(conditionedAudio);
   };
 
+  const closeInternal = async (
+    reason: string | undefined,
+    disposition: VoiceCallDisposition = "closed",
+  ) => {
+    const session = await writeSession((currentSession) => {
+      if (
+        currentSession.status !== "completed" &&
+        currentSession.status !== "failed" &&
+        !currentSession.call?.endedAt
+      ) {
+        currentSession.lastActivityAt = Date.now();
+        currentSession.status = "completed";
+        pushCallLifecycleEvent(currentSession, {
+          disposition,
+          reason,
+          type: "end",
+        });
+      }
+    });
+    clearSilenceTimer();
+    clearCallSilenceWatchdog();
+    await closeTTSSession(reason);
+    await closeAdapter(reason);
+    await persistRecordings();
+    await Promise.resolve(socket.close(1000, reason));
+    if (session.call?.endedAt && session.call.disposition === disposition) {
+      await appendTrace({
+        payload: {
+          disposition,
+          reason,
+          type: "end",
+        },
+        session,
+        type: "call.lifecycle",
+      });
+      await options.route.onCallEnd?.({
+        api,
+        context: options.context,
+        disposition,
+        reason,
+        session,
+      });
+    }
+  };
+
   const api: VoiceSessionHandle<TContext, TSession, TResult> = {
     id: options.id,
     close: async (reason?: string) => {
       await runSerial("api.close", async () => {
-        const session = await writeSession((currentSession) => {
-          if (
-            currentSession.status !== "completed" &&
-            currentSession.status !== "failed" &&
-            !currentSession.call?.endedAt
-          ) {
-            currentSession.lastActivityAt = Date.now();
-            currentSession.status = "completed";
-            pushCallLifecycleEvent(currentSession, {
-              disposition: "closed",
-              reason,
-              type: "end",
-            });
-          }
-        });
-        clearSilenceTimer();
-        await closeTTSSession(reason);
-        await closeAdapter(reason);
-        await persistRecordings();
-        await Promise.resolve(socket.close(1000, reason));
-        if (session.call?.endedAt && session.call.disposition === "closed") {
-          await appendTrace({
-            payload: {
-              disposition: "closed",
-              reason,
-              type: "end",
-            },
-            session,
-            type: "call.lifecycle",
-          });
-          await options.route.onCallEnd?.({
-            api,
-            context: options.context,
-            disposition: "closed",
-            reason,
-            session,
-          });
-        }
+        const disposition: VoiceCallDisposition =
+          reason === "silence-timeout" ? "silence-timeout" : "closed";
+        await closeInternal(reason, disposition);
       });
     },
     commitTurn: async (reason: VoiceEndOfTurnEvent["reason"] = "manual") =>

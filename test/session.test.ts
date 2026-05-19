@@ -2601,3 +2601,45 @@ test("voice session captures user + assistant audio to recording store on close"
   );
 });
 
+test("voice session closes with silence-timeout disposition when no activity within callSilenceTimeoutMs", async () => {
+  const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    callSilenceTimeoutMs: 40,
+    context: {},
+    id: "session-silence",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    trace,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await Bun.sleep(120);
+
+  const snapshot = await session.snapshot();
+  expect(snapshot.call?.disposition).toBe("silence-timeout");
+  const lifecycleEvents = await trace.list({ type: "call.lifecycle" });
+  expect(
+    lifecycleEvents.find((event) => event.payload.disposition === "silence-timeout"),
+  ).toBeDefined();
+});
+

@@ -1215,7 +1215,7 @@ export {
   createVoicePostgresTraceSinkDeliveryStore,
   createVoicePostgresTraceEventStore,
 } from "./postgresStore";
-export { createVoiceS3ReviewStore } from "./s3Store";
+export { createVoiceS3RecordingStore, createVoiceS3ReviewStore } from "./s3Store";
 export { createVoiceMemoryStore } from "./memoryStore";
 export {
   createVoiceCRMActivitySink,

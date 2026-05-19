@@ -5,6 +5,13 @@ import type {
   VoiceCallReviewArtifact,
   VoiceCallReviewStore,
 } from "./testing/review";
+import { encodePcmAsWav } from "./recordingStore";
+import type {
+  StoredVoiceRecordingArtifact,
+  VoiceRecordingArtifact,
+  VoiceRecordingChannel,
+  VoiceRecordingStore,
+} from "./recordingStore";
 
 export type VoiceS3ReviewStoreFile = {
   delete: () => Promise<void>;
@@ -114,4 +121,125 @@ export const createVoiceS3ReviewStore = <
     remove,
     set,
   };
+};
+
+export type VoiceS3RecordingStoreFile = {
+  delete: () => Promise<void>;
+  exists: () => Promise<boolean>;
+  text: () => Promise<string>;
+  bytes: () => Promise<Uint8Array>;
+  write: (data: string | Uint8Array) => Promise<number>;
+};
+
+export type VoiceS3RecordingStoreClient = Pick<S3Client, "file" | "list">;
+
+export type VoiceS3RecordingStoreOptions = S3Options & {
+  client?: VoiceS3RecordingStoreClient;
+  keyPrefix?: string;
+  publicUrlBase?: string;
+};
+
+const normalizeRecordingKeyPrefix = (prefix?: string) =>
+  prefix?.trim().replace(/^\/+|\/+$/g, "") ?? "voice/recordings";
+
+const recordingWavKey = (
+  prefix: string,
+  sessionId: string,
+  channel: VoiceRecordingChannel,
+) => `${prefix}/${encodeURIComponent(sessionId)}_${channel}.wav`;
+
+const recordingMetadataKey = (
+  prefix: string,
+  sessionId: string,
+  channel: VoiceRecordingChannel,
+) => `${prefix}/${encodeURIComponent(sessionId)}_${channel}.json`;
+
+type StoredRecordingMetadata = {
+  capturedAt: number;
+  channel: VoiceRecordingChannel;
+  durationMs: number;
+  format: VoiceRecordingArtifact["format"];
+  recordingUrl: string;
+  sessionId: string;
+};
+
+export const createVoiceS3RecordingStore = (
+  options: VoiceS3RecordingStoreOptions,
+): VoiceRecordingStore => {
+  const client = options.client ?? new Bun.S3Client(options);
+  const keyPrefix = normalizeRecordingKeyPrefix(options.keyPrefix);
+  const publicUrlBase = options.publicUrlBase?.replace(/\/+$/, "");
+
+  const getFile = (key: string) =>
+    client.file(key, options) as VoiceS3RecordingStoreFile;
+
+  const resolveUrl = (key: string) =>
+    publicUrlBase ? `${publicUrlBase}/${key}` : `s3://${key}`;
+
+  const put: VoiceRecordingStore["put"] = async (artifact) => {
+    const wavKey = recordingWavKey(
+      keyPrefix,
+      artifact.sessionId,
+      artifact.channel,
+    );
+    const metadataKey = recordingMetadataKey(
+      keyPrefix,
+      artifact.sessionId,
+      artifact.channel,
+    );
+    const wav = encodePcmAsWav(artifact.audioBytes, artifact.format);
+    await getFile(wavKey).write(wav);
+    const recordingUrl = resolveUrl(wavKey);
+    const metadata: StoredRecordingMetadata = {
+      capturedAt: artifact.capturedAt,
+      channel: artifact.channel,
+      durationMs: artifact.durationMs,
+      format: artifact.format,
+      recordingUrl,
+      sessionId: artifact.sessionId,
+    };
+    await getFile(metadataKey).write(JSON.stringify(metadata));
+    return {
+      ...artifact,
+      recordingUrl,
+    };
+  };
+
+  const readMetadata = async (
+    sessionId: string,
+    channel: VoiceRecordingChannel,
+  ): Promise<StoredVoiceRecordingArtifact | undefined> => {
+    const metadataKey = recordingMetadataKey(keyPrefix, sessionId, channel);
+    const wavKey = recordingWavKey(keyPrefix, sessionId, channel);
+    const metadataFile = getFile(metadataKey);
+    if (!(await metadataFile.exists())) {
+      return undefined;
+    }
+    const meta = JSON.parse(await metadataFile.text()) as StoredRecordingMetadata;
+    const wavBytes = await getFile(wavKey).bytes();
+    return {
+      audioBytes: wavBytes,
+      capturedAt: meta.capturedAt,
+      channel: meta.channel,
+      durationMs: meta.durationMs,
+      format: meta.format,
+      recordingUrl: meta.recordingUrl,
+      sessionId: meta.sessionId,
+    };
+  };
+
+  const get: VoiceRecordingStore["get"] = (sessionId, channel) =>
+    readMetadata(sessionId, channel);
+
+  const list: VoiceRecordingStore["list"] = async (sessionId) => {
+    const channels: VoiceRecordingChannel[] = ["assistant", "user"];
+    const records = await Promise.all(
+      channels.map((channel) => readMetadata(sessionId, channel)),
+    );
+    return records.filter(
+      (record): record is StoredVoiceRecordingArtifact => record !== undefined,
+    );
+  };
+
+  return { get, list, put };
 };

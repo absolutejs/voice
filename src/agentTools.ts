@@ -84,6 +84,7 @@ export type VoiceTransferCallToolDestination = {
   message?: string;
   metadata?: Record<string, unknown>;
   target: string;
+  transferMode?: "cold" | "warm";
 };
 
 export type VoiceTransferCallToolArgs = {
@@ -168,6 +169,7 @@ export const createVoiceTransferCallTool = <
         reason: args?.reason,
         result,
         target: destination.target,
+        transferMode: destination.transferMode,
       });
       return {
         destinationId: destination.id,
