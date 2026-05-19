@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createVoiceMemoryStore } from "../src/memoryStore";
+import { createVoiceMemoryRecordingStore } from "../src/recordingStore";
 import { createVoiceSession } from "../src/session";
 import { createVoiceMemoryTraceEventStore } from "../src/trace";
 import type {
@@ -2521,3 +2522,82 @@ test("voice session executes lifecycle actions returned from onTurn results", as
   ).toBe(true);
   expect((await session.snapshot()).call?.disposition).toBe("transferred");
 });
+
+test("voice session captures user + assistant audio to recording store on close", async () => {
+  const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+  const recordingStore = createVoiceMemoryRecordingStore();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-recording",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    recording: {
+      store: recordingStore,
+      userInputFormat: {
+        channels: 1,
+        container: "raw",
+        encoding: "pcm_s16le",
+        sampleRateHz: 16_000,
+      },
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => ({
+        assistantText: `Replying to ${turn.text}`,
+      }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    trace,
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.9,
+      id: "final-rec-1",
+      isFinal: true,
+      text: "record me",
+      vendor: "fake-stt",
+    },
+    type: "final",
+  });
+  await session.commitTurn("manual");
+  await session.close("test-end");
+
+  const userRecording = await recordingStore.get("session-recording", "user");
+  const assistantRecording = await recordingStore.get(
+    "session-recording",
+    "assistant",
+  );
+  expect(userRecording).toBeDefined();
+  expect(assistantRecording).toBeDefined();
+  expect(userRecording!.audioBytes.byteLength).toBeGreaterThan(0);
+  expect(assistantRecording!.audioBytes.byteLength).toBeGreaterThan(0);
+
+  const recordingEvents = await trace.list({ type: "recording.ready" });
+  expect(recordingEvents).toHaveLength(2);
+  expect(recordingEvents.map((event) => event.payload.channel).sort()).toEqual(
+    ["assistant", "user"],
+  );
+});
+

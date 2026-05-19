@@ -18,6 +18,7 @@ export type VoiceTraceEventType =
   | "client.telephony_media"
   | "operator.action"
   | "provider.decision"
+  | "recording.ready"
   | "session.error"
   | "turn.assistant"
   | "turn.committed"

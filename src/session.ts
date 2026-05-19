@@ -44,6 +44,7 @@ import type {
   VoiceTranscriptQuality,
 } from "./types";
 import { ttsAdapterSessionCanCancel } from "./types";
+import { computePcmDurationMs } from "./recordingStore";
 
 const DEFAULT_RECONNECT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
@@ -438,6 +439,7 @@ export const createVoiceSession = <
       | "call.handoff"
       | "call.lifecycle"
       | "operator.action"
+      | "recording.ready"
       | "session.error"
       | "turn.assistant"
       | "turn.committed"
@@ -485,6 +487,47 @@ export const createVoiceSession = <
   const currentTurnAudio: BufferedAudioChunk[] = [];
   let fallbackAttemptsForCurrentTurn = 0;
   let fallbackReplayAudioMsForCurrentTurn = 0;
+
+  const recordingConfig = options.recording;
+  const recordingChannels = new Set<"assistant" | "user">(
+    recordingConfig?.channels ?? ["assistant", "user"],
+  );
+  const recordingMaxBytes = recordingConfig?.maxBytesPerChannel ?? 50 * 1024 * 1024;
+  const recordingBuffers: Record<"assistant" | "user", Uint8Array[]> = {
+    assistant: [],
+    user: [],
+  };
+  const recordingByteTotals: Record<"assistant" | "user", number> = {
+    assistant: 0,
+    user: 0,
+  };
+  const recordingFormats: Partial<Record<"assistant" | "user", AudioFormat>> = {};
+  let recordingPersisted = false;
+  const captureRecordingChunk = (
+    channel: "assistant" | "user",
+    bytes: Uint8Array,
+    format: AudioFormat,
+  ) => {
+    if (!recordingConfig || recordingPersisted) {
+      return;
+    }
+    if (!recordingChannels.has(channel)) {
+      return;
+    }
+    if (format.container !== "raw" || format.encoding !== "pcm_s16le") {
+      return;
+    }
+    const currentTotal = recordingByteTotals[channel];
+    if (currentTotal >= recordingMaxBytes) {
+      return;
+    }
+    const remaining = recordingMaxBytes - currentTotal;
+    const slice =
+      bytes.byteLength <= remaining ? bytes : bytes.subarray(0, remaining);
+    recordingBuffers[channel].push(new Uint8Array(slice));
+    recordingByteTotals[channel] += slice.byteLength;
+    recordingFormats[channel] = format;
+  };
 
   const pruneTurnAudio = () => {
     const replayWindowMs =
@@ -740,6 +783,60 @@ export const createVoiceSession = <
     }
   };
 
+  const persistRecordings = async () => {
+    if (!recordingConfig || recordingPersisted) {
+      return;
+    }
+    recordingPersisted = true;
+    const channels: Array<"assistant" | "user"> = ["assistant", "user"];
+    for (const channel of channels) {
+      if (!recordingChannels.has(channel)) {
+        continue;
+      }
+      const chunks = recordingBuffers[channel];
+      const format = recordingFormats[channel];
+      if (chunks.length === 0 || !format) {
+        continue;
+      }
+      const totalBytes = recordingByteTotals[channel];
+      const merged = new Uint8Array(totalBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      try {
+        const stored = await recordingConfig.store.put({
+          audioBytes: merged,
+          capturedAt: Date.now(),
+          channel,
+          durationMs: computePcmDurationMs(totalBytes, format),
+          format,
+          sessionId: options.id,
+        });
+        await appendTrace({
+          payload: {
+            channel,
+            durationMs: stored.durationMs,
+            recordingUrl: stored.recordingUrl,
+            sessionId: options.id,
+            sizeBytes: merged.byteLength,
+          },
+          type: "recording.ready",
+        });
+      } catch (error) {
+        logger.warn("voice recording persist failed", {
+          channel,
+          error: toError(error).message,
+          sessionId: options.id,
+        });
+      } finally {
+        recordingBuffers[channel] = [];
+        recordingByteTotals[channel] = 0;
+      }
+    }
+  };
+
   const cancelActiveTTS = async (reason: string) => {
     const activeSession = ttsSession;
     const cancelledTurnId = activeTTSTurnId;
@@ -780,6 +877,8 @@ export const createVoiceSession = <
                 chunk.byteOffset + chunk.byteLength,
               ),
             );
+
+    captureRecordingChunk("assistant", normalizedChunk, input.format);
 
     await send({
       chunkBase64: encodeBase64(normalizedChunk),
@@ -912,6 +1011,7 @@ export const createVoiceSession = <
     });
     await closeTTSSession("failed");
     await closeAdapter("failed");
+    await persistRecordings();
     speechDetected = false;
     rewindFallbackTurnAudio();
     await options.route.onError?.({
@@ -1001,6 +1101,7 @@ export const createVoiceSession = <
     });
     await closeTTSSession("complete");
     await closeAdapter("complete");
+    await persistRecordings();
     speechDetected = false;
     rewindFallbackTurnAudio();
     if (disposition === "transferred" && input.target) {
@@ -2491,6 +2592,20 @@ export const createVoiceSession = <
       pushTurnAudio(conditionedAudio);
     }
 
+    if (recordingConfig?.userInputFormat) {
+      const userBytes =
+        conditionedAudio instanceof Uint8Array
+          ? conditionedAudio
+          : conditionedAudio instanceof ArrayBuffer
+            ? new Uint8Array(conditionedAudio)
+            : new Uint8Array(
+                conditionedAudio.buffer,
+                conditionedAudio.byteOffset,
+                conditionedAudio.byteLength,
+              );
+      captureRecordingChunk("user", userBytes, recordingConfig.userInputFormat);
+    }
+
     if (audioLevel >= turnDetection.speechThreshold) {
       if (!speechDetected && activeTTSTurnId !== undefined) {
         void cancelActiveTTS("barge-in");
@@ -2540,6 +2655,7 @@ export const createVoiceSession = <
         clearSilenceTimer();
         await closeTTSSession(reason);
         await closeAdapter(reason);
+        await persistRecordings();
         await Promise.resolve(socket.close(1000, reason));
         if (session.call?.endedAt && session.call.disposition === "closed") {
           await appendTrace({

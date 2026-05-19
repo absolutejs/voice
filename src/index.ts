@@ -925,6 +925,7 @@ export {
   createVoiceFileAuditSinkDeliveryStore,
   createVoiceFileCampaignStore,
   createVoiceFileIntegrationEventStore,
+  createVoiceFileRecordingStore,
   createVoiceFileReviewStore,
   createVoiceFileRuntimeStorage,
   createVoiceFileSessionStore,
@@ -932,6 +933,17 @@ export {
   createVoiceFileTraceSinkDeliveryStore,
   createVoiceFileTraceEventStore,
 } from "./fileStore";
+export {
+  computePcmDurationMs,
+  createVoiceMemoryRecordingStore,
+  encodePcmAsWav,
+} from "./recordingStore";
+export type {
+  StoredVoiceRecordingArtifact,
+  VoiceRecordingArtifact,
+  VoiceRecordingChannel,
+  VoiceRecordingStore,
+} from "./recordingStore";
 export {
   createVoiceAssistantMemoryHandle,
   createVoiceAssistantMemoryRecord,

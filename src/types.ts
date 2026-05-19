@@ -1055,6 +1055,13 @@ export type VoicePluginConfig<
   trace?: VoiceTraceEventStore;
 } & VoiceRouteConfig<TContext, TSession, TResult>;
 
+export type VoiceSessionRecordingConfig = {
+  channels?: ReadonlyArray<"assistant" | "user">;
+  maxBytesPerChannel?: number;
+  store: import("./recordingStore").VoiceRecordingStore;
+  userInputFormat?: AudioFormat;
+};
+
 export type CreateVoiceSessionOptions<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -1073,6 +1080,7 @@ export type CreateVoiceSessionOptions<
   sttFallback?: VoiceResolvedSTTFallbackConfig;
   store: VoiceSessionStore<TSession>;
   trace?: VoiceTraceEventStore;
+  recording?: VoiceSessionRecordingConfig;
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;

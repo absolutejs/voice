@@ -62,6 +62,13 @@ import type {
   VoiceCallReviewStore,
 } from "./testing/review";
 import type { VoiceSessionRecord, VoiceSessionStore } from "./types";
+import { encodePcmAsWav } from "./recordingStore";
+import type {
+  StoredVoiceRecordingArtifact,
+  VoiceRecordingArtifact,
+  VoiceRecordingChannel,
+  VoiceRecordingStore,
+} from "./recordingStore";
 
 export type VoiceFileStoreOptions = {
   directory: string;
@@ -1088,3 +1095,117 @@ export const createStoredVoiceExternalObjectMap = <
     sourceId: mapping.sourceId,
     sourceType: mapping.sourceType,
   });
+
+const recordingFileName = (
+  sessionId: string,
+  channel: VoiceRecordingChannel,
+) => `${encodeURIComponent(sessionId)}_${channel}.wav`;
+
+const recordingMetadataFileName = (
+  sessionId: string,
+  channel: VoiceRecordingChannel,
+) => `${encodeURIComponent(sessionId)}_${channel}.json`;
+
+type StoredRecordingMetadata = {
+  capturedAt: number;
+  channel: VoiceRecordingChannel;
+  durationMs: number;
+  format: VoiceRecordingArtifact["format"];
+  recordingUrl: string;
+  sessionId: string;
+};
+
+export const createVoiceFileRecordingStore = (
+  options: VoiceFileStoreOptions,
+): VoiceRecordingStore => {
+  const ensureDir = async () => {
+    await mkdir(options.directory, { recursive: true });
+  };
+
+  const put: VoiceRecordingStore["put"] = async (artifact) => {
+    await ensureDir();
+    const wavPath = join(
+      options.directory,
+      recordingFileName(artifact.sessionId, artifact.channel),
+    );
+    const metadataPath = join(
+      options.directory,
+      recordingMetadataFileName(artifact.sessionId, artifact.channel),
+    );
+    const wav = encodePcmAsWav(artifact.audioBytes, artifact.format);
+    await writeFile(wavPath, wav);
+    const recordingUrl = `file://${wavPath}`;
+    const metadata: StoredRecordingMetadata = {
+      capturedAt: artifact.capturedAt,
+      channel: artifact.channel,
+      durationMs: artifact.durationMs,
+      format: artifact.format,
+      recordingUrl,
+      sessionId: artifact.sessionId,
+    };
+    await writeFile(
+      metadataPath,
+      options.pretty
+        ? JSON.stringify(metadata, null, 2)
+        : JSON.stringify(metadata),
+    );
+    return {
+      ...artifact,
+      recordingUrl,
+    };
+  };
+
+  const readMetadata = async (
+    sessionId: string,
+    channel: VoiceRecordingChannel,
+  ): Promise<StoredVoiceRecordingArtifact | undefined> => {
+    const metadataPath = join(
+      options.directory,
+      recordingMetadataFileName(sessionId, channel),
+    );
+    const wavPath = join(
+      options.directory,
+      recordingFileName(sessionId, channel),
+    );
+    try {
+      const [metaText, wavBytes] = await Promise.all([
+        readFile(metadataPath, "utf8"),
+        readFile(wavPath),
+      ]);
+      const meta = JSON.parse(metaText) as StoredRecordingMetadata;
+      return {
+        audioBytes: new Uint8Array(
+          wavBytes.buffer,
+          wavBytes.byteOffset,
+          wavBytes.byteLength,
+        ),
+        capturedAt: meta.capturedAt,
+        channel: meta.channel,
+        durationMs: meta.durationMs,
+        format: meta.format,
+        recordingUrl: meta.recordingUrl,
+        sessionId: meta.sessionId,
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+      throw error;
+    }
+  };
+
+  const get: VoiceRecordingStore["get"] = (sessionId, channel) =>
+    readMetadata(sessionId, channel);
+
+  const list: VoiceRecordingStore["list"] = async (sessionId) => {
+    const channels: VoiceRecordingChannel[] = ["assistant", "user"];
+    const records = await Promise.all(
+      channels.map((channel) => readMetadata(sessionId, channel)),
+    );
+    return records.filter(
+      (record): record is StoredVoiceRecordingArtifact => record !== undefined,
+    );
+  };
+
+  return { get, list, put };
+};
