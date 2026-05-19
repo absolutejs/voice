@@ -280,9 +280,12 @@ const createFakeRealtimeAdapter = () => {
   };
 };
 
-const createFakeTTSAdapter = () => {
+const createFakeTTSAdapter = (
+  options: { supportsCancel?: boolean } = {},
+) => {
   let closeCalls = 0;
   let openCalls = 0;
+  const cancelReasons: Array<string | undefined> = [];
   const sentTexts: string[] = [];
   const sessions: Array<
     TTSAdapterSession & {
@@ -342,6 +345,12 @@ const createFakeTTSAdapter = () => {
         },
       };
 
+      if (options.supportsCancel) {
+        session.cancel = async (reason?: string) => {
+          cancelReasons.push(reason);
+        };
+      }
+
       sessions.push(session);
       return session;
     },
@@ -349,6 +358,7 @@ const createFakeTTSAdapter = () => {
 
   return {
     adapter,
+    getCancelReasons: () => cancelReasons,
     getCloseCalls: () => closeCalls,
     getOpenCalls: () => openCalls,
     getSentTexts: () => sentTexts,
@@ -2688,5 +2698,60 @@ test("voice session marks voicemail via AMD detector when caller monologues with
   );
   expect(voicemailEvent).toBeDefined();
   expect(voicemailEvent?.metadata).toMatchObject({ detector: "monologue" });
+});
+
+test("voice session fires TTS cancel when user speech is detected during agent playback", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter({ supportsCancel: true });
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-barge-in",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => ({
+        assistantText: `Replying to ${turn.text}`,
+      }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.9,
+      id: "final-bi-1",
+      isFinal: true,
+      text: "hello there",
+      vendor: "fake-stt",
+    },
+    type: "final",
+  });
+  await session.commitTurn("manual");
+  expect(tts.getSentTexts()).toEqual(["Replying to hello there"]);
+
+  // simulate the next utterance starting before the agent finishes
+  await session.receiveAudio(createSpeechChunk(0));
+  await session.receiveAudio(createSpeechChunk(16_000));
+
+  expect(tts.getCancelReasons()).toEqual(["barge-in"]);
 });
 
