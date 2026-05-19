@@ -9,10 +9,10 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.497`
+- Current package: `@absolutejs/voice@0.0.22-beta.498`
 - Companion media package: `@absolutejs/media@0.0.1-beta.17` (audio redaction + noise suppression contract shipped)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `9c1d7e1 0.0.22-beta.497: prosody / sentiment adapter pass-through fields`
+- Latest pushed voice commit: `59519f4 0.0.22-beta.498: three audit follow-up buckets (factory, defaults, redaction-coupling, dashboards)`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
 - Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.497; typecheck passes; last Playwright run on /vue was clean against .495.
@@ -132,6 +132,31 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 |---|---|
 | TTS prosody | `VoiceTTSProsody { style?, speed?, pitch?, emphasis? }`. `TTSAdapterOpenOptions.prosody?`. `CreateVoiceSessionOptions.prosody?` flows through to `ttsAdapter.open()`. Adapters that support style/speed/pitch (ElevenLabs, Cartesia, OpenAI tts-1, Azure Neural, Hume EVI when added) opt in |
 | STT sentiment | `VoiceTranscriptSentiment { label, score?, metadata? }`. `Transcript.sentiment?` — STT adapters that emit sentiment (Hume EVI, AssemblyAI sentiment-analysis) populate it |
+
+### voice@0.0.22-beta.498 — Three follow-up buckets closed
+
+**Bucket 3 — operator-config defaults:**
+
+| Gap | Surface |
+|---|---|
+| `defineVoiceAssistant` unified factory | `defineVoiceAssistant({ id, agent, voice, prosody, recording, redact, amd, semanticTurnDetector, callSilenceTimeoutMs, ops, guardrails, memory, route?, tools? })` returns `{ assistant, definition, toSessionOptions(input) }`. Collapses the 12-object wiring sprawl into a 30-line config blob |
+| Audit retention policy | `createVoiceRetentionScheduler`, `purgeVoiceRetentionStore`, types `VoiceRetentionPolicyOptions`/`VoicePurgeReport`/`VoiceRetentionStore` |
+| Per-customer call quota | `createInMemoryVoiceCallQuota({ tiers, strict? })`. Reservation lifecycle with concurrency + monthly-minutes caps. Rejection reasons: `concurrency-exceeded`, `monthly-minutes-exceeded`, `customer-not-found` |
+| Route auth middleware | `createVoiceRouteAuth({ verify, bypassPaths? })` Elysia plugin + `createVoiceBearerAuthVerifier` + `createVoiceHMACAuthVerifier` (uses the verifyVoiceWebhookSignature primitive from .485) |
+
+**Bucket 1 — redaction end-to-end:**
+
+| Gap | Surface |
+|---|---|
+| Text-redaction → audio-bleep coupling | `deriveVoiceRecordingRedactionRanges({ transcripts, patterns?, paddingMs?, recordingStartedAtEpochMs? })`. Walks final transcripts, matches DEFAULT_VOICE_REDACTION_PATTERNS, emits AudioRedactionRange[] ready for media's `applyAudioRedaction` (.17). End-to-end: voice redacts transcript text (.481) → derive ranges → media bleeps recording (.17) |
+
+**Bucket 2 — dashboard view models (framework-agnostic):**
+
+| Gap | Surface |
+|---|---|
+| Cost dashboard | `buildVoiceCostDashboardReport({ events, bucketBy?, fromMs?, toMs? })` rolls up cost.ready trace events into per-bucket + grand-total breakdowns |
+| Live call viewer | `createLiveCallViewer({ sessionId, bufferLimit?, startedAt? })` returns an observable view-state. Consumer wires monitor-socket events to applyMonitorEvent/noteTranscript/notePartial/noteAgentAudio |
+| Replay UI | `buildReplayTimelineReport({ artifact })` flattens a `VoiceCallReviewArtifact` timeline into categorized events + turn-count summary |
 
 ### `@absolutejs/media` (2)
 
