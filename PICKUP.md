@@ -3,18 +3,18 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps shipped through beta.491; cross-platform competitive gaps through beta.509; outbound + compliance kit through beta.510; supervisor kit through beta.511; appointment booking kit through beta.512; QA scorecard kit through beta.513. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps shipped through beta.491; cross-platform competitive gaps through beta.509; outbound + compliance kit through beta.510; supervisor kit through beta.511; appointment booking kit through beta.512; QA scorecard kit through beta.513; conversation pathways DSL through beta.514 (closes Vapi Workflows / Bland Pathways gap). The remaining roadmap is in this file. CRM integrations belong in a separate `@absolutejs/crm` package — voice exposes hooks/contracts, the package owns the Salesforce/HubSpot/etc. adapters. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.513` (QA scorecard kit: rubric scorecard generator, AI scorer, agent performance trends, human-vs-LLM calibration, quality drift detector)
+- Current package: `@absolutejs/voice@0.0.22-beta.514` (conversation pathways DSL: types + validator, runtime executor, slot collectors, assistant compiler, mermaid/text visualizer)
 - Companion media package: `@absolutejs/media@0.0.1-beta.18` (audio redaction + noise suppression contract + ffmpeg adapter)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `c432045 0.0.22-beta.513: QA scorecard kit (scorecard generator, AI scorer, performance trends, calibration, drift detector)`
+- Latest pushed voice commit: `b45f560 0.0.22-beta.514: conversation pathways DSL (types + validator, runtime executor, slot collectors, assistant compiler, visualizer)`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
-- Voice suite: **1377 pass / 0 fail** on last run (flaky `fileStore.test.ts` filesystem-mtime test passed cleanly).
+- Voice suite: **1412 pass / 1 flaky** (flaky `fileStore.test.ts` filesystem-mtime test surfaced again on the most recent run).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.505; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .505.
 
 ## Companion Repos
@@ -240,6 +240,18 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Agent performance trends | `buildVoiceAgentPerformanceReport({ agentId, rubricId, scorecards, fromMs?, toMs?, bucket? })` returns per-day/week/month buckets, per-criterion average/passRate/trend/delta (split-half compare), worst/best criterion, overall pass rate |
 | Human vs LLM calibration | `computeVoiceScorecardCalibration(pairs, { topDivergences? })` returns MAE, RMSE, weighted-score Pearson correlation, grade-agreement rate, per-criterion bias (LLM under/over-scoring), top divergences sorted by |gap| |
 | Quality drift detector | `detectVoiceQualityDrift({ rubricId, scorecards, baselineWindowMs?, currentWindowMs?, watchThreshold?, regressionThreshold?, now? })` returns overall + per-criterion severity (`ok`/`watch`/`regression`) with current-window vs baseline-window deltas and alert count |
+
+### voice@0.0.22-beta.514 — Conversation pathways DSL
+
+Closes the Vapi Workflows / Bland Pathways competitive gap. Declarative state-machine for guided voice flows, sits on top of the existing assistant runtime.
+
+| Gap | Surface |
+|---|---|
+| Pathway types + validator | `VoicePathway`, `VoicePathwayState`, `VoicePathwayTransition`, `VoicePathwaySlot`, `VoicePathwayCondition` (always/slot-filled/slot-equals/slot-matches/fallback), `VoicePathwayAction` (say/collect-slot/call-tool/set-slot/transfer/end-call). `validateVoicePathway(pathway)` catches duplicate ids, unknown entry, missing transition targets, unreachable states, missing slot refs, fallback-not-last, no-terminal-reachable |
+| Runtime executor | `createVoicePathwayRuntime({ pathway, initialSlots?, now?, skipValidation? })` returns `{ start, fillSlot, tryTransition, getState, subscribe }`. Emits `say`/`ask-slot`/`tool-call`/`transfer`/`end-call`/`state-entered`/`errored` events. Status machine: `ready`/`awaiting-slot`/`branching`/`ended`/`errored`. Auto-validates at construction unless `skipValidation` set |
+| Slot collectors | `createVoicePathwaySlotCollector({ parsers?, maxAttemptsPerSlot? })` returns `{ interpret, attemptsExceeded, reset }`. `DEFAULT_VOICE_PATHWAY_SLOT_PARSERS` covers string/number/boolean/date/time/phone/email/currency/choice with colloquial speech artifacts (yes/yeah, 'at'/'dot' for email, digit words for numbers). Custom parser overrides via `parsers` |
+| Pathway → assistant compiler | `compileVoicePathwayToAssistant({ pathway, introduction?, fallbackBehavior?, toolNamePrefix? })` produces `{ systemPrompt, tools, initialPrompt?, metadata }`. Tools: `pathway_<id>_advance` (enum'd toStateId), `_fill_slot` (enum'd slotId + value), `_end_call`, plus pathway-declared `_tool_<id>` per `pathway.tools[]`. Drives any LLM agent that supports function-calling through the pathway |
+| Visualizer | `renderVoicePathwayMermaid(pathway)` produces flowchart-TD with shape coding (entry=circle, terminal=double-circle, branch=diamond, action/collect=rect). `renderVoicePathwayText(pathway)` produces hierarchical text walk with cycle detection. `visualizeVoicePathway(pathway)` returns both |
 
 ### Out of scope — adapter-only
 
