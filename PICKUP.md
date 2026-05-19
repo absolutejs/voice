@@ -9,13 +9,13 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.495`
+- Current package: `@absolutejs/voice@0.0.22-beta.497`
 - Companion media package: `@absolutejs/media@0.0.1-beta.17` (audio redaction + noise suppression contract shipped)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `6cde051 0.0.22-beta.495: VoiceWidget for Vue + Svelte + Angular + shared view-model`
+- Latest pushed voice commit: `9c1d7e1 0.0.22-beta.497: prosody / sentiment adapter pass-through fields`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
 - Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
-- Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.495; `/vue` Playwright-verified at 0 console errors/warnings against .495.
+- Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.497; typecheck passes; last Playwright run on /vue was clean against .495.
 
 ## Companion Repos
 
@@ -119,6 +119,19 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Vue (.495) | `<VoiceWidget />` from `@absolutejs/voice/vue` |
 | Svelte (.495) | `createVoiceWidget(path, options)` from `@absolutejs/voice/svelte`. Returns `{ startCall, mute, endCall, subscribe, getSnapshot, getViewModel, getHTML }` |
 | Angular (.495) | `VoiceWidgetService.connect(path, options)` from `@absolutejs/voice/angular` |
+
+### voice@0.0.22-beta.496 — Multimodal mid-call attachments
+
+| Gap | Surface |
+|---|---|
+| Image / document attachments | `VoiceAgentMessageAttachment = { kind: 'image' \| 'document', ... }`, `VoiceAgentMessage.attachments?`, `VoiceTurnRecord.attachments?`. `VoiceSessionHandle.attachUserMedia(attachment)` buffers until next turn commit. `createAIVoiceModel` translates into `AIProviderContentBlock` arrays so Anthropic / OpenAI / Gemini receive them via the multimodal content surface |
+
+### voice@0.0.22-beta.497 — Prosody / sentiment adapter pass-throughs
+
+| Gap | Surface |
+|---|---|
+| TTS prosody | `VoiceTTSProsody { style?, speed?, pitch?, emphasis? }`. `TTSAdapterOpenOptions.prosody?`. `CreateVoiceSessionOptions.prosody?` flows through to `ttsAdapter.open()`. Adapters that support style/speed/pitch (ElevenLabs, Cartesia, OpenAI tts-1, Azure Neural, Hume EVI when added) opt in |
+| STT sentiment | `VoiceTranscriptSentiment { label, score?, metadata? }`. `Transcript.sentiment?` — STT adapters that emit sentiment (Hume EVI, AssemblyAI sentiment-analysis) populate it |
 
 ### `@absolutejs/media` (2)
 
