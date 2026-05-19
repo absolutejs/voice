@@ -1088,6 +1088,7 @@ export type CreateVoiceSessionOptions<
   amd?: import("./amdDetector").VoiceAMDDetector<TContext, TSession, TResult>;
   costAccountant?: import("./costAccounting").VoiceCostAccountant;
   costTelephony?: { provider?: string };
+  redact?: import("./redaction").VoiceTranscriptRedactor;
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;

@@ -3,6 +3,7 @@ import { createMonologueAMDDetector } from "../src/amdDetector";
 import { createVoiceCostAccountant } from "../src/costAccounting";
 import { createVoiceMemoryStore } from "../src/memoryStore";
 import { createVoiceMemoryRecordingStore } from "../src/recordingStore";
+import { createVoiceTranscriptRedactor } from "../src/redaction";
 import { createVoiceSession } from "../src/session";
 import { createVoiceMemoryTraceEventStore } from "../src/trace";
 import type {
@@ -2823,5 +2824,56 @@ test("voice session emits cost.ready trace event with TTS, STT, telephony breakd
   expect(payload.llm.outputTokens).toBe(200);
   expect(payload.tts.characters).toBeGreaterThan(0);
   expect(payload.totalUsd).toBeGreaterThan(0);
+});
+
+test("voice session redacts PII out of transcripts before they enter the session record", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-redact",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    redact: createVoiceTranscriptRedactor(),
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.9,
+      id: "final-pii",
+      isFinal: true,
+      text: "card is 4242 4242 4242 4242 and email me at user@example.com",
+      vendor: "fake-stt",
+    },
+    type: "final",
+  });
+  await session.commitTurn("manual");
+
+  const snapshot = await session.snapshot();
+  const finalText = snapshot.turns.at(-1)?.text ?? "";
+  expect(finalText).toContain("[REDACTED:CC]");
+  expect(finalText).toContain("[REDACTED:EMAIL]");
+  expect(finalText).not.toContain("4242");
+  expect(finalText).not.toContain("user@example.com");
 });
 

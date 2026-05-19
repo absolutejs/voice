@@ -1528,11 +1528,13 @@ export const createVoiceSession = <
       fallbackSession.on("final", ({ transcript }) => {
         fallbackFinalReceived = true;
         lastFallbackTranscriptAt = Date.now();
-        fallbackTranscripts.push(cloneTranscript(transcript));
+        const next = options.redact ? options.redact(transcript) : transcript;
+        fallbackTranscripts.push(cloneTranscript(next));
       }),
       fallbackSession.on("partial", ({ transcript }) => {
         lastFallbackTranscriptAt = Date.now();
-        fallbackTranscripts.push(cloneTranscript(transcript));
+        const next = options.redact ? options.redact(transcript) : transcript;
+        fallbackTranscripts.push(cloneTranscript(next));
       }),
       fallbackSession.on("endOfTurn", () => {
         fallbackEndOfTurnReceived = true;
@@ -1993,10 +1995,12 @@ export const createVoiceSession = <
     };
 
     openedSession.on("partial", ({ transcript }) => {
-      runAdapterEvent("adapter.partial", () => handlePartial(transcript));
+      const next = options.redact ? options.redact(transcript) : transcript;
+      runAdapterEvent("adapter.partial", () => handlePartial(next));
     });
     openedSession.on("final", ({ transcript }) => {
-      runAdapterEvent("adapter.final", () => handleFinal(transcript));
+      const next = options.redact ? options.redact(transcript) : transcript;
+      runAdapterEvent("adapter.final", () => handleFinal(next));
     });
     openedSession.on("endOfTurn", ({ reason }) => {
       runAdapterEvent("adapter.endOfTurn", async () => {

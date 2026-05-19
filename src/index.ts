@@ -782,6 +782,16 @@ export {
 export { createAIVoiceModel } from "./aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
 export {
+  DEFAULT_VOICE_REDACTION_PATTERNS,
+  createVoiceTranscriptRedactor,
+  redactVoiceTranscript,
+} from "./redaction";
+export type {
+  CreateVoiceTranscriptRedactorOptions,
+  VoiceRedactionPattern,
+  VoiceTranscriptRedactor,
+} from "./redaction";
+export {
   DEFAULT_VOICE_PRICE_BOOK,
   createVoiceCostAccountant,
 } from "./costAccounting";
