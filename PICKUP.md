@@ -66,9 +66,13 @@ Both major tracks are feature-complete:
    - Named tool catalog (beta.470) — `createVoiceEndCallTool`, `createVoiceTransferCallTool`, `createVoiceDTMFTool`, `createVoiceVoicemailDetectionTool`, `createVoiceApiRequestTool` map Vapi `tools[].type` 1:1 onto `VoiceSessionHandle` verbs.
    - `fromVapiAssistantConfig(json, options)` (beta.471) — takes a Vapi Assistant JSON, a caller-supplied `modelFactory`, and optional `knowledgeBase` / `dtmfSendFactory` / `customToolFactory` / `variableResolver`; returns `{ assistant, tools, routeHints, unsupported }`. `{{var}}` templates auto-compile with built-ins (now/date/time) + caller resolver; LiquidJS filters, monitorPlan, startSpeakingPlan, voicemailDetection ML, and toolIds are surfaced in `unsupported` with concrete migration instructions.
 
+Vapi-parity adapter coverage progress (Phase 4):
+- **`@absolutejs/voice-cartesia@0.0.1-beta.1`** (shipped) — TTS via Cartesia `/tts/sse` and `/tts/bytes`. Sonic-2 + older models, voice-by-id or voice-by-embedding, mulaw/alaw telephony formats. 7 tests.
+- **`@absolutejs/voice-azure@0.0.1-beta.2`** (shipped) — Neural TTS via REST + SSML (`azureTTS`) and streaming STT via the WebSocket Unified Speech Protocol (`azureSTT`) with no Microsoft SDK dependency. 18 tests.
+
 Suggested next directions (none blocking):
 
-- Phase 4 of the Vapi plan: write adapter packages for TTS/STT providers the company decides to prioritize (Cartesia, PlayHT, Azure, Speechmatics, Gladia). Each is ~1 day in the voice-adapters monorepo.
+- More Phase 4 adapters as buyers ask: PlayHT TTS, Speechmatics STT, Gladia STT, Soniox STT, Rime TTS, LMNT TTS, Cartesia STT (once their STT GA matures). Each is ~1 day in the voice-adapters monorepo (~6 hours if HTTP-only TTS, ~8-12 hours if WebSocket streaming STT).
 - Phase 5: build a `voiceListenAndControlSocket` primitive equivalent to Vapi's `monitorPlan.listenUrl` + `controlUrl` (supervisor barge-in over WebSocket).
 - Phase 6: wire `voice-fixtures-multilingual` into a Vapi-parity proof gate (run the corpus against several STT adapters, assert WER < threshold per language).
 - Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
