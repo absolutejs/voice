@@ -2900,4 +2900,50 @@ export type {
   VoiceCampaignTemplateScope,
   VoiceCampaignTemplateValue,
 } from "./campaignTemplate";
+export { createVoiceWhisperChannel } from "./whisperChannel";
+export type {
+  CreateVoiceWhisperChannelOptions,
+  VoiceWhisperChannel,
+  VoiceWhisperEvent,
+  VoiceWhisperFrame,
+  VoiceWhisperRoute,
+} from "./whisperChannel";
+export { createVoiceLiveCoach } from "./liveCoach";
+export type {
+  CreateVoiceLiveCoachOptions,
+  VoiceCoachNudge,
+  VoiceCoachNudgeInjection,
+  VoiceCoachNudgeKind,
+  VoiceLiveCoach,
+} from "./liveCoach";
+export {
+  createVoiceTranscriptAnnotator,
+  DEFAULT_VOICE_ANNOTATION_KIND_SEVERITY,
+} from "./transcriptAnnotator";
+export type {
+  CreateVoiceTranscriptAnnotatorOptions,
+  VoiceTranscriptAnnotation,
+  VoiceTranscriptAnnotationKind,
+  VoiceTranscriptAnnotator,
+} from "./transcriptAnnotator";
+export { createVoiceSupervisorPresence } from "./supervisorPresence";
+export type {
+  CreateVoiceSupervisorPresenceOptions,
+  VoiceSupervisorPresence,
+  VoiceSupervisorPresenceEvent,
+  VoiceSupervisorRole,
+  VoiceSupervisorWatcher,
+} from "./supervisorPresence";
+export {
+  createVoiceSupervisorPermissions,
+  VOICE_SUPERVISOR_TIER_CAPABILITIES,
+} from "./supervisorPermissions";
+export type {
+  CreateVoiceSupervisorPermissionsOptions,
+  VoiceSupervisorCapability,
+  VoiceSupervisorPermission,
+  VoiceSupervisorPermissionCheck,
+  VoiceSupervisorPermissions,
+  VoiceSupervisorTier,
+} from "./supervisorPermissions";
 export * from "./types";
