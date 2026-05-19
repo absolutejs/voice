@@ -35,6 +35,12 @@ export { useVoiceDeliveryRuntime } from "./useVoiceDeliveryRuntime";
 export { useVoiceCampaignDialerProof } from "./useVoiceCampaignDialerProof";
 export { useVoiceStream } from "./useVoiceStream";
 export { useVoiceController } from "./useVoiceController";
+export { VoiceWidget } from "./VoiceWidget";
+export type {
+  VoiceWidgetLabels,
+  VoiceWidgetProps,
+  VoiceWidgetTheme,
+} from "./VoiceWidget";
 export { useVoiceProviderStatus } from "./useVoiceProviderStatus";
 export { useVoiceProviderCapabilities } from "./useVoiceProviderCapabilities";
 export { useVoiceProviderContracts } from "./useVoiceProviderContracts";
