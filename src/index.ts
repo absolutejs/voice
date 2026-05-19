@@ -842,6 +842,15 @@ export {
   signVoiceWebhookBody,
   verifyVoiceWebhookSignature,
 } from "./webhookVerification";
+export {
+  describeVoiceAgentUIState,
+  deriveVoiceAgentUIState,
+  voiceAgentUIStateOrder,
+} from "./agentState";
+export type {
+  VoiceAgentUIInput,
+  VoiceAgentUIState,
+} from "./agentState";
 export { createVoiceBackchannelDriver } from "./backchannel";
 export type {
   VoiceBackchannelCue,
