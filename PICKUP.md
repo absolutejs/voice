@@ -3,18 +3,18 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps shipped through beta.491; cross-platform competitive gaps through beta.509; outbound + compliance kit through beta.510; supervisor kit through beta.511; appointment booking kit through beta.512. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps shipped through beta.491; cross-platform competitive gaps through beta.509; outbound + compliance kit through beta.510; supervisor kit through beta.511; appointment booking kit through beta.512; QA scorecard kit through beta.513. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.512` (appointment booking kit: slot generator, calendar adapter, booking flow state machine, no-show predictor, reminder scheduler)
+- Current package: `@absolutejs/voice@0.0.22-beta.513` (QA scorecard kit: rubric scorecard generator, AI scorer, agent performance trends, human-vs-LLM calibration, quality drift detector)
 - Companion media package: `@absolutejs/media@0.0.1-beta.18` (audio redaction + noise suppression contract + ffmpeg adapter)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `a77e65b 0.0.22-beta.512: appointment booking kit (slot generator, calendar adapter, booking flow, no-show predictor, reminder scheduler)`
+- Latest pushed voice commit: `c432045 0.0.22-beta.513: QA scorecard kit (scorecard generator, AI scorer, performance trends, calibration, drift detector)`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
-- Voice suite: **1347 pass / 0 fail** on last run (flaky `fileStore.test.ts` filesystem-mtime test passed cleanly).
+- Voice suite: **1377 pass / 0 fail** on last run (flaky `fileStore.test.ts` filesystem-mtime test passed cleanly).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.505; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .505.
 
 ## Companion Repos
@@ -230,6 +230,16 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Booking flow state machine | `createVoiceBookingFlow({ adapter, calendarId, services?, defaultDurationMinutes?, initialStep?, maxSlotsPerDay? })` returns `{ chooseService, proposeSlotsForDay, chooseSlot, confirm, reset, getState, subscribe }`. Steps: `ask-service` → `ask-date` → `ask-time` → `confirm` → `booking` → `booked`/`failed`. Idempotent state transitions, subscriber notifications |
 | No-show risk predictor | `scoreVoiceNoShowRisk({ appointmentStartMs, bookedAtMs, history?, reminderConfirmed?, weatherDisruption?, callbackDistanceHours? })` returns `{ score, band, drivers }`. Bands `low`/`moderate`/`high`. Drivers: lead-time, weekday, hour-of-day, prior no-show/kept counts, reminder confirmation, weather disruption. `summarizeVoiceNoShowVerdict(verdict)` renders human-readable summary |
 | Reminder scheduler | `createVoiceReminderScheduler({ generateJobId?, now?, defaultTriggers?, maxAttempts? })` returns `{ schedule, due, markInFlight, markSent, markFailed, cancelForAppointment, list, subscribe }`. `DEFAULT_VOICE_REMINDER_TRIGGERS` ships SMS-24h + SMS-2h + call-30m. Channels: `call`/`sms`/`email`. Retry-on-failure with bounded attempts, automatic cancellation when appointment cancelled |
+
+### voice@0.0.22-beta.513 — QA scorecard kit
+
+| Gap | Surface |
+|---|---|
+| Rubric scorecard generator | `buildVoiceCallScorecard({ rubric, sessionId, agentId?, reviewer, reviewerId?, scores, comments?, now? })` returns `VoiceScorecard` with weighted score, section breakdown, required-criterion gate, grade (`pass`/`fail`/`needs-review`). `DEFAULT_VOICE_SALES_RUBRIC` ships a 5-criterion sales QA template |
+| AI-driven scorecard scoring | `createVoiceAIScorecard({ completion, systemPrompt? })` returns `{ scoreCall }`. `parseVoiceAIScorecardResponse(raw, rubric)` parses JSON (with fenced-markdown handling) and silently drops unknown criteria. Missing criteria default to score 0 with synthetic rationale so the rubric still produces a complete scorecard |
+| Agent performance trends | `buildVoiceAgentPerformanceReport({ agentId, rubricId, scorecards, fromMs?, toMs?, bucket? })` returns per-day/week/month buckets, per-criterion average/passRate/trend/delta (split-half compare), worst/best criterion, overall pass rate |
+| Human vs LLM calibration | `computeVoiceScorecardCalibration(pairs, { topDivergences? })` returns MAE, RMSE, weighted-score Pearson correlation, grade-agreement rate, per-criterion bias (LLM under/over-scoring), top divergences sorted by |gap| |
+| Quality drift detector | `detectVoiceQualityDrift({ rubricId, scorecards, baselineWindowMs?, currentWindowMs?, watchThreshold?, regressionThreshold?, now? })` returns overall + per-criterion severity (`ok`/`watch`/`regression`) with current-window vs baseline-window deltas and alert count |
 
 ### Out of scope — adapter-only
 
