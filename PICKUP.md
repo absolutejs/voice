@@ -87,11 +87,12 @@ Provider coverage vs Vapi's list now:
 - TTS: **8/12** (ElevenLabs, Cartesia, Azure Neural, PlayHT, Rime, LMNT, Neets, Smallest).
 - STT: **8/11 providers, 9 capabilities** (Deepgram, AssemblyAI, Azure, Speechmatics, Gladia, Soniox, OpenAI Whisper-buffered, Google Speech-buffered AND streaming). Google now has the same streaming-quality + buffered-fallback split as voice-openai (realtime) + voice-openai-whisper (buffered).
 
+**Phase 6 shipped (voice@0.0.22-beta.472):** `runVoiceMultilingualProof`, `buildVoiceMultilingualProofReadinessCheck`, and `renderVoiceMultilingualProofMarkdown`. Wires `voice-fixtures-multilingual` through `runSTTAdapterBenchmark`, buckets results by language, applies per-language thresholds (max WER / min WAR / min pass rate / min term recall) layered over caller defaults, and emits a structured report + `VoiceProductionReadinessCheck` for drop-in gating. 7 tests; voice suite now 948 pass / 1 pre-existing fail.
+
 Suggested next directions (none blocking):
 
 - Remaining Phase 4 gaps if buyers ask: Tavus (TTS+video — different shape because Tavus is avatar-first; would need a new adapter category), Talkscriber STT (small player, limited public docs), Cartesia STT/Ink (once their STT GA stabilizes — could land as a second export in the existing `voice-cartesia` package).
 - Phase 5: build a `voiceListenAndControlSocket` primitive equivalent to Vapi's `monitorPlan.listenUrl` + `controlUrl` (supervisor barge-in over WebSocket).
-- Phase 6: wire `voice-fixtures-multilingual` into a Vapi-parity proof gate (run the corpus against several STT adapters, assert WER < threshold per language).
 - Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
 - Surface the new `record.mediaPipeline` / `media.pipelineIssueCodes` fields in the framework UI helpers (React/Vue/Svelte/Angular ops-record widgets) if/when buyers ask to see media health inside their support consoles.
 
