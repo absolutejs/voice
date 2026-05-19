@@ -8,6 +8,7 @@ import {
 import type { VoiceSessionSnapshot } from "../src";
 
 const snapshot: VoiceSessionSnapshot = {
+  artifacts: [],
   capturedAt: 123,
   media: [],
   proofAssertions: [],
@@ -75,6 +76,8 @@ test("session snapshot widget summarizes support/debug signals", () => {
     "Backpressure drops",
     "Proof failures",
     "Quality warnings",
+    "Debug artifacts",
+    "Artifact warnings",
     "Provider routing",
     "Telephony outcomes",
   ]);
