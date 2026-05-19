@@ -3,18 +3,18 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491; cross-platform competitive gaps shipped through beta.509. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491; cross-platform competitive gaps shipped through beta.509; outbound campaign + compliance kit shipped through beta.510. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.509` (hold audio / wait-filler driver + prompt-injection guard + framework-wide live-agent console UI + in-call NPS/CSAT survey + DTMF input collector)
+- Current package: `@absolutejs/voice@0.0.22-beta.510` (outbound campaign + compliance kit: DNC registry, TCPA calling windows, disposition tagger, retry policy engine, campaign template resolver)
 - Companion media package: `@absolutejs/media@0.0.1-beta.18` (audio redaction + noise suppression contract + ffmpeg adapter)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `281b654 0.0.22-beta.509: 5 more pragmatic pieces (hold audio, prompt-injection guard, live-agent console UI, post-call survey, DTMF collector)`
+- Latest pushed voice commit: `83d2d00 0.0.22-beta.510: outbound campaign + compliance kit (DNC registry, calling windows, disposition tagger, retry policy, template resolver)`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
-- Voice suite: **1241 pass / 1 flaky fail** (`fileStore.test.ts` filesystem-timing test passes when isolated; intermittent only under full-suite load; passed cleanly on last run).
+- Voice suite: **1280 pass / 1 flaky fail** (`fileStore.test.ts` filesystem-timing test passes when isolated; intermittent only under full-suite load).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.505; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .505.
 
 ## Companion Repos
@@ -200,6 +200,16 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Live-agent console UI (all 4 frameworks) | `VoiceLiveAgentConsole` React component + `VoiceLiveAgentConsoleProps`; Vue `VoiceLiveAgentConsole` defineComponent; Svelte `createVoiceLiveAgentConsole` + `renderVoiceLiveAgentConsoleHTML`; Angular `VoiceLiveAgentConsoleService`. All route through the existing `createLiveAgentConsole` view-model |
 | In-call NPS / CSAT collector | `createVoicePostCallSurvey({ sessionId, questions?, now? })` returns `{ next, record, skip, complete, getResponse, questions }`. `DEFAULT_VOICE_POST_CALL_SURVEY_QUESTIONS` (NPS 0–10, resolved bool, free-text comment). `summarizeVoicePostCallSurveys(responses)` rolls up NPS / promoters / detractors / completion |
 | DTMF input collector | `collectVoiceDTMFInput({ prompt, minLength?, maxLength?, terminator?, timeoutMs?, interDigitTimeoutMs?, validator?, now? })` returns `{ feed, tick, cancel, getState, subscribe }`. `validateVoiceDTMFLuhn` ships as a built-in validator for card numbers. Rejection reasons: `invalid`, `timeout`, `too-short` |
+
+### voice@0.0.22-beta.510 — Outbound campaign + compliance kit
+
+| Gap | Surface |
+|---|---|
+| TCPA Do-Not-Call registry | `createVoiceDNCRegistry({ entries?, externalLookup?, now? })` returns `{ check, checkSync, block, unblock, has, snapshot }`. Phone normalization, expiring entries, internal/regulatory/imported sources, pluggable external lookup for FTC/state lists. `importVoiceDNCFromCSV(csv, options)` for bulk loads |
+| Time-of-day calling windows | `createVoiceCallingWindow({ timezone, allowedHours, allowedDays, blockedDates?, perDayHours?, now? })` returns `{ canCallNow, nextWindowOpensAt }`. Timezone-aware via `Intl.DateTimeFormat`, holiday block dates, per-day hour overrides (e.g., Saturday extended hours). `VOICE_TCPA_DEFAULT_WINDOW` ships the 8 AM–9 PM weekday default |
+| Call disposition tagging | `createVoiceCallDispositionTagger({ taxonomy?, allowMultiple?, now? })` returns `{ tag, untag, listForSession, listAll, summarize, definitionFor, definitions }`. `DEFAULT_VOICE_CALL_DISPOSITIONS` covers 13 codes across sales/support/collections taxonomies. `summarize()` rolls up by outcome + retryable percentage |
+| Retry / cooldown policy engine | `createVoiceRetryPolicy({ maxAttempts?, defaultCooldownMs?, jitterMs?, backoffMultiplier?, rules?, escalateAfterAttempts?, now? })` returns `{ decide, updateRule, rules, maxAttempts }`. Per-disposition rules with retry/abandon/escalate actions, exponential backoff, jitter, escalation triggers. Default rules cover voicemail/no-answer/busy/callback/DNC/sale |
+| Campaign template resolver | `resolveVoiceCampaignTemplate(template, { scope, filters?, fallback?, strict? })` returns `{ output, missingVariables }`. `{{var \| filter1 \| filter2:arg }}` syntax, dotted-path lookups, missing-variable collection, strict mode. `DEFAULT_VOICE_CAMPAIGN_TEMPLATE_FILTERS`: upper/lower/capitalize/currency/date/phone/ssml/default. `collectVoiceCampaignTemplateVariables(template)` extracts variable list |
 
 ### Out of scope — adapter-only
 
