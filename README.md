@@ -6,6 +6,26 @@ It gives your app the primitives hosted voice platforms usually keep behind thei
 
 Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you want the orchestration, data, traces, storage, and UI to live inside the AbsoluteJS server you already operate.
 
+## What's new
+
+### 0.0.22-beta.464 → 468 · Media pipeline issue codes across product surfaces
+
+`@absolutejs/voice` now projects compact `@absolutejs/media` reports into every buyer-facing voice surface so media health is gateable, linkable, and visible without buying a hosted dashboard.
+
+**Proof pack (beta.464–465)** — `summarizeVoiceMediaPipelineReport(report, { artifacts })` returns a compact `VoiceMediaPipelineProofSummary` with aggregated `issueCodes` and per-section status. `writeVoiceMediaPipelineArtifacts({ dir, report, hrefBase })` persists `media-quality.{json,md}`, `media-transport.{json,md}`, and `media-processor-graph.{json,md}` into a proof-pack run directory and returns href links to wire into the summary. Together these shrink the `mediaPipelineCalibrationAssertion` summary in voice proof packs from ~35 KB to ~1.7 KB (95% reduction) and trim the total proof JSON from ~170 KB to ~114 KB.
+
+**Production readiness (beta.464)** — `buildVoiceMediaPipelineReadinessChecks(report, { baseHref, label })` returns drop-in `VoiceProductionReadinessCheck[]` entries (overall, media quality, transport, processor graph, interruption). Spread them into `additionalChecks` for granular gating alongside the existing aggregate "Media pipeline quality" check.
+
+**Operations record (beta.466–467)** — `VoiceOperationsRecord.mediaPipeline` is a new optional `VoiceOperationsRecordMediaPipelineSummary` (status, qualityStatus, transportStatus, processorGraphStatus, issueCodes, jitterMs, frames, surface). Populate it by passing `mediaPipeline: VoiceMediaPipelineReport` to `buildVoiceOperationsRecord`, or pass `mediaPipeline` (a report or sessionId-keyed resolver) to `createVoiceOperationsRecordRoutes` so every `/api/voice-operations/:sessionId` response carries it automatically.
+
+**Failure replay (beta.466)** — `buildVoiceFailureReplay` reads `record.mediaPipeline` and adds `media.pipelineIssueCodes` + `media.pipelineStatus` to the report, appends `"Media pipeline issue: <code>"` entries to `summary.issues`, and demotes failure-replay status to `failed`/`degraded` when the pipeline is `fail`/`warn`. The Markdown incident artifact gets a new "Media Pipeline" section.
+
+**Incident timeline (beta.466)** — `VoiceIncidentTimelineOptions.extraEvents` accepts any custom event source. Feed `buildVoiceMediaPipelineIncidentEvents(report, { now, source, category })` into it to surface media-pipeline issues as `category: "monitor"` entries in `/api/voice/incident-timeline` alongside operational and failure-replay events.
+
+**Ops record renderers (beta.468)** — `renderVoiceOperationsRecordIncidentMarkdown` adds a one-line `Media pipeline` summary and an issue-code section. `renderVoiceOperationsRecordHTML` adds a nav anchor, a summary-grid card, and a `#media-pipeline` section listing surface, per-section status, frame/jitter, and codes.
+
+Requires `@absolutejs/media@0.0.1-beta.16+`. The voice bundle externalizes `@absolutejs/media` to keep browser bundles parseable; install media as a peer dependency.
+
 ## Why AbsoluteJS Voice
 
 - Self-hosted by default: your app owns sessions, traces, reviews, tasks, handoffs, retention, and provider keys.
