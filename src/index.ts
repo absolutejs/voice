@@ -2436,4 +2436,27 @@ export type {
   VoiceMultilingualProofReadinessOptions,
   VoiceMultilingualProofReport,
 } from "./multilingualProof";
+export {
+  buildVoiceMonitorPlan,
+  createVoiceInMemoryMonitorRegistry,
+  createVoiceLiveMonitorRoutes,
+  createVoiceMonitorSession,
+} from "./monitor";
+export type {
+  VoiceMonitorAudioEvent,
+  VoiceMonitorAudioSource,
+  VoiceMonitorAuthenticate,
+  VoiceMonitorAuthenticateInput,
+  VoiceMonitorControlAck,
+  VoiceMonitorControlHandler,
+  VoiceMonitorControlHandlerInput,
+  VoiceMonitorControlMessage,
+  VoiceMonitorMutableRegistry,
+  VoiceMonitorPlan,
+  VoiceMonitorPlanInput,
+  VoiceMonitorRegistry,
+  VoiceMonitorRegistryRegisterInput,
+  VoiceLiveMonitorRoutesOptions,
+  VoiceMonitorSessionRecord,
+} from "./monitor";
 export * from "./types";
