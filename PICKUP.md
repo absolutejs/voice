@@ -9,10 +9,10 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.491`
+- Current package: `@absolutejs/voice@0.0.22-beta.493`
 - Companion media package: `@absolutejs/media@0.0.1-beta.16`
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.5` (13 LLM provider adapters, wired in via `createAIVoiceModel`), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `4d21745 0.0.22-beta.491: outbound campaign retry policy + DNC + window enforcement`
+- Latest pushed voice commit: `59c4d43 0.0.22-beta.493: OAuth2 token source for custom LLM endpoints`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
 - Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.479; needs a `bun add @absolutejs/voice@0.0.22-beta.484 --force` re-pin before next demo run.
@@ -82,17 +82,22 @@ Second audit against Vapi + Retell + Bland + Pipecat + LiveKit + Hume + Deepgram
 | Backchannel injection driver | voice@.489 | `createVoiceBackchannelDriver`, types `VoiceBackchannelCue`/`VoiceBackchannelDriver`/`VoiceBackchannelDriverOptions` |
 | Mid-call UI state derivation | voice@.490 | `deriveVoiceAgentUIState`, `describeVoiceAgentUIState`, `voiceAgentUIStateOrder`, types `VoiceAgentUIState`/`VoiceAgentUIInput` |
 | Outbound campaign retry/DNC/window | voice@.491 | `shouldRetryCampaignAttempt`, `isWithinCampaignWindow`, `createInMemoryDNCList`, `isPhoneOnDNC`, `normalizePhoneNumber`, `summarizeVoiceCampaignDispositions`, types `VoiceCampaignDisposition`/`VoiceCampaignDispositionRetryPolicy`/`VoiceCampaignDispositionSummary`/`VoiceDNCList` |
+| RAG citation extractor (reranker already in `@absolutejs/rag`) | voice@.492 | `extractVoiceRAGCitations`, type `VoiceRAGCitationSummary` |
+| OAuth2 token source for custom LLM endpoints | voice@.493 | `createVoiceOAuth2TokenSource`, types `VoiceOAuth2TokenSource`/`VoiceOAuth2TokenResponse`/`CreateVoiceOAuth2TokenSourceOptions` |
 
 ## Vapi-Parity Audit #2 — Remaining Roadmap
 
 Organized by package + ordered by leverage. Free to pick any block; each is independent unless noted.
 
-### `@absolutejs/voice` (1 left)
+### `@absolutejs/voice` (0 left — voice surface done for audit #2)
+
+The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` components on top of `deriveVoiceAgentUIState` (.490) can be added as thin renderers if buyers ask; the state derivation is the harder half and is done.
+
+### `@absolutejs/ai`
 
 | Gap | Size | Hook |
 |---|---|---|
-| Framework-specific components on top of `deriveVoiceAgentUIState` | small | `<AgentState>`, `<InterruptButton>`, `<TypingIndicator>` for React/Vue/Svelte/Angular. State derivation already shipped in .490 — these are thin renderers around it |
-| Custom LLM endpoint with OAuth2 (OpenAI-compatible) | tiny | Confirm `@absolutejs/ai` openaiCompatible accepts arbitrary base URL + OAuth2; expose as single config knob (mostly an ai-package + docs task) |
+| Add `tokenSource?: () => Promise<string>` to `openaiCompatible({ apiKey OR tokenSource, baseUrl })` | tiny | Today voice@.493 ships `createVoiceOAuth2TokenSource`; once ai accepts a tokenSource natively, callers can wire one to the other without reconstructing the provider each turn |
 
 ### `@absolutejs/media` (2)
 
