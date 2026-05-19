@@ -488,6 +488,74 @@ export const createVoiceSession = <
   let fallbackAttemptsForCurrentTurn = 0;
   let fallbackReplayAudioMsForCurrentTurn = 0;
 
+  const amdDetector = options.amd;
+  let amdEvaluationTimer: ReturnType<typeof setInterval> | null = null;
+  let amdFired = false;
+  let amdFirstAudioAt: number | undefined;
+  let amdLastTurnCommitAt: number | undefined;
+  let amdLastAudioLevel: number | undefined;
+
+  const clearAmdEvaluationTimer = () => {
+    if (amdEvaluationTimer) {
+      clearInterval(amdEvaluationTimer);
+      amdEvaluationTimer = null;
+    }
+  };
+
+  const evaluateAmd = async () => {
+    if (!amdDetector || amdFired) {
+      return;
+    }
+    let snapshot: TSession;
+    try {
+      snapshot = await readSession();
+    } catch {
+      return;
+    }
+    const now = Date.now();
+    const verdict = await Promise.resolve(
+      amdDetector.evaluate({
+        api,
+        audioLevel: amdLastAudioLevel,
+        elapsedSinceFirstAudioMs:
+          amdFirstAudioAt === undefined ? 0 : now - amdFirstAudioAt,
+        elapsedSinceLastTurnCommitMs:
+          amdLastTurnCommitAt === undefined ? 0 : now - amdLastTurnCommitAt,
+        partialTranscript: snapshot.currentTurn.partialText,
+        session: snapshot,
+        transcripts: [
+          ...snapshot.transcripts,
+          ...snapshot.currentTurn.transcripts,
+        ],
+      }),
+    );
+    if (!verdict || amdFired) {
+      return;
+    }
+    amdFired = true;
+    clearAmdEvaluationTimer();
+    try {
+      await api.markVoicemail({
+        metadata: verdict.metadata,
+      });
+    } catch (error) {
+      logger.warn("voice amd markVoicemail failed", {
+        error: toError(error).message,
+        sessionId: options.id,
+      });
+    }
+  };
+
+  const startAmdEvaluationTimer = () => {
+    if (!amdDetector || amdEvaluationTimer || amdFired) {
+      return;
+    }
+    const intervalMs = amdDetector.intervalMs ?? 1_000;
+    amdEvaluationTimer = setInterval(() => {
+      void evaluateAmd();
+    }, intervalMs);
+  };
+
   const callSilenceTimeoutMs =
     options.callSilenceTimeoutMs && options.callSilenceTimeoutMs > 0
       ? options.callSilenceTimeoutMs
@@ -1038,6 +1106,8 @@ export const createVoiceSession = <
       recoverable: false,
       type: "error",
     });
+    clearCallSilenceWatchdog();
+    clearAmdEvaluationTimer();
     await closeTTSSession("failed");
     await closeAdapter("failed");
     await persistRecordings();
@@ -1128,6 +1198,8 @@ export const createVoiceSession = <
       sessionId: options.id,
       type: "complete",
     });
+    clearCallSilenceWatchdog();
+    clearAmdEvaluationTimer();
     await closeTTSSession("complete");
     await closeAdapter("complete");
     await persistRecordings();
@@ -2208,6 +2280,7 @@ export const createVoiceSession = <
     reason: VoiceEndOfTurnEvent["reason"] = "manual",
   ) => {
     clearSilenceTimer();
+    amdLastTurnCommitAt = Date.now();
 
     const session = await readSession();
     if (session.status === "completed" || session.status === "failed") {
@@ -2565,6 +2638,7 @@ export const createVoiceSession = <
     await ensureAdapter();
     warmTTSSession();
     kickCallSilenceWatchdog();
+    startAmdEvaluationTimer();
   };
 
   const disconnectInternal = async (event?: VoiceCloseEvent) => {
@@ -2642,7 +2716,11 @@ export const createVoiceSession = <
       captureRecordingChunk("user", userBytes, recordingConfig.userInputFormat);
     }
 
+    amdLastAudioLevel = audioLevel;
     if (audioLevel >= turnDetection.speechThreshold) {
+      if (amdFirstAudioAt === undefined) {
+        amdFirstAudioAt = Date.now();
+      }
       if (!speechDetected && activeTTSTurnId !== undefined) {
         void cancelActiveTTS("barge-in");
       }
@@ -2691,6 +2769,7 @@ export const createVoiceSession = <
     });
     clearSilenceTimer();
     clearCallSilenceWatchdog();
+    clearAmdEvaluationTimer();
     await closeTTSSession(reason);
     await closeAdapter(reason);
     await persistRecordings();

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { createMonologueAMDDetector } from "../src/amdDetector";
 import { createVoiceMemoryStore } from "../src/memoryStore";
 import { createVoiceMemoryRecordingStore } from "../src/recordingStore";
 import { createVoiceSession } from "../src/session";
@@ -2641,5 +2642,51 @@ test("voice session closes with silence-timeout disposition when no activity wit
   expect(
     lifecycleEvents.find((event) => event.payload.disposition === "silence-timeout"),
   ).toBeDefined();
+});
+
+test("voice session marks voicemail via AMD detector when caller monologues without a turn commit", async () => {
+  const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    amd: createMonologueAMDDetector({
+      intervalMs: 20,
+      minMonologueMs: 40,
+    }),
+    context: {},
+    id: "session-amd",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    trace,
+    turnDetection: {
+      silenceMs: 1_000,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await Bun.sleep(120);
+
+  const snapshot = await session.snapshot();
+  const voicemailEvent = snapshot.call?.events.find(
+    (event) => event.type === "voicemail",
+  );
+  expect(voicemailEvent).toBeDefined();
+  expect(voicemailEvent?.metadata).toMatchObject({ detector: "monologue" });
 });
 

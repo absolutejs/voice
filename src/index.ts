@@ -781,6 +781,13 @@ export {
 } from "./agent";
 export { createAIVoiceModel } from "./aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
+export { createMonologueAMDDetector } from "./amdDetector";
+export type {
+  MonologueAMDDetectorOptions,
+  VoiceAMDDetector,
+  VoiceAMDDetectorInput,
+  VoiceAMDVerdict,
+} from "./amdDetector";
 export { createVoiceRAGTool } from "./ragTool";
 export type {
   VoiceRAGCollectionLike,

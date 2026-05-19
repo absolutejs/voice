@@ -1085,6 +1085,7 @@ export type CreateVoiceSessionOptions<
   trace?: VoiceTraceEventStore;
   recording?: VoiceSessionRecordingConfig;
   callSilenceTimeoutMs?: number;
+  amd?: import("./amdDetector").VoiceAMDDetector<TContext, TSession, TResult>;
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;
