@@ -835,6 +835,18 @@ export {
   createPunctuationSemanticTurnDetector,
   createRegexSemanticTurnDetector,
 } from "./semanticTurn";
+export {
+  VOICE_WEBHOOK_SIGNATURE_HEADER,
+  VOICE_WEBHOOK_TIMESTAMP_HEADER,
+  extractVoiceWebhookSignatureFromHeaders,
+  signVoiceWebhookBody,
+  verifyVoiceWebhookSignature,
+} from "./webhookVerification";
+export type {
+  VoiceWebhookVerificationInput,
+  VoiceWebhookVerificationReason,
+  VoiceWebhookVerificationResult,
+} from "./webhookVerification";
 export type {
   CreatePunctuationSemanticTurnDetectorOptions,
   CreateRegexSemanticTurnDetectorOptions,
