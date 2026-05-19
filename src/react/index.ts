@@ -41,6 +41,12 @@ export type {
   VoiceWidgetProps,
   VoiceWidgetTheme,
 } from "./VoiceWidget";
+export { VoiceCostDashboard } from "./VoiceCostDashboard";
+export type { VoiceCostDashboardProps } from "./VoiceCostDashboard";
+export { VoiceLiveCallViewer } from "./VoiceLiveCallViewer";
+export type { VoiceLiveCallViewerProps } from "./VoiceLiveCallViewer";
+export { VoiceReplayTimeline } from "./VoiceReplayTimeline";
+export type { VoiceReplayTimelineProps } from "./VoiceReplayTimeline";
 export { useVoiceProviderStatus } from "./useVoiceProviderStatus";
 export { useVoiceProviderCapabilities } from "./useVoiceProviderCapabilities";
 export { useVoiceProviderContracts } from "./useVoiceProviderContracts";
