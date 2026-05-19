@@ -9,10 +9,10 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.503` (HTMX polling composable for any handler)
-- Companion media package: `@absolutejs/media@0.0.1-beta.17` (audio redaction + noise suppression contract shipped)
+- Current package: `@absolutejs/voice@0.0.22-beta.504` (browser noise suppression helper)
+- Companion media package: `@absolutejs/media@0.0.1-beta.18` (audio redaction + noise suppression contract + ffmpeg adapter)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `299b17b 0.0.22-beta.503: HTMX polling helpers any HTML handler can compose with`
+- Latest pushed voice commit: `ed64656 0.0.22-beta.504: browser-side noise suppression helper`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
 - Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.503; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .503.
