@@ -9,10 +9,10 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.467`
+- Current package: `@absolutejs/voice@0.0.22-beta.468`
 - Companion media package: `@absolutejs/media@0.0.1-beta.16`
-- Latest pushed voice commit: `6bf471d createVoiceOperationsRecordRoutes accepts a per-session mediaPipeline resolver`
-- Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-18T23-42-25.003Z/proof-pack/latest.json`
+- Latest pushed voice commit: `e96309a Add 'What's new' section to README for beta.464-468`
+- Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (`failureReplayEvidenceAssertion.summary.media` now carries `pipelineIssueCodes` and `pipelineStatus`)
 - Latest proof status: `ok: true`; mediaPipelineCalibrationAssertion summary trimmed from ~35 KB to ~1.7 KB (95% reduction); total proof JSON dropped from ~170 KB to ~114 KB; per-report media artifacts (`media-quality.{json,md}`, `media-transport.{json,md}`, `media-processor-graph.{json,md}`) persisted in the proof-pack run directory and linked from the assertion's `artifacts` field.
 - Stable issue codes now exposed: `summary.issueCodes` aggregates calibration/quality/interruption/processor-graph codes; `summary.calibration.issueCodes` and `summary.processorGraph.issueCodes` are also present for per-category gating.
 - Media issue codes are now projected into buyer-facing voice surfaces:
@@ -57,11 +57,11 @@ Compact-artifact readability AND issue-code surfacing are both shipped end-to-en
 - `buildVoiceMediaPipelineReadinessChecks(report, { baseHref, label })` — drop-in `VoiceProductionReadinessCheck[]`.
 - `buildVoiceMediaPipelineIncidentEvents(report, { now, source, category })` — drop-in `VoiceIncidentTimelineEvent[]`.
 
-Possible follow-ups (optional, none blocking):
+The media-pipeline + media-artifact integration is feature-complete. No mandatory work outstanding. Suggested next directions when there's time:
 
-- Extend `renderVoiceOperationsRecordIncidentMarkdown` (and the HTML renderer) to include a "Media pipeline" section pulling from `record.mediaPipeline`. Currently only failure replay's markdown renderer surfaces it.
-- Re-run the full proof pack with the new operations-record/incident-timeline wiring to capture an updated `.voice-runtime/proof-pack/...` artifact reflecting the new fields.
-- Write README/CHANGELOG entries for the new media beta (0.0.1-beta.16) and voice betas (0.0.22-beta.464 → 467).
+- Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
+- Surface the new `record.mediaPipeline` / `media.pipelineIssueCodes` fields in the framework UI helpers (React/Vue/Svelte/Angular ops-record widgets) if/when buyers ask to see media health inside their support consoles.
+- Consider promoting `extraEvents` into a typed `mediaPipelineReports?` slot on `VoiceIncidentTimelineOptions` once a second consumer pattern lands (avoid premature abstraction).
 
 ## Verification Expectations
 
