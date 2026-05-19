@@ -1162,12 +1162,20 @@ export {
 export {
   computePcmDurationMs,
   createVoiceMemoryRecordingStore,
+  createVoiceWavRecordingEncoder,
   encodePcmAsWav,
+  encodeStereoWav,
+  interleaveStereoPcm,
 } from "./recordingStore";
 export type {
+  EncodeStereoWavInput,
+  InterleavePcmInput,
   StoredVoiceRecordingArtifact,
   VoiceRecordingArtifact,
   VoiceRecordingChannel,
+  VoiceRecordingEncoder,
+  VoiceRecordingEncoderInput,
+  VoiceRecordingEncoderResult,
   VoiceRecordingStore,
 } from "./recordingStore";
 export {

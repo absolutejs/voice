@@ -15,6 +15,28 @@ export type StoredVoiceRecordingArtifact = VoiceRecordingArtifact & {
   recordingUrl?: string;
 };
 
+export type VoiceRecordingEncoderInput = {
+  channel: VoiceRecordingChannel;
+  format: AudioFormat;
+  pcm: Uint8Array;
+  sessionId: string;
+};
+
+export type VoiceRecordingEncoderResult = {
+  bytes: Uint8Array;
+  contentType: string;
+  extension: string;
+};
+
+export type VoiceRecordingEncoder = {
+  encode: (
+    input: VoiceRecordingEncoderInput,
+  ) =>
+    | Promise<VoiceRecordingEncoderResult>
+    | VoiceRecordingEncoderResult;
+  kind: string;
+};
+
 export type VoiceRecordingStore = {
   get: (
     sessionId: string,
@@ -76,6 +98,75 @@ export const encodePcmAsWav = (
   output.set(pcm, 44);
   return output;
 };
+
+export type InterleavePcmInput = {
+  /** Mono PCM bytes for the left channel. */
+  left: Uint8Array;
+  /** Mono PCM bytes for the right channel. */
+  right: Uint8Array;
+};
+
+/**
+ * Interleaves two mono pcm_s16le buffers into a single stereo pcm_s16le
+ * buffer at the same sample rate. Output length is max(left, right) * 2.
+ * The shorter buffer is right-padded with silence to align frame counts.
+ */
+export const interleaveStereoPcm = (input: InterleavePcmInput): Uint8Array => {
+  const leftSamples = new Int16Array(
+    input.left.buffer,
+    input.left.byteOffset,
+    Math.floor(input.left.byteLength / 2),
+  );
+  const rightSamples = new Int16Array(
+    input.right.buffer,
+    input.right.byteOffset,
+    Math.floor(input.right.byteLength / 2),
+  );
+  const frameCount = Math.max(leftSamples.length, rightSamples.length);
+  const output = new Int16Array(frameCount * 2);
+  for (let frame = 0; frame < frameCount; frame += 1) {
+    output[frame * 2] = leftSamples[frame] ?? 0;
+    output[frame * 2 + 1] = rightSamples[frame] ?? 0;
+  }
+  return new Uint8Array(output.buffer);
+};
+
+export type EncodeStereoWavInput = {
+  format: AudioFormat;
+  left: Uint8Array;
+  right: Uint8Array;
+};
+
+/**
+ * Builds a stereo WAV file from two mono pcm_s16le channels. Convention:
+ * left = user track, right = assistant track. Review tools can split them
+ * back out with any DAW.
+ */
+export const encodeStereoWav = ({
+  format,
+  left,
+  right,
+}: EncodeStereoWavInput): Uint8Array => {
+  if (format.container !== "raw" || format.encoding !== "pcm_s16le") {
+    throw new Error(
+      "encodeStereoWav requires raw pcm_s16le format on each channel",
+    );
+  }
+  if (format.channels !== 1) {
+    throw new Error("encodeStereoWav expects mono input channels");
+  }
+  const interleaved = interleaveStereoPcm({ left, right });
+  return encodePcmAsWav(interleaved, { ...format, channels: 2 });
+};
+
+export const createVoiceWavRecordingEncoder = (): VoiceRecordingEncoder => ({
+  encode: ({ format, pcm }) => ({
+    bytes: encodePcmAsWav(pcm, format),
+    contentType: "audio/wav",
+    extension: "wav",
+  }),
+  kind: "wav",
+});
 
 export const computePcmDurationMs = (
   pcmByteLength: number,
