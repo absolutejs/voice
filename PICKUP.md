@@ -3,18 +3,18 @@
 Use this when starting the next session:
 
 ```text
-We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491; cross-platform competitive gaps shipped through beta.509; outbound campaign + compliance kit shipped through beta.510. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
+We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOICE_PLAN.md and PICKUP.md, then inspect git status in the companion repos listed in PICKUP.md. Audit #1 (5 gap areas) shipped through beta.479; audit #2 (21 more gaps) top-5 shipped through beta.484; second-tier voice gaps from audit #2 shipped through beta.491; cross-platform competitive gaps shipped through beta.509; outbound + compliance kit shipped through beta.510; supervisor / live-coaching kit shipped through beta.511. The remaining roadmap is in this file. If core changes are made, typecheck/test/build, publish a beta, install it into the example with --force, run the relevant proof, then commit and push all touched repos.
 ```
 
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.510` (outbound campaign + compliance kit: DNC registry, TCPA calling windows, disposition tagger, retry policy engine, campaign template resolver)
+- Current package: `@absolutejs/voice@0.0.22-beta.511` (supervisor / live-coaching kit: whisper channel, live coach nudges, transcript annotator, supervisor presence, permission tiers)
 - Companion media package: `@absolutejs/media@0.0.1-beta.18` (audio redaction + noise suppression contract + ffmpeg adapter)
 - Companion AbsoluteJS packages: `@absolutejs/ai@0.0.6` (sampling params, tool-choice, JSON mode, OAuth tokenSource, onUsage/onSpan instrumentation), `@absolutejs/rag@0.0.10`, `voice-adapters` monorepo (16 adapters, all 8 TTS adapters support `cancel()` for barge-in), `voice-fixtures-multilingual` (23 PCM clips across 7 languages).
-- Latest pushed voice commit: `83d2d00 0.0.22-beta.510: outbound campaign + compliance kit (DNC registry, calling windows, disposition tagger, retry policy, template resolver)`
+- Latest pushed voice commit: `0d7809c 0.0.22-beta.511: supervisor / live-coaching kit (whisper, live coach, annotator, presence, permissions)`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
-- Voice suite: **1280 pass / 1 flaky fail** (`fileStore.test.ts` filesystem-timing test passes when isolated; intermittent only under full-suite load).
+- Voice suite: **1314 pass / 0 fail** on last run (flaky `fileStore.test.ts` filesystem-mtime test passed cleanly).
 - Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.505; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .505.
 
 ## Companion Repos
@@ -210,6 +210,16 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Call disposition tagging | `createVoiceCallDispositionTagger({ taxonomy?, allowMultiple?, now? })` returns `{ tag, untag, listForSession, listAll, summarize, definitionFor, definitions }`. `DEFAULT_VOICE_CALL_DISPOSITIONS` covers 13 codes across sales/support/collections taxonomies. `summarize()` rolls up by outcome + retryable percentage |
 | Retry / cooldown policy engine | `createVoiceRetryPolicy({ maxAttempts?, defaultCooldownMs?, jitterMs?, backoffMultiplier?, rules?, escalateAfterAttempts?, now? })` returns `{ decide, updateRule, rules, maxAttempts }`. Per-disposition rules with retry/abandon/escalate actions, exponential backoff, jitter, escalation triggers. Default rules cover voicemail/no-answer/busy/callback/DNC/sale |
 | Campaign template resolver | `resolveVoiceCampaignTemplate(template, { scope, filters?, fallback?, strict? })` returns `{ output, missingVariables }`. `{{var \| filter1 \| filter2:arg }}` syntax, dotted-path lookups, missing-variable collection, strict mode. `DEFAULT_VOICE_CAMPAIGN_TEMPLATE_FILTERS`: upper/lower/capitalize/currency/date/phone/ssml/default. `collectVoiceCampaignTemplateVariables(template)` extracts variable list |
+
+### voice@0.0.22-beta.511 — Supervisor / live-coaching kit
+
+| Gap | Surface |
+|---|---|
+| Whisper channel (agent-only audio) | `createVoiceWhisperChannel({ sessionId, defaultRoute?, duckCallerToLevel?, maxConcurrentWhispers?, now? })` returns `{ start, stop, pushFrame, setRoute, routeFor, activeSupervisors, isWhispering, subscribe }`. Routes: `agent-only` (default, ducks caller audio), `agent-and-caller`, `drop`. Concurrent-watcher cap, ducking event on start |
+| Live coach nudges | `createVoiceLiveCoach({ sessionId, injectionRole?, templateForKind?, defaultExpiryMs?, generateId?, now? })` returns `{ push, pending, consumeForInjection, acknowledge, history, subscribe }`. Kinds: `hint`/`correction`/`warning`/`script-line`/`knowledge`. `consumeForInjection()` drains to system/developer messages for next agent turn. Custom templates per kind |
+| Transcript annotator | `createVoiceTranscriptAnnotator({ sessionId, generateId?, now? })` returns `{ add, remove, list, summarize }`. Kinds: `great-recovery`/`missed-objection`/`compliance-concern`/`tone-issue`/`knowledge-gap`/`follow-up-needed`/`custom`. `DEFAULT_VOICE_ANNOTATION_KIND_SEVERITY` defaults severity (info/minor/major). `list({ kind, supervisorId, severity, fromMs, toMs })` filters; `summarize()` rolls up |
+| Supervisor presence | `createVoiceSupervisorPresence({ staleAfterMs?, now? })` returns `{ join, leave, heartbeat, setRole, list, sessionsWatchedBy, subscribe }`. Per-session watcher map, automatic stale-pruning, role tracking (`viewer`/`coach`/`whisperer`/`owner`), `join`/`leave`/`role-change`/`heartbeat` events |
+| Permission tiers | `createVoiceSupervisorPermissions({ defaultTier?, permissions?, now? })` returns `{ can, capabilitiesFor, enforce, grant, revoke, get, tiers }`. Tiers: `monitor-only`/`annotate`/`coach`/`whisper`/`full-control`. 10 capabilities (monitor, annotate, coach, whisper, barge, takeover, release, end-call, view-pii, export-recording). Expiry, extra/denied capability overrides, `enforce` throws on deny |
 
 ### Out of scope — adapter-only
 
