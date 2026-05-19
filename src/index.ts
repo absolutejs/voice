@@ -2995,4 +2995,48 @@ export type {
   VoiceReminderScheduler,
   VoiceReminderTrigger,
 } from "./reminderScheduler";
+export {
+  buildVoiceCallScorecard,
+  DEFAULT_VOICE_SALES_RUBRIC,
+} from "./callScorecard";
+export type {
+  BuildVoiceCallScorecardInput,
+  VoiceScorecard,
+  VoiceScorecardCriterion,
+  VoiceScorecardCriterionResult,
+  VoiceScorecardRubric,
+} from "./callScorecard";
+export {
+  createVoiceAIScorecard,
+  parseVoiceAIScorecardResponse,
+} from "./aiScorecard";
+export type {
+  CreateVoiceAIScorecardOptions,
+  ScoreVoiceCallWithAIInput,
+  VoiceAIScorecard,
+  VoiceAIScorecardCompletion,
+  VoiceAIScorecardParsedResponse,
+  VoiceAIScorecardScoringResult,
+} from "./aiScorecard";
+export { buildVoiceAgentPerformanceReport } from "./agentPerformanceReport";
+export type {
+  BuildVoiceAgentPerformanceReportInput,
+  VoiceAgentPerformanceBucket,
+  VoiceAgentPerformanceBucketSummary,
+  VoiceAgentPerformanceCriterionSummary,
+  VoiceAgentPerformanceReport,
+} from "./agentPerformanceReport";
+export { computeVoiceScorecardCalibration } from "./scorecardCalibration";
+export type {
+  VoiceScorecardCalibrationDivergence,
+  VoiceScorecardCalibrationPair,
+  VoiceScorecardCalibrationReport,
+} from "./scorecardCalibration";
+export { detectVoiceQualityDrift } from "./qualityDriftDetector";
+export type {
+  DetectVoiceQualityDriftInput,
+  VoiceQualityDriftCriterionAlert,
+  VoiceQualityDriftReport,
+  VoiceQualityDriftSeverity,
+} from "./qualityDriftDetector";
 export * from "./types";
