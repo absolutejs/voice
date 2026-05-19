@@ -15,7 +15,7 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 - Latest pushed voice commit: `299b17b 0.0.22-beta.503: HTMX polling helpers any HTML handler can compose with`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (NOT re-run since beta.479).
 - Voice suite: 1062 pass / 1 pre-existing fail (`session snapshot widget summarizes support/debug signals`).
-- Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.497; typecheck passes; last Playwright run on /vue was clean against .495.
+- Example app at `/home/alexkahn/abs/absolutejs-voice-example-testrun` pinned to voice@0.0.22-beta.503; typecheck passes; `/vue` Playwright-verified at 0 console errors/warnings against .503.
 
 ## Companion Repos
 
