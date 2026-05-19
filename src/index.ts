@@ -842,6 +842,23 @@ export {
   signVoiceWebhookBody,
   verifyVoiceWebhookSignature,
 } from "./webhookVerification";
+export {
+  aggregateVoiceTurnLatencySpans,
+  buildOTELSpanId,
+  buildOTELTraceId,
+  buildVoiceOTELPayload,
+  createVoiceOTELHTTPExporter,
+} from "./otelExporter";
+export type {
+  VoiceOTELAttribute,
+  VoiceOTELExporter,
+  VoiceOTELExporterOptions,
+  VoiceOTELPayload,
+  VoiceOTELResourceSpans,
+  VoiceOTELSpan,
+  VoiceTurnLatencySpanSet,
+  VoiceTurnLatencySpanStage,
+} from "./otelExporter";
 export type {
   VoiceWebhookVerificationInput,
   VoiceWebhookVerificationReason,
