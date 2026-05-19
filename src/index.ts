@@ -842,6 +842,12 @@ export {
   signVoiceWebhookBody,
   verifyVoiceWebhookSignature,
 } from "./webhookVerification";
+export { createVoiceBackchannelDriver } from "./backchannel";
+export type {
+  VoiceBackchannelCue,
+  VoiceBackchannelDriver,
+  VoiceBackchannelDriverOptions,
+} from "./backchannel";
 export {
   createVoiceIVRSession,
   describeVoiceIVRPlan,
