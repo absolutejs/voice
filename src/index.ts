@@ -2418,4 +2418,22 @@ export type {
   VoiceProofRefreshSnapshot,
   VoiceProofRefreshSnapshotOptions,
 } from "./proofPack";
+export {
+  buildVoiceMultilingualProofReadinessCheck,
+  renderVoiceMultilingualProofMarkdown,
+  runVoiceMultilingualProof,
+} from "./multilingualProof";
+export type {
+  VoiceMultilingualLanguageCode,
+  VoiceMultilingualProofAdapterEntry,
+  VoiceMultilingualProofAdapterReport,
+  VoiceMultilingualProofDefaultThresholds,
+  VoiceMultilingualProofLanguageMetrics,
+  VoiceMultilingualProofLanguageReport,
+  VoiceMultilingualProofLanguageThresholds,
+  VoiceMultilingualProofOptions,
+  VoiceMultilingualProofReadinessCheck,
+  VoiceMultilingualProofReadinessOptions,
+  VoiceMultilingualProofReport,
+} from "./multilingualProof";
 export * from "./types";

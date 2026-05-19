@@ -8,6 +8,47 @@ Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you wan
 
 ## What's new
 
+### 0.0.22-beta.472 · Phase 6 — multilingual STT proof gate
+
+`runVoiceMultilingualProof(...)` turns the `voice-fixtures-multilingual` corpus (FLEURS + BSC Catalan-Spanish code-switch + CoSHE Hindi-English code-switch) into a gateable readiness/proof artifact. Buyers evaluating Vapi-replacement can now run any combination of STT adapters against the multilingual corpus and assert per-language WER / pass-rate / term-recall budgets in CI.
+
+```ts
+import {
+  buildVoiceMultilingualProofReadinessCheck,
+  renderVoiceMultilingualProofMarkdown,
+  runVoiceMultilingualProof,
+} from "@absolutejs/voice";
+import { deepgram } from "@absolutejs/voice-deepgram";
+import { speechmatics } from "@absolutejs/voice-speechmatics";
+import { soniox } from "@absolutejs/voice-soniox";
+
+const report = await runVoiceMultilingualProof({
+  adapters: [
+    { adapter: deepgram({ apiKey, model: "nova-3" }), adapterId: "deepgram-nova3" },
+    { adapter: speechmatics({ apiKey, region: "eu2" }), adapterId: "speechmatics-enhanced" },
+    { adapter: soniox({ apiKey, enableLanguageIdentification: true }), adapterId: "soniox" },
+  ],
+  defaultThresholds: { maxAverageWordErrorRate: 0.30, minPassRate: 0.7 },
+  perLanguage: [
+    { language: "ca-es", label: "Catalan-Spanish code-switch", maxAverageWordErrorRate: 0.45 },
+    { language: "hi-en", label: "Hindi-English code-switch", maxAverageWordErrorRate: 0.50 },
+  ],
+});
+
+const readiness = buildVoiceMultilingualProofReadinessCheck(report, {
+  baseHref: "/voice/multilingual-proof",
+});
+// drop `readiness` into your VoiceProductionReadinessReport.checks array
+
+await Bun.write("docs/multilingual-proof.md", renderVoiceMultilingualProofMarkdown(report));
+```
+
+Highlights:
+- Loads fixtures from `VOICE_FIXTURE_DIR` (or any caller-supplied directory list / pre-loaded `VoiceTestFixture[]`), filters by an optional predicate, and runs each adapter through the existing `runSTTAdapterBenchmark` harness — no new STT plumbing required.
+- Buckets fixture results by `fixture.language` and applies per-language thresholds (`maxAverageWordErrorRate`, `minAverageWordAccuracyRate`, `minPassRate`, `minTermRecall`) layered over caller-provided `defaultThresholds`.
+- Returns a structured report (`adapters[].languageReports[]` with metrics + failures, plus per-adapter and global `passes` flags) plus a Markdown renderer for human review and a `VoiceProductionReadinessCheck`-shaped helper for drop-in readiness wiring.
+- Pairs naturally with every STT adapter shipped in `voice-adapters` (deepgram, assemblyai, azure streaming, speechmatics, gladia, soniox, google-speech streaming + buffered, openai-whisper buffered).
+
 ### 0.0.22-beta.471 · Vapi parity — `fromVapiAssistantConfig` adapter
 
 Mechanical migration from a Vapi Assistant JSON to a voice assistant. Pass the JSON dump (or a typed subset), provide a `modelFactory` that maps Vapi's `model.provider`+`model.model` to a voice `VoiceAgentModel`, and get back `{ assistant, tools, routeHints, unsupported }`.
