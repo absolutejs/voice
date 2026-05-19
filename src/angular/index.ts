@@ -1,6 +1,8 @@
 export { VoiceOpsStatusService } from "./voice-ops-status.service";
 export { VoiceWidgetService } from "./voice-widget.service";
 export type { CreateVoiceWidgetServiceOptions } from "./voice-widget.service";
+export { VoiceCallPlayerService } from "./voice-call-player.service";
+export type { VoiceCallPlayerServiceOptions } from "./voice-call-player.service";
 export { VoiceCostDashboardService } from "./voice-cost-dashboard.service";
 export type { VoiceCostDashboardServiceOptions } from "./voice-cost-dashboard.service";
 export { VoiceLiveCallViewerService } from "./voice-live-call-viewer.service";

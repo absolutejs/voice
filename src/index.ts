@@ -993,6 +993,33 @@ export type {
   VoiceRouteAuthVerifier,
 } from "./routeAuth";
 export {
+  createVoiceCallPlayer,
+  formatVoiceCallPlayerTimestamp,
+} from "./client/callPlayer";
+export type {
+  VoiceCallPlayer,
+  VoiceCallPlayerOptions,
+  VoiceCallPlayerState,
+} from "./client/callPlayer";
+export {
+  provisionTelnyxPhoneNumber,
+  provisionTwilioPhoneNumber,
+} from "./phoneProvisioning";
+export type {
+  TelnyxProvisionInput,
+  TwilioProvisionInput,
+  VoicePhoneNumber,
+} from "./phoneProvisioning";
+export { createVoiceWebhookFanout } from "./webhookFanout";
+export type {
+  VoiceWebhookFanout,
+  VoiceWebhookFanoutEvent,
+  VoiceWebhookFanoutOptions,
+  VoiceWebhookFanoutReport,
+  VoiceWebhookSink,
+  VoiceWebhookSinkDeliveryResult,
+} from "./webhookFanout";
+export {
   BROWSER_NOISE_SUPPRESSOR_PRESETS,
   applyBrowserNoiseSuppression,
 } from "./client/browserNoiseSuppression";

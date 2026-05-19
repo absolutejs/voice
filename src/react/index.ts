@@ -41,6 +41,8 @@ export type {
   VoiceWidgetProps,
   VoiceWidgetTheme,
 } from "./VoiceWidget";
+export { VoiceCallPlayer } from "./VoiceCallPlayer";
+export type { VoiceCallPlayerProps } from "./VoiceCallPlayer";
 export { VoiceCostDashboard } from "./VoiceCostDashboard";
 export type { VoiceCostDashboardProps } from "./VoiceCostDashboard";
 export { VoiceLiveCallViewer } from "./VoiceLiveCallViewer";

@@ -1,4 +1,9 @@
 export { createVoiceCampaignDialerProof } from "./createVoiceCampaignDialerProof";
+export {
+  createVoiceCallPlayer,
+  renderVoiceCallPlayerHTML,
+} from "./createVoiceCallPlayer";
+export type { CreateVoiceCallPlayerOptions } from "./createVoiceCallPlayer";
 export { createVoiceWidget } from "./createVoiceWidget";
 export type {
   CreateVoiceWidgetOptions,
