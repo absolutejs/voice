@@ -781,6 +781,21 @@ export {
 } from "./agent";
 export { createAIVoiceModel } from "./aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
+export {
+  DEFAULT_VOICE_PRICE_BOOK,
+  createVoiceCostAccountant,
+} from "./costAccounting";
+export type {
+  CreateVoiceCostAccountantOptions,
+  VoiceCostAccountant,
+  VoiceCostBreakdown,
+  VoiceCostLLMRecord,
+  VoiceCostSTTRecord,
+  VoiceCostTTSRecord,
+  VoiceCostTelephonyRecord,
+  VoicePriceBook,
+  VoiceProviderRates,
+} from "./costAccounting";
 export { createMonologueAMDDetector } from "./amdDetector";
 export type {
   MonologueAMDDetectorOptions,

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createMonologueAMDDetector } from "../src/amdDetector";
+import { createVoiceCostAccountant } from "../src/costAccounting";
 import { createVoiceMemoryStore } from "../src/memoryStore";
 import { createVoiceMemoryRecordingStore } from "../src/recordingStore";
 import { createVoiceSession } from "../src/session";
@@ -2753,5 +2754,74 @@ test("voice session fires TTS cancel when user speech is detected during agent p
   await session.receiveAudio(createSpeechChunk(16_000));
 
   expect(tts.getCancelReasons()).toEqual(["barge-in"]);
+});
+
+test("voice session emits cost.ready trace event with TTS, STT, telephony breakdown on close", async () => {
+  const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+  const accountant = createVoiceCostAccountant({ sessionId: "session-cost" });
+
+  const session = createVoiceSession({
+    context: {},
+    costAccountant: accountant,
+    costTelephony: { provider: "twilio" },
+    id: "session-cost",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => ({
+        assistantText: `Replying to ${turn.text}`,
+      }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    trace,
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.9,
+      id: "final-cost-1",
+      isFinal: true,
+      text: "test cost reporting",
+      vendor: "fake-stt",
+    },
+    type: "final",
+  });
+  await session.commitTurn("manual");
+  // simulate LLM usage report (would normally come via createAIVoiceModel.onUsage)
+  accountant.recordLLM({
+    inputTokens: 1_000,
+    model: "claude-sonnet-4-5",
+    outputTokens: 200,
+    provider: "anthropic",
+  });
+  await session.close("test-end");
+
+  const costEvents = await trace.list({ type: "cost.ready" });
+  expect(costEvents).toHaveLength(1);
+  const payload = costEvents[0]!.payload;
+  expect(payload.llm.inputTokens).toBe(1_000);
+  expect(payload.llm.outputTokens).toBe(200);
+  expect(payload.tts.characters).toBeGreaterThan(0);
+  expect(payload.totalUsd).toBeGreaterThan(0);
 });
 

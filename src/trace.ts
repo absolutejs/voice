@@ -16,6 +16,7 @@ export type VoiceTraceEventType =
   | "client.live_latency"
   | "client.reconnect"
   | "client.telephony_media"
+  | "cost.ready"
   | "operator.action"
   | "provider.decision"
   | "recording.ready"

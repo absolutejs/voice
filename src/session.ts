@@ -438,6 +438,7 @@ export const createVoiceSession = <
     type:
       | "call.handoff"
       | "call.lifecycle"
+      | "cost.ready"
       | "operator.action"
       | "recording.ready"
       | "session.error"
@@ -931,6 +932,32 @@ export const createVoiceSession = <
         recordingByteTotals[channel] = 0;
       }
     }
+  };
+
+  const finalizeCostReport = async (session: TSession) => {
+    if (!options.costAccountant) {
+      return;
+    }
+    const lifecycle = session.call;
+    if (lifecycle?.startedAt && lifecycle.endedAt) {
+      const durationMs = Math.max(0, lifecycle.endedAt - lifecycle.startedAt);
+      const minutes = durationMs / 60_000;
+      if (minutes > 0) {
+        options.costAccountant.recordTelephony({
+          minutes,
+          provider: options.costTelephony?.provider,
+        });
+      }
+    }
+    const breakdown = options.costAccountant.snapshot();
+    await appendTrace({
+      payload: {
+        ...breakdown,
+        sessionId: options.id,
+      },
+      session,
+      type: "cost.ready",
+    });
   };
 
   const cancelActiveTTS = async (reason: string) => {
@@ -2166,6 +2193,11 @@ export const createVoiceSession = <
             turnId: turn.id,
           });
           await activeTTSSession.send(output.assistantText);
+          if (options.costAccountant) {
+            options.costAccountant.recordTTS({
+              characters: output.assistantText.length,
+            });
+          }
           await appendTurnLatencyStage({
             session,
             stage: "tts_send_completed",
@@ -2383,6 +2415,11 @@ export const createVoiceSession = <
       ),
       primaryPassCostUnit: options.costTelemetry?.primaryPassCostUnit,
     });
+    if (options.costAccountant && costEstimate.totalBillableAudioMs > 0) {
+      options.costAccountant.recordSTT({
+        audioMs: costEstimate.totalBillableAudioMs,
+      });
+    }
 
     const turn: VoiceTurnRecord<TResult> = {
       committedAt: Date.now(),
@@ -2773,6 +2810,7 @@ export const createVoiceSession = <
     await closeTTSSession(reason);
     await closeAdapter(reason);
     await persistRecordings();
+    await finalizeCostReport(session);
     await Promise.resolve(socket.close(1000, reason));
     if (session.call?.endedAt && session.call.disposition === disposition) {
       await appendTrace({

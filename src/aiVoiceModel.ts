@@ -2,6 +2,7 @@ import type {
   AIProviderConfig,
   AIProviderMessage,
   AIProviderToolDefinition,
+  AIUsage,
 } from "@absolutejs/ai";
 import type {
   VoiceAgentMessage,
@@ -14,7 +15,9 @@ import type { VoiceSessionRecord } from "./types";
 
 export type CreateAIVoiceModelOptions = {
   model: string;
+  onUsage?: (usage: AIUsage & { model: string; provider?: string }) => void;
   provider: AIProviderConfig;
+  providerName?: string;
   signal?: AbortSignal;
   systemPrompt?: string;
 };
@@ -90,6 +93,12 @@ export const createAIVoiceModel = <
           args: (chunk.input as Record<string, unknown> | undefined) ?? {},
           id: chunk.id,
           name: chunk.name,
+        });
+      } else if (chunk.type === "done" && chunk.usage && options.onUsage) {
+        options.onUsage({
+          ...chunk.usage,
+          model: options.model,
+          provider: options.providerName,
         });
       }
     }

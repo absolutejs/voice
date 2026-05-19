@@ -1086,6 +1086,8 @@ export type CreateVoiceSessionOptions<
   recording?: VoiceSessionRecordingConfig;
   callSilenceTimeoutMs?: number;
   amd?: import("./amdDetector").VoiceAMDDetector<TContext, TSession, TResult>;
+  costAccountant?: import("./costAccounting").VoiceCostAccountant;
+  costTelephony?: { provider?: string };
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;
