@@ -388,12 +388,17 @@ export type VoiceOperationsRecordOptions = {
 
 export type VoiceOperationsRecordRoutesOptions = Omit<
   VoiceOperationsRecordOptions,
-  "sessionId"
+  "sessionId" | "mediaPipeline"
 > & {
   headers?: HeadersInit;
   htmlPath?: false | string;
   incidentHtmlPath?: false | string;
   incidentPath?: false | string;
+  mediaPipeline?:
+    | VoiceMediaPipelineReport
+    | ((input: {
+        sessionId: string;
+      }) => Promise<VoiceMediaPipelineReport | undefined> | VoiceMediaPipelineReport | undefined);
   name?: string;
   path?: string;
   render?: (record: VoiceOperationsRecord) => string | Promise<string>;
@@ -1753,12 +1758,21 @@ export const createVoiceOperationsRecordRoutes = (
   const routes = new Elysia({
     name: options.name ?? "absolutejs-voice-operations-record",
   });
-  const buildRecord = (sessionId: string) =>
+  const resolveMediaPipeline = async (
+    sessionId: string,
+  ): Promise<VoiceMediaPipelineReport | undefined> => {
+    if (options.mediaPipeline === undefined) return undefined;
+    return typeof options.mediaPipeline === "function"
+      ? await options.mediaPipeline({ sessionId })
+      : options.mediaPipeline;
+  };
+  const buildRecord = async (sessionId: string) =>
     buildVoiceOperationsRecord({
       audit: options.audit,
       evaluation: options.evaluation,
       events: options.events,
       integrationEvents: options.integrationEvents,
+      mediaPipeline: await resolveMediaPipeline(sessionId),
       redact: options.redact,
       reviews: options.reviews,
       sessionId,
