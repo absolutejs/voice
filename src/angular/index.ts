@@ -1,6 +1,12 @@
 export { VoiceOpsStatusService } from "./voice-ops-status.service";
 export { VoiceWidgetService } from "./voice-widget.service";
 export type { CreateVoiceWidgetServiceOptions } from "./voice-widget.service";
+export { VoiceCostDashboardService } from "./voice-cost-dashboard.service";
+export type { VoiceCostDashboardServiceOptions } from "./voice-cost-dashboard.service";
+export { VoiceLiveCallViewerService } from "./voice-live-call-viewer.service";
+export type { VoiceLiveCallViewerServiceOptions } from "./voice-live-call-viewer.service";
+export { VoiceReplayTimelineService } from "./voice-replay-timeline.service";
+export type { VoiceReplayTimelineServiceOptions } from "./voice-replay-timeline.service";
 export { VoicePlatformCoverageService } from "./voice-platform-coverage.service";
 export { VoiceProofTrendsService } from "./voice-proof-trends.service";
 export { VoiceReconnectProfileEvidenceService } from "./voice-reconnect-profile-evidence.service";

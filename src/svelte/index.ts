@@ -6,6 +6,21 @@ export type {
   VoiceWidgetTheme,
   VoiceWidgetViewModel,
 } from "./createVoiceWidget";
+export {
+  createVoiceCostDashboard,
+  renderVoiceCostDashboardHTML,
+} from "./createVoiceCostDashboard";
+export type { CreateVoiceCostDashboardOptions } from "./createVoiceCostDashboard";
+export {
+  createVoiceLiveCallViewer,
+  renderVoiceLiveCallViewerHTML,
+} from "./createVoiceLiveCallViewer";
+export type { CreateVoiceLiveCallViewerSvelteOptions } from "./createVoiceLiveCallViewer";
+export {
+  createVoiceReplayTimeline,
+  renderVoiceReplayTimelineHTML,
+} from "./createVoiceReplayTimeline";
+export type { CreateVoiceReplayTimelineOptions } from "./createVoiceReplayTimeline";
 export { createVoiceDeliveryRuntime } from "./createVoiceDeliveryRuntime";
 export { createVoiceOpsActionCenter } from "./createVoiceOpsActionCenter";
 export { createVoiceLiveOps } from "./createVoiceLiveOps";

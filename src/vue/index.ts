@@ -32,6 +32,9 @@ export { useVoiceCampaignDialerProof } from "./useVoiceCampaignDialerProof";
 export { useVoiceStream } from "./useVoiceStream";
 export { useVoiceController } from "./useVoiceController";
 export { VoiceWidget } from "./VoiceWidget";
+export { VoiceCostDashboard } from "./VoiceCostDashboard";
+export { VoiceLiveCallViewer } from "./VoiceLiveCallViewer";
+export { VoiceReplayTimeline } from "./VoiceReplayTimeline";
 export type {
   VoiceWidgetLabels,
   VoiceWidgetTheme,
