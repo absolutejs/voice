@@ -9,9 +9,10 @@ We are continuing AbsoluteJS Voice from /home/alexkahn/abs/voice. First read VOI
 ## Current State
 
 - Core repo: `/home/alexkahn/abs/voice`
-- Current package: `@absolutejs/voice@0.0.22-beta.468`
+- Current package: `@absolutejs/voice@0.0.22-beta.471`
 - Companion media package: `@absolutejs/media@0.0.1-beta.16`
-- Latest pushed voice commit: `e96309a Add 'What's new' section to README for beta.464-468`
+- Companion AbsoluteJS packages used by the Vapi-parity surface (no hard runtime deps from voice): `@absolutejs/ai@0.0.5` (13 LLM provider adapters), `@absolutejs/rag@0.0.10` (in-memory/SQLite/pgvector stores, 11 embedding providers, hybrid search, evaluation, connectors), `voice-adapters` monorepo (OpenAI Realtime / Gemini Live / Deepgram / ElevenLabs / AssemblyAI), `voice-fixtures-multilingual` (23 PCM clips across 7 languages incl. code-switch).
+- Latest pushed voice commit: `edf3d00 Add fromVapiAssistantConfig adapter for mechanical Vapi migration`
 - Latest real example proof: `.voice-runtime/proof-pack/runtime/2026-05-19T00-39-01.066Z/proof-pack/latest.json` (`failureReplayEvidenceAssertion.summary.media` now carries `pipelineIssueCodes` and `pipelineStatus`)
 - Latest proof status: `ok: true`; mediaPipelineCalibrationAssertion summary trimmed from ~35 KB to ~1.7 KB (95% reduction); total proof JSON dropped from ~170 KB to ~114 KB; per-report media artifacts (`media-quality.{json,md}`, `media-transport.{json,md}`, `media-processor-graph.{json,md}`) persisted in the proof-pack run directory and linked from the assertion's `artifacts` field.
 - Stable issue codes now exposed: `summary.issueCodes` aggregates calibration/quality/interruption/processor-graph codes; `summary.calibration.issueCodes` and `summary.processorGraph.issueCodes` are also present for per-category gating.
@@ -57,11 +58,21 @@ Compact-artifact readability AND issue-code surfacing are both shipped end-to-en
 - `buildVoiceMediaPipelineReadinessChecks(report, { baseHref, label })` — drop-in `VoiceProductionReadinessCheck[]`.
 - `buildVoiceMediaPipelineIncidentEvents(report, { now, source, category })` — drop-in `VoiceIncidentTimelineEvent[]`.
 
-The media-pipeline + media-artifact integration is feature-complete. No mandatory work outstanding. Suggested next directions when there's time:
+Both major tracks are feature-complete:
 
+1. **Media-pipeline + media-artifact integration** — proof pack, readiness, operations record, failure replay, incident timeline.
+2. **Vapi-parity agent surface** (Phases 1–3 of the plan in [[project-vapi-parity]]):
+   - `createVoiceRAGTool(collection, options)` (beta.469) — wraps any `@absolutejs/rag`-shaped `VoiceRAGCollectionLike` into a Vapi-Query-Tool-shaped agent tool with `searchKnowledgeBase` default name, allowedFilterKeys gating, fixedFilter merging, score thresholding, and grounded-citations formatter.
+   - Named tool catalog (beta.470) — `createVoiceEndCallTool`, `createVoiceTransferCallTool`, `createVoiceDTMFTool`, `createVoiceVoicemailDetectionTool`, `createVoiceApiRequestTool` map Vapi `tools[].type` 1:1 onto `VoiceSessionHandle` verbs.
+   - `fromVapiAssistantConfig(json, options)` (beta.471) — takes a Vapi Assistant JSON, a caller-supplied `modelFactory`, and optional `knowledgeBase` / `dtmfSendFactory` / `customToolFactory` / `variableResolver`; returns `{ assistant, tools, routeHints, unsupported }`. `{{var}}` templates auto-compile with built-ins (now/date/time) + caller resolver; LiquidJS filters, monitorPlan, startSpeakingPlan, voicemailDetection ML, and toolIds are surfaced in `unsupported` with concrete migration instructions.
+
+Suggested next directions (none blocking):
+
+- Phase 4 of the Vapi plan: write adapter packages for TTS/STT providers the company decides to prioritize (Cartesia, PlayHT, Azure, Speechmatics, Gladia). Each is ~1 day in the voice-adapters monorepo.
+- Phase 5: build a `voiceListenAndControlSocket` primitive equivalent to Vapi's `monitorPlan.listenUrl` + `controlUrl` (supervisor barge-in over WebSocket).
+- Phase 6: wire `voice-fixtures-multilingual` into a Vapi-parity proof gate (run the corpus against several STT adapters, assert WER < threshold per language).
 - Expand `@absolutejs/media` per the MEDIA_PLAN priorities (browser/server WebSocket transport helpers, richer WebRTC inbound/outbound timing, more carrier serializer coverage, processor-graph drain/flush tests).
 - Surface the new `record.mediaPipeline` / `media.pipelineIssueCodes` fields in the framework UI helpers (React/Vue/Svelte/Angular ops-record widgets) if/when buyers ask to see media health inside their support consoles.
-- Consider promoting `extraEvents` into a typed `mediaPipelineReports?` slot on `VoiceIncidentTimelineOptions` once a second consumer pattern lands (avoid premature abstraction).
 
 ## Verification Expectations
 
