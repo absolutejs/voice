@@ -779,6 +779,15 @@ export {
   createVoiceAgentSquad,
   createVoiceAgentTool,
 } from "./agent";
+export { createVoiceRAGTool } from "./ragTool";
+export type {
+  VoiceRAGCollectionLike,
+  VoiceRAGQueryResult,
+  VoiceRAGSearchInput,
+  VoiceRAGToolArgs,
+  VoiceRAGToolOptions,
+  VoiceRAGToolResult,
+} from "./ragTool";
 export {
   assertVoiceAgentSquadContractEvidence,
   assertVoiceAgentSquadContract,

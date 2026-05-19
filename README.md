@@ -8,6 +8,41 @@ Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you wan
 
 ## What's new
 
+### 0.0.22-beta.469 · Vapi parity — RAG-as-a-tool helper
+
+`createVoiceRAGTool(collection, options?)` wraps any `@absolutejs/rag` `RAGCollection` (or any object that satisfies `VoiceRAGCollectionLike`) into a `VoiceAgentTool` shaped like Vapi's built-in `query` / `knowledgeBaseId` flow.
+
+```ts
+import { createInMemoryRAGStore, createRAGCollection } from "@absolutejs/rag";
+import { createVoiceAssistant, createVoiceRAGTool } from "@absolutejs/voice";
+
+const collection = createRAGCollection(
+  createInMemoryRAGStore(),
+  { embedding: openaiEmbeddings("text-embedding-3-small") },
+);
+
+const knowledgeBase = createVoiceRAGTool(collection, {
+  allowedFilterKeys: ["productLine"],
+  fixedFilter: ({ context }) => ({ tenantId: context.tenantId }),
+  maxChunkChars: 320,
+  scoreThreshold: 0.65,
+});
+
+const assistant = createVoiceAssistant({
+  id: "support",
+  model: openaiVoiceAssistantModel,
+  tools: [knowledgeBase],
+  system: "You are a support agent. Always cite the knowledge base.",
+});
+```
+
+Highlights:
+- Default tool name `searchKnowledgeBase` matches the conventional Vapi knowledge-base tool name.
+- Generated JSON-schema parameters expose `query` (required), `topK` (clamped to `maxTopK`), and an optional `filter` object whose keys are gated by `allowedFilterKeys`.
+- `fixedFilter` can be a static record or a `(context) => filter` function (use for tenant scoping, locale, etc.). Fixed values always win over LLM-supplied filters.
+- Default formatter returns numbered citations (`1. <title> (score 0.910): <chunk>`); override via `formatResult` or `resultToMessage`.
+- No hard dependency on `@absolutejs/rag` — `VoiceRAGCollectionLike` is structurally compatible with `RAGCollection`, so install rag (or any duck-typed retrieval backend) as a peer.
+
 ### 0.0.22-beta.464 → 468 · Media pipeline issue codes across product surfaces
 
 `@absolutejs/voice` now projects compact `@absolutejs/media` reports into every buyer-facing voice surface so media health is gateable, linkable, and visible without buying a hosted dashboard.
