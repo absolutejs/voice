@@ -2076,6 +2076,7 @@ export const createVoiceSession = <
     ttsSessionPromise = (async () => {
       const openedSession = await ttsAdapter.open({
         lexicon,
+        prosody: options.prosody,
         sessionId: options.id,
       });
       ttsSession = openedSession;

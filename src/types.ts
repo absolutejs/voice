@@ -88,12 +88,19 @@ export type VoiceLexiconEntry = {
   pronunciation?: string;
 };
 
+export type VoiceTranscriptSentiment = {
+  label: "negative" | "neutral" | "positive" | (string & {});
+  metadata?: Record<string, unknown>;
+  score?: number;
+};
+
 export type Transcript = {
   id: string;
   text: string;
   isFinal: boolean;
   confidence?: number;
   language?: string;
+  sentiment?: VoiceTranscriptSentiment;
   speaker?: string | number;
   startedAtMs?: number;
   endedAtMs?: number;
@@ -250,9 +257,17 @@ export const ttsAdapterSessionCanCancel = (
   cancel: (reason?: string) => Promise<void>;
 } => typeof session.cancel === "function";
 
+export type VoiceTTSProsody = {
+  emphasis?: number;
+  pitch?: number;
+  speed?: number;
+  style?: string;
+};
+
 export type TTSAdapterOpenOptions = {
   sessionId: string;
   lexicon?: VoiceLexiconEntry[];
+  prosody?: VoiceTTSProsody;
   signal?: AbortSignal;
 };
 
@@ -1099,6 +1114,7 @@ export type CreateVoiceSessionOptions<
   semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
   assistantMode?: import("./assistantMode").VoiceAssistantMode;
   modalities?: ReadonlyArray<"audio" | "text">;
+  prosody?: VoiceTTSProsody;
   reconnect: Required<VoiceReconnectConfig>;
   phraseHints?: VoicePhraseHint[];
   sessionMetadata?: Record<string, unknown>;
