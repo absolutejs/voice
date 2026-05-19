@@ -779,6 +779,8 @@ export {
   createVoiceAgentSquad,
   createVoiceAgentTool,
 } from "./agent";
+export { createAIVoiceModel } from "./aiVoiceModel";
+export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
 export { createVoiceRAGTool } from "./ragTool";
 export type {
   VoiceRAGCollectionLike,

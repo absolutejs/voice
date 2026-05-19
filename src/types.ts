@@ -240,8 +240,15 @@ export type TTSAdapterSession = {
     handler: (payload: TTSSessionEventMap[K]) => void | Promise<void>,
   ) => () => void;
   send: (text: string) => Promise<void>;
+  cancel?: (reason?: string) => Promise<void>;
   close: (reason?: string) => Promise<void>;
 };
+
+export const ttsAdapterSessionCanCancel = (
+  session: TTSAdapterSession,
+): session is TTSAdapterSession & {
+  cancel: (reason?: string) => Promise<void>;
+} => typeof session.cancel === "function";
 
 export type TTSAdapterOpenOptions = {
   sessionId: string;

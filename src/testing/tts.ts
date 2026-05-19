@@ -4,6 +4,7 @@ import type {
   RealtimeAdapterOpenOptions,
   TTSAdapter,
   TTSAdapterOpenOptions,
+  TTSSessionEventMap,
 } from "../types";
 
 export type VoiceTTSBenchmarkFixture = {
@@ -161,8 +162,21 @@ export const runTTSAdapterFixture = async (
           ...(openOptions ?? {}),
         });
 
+  type SessionEventListener = <
+    K extends "audio" | "close" | "error",
+  >(
+    event: K,
+    handler: (
+      payload: K extends "audio"
+        ? TTSSessionEventMap["audio"]
+        : K extends "close"
+          ? TTSSessionEventMap["close"]
+          : TTSSessionEventMap["error"],
+    ) => void | Promise<void>,
+  ) => () => void;
+  const sessionOn = session.on as SessionEventListener;
   const unsubscribers = [
-    session.on("audio", ({ chunk, format, receivedAt }) => {
+    sessionOn("audio", ({ chunk, format, receivedAt }) => {
       const normalizedChunk =
         chunk instanceof Uint8Array
           ? chunk
@@ -194,10 +208,10 @@ export const runTTSAdapterFixture = async (
         }, options.interruptAfterFirstAudioMs);
       }
     }),
-    session.on("error", () => {
+    sessionOn("error", () => {
       errorCount += 1;
     }),
-    session.on("close", () => {
+    sessionOn("close", () => {
       closeCount += 1;
       closed = true;
       closedAt = Date.now();

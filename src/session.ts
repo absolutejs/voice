@@ -43,6 +43,7 @@ import type {
   VoiceTurnRecord,
   VoiceTranscriptQuality,
 } from "./types";
+import { ttsAdapterSessionCanCancel } from "./types";
 
 const DEFAULT_RECONNECT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
@@ -735,6 +736,28 @@ export const createVoiceSession = <
         error: toError(error).message,
         reason,
         sessionId: options.id,
+      });
+    }
+  };
+
+  const cancelActiveTTS = async (reason: string) => {
+    const activeSession = ttsSession;
+    const cancelledTurnId = activeTTSTurnId;
+    if (!activeSession || cancelledTurnId === undefined) {
+      return;
+    }
+    activeTTSTurnId = undefined;
+    if (!ttsAdapterSessionCanCancel(activeSession)) {
+      return;
+    }
+    try {
+      await activeSession.cancel(reason);
+    } catch (error) {
+      logger.warn("voice tts adapter cancel failed", {
+        error: toError(error).message,
+        reason,
+        sessionId: options.id,
+        turnId: cancelledTurnId,
       });
     }
   };
@@ -2469,6 +2492,9 @@ export const createVoiceSession = <
     }
 
     if (audioLevel >= turnDetection.speechThreshold) {
+      if (!speechDetected && activeTTSTurnId !== undefined) {
+        void cancelActiveTTS("barge-in");
+      }
       speechDetected = true;
       clearSilenceTimer();
     } else if (speechDetected) {
