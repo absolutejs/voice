@@ -8,6 +8,52 @@ Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you wan
 
 ## What's new
 
+### 0.0.22-beta.471 · Vapi parity — `fromVapiAssistantConfig` adapter
+
+Mechanical migration from a Vapi Assistant JSON to a voice assistant. Pass the JSON dump (or a typed subset), provide a `modelFactory` that maps Vapi's `model.provider`+`model.model` to a voice `VoiceAgentModel`, and get back `{ assistant, tools, routeHints, unsupported }`.
+
+```ts
+import {
+  createOpenAIVoiceAssistantModel,
+  fromVapiAssistantConfig,
+  type VapiAssistantConfig,
+} from "@absolutejs/voice";
+
+const config: VapiAssistantConfig = JSON.parse(vapiDump);
+
+const { assistant, tools, routeHints, unsupported } = fromVapiAssistantConfig(config, {
+  assistantId: "support",
+  fetch,
+  knowledgeBase: { collection: ragCollection },
+  modelFactory: ({ provider, model, temperature }) => {
+    if (provider === "openai") {
+      return createOpenAIVoiceAssistantModel({
+        apiKey: process.env.OPENAI_API_KEY!,
+        model: model ?? "gpt-4.1-mini",
+        temperature,
+      });
+    }
+    throw new Error(`Unsupported provider: ${provider}`);
+  },
+  variableResolver: (path, { context }) => {
+    if (path === "customer.name") return context.customerName;
+    return undefined;
+  },
+  dtmfSendFactory: () => ({ args, api }) =>
+    api.transfer({ target: "ivr", metadata: { digits: args.digits } }),
+});
+
+console.log("Migrated", tools.length, "tools;", unsupported.length, "fields need manual review:");
+for (const reason of unsupported) console.log(`  - ${reason.field}: ${reason.detail}`);
+```
+
+Mappings:
+- **`model.provider` + `model.model` + `temperature`** → your `modelFactory` (you control which provider adapter to use; the adapter doesn't bake in API keys).
+- **`messages[].role === "system"` (or `systemPrompt`)** → assistant `system` field; `{{var}}` bare expansions auto-compile to a function-form prompt that resolves built-ins (`{{now}}`, `{{date}}`, `{{time}}`) and your `variableResolver` for everything else. LiquidJS filters are reported in `unsupported`.
+- **`tools[].type`** → named-tool factories from beta.470: `endCall` → `createVoiceEndCallTool`, `transferCall` → `createVoiceTransferCallTool` (numbers/SIP URIs auto-mapped), `voicemail` → `createVoiceVoicemailDetectionTool`, `apiRequest` / `function` (with `server.url`) → `createVoiceApiRequestTool`, `query` (or top-level `knowledgeBaseId`) → `createVoiceRAGTool` if you pass a `knowledgeBase` option. `dtmf` requires a `dtmfSendFactory` so it can reach your telephony adapter. `function` tools without `server.url` are forwarded to your optional `customToolFactory`.
+- **`voice.*` (TTS) + `transcriber.*` (STT) + `firstMessage` / `firstMessageMode` / `silenceTimeoutSeconds` / `maxDurationSeconds` / `endCall*` / `recordingEnabled` / `compliancePlan.*` / `backgroundSound` / `voicemailMessage`** → `routeHints` you pass into your `voice()` plugin / carrier route at mount time.
+- **`monitorPlan`, `startSpeakingPlan`, `stopSpeakingPlan`, `voicemailDetection.provider`, `model.toolIds`, `firstMessageMode`** → reported in `unsupported` with concrete migration instructions.
+
 ### 0.0.22-beta.470 · Vapi parity — named tool catalog
 
 Five named-tool factories that mirror Vapi's built-in `tools[].type` entries 1:1. Drop them straight into `createVoiceAssistant({ tools: [...] })` to get the same buyer ergonomics without writing the wiring yourself.

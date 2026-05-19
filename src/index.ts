@@ -795,6 +795,26 @@ export {
   createVoiceTransferCallTool,
   createVoiceVoicemailDetectionTool,
 } from "./agentTools";
+export { fromVapiAssistantConfig } from "./vapiAdapter";
+export type {
+  VapiAssistantConfig,
+  VapiAssistantConfigModel,
+  VapiAssistantConfigTool,
+  VapiAssistantConfigTranscriber,
+  VapiAssistantConfigTransferDestination,
+  VapiAssistantConfigVoice,
+  VapiAssistantMessage,
+  VoiceFromVapiAssistantOptions,
+  VoiceFromVapiAssistantResult,
+  VoiceFromVapiCustomToolFactory,
+  VoiceFromVapiCustomToolInput,
+  VoiceFromVapiDTMFFactory,
+  VoiceFromVapiKnowledgeBase,
+  VoiceFromVapiModelFactory,
+  VoiceFromVapiModelFactoryInput,
+  VoiceFromVapiRouteHints,
+  VoiceFromVapiUnsupportedReason,
+} from "./vapiAdapter";
 export type {
   VoiceApiRequestToolArgs,
   VoiceApiRequestToolFetch,
