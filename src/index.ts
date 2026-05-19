@@ -789,6 +789,33 @@ export type {
   VoiceRAGToolResult,
 } from "./ragTool";
 export {
+  createVoiceApiRequestTool,
+  createVoiceDTMFTool,
+  createVoiceEndCallTool,
+  createVoiceTransferCallTool,
+  createVoiceVoicemailDetectionTool,
+} from "./agentTools";
+export type {
+  VoiceApiRequestToolArgs,
+  VoiceApiRequestToolFetch,
+  VoiceApiRequestToolHttpMethod,
+  VoiceApiRequestToolOptions,
+  VoiceApiRequestToolResult,
+  VoiceDTMFToolArgs,
+  VoiceDTMFToolOptions,
+  VoiceDTMFToolResult,
+  VoiceEndCallToolArgs,
+  VoiceEndCallToolOptions,
+  VoiceEndCallToolResult,
+  VoiceTransferCallToolArgs,
+  VoiceTransferCallToolDestination,
+  VoiceTransferCallToolOptions,
+  VoiceTransferCallToolResult,
+  VoiceVoicemailDetectionToolArgs,
+  VoiceVoicemailDetectionToolOptions,
+  VoiceVoicemailDetectionToolResult,
+} from "./agentTools";
+export {
   assertVoiceAgentSquadContractEvidence,
   assertVoiceAgentSquadContract,
   evaluateVoiceAgentSquadContractEvidence,

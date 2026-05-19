@@ -8,6 +8,50 @@ Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you wan
 
 ## What's new
 
+### 0.0.22-beta.470 · Vapi parity — named tool catalog
+
+Five named-tool factories that mirror Vapi's built-in `tools[].type` entries 1:1. Drop them straight into `createVoiceAssistant({ tools: [...] })` to get the same buyer ergonomics without writing the wiring yourself.
+
+```ts
+import {
+  createVoiceAssistant,
+  createVoiceApiRequestTool,
+  createVoiceDTMFTool,
+  createVoiceEndCallTool,
+  createVoiceTransferCallTool,
+  createVoiceVoicemailDetectionTool,
+} from "@absolutejs/voice";
+
+const tools = [
+  createVoiceEndCallTool({ farewell: "Thanks for calling, goodbye." }),
+  createVoiceTransferCallTool({
+    destinations: [
+      { id: "billing", target: "+15551234567", message: "Connecting you to billing." },
+      { id: "supervisor", target: "sip:supervisor@pbx", metadata: { queue: "vip" } },
+    ],
+  }),
+  createVoiceDTMFTool({
+    send: async ({ args, api }) => api.transfer({ target: "ivr", metadata: { digits: args.digits } }),
+  }),
+  createVoiceVoicemailDetectionTool({ completeAfterMarking: true }),
+  createVoiceApiRequestTool({
+    description: "Look up a customer record",
+    name: "lookupCustomer",
+    method: "GET",
+    url: "https://api.example.com/customers",
+    buildQuery: ({ args }) => ({ email: String(args.email) }),
+    parameters: { type: "object", properties: { email: { type: "string" } }, required: ["email"] },
+  }),
+];
+```
+
+Per-tool highlights:
+- **`createVoiceEndCallTool`** — calls `api.complete(result)` with an optional resolved result. JSON-schema `{ reason?: string }`. Custom `farewell` (static or `({args, context, session}) => string`).
+- **`createVoiceTransferCallTool`** — multi-destination router, exposes an `enum` of destination ids to the LLM; calls `api.transfer({ target, metadata, reason, result })` with the matching destination. Pairs with `createVoiceTwilioRedirectHandoffAdapter` for live carrier transfer.
+- **`createVoiceDTMFTool`** — caller provides a `send` hook (typically forwarding to your telephony adapter); validates digits against `allowedDigits` and `maxDigits`. Default allowed set `0123456789*#`.
+- **`createVoiceVoicemailDetectionTool`** — LLM-callable companion to ML-based voicemail detection; calls `api.markVoicemail({ metadata })` and (by default) `api.complete()`. Use when the model hears a beep / "leave a message" prompt.
+- **`createVoiceApiRequestTool`** — generic HTTP-call tool with `buildBody` / `buildQuery` / `buildHeaders` / `parseResponse` hooks. Supports DI of `fetch` for tests.
+
 ### 0.0.22-beta.469 · Vapi parity — RAG-as-a-tool helper
 
 `createVoiceRAGTool(collection, options?)` wraps any `@absolutejs/rag` `RAGCollection` (or any object that satisfies `VoiceRAGCollectionLike`) into a `VoiceAgentTool` shaped like Vapi's built-in `query` / `knowledgeBaseId` flow.
