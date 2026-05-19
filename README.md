@@ -8,6 +8,52 @@ Use it when you want Vapi/Retell/Bland-style voice-agent capability, but you wan
 
 ## What's new
 
+### 0.0.22-beta.474 · Phase 5 runtime hookup — auto-wire monitor sockets to live sessions
+
+The Phase 5 monitor primitive is now first-class in the voice runtime. Pass a `monitor` binding to `voice({...})` and every session opened against the voice plugin auto-registers in the monitor registry, outbound TTS audio auto-fans-out to all listeners, and the close/superseded/session-switch paths deregister automatically. Supervisors connecting to the listen route get a live audio stream without any manual `record.emit()` calls.
+
+```ts
+import { Elysia } from "elysia";
+import {
+  createVoiceInMemoryMonitorRegistry,
+  createVoiceLiveMonitorRoutes,
+  createVoiceMonitorRuntimeBinding,
+  voice,
+} from "@absolutejs/voice";
+
+const monitorRegistry = createVoiceInMemoryMonitorRegistry();
+
+const app = new Elysia()
+  .use(
+    voice({
+      path: "/voice/realtime",
+      stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
+      tts: elevenlabs({ apiKey: process.env.ELEVENLABS_API_KEY! }),
+      onTurn: async (session, turn, api) => {
+        // your business logic
+      },
+      session: sessionStore,
+      monitor: createVoiceMonitorRuntimeBinding(monitorRegistry, {
+        audioFormat: { channels: 1, container: "raw", encoding: "pcm_s16le", sampleRateHz: 24_000 },
+      }),
+    }),
+  )
+  .use(
+    createVoiceLiveMonitorRoutes({
+      registry: monitorRegistry,
+      authenticate: async ({ request }) => await verifySupervisorJWT(request),
+    }),
+  );
+```
+
+Surface additions:
+- **`createVoiceMonitorRuntimeBinding(registry, { audioFormat?, defaultSource? })`** — returns a `VoiceMonitorRuntimeBinding` you pass to the voice plugin's new `monitor` option. Internally, each session open calls `registerSession({ handle, sessionId })`, audio fans out via `emitAudio()` on every binary `socket.send`, and the close/superseded/session-switch paths call `deregister(reason)`.
+- **`VoicePluginConfig.monitor?: VoiceMonitorRuntimeBinding`** — new optional field on the main voice plugin config.
+- **`VoiceMonitorMutableRegistry.deregister(sessionId, reason?)`** — explicit deregister path so the runtime binding can tear down stale records on re-register without throwing. The `register()`-returned deregister fn now also accepts an optional reason.
+- The runtime binding is **opt-in** — if you don't pass `monitor`, voice behaves exactly as before. No overhead on the audio-send hot path beyond a single `Map.get`.
+
+4 new tests cover the runtime binding's register/emit/deregister cycle, no-op-after-deregister, re-registration tear-down, and the audioFormat + defaultSource option threading. Full voice suite now 963 pass / 1 pre-existing fail.
+
 ### 0.0.22-beta.473 · Phase 5 — live listen + control monitor sockets (Vapi `monitorPlan` parity)
 
 Two new WebSocket routes per session that mirror Vapi's `monitorPlan.listenUrl` + `monitorPlan.controlUrl`. Supervisors can subscribe to a live call's outbound audio and send control commands (transfer, hangup, escalate, voicemail, no-answer, plus caller-defined mute/say/inject) without touching the call itself.

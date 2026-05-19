@@ -527,12 +527,82 @@ export const voice = <
     throw new Error("voice requires either an stt or realtime adapter.");
   }
 
+  const monitorBindings = new Map<
+    string,
+    ReturnType<NonNullable<VoicePluginConfig["monitor"]>["registerSession"]>
+  >();
   const runtime: VoiceRuntime = {
     activeSessions: new Map(),
     logger: resolveLogger(config.logger),
     profileSwitchGuardAutoSwitchCounts: new Map(),
     profileSwitchGuardedSessions: new Set(),
     socketSessions: new WeakMap(),
+  };
+  const monitor = config.monitor;
+  const registerMonitorSession = (
+    sessionId: string,
+    handle: VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>,
+  ) => {
+    if (!monitor) return;
+    const existing = monitorBindings.get(sessionId);
+    if (existing) {
+      try {
+        existing.deregister("superseded");
+      } catch {}
+      monitorBindings.delete(sessionId);
+    }
+    try {
+      const binding = monitor.registerSession({ handle, sessionId });
+      monitorBindings.set(sessionId, binding);
+    } catch (error) {
+      runtime.logger.warn?.(
+        `[voice] failed to register session "${sessionId}" with monitor runtime: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  };
+  const deregisterMonitorSession = (sessionId: string, reason?: string) => {
+    const binding = monitorBindings.get(sessionId);
+    if (!binding) return;
+    monitorBindings.delete(sessionId);
+    try {
+      binding.deregister(reason);
+    } catch (error) {
+      runtime.logger.warn?.(
+        `[voice] failed to deregister monitor binding for session "${sessionId}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  };
+  const buildSocketAdapter = (
+    ws: { close: (code?: number, reason?: string) => void; send: (data: string | Uint8Array | ArrayBuffer) => unknown },
+    sessionId: string,
+  ) => {
+    if (!monitor) return createSocketAdapter(ws);
+    return {
+      close: async (code?: number, reason?: string) => {
+        ws.close(code, reason);
+      },
+      send: async (data: string | Uint8Array | ArrayBuffer) => {
+        if (typeof data !== "string") {
+          const binding = monitorBindings.get(sessionId);
+          if (binding) {
+            try {
+              binding.emitAudio(data);
+            } catch (error) {
+              runtime.logger.warn?.(
+                `[voice] monitor emitAudio failed for session "${sessionId}": ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+            }
+          }
+        }
+        ws.send(data);
+      },
+    };
   };
   const onTurn = normalizeOnTurn(config.onTurn);
   const sessionOptions = resolveSessionOptions(config);
@@ -713,6 +783,7 @@ export const voice = <
 
         const session = runtime.activeSessions.get(socketState.sessionId);
         runtime.activeSessions.delete(socketState.sessionId);
+        deregisterMonitorSession(socketState.sessionId, reason ?? `ws-close-${String(code)}`);
 
         if (session) {
           await session.disconnect({
@@ -740,6 +811,7 @@ export const voice = <
           if (message.type === "close" && current) {
             await current.close(message.reason);
             runtime.activeSessions.delete(sessionState.sessionId);
+            deregisterMonitorSession(sessionState.sessionId, message.reason);
           }
 
           if (message.type === "call_control" && current) {
@@ -797,6 +869,7 @@ export const voice = <
             if (currentSession) {
               await currentSession.close("session-switch");
               runtime.activeSessions.delete(sessionState.sessionId);
+              deregisterMonitorSession(sessionState.sessionId, "session-switch");
             }
 
             sessionState.sessionId = message.sessionId;
@@ -832,11 +905,16 @@ export const voice = <
           ));
 
         if (!current) {
-          runtime.activeSessions.set(
-            sessionState.sessionId,
-            session as VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>,
+          const typedSession = session as VoiceSessionHandle<
+            unknown,
+            VoiceSessionRecord,
+            unknown
+          >;
+          runtime.activeSessions.set(sessionState.sessionId, typedSession);
+          registerMonitorSession(sessionState.sessionId, typedSession);
+          await session.connect(
+            buildSocketAdapter(ws, sessionState.sessionId),
           );
-          await session.connect(createSocketAdapter(ws));
         }
 
         await session.receiveAudio(audio);
@@ -848,6 +926,7 @@ export const voice = <
         if (existing) {
           await existing.close("superseded");
           runtime.activeSessions.delete(sessionState.sessionId);
+          deregisterMonitorSession(sessionState.sessionId, "superseded");
         }
 
         const session = await createManagedSession(
@@ -856,11 +935,14 @@ export const voice = <
           sessionState.scenarioId ?? undefined,
         );
 
-        runtime.activeSessions.set(
-          sessionState.sessionId,
-          session as VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>,
-        );
-        await session.connect(createSocketAdapter(ws));
+        const typedSession = session as VoiceSessionHandle<
+          unknown,
+          VoiceSessionRecord,
+          unknown
+        >;
+        runtime.activeSessions.set(sessionState.sessionId, typedSession);
+        registerMonitorSession(sessionState.sessionId, typedSession);
+        await session.connect(buildSocketAdapter(ws, sessionState.sessionId));
       },
     })
     .use(htmxRoutes());

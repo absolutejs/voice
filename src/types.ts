@@ -604,6 +604,26 @@ export type VoiceSocket = {
   close: (code?: number, reason?: string) => void | Promise<void>;
 };
 
+export type VoiceMonitorRuntimeSessionBinding = {
+  deregister: (reason?: string) => void;
+  emitAudio: (
+    chunk: Uint8Array | ArrayBuffer,
+    options?: { source?: "assistant" | "caller" | (string & {}) },
+  ) => void;
+};
+
+export type VoiceMonitorRuntimeRegisterInput = {
+  handle: VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>;
+  metadata?: Record<string, unknown>;
+  sessionId: string;
+};
+
+export type VoiceMonitorRuntimeBinding = {
+  registerSession: (
+    input: VoiceMonitorRuntimeRegisterInput,
+  ) => VoiceMonitorRuntimeSessionBinding;
+};
+
 export type VoiceSessionHandle<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -1019,6 +1039,7 @@ export type VoicePluginConfig<
   handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
   ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
   liveOps?: VoiceLiveOpsRuntimeConfig;
+  monitor?: VoiceMonitorRuntimeBinding;
   profileSwitchGuard?: VoicePluginProfileSwitchGuardConfig<
     TContext,
     TSession,

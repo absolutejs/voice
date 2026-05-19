@@ -2440,6 +2440,7 @@ export {
   buildVoiceMonitorPlan,
   createVoiceInMemoryMonitorRegistry,
   createVoiceLiveMonitorRoutes,
+  createVoiceMonitorRuntimeBinding,
   createVoiceMonitorSession,
 } from "./monitor";
 export type {
@@ -2457,6 +2458,7 @@ export type {
   VoiceMonitorRegistry,
   VoiceMonitorRegistryRegisterInput,
   VoiceLiveMonitorRoutesOptions,
+  VoiceMonitorRuntimeBindingOptions,
   VoiceMonitorSessionRecord,
 } from "./monitor";
 export * from "./types";

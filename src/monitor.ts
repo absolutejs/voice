@@ -1,6 +1,9 @@
 import { Elysia } from "elysia";
 import type {
   AudioFormat,
+  VoiceMonitorRuntimeBinding,
+  VoiceMonitorRuntimeRegisterInput,
+  VoiceMonitorRuntimeSessionBinding,
   VoiceSessionHandle,
   VoiceSessionRecord,
 } from "./types";
@@ -32,7 +35,12 @@ export type VoiceMonitorRegistry = {
 export type VoiceMonitorMutableRegistry = VoiceMonitorRegistry & {
   emit: (sessionId: string, event: VoiceMonitorAudioEvent) => void;
   emitClose: (sessionId: string, reason?: string) => void;
-  register: (record: VoiceMonitorSessionRecord) => () => void;
+  /**
+   * Deregister a session by id. No-op if the id isn't registered. The
+   * `reason` flows into the close fan-out exactly once.
+   */
+  deregister: (sessionId: string, reason?: string) => void;
+  register: (record: VoiceMonitorSessionRecord) => (reason?: string) => void;
 };
 
 export type VoiceMonitorRegistryRegisterInput = {
@@ -99,7 +107,14 @@ export const createVoiceInMemoryMonitorRegistry =
         emitClose: (reason?: string) => void;
       }
     >();
+    const deregister = (sessionId: string, reason?: string) => {
+      const existing = records.get(sessionId);
+      if (!existing) return;
+      records.delete(sessionId);
+      existing.emitClose(reason ?? "deregistered");
+    };
     return {
+      deregister,
       emit: (sessionId, event) => {
         records.get(sessionId)?.emit(event);
       },
@@ -136,10 +151,7 @@ export const createVoiceInMemoryMonitorRegistry =
           record.onClose((reason) => wrapped.emitClose(reason));
         }
         records.set(record.sessionId, wrapped);
-        return () => {
-          records.delete(record.sessionId);
-          wrapped.emitClose("deregistered");
-        };
+        return (reason?: string) => deregister(record.sessionId, reason);
       },
     };
   };
@@ -398,6 +410,70 @@ export const buildVoiceMonitorPlan = (
   return {
     controlUrl: `${baseUrl}${substituteSessionId(controlTemplate, input.sessionId)}`,
     listenUrl: `${baseUrl}${substituteSessionId(listenTemplate, input.sessionId)}`,
+  };
+};
+
+export type VoiceMonitorRuntimeBindingOptions = {
+  audioFormat?: AudioFormat;
+  defaultSource?: VoiceMonitorAudioSource;
+};
+
+const DEFAULT_RUNTIME_AUDIO_FORMAT: AudioFormat = {
+  channels: 1,
+  container: "raw",
+  encoding: "pcm_s16le",
+  sampleRateHz: 16_000,
+};
+
+const toUint8 = (chunk: Uint8Array | ArrayBuffer): Uint8Array =>
+  chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+
+export const createVoiceMonitorRuntimeBinding = (
+  registry: VoiceMonitorMutableRegistry,
+  options: VoiceMonitorRuntimeBindingOptions = {},
+): VoiceMonitorRuntimeBinding => {
+  const audioFormat = options.audioFormat ?? DEFAULT_RUNTIME_AUDIO_FORMAT;
+  const defaultSource: VoiceMonitorAudioSource =
+    options.defaultSource ?? "assistant";
+  return {
+    registerSession: (
+      input: VoiceMonitorRuntimeRegisterInput,
+    ): VoiceMonitorRuntimeSessionBinding => {
+      // The plugin lifecycle can legitimately re-issue a session id (e.g.
+      // session-switch on the same socket). Force-tear any previous record
+      // down so the new register call succeeds.
+      registry.deregister(input.sessionId, "superseded");
+      const record = createVoiceMonitorSession({
+        handle: input.handle,
+        metadata: input.metadata,
+        sessionId: input.sessionId,
+      });
+      const deregisterFromRegistry = registry.register(record);
+      let closed = false;
+      return {
+        deregister: (reason?: string) => {
+          if (closed) return;
+          closed = true;
+          try {
+            deregisterFromRegistry(reason);
+          } catch {}
+        },
+        emitAudio: (
+          chunk: Uint8Array | ArrayBuffer,
+          opts?: { source?: VoiceMonitorAudioSource },
+        ) => {
+          if (closed) return;
+          const bytes = toUint8(chunk);
+          if (bytes.byteLength === 0) return;
+          record.emit({
+            at: Date.now(),
+            chunk: bytes,
+            format: audioFormat,
+            source: opts?.source ?? defaultSource,
+          });
+        },
+      };
+    },
   };
 };
 

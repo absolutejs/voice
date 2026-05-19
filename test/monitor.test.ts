@@ -3,6 +3,7 @@ import {
   buildVoiceMonitorPlan,
   createVoiceInMemoryMonitorRegistry,
   createVoiceLiveMonitorRoutes,
+  createVoiceMonitorRuntimeBinding,
   createVoiceMonitorSession,
 } from "../src";
 import type {
@@ -229,6 +230,94 @@ describe("createVoiceLiveMonitorRoutes default control handlers", () => {
       () => ({ detail: "custom", ok: true, type: "hangup" }),
     );
     expect(routes).toBeDefined();
+  });
+});
+
+describe("createVoiceMonitorRuntimeBinding", () => {
+  test("registerSession registers the handle in the registry, emitAudio fans out, deregister tears down", () => {
+    const { handle } = buildStubHandle();
+    const registry = createVoiceInMemoryMonitorRegistry();
+    const binding = createVoiceMonitorRuntimeBinding(registry);
+    const sessionBinding = binding.registerSession({
+      handle,
+      sessionId: "session-1",
+    });
+    expect(registry.get("session-1")).toBeDefined();
+    const chunks: number[][] = [];
+    registry
+      .get("session-1")!
+      .onAudio((event) => chunks.push(Array.from(event.chunk)));
+    sessionBinding.emitAudio(new Uint8Array([1, 2, 3]));
+    sessionBinding.emitAudio(new Uint8Array([4, 5]));
+    expect(chunks).toEqual([
+      [1, 2, 3],
+      [4, 5],
+    ]);
+    const closeReasons: Array<string | undefined> = [];
+    registry
+      .get("session-1")!
+      .onClose((reason) => closeReasons.push(reason));
+    sessionBinding.deregister("hangup");
+    expect(closeReasons).toEqual(["hangup"]);
+    expect(registry.get("session-1")).toBeUndefined();
+  });
+
+  test("emitAudio after deregister is a no-op", () => {
+    const { handle } = buildStubHandle();
+    const registry = createVoiceInMemoryMonitorRegistry();
+    const binding = createVoiceMonitorRuntimeBinding(registry);
+    const sessionBinding = binding.registerSession({
+      handle,
+      sessionId: "session-1",
+    });
+    sessionBinding.deregister();
+    sessionBinding.emitAudio(new Uint8Array([1, 2, 3]));
+    // Registry has no session — no throw, no fan-out.
+    expect(registry.get("session-1")).toBeUndefined();
+  });
+
+  test("re-registering the same sessionId tears down the previous record first", () => {
+    const { handle } = buildStubHandle();
+    const registry = createVoiceInMemoryMonitorRegistry();
+    const binding = createVoiceMonitorRuntimeBinding(registry);
+    binding.registerSession({ handle, sessionId: "session-1" });
+    const firstRecord = registry.get("session-1")!;
+    const firstReasons: Array<string | undefined> = [];
+    firstRecord.onClose((reason) => firstReasons.push(reason));
+    const second = binding.registerSession({
+      handle,
+      sessionId: "session-1",
+    });
+    expect(firstReasons).toEqual(["superseded"]);
+    expect(registry.get("session-1")).toBeDefined();
+    second.deregister();
+  });
+
+  test("audioFormat + defaultSource options are applied to emitted events", () => {
+    const { handle } = buildStubHandle();
+    const registry = createVoiceInMemoryMonitorRegistry();
+    const binding = createVoiceMonitorRuntimeBinding(registry, {
+      audioFormat: {
+        channels: 1,
+        container: "raw",
+        encoding: "pcm_s16le",
+        sampleRateHz: 8_000,
+      },
+      defaultSource: "caller",
+    });
+    const sessionBinding = binding.registerSession({
+      handle,
+      sessionId: "session-1",
+    });
+    const events: VoiceMonitorAudioEvent[] = [];
+    registry.get("session-1")!.onAudio((event) => events.push(event));
+    sessionBinding.emitAudio(new Uint8Array([1]));
+    sessionBinding.emitAudio(new Uint8Array([2]), { source: "assistant" });
+    expect(events).toHaveLength(2);
+    expect(events[0]?.format.sampleRateHz).toBe(8_000);
+    expect(events[0]?.source).toBe("caller");
+    expect(events[1]?.source).toBe("assistant");
+    sessionBinding.deregister();
   });
 });
 
