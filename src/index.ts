@@ -782,6 +782,21 @@ export {
 export { createAIVoiceModel } from "./aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
 export {
+  createVoiceAIJudgeCompletion,
+  createVoiceLLMJudge,
+} from "./llmJudge";
+export type {
+  CreateVoiceAIJudgeCompletionOptions,
+  CreateVoiceLLMJudgeOptions,
+  VoiceLLMJudge,
+  VoiceLLMJudgeCompletion,
+  VoiceLLMJudgeCriterionVerdict,
+  VoiceLLMJudgeInput,
+  VoiceLLMJudgeRubric,
+  VoiceLLMJudgeRubricCriterion,
+  VoiceLLMJudgeVerdict,
+} from "./llmJudge";
+export {
   DEFAULT_VOICE_REDACTION_PATTERNS,
   createVoiceTranscriptRedactor,
   redactVoiceTranscript,
