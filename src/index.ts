@@ -993,6 +993,15 @@ export type {
   VoiceRouteAuthVerifier,
 } from "./routeAuth";
 export {
+  BROWSER_NOISE_SUPPRESSOR_PRESETS,
+  applyBrowserNoiseSuppression,
+} from "./client/browserNoiseSuppression";
+export type {
+  BrowserNoiseSuppressorHandle,
+  BrowserNoiseSuppressorOptions,
+  BrowserNoiseSuppressorPreset,
+} from "./client/browserNoiseSuppression";
+export {
   buildVoiceHTMXAttributes,
   wrapVoiceHTMLInHTMXContainer,
   wrapVoiceHTMLWithHTMXPolling,
