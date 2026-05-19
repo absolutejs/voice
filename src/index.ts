@@ -843,6 +843,19 @@ export {
   verifyVoiceWebhookSignature,
 } from "./webhookVerification";
 export {
+  createVoiceIVRSession,
+  describeVoiceIVRPlan,
+  evaluateVoiceIVRPlan,
+} from "./ivrPlan";
+export type {
+  VoiceIVRBranch,
+  VoiceIVRDecision,
+  VoiceIVRInput,
+  VoiceIVRMatch,
+  VoiceIVRPlan,
+  VoiceIVRSession,
+} from "./ivrPlan";
+export {
   VOICE_CALLER_MEMORY_KEY,
   buildVoiceCallerMemoryNamespace,
   createVoiceCallerMemoryNamespace,
