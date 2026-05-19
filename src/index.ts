@@ -936,8 +936,9 @@ export type {
   VoiceAMDDetectorInput,
   VoiceAMDVerdict,
 } from "./amdDetector";
-export { createVoiceRAGTool } from "./ragTool";
+export { createVoiceRAGTool, extractVoiceRAGCitations } from "./ragTool";
 export type {
+  VoiceRAGCitationSummary,
   VoiceRAGCollectionLike,
   VoiceRAGQueryResult,
   VoiceRAGSearchInput,

@@ -42,6 +42,42 @@ export type VoiceRAGToolResult = {
   topK: number;
 };
 
+export type VoiceRAGCitationSummary = {
+  chunkId: string;
+  score: number;
+  source?: string;
+  title?: string;
+};
+
+export const extractVoiceRAGCitations = (
+  toolResults: ReadonlyArray<{
+    result?: unknown;
+    toolName: string;
+  }>,
+  toolName = "searchKnowledgeBase",
+): VoiceRAGCitationSummary[] => {
+  const out: VoiceRAGCitationSummary[] = [];
+  for (const entry of toolResults) {
+    if (entry.toolName !== toolName) {
+      continue;
+    }
+    const result = entry.result as VoiceRAGToolResult | undefined;
+    const citations = result?.citations;
+    if (!Array.isArray(citations)) {
+      continue;
+    }
+    for (const citation of citations) {
+      out.push({
+        chunkId: citation.chunkId,
+        score: citation.score,
+        source: citation.source,
+        title: citation.title,
+      });
+    }
+  }
+  return out;
+};
+
 export type VoiceRAGToolOptions<TContext = unknown> = {
   allowedFilterKeys?: readonly string[];
   description?: string;
