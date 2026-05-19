@@ -3039,4 +3039,53 @@ export type {
   VoiceQualityDriftReport,
   VoiceQualityDriftSeverity,
 } from "./qualityDriftDetector";
+export {
+  findVoicePathwaySlot,
+  findVoicePathwayState,
+  validateVoicePathway,
+} from "./pathway";
+export type {
+  VoicePathway,
+  VoicePathwayAction,
+  VoicePathwayCondition,
+  VoicePathwaySlot,
+  VoicePathwaySlotType,
+  VoicePathwayState,
+  VoicePathwayTransition,
+  VoicePathwayValidationIssue,
+  VoicePathwayValidationReport,
+} from "./pathway";
+export { createVoicePathwayRuntime } from "./pathwayRuntime";
+export type {
+  CreateVoicePathwayRuntimeOptions,
+  VoicePathwayRuntime,
+  VoicePathwayRuntimeEvent,
+  VoicePathwayRuntimeState,
+  VoicePathwayRuntimeStatus,
+  VoicePathwaySlotValue,
+  VoicePathwayToolCall,
+} from "./pathwayRuntime";
+export {
+  createVoicePathwaySlotCollector,
+  DEFAULT_VOICE_PATHWAY_SLOT_PARSERS,
+} from "./pathwaySlotCollector";
+export type {
+  CreateVoicePathwaySlotCollectorOptions,
+  VoicePathwaySlotCollector,
+  VoicePathwaySlotCollectorAttempt,
+  VoicePathwaySlotParser,
+  VoicePathwaySlotParseResult,
+} from "./pathwaySlotCollector";
+export { compileVoicePathwayToAssistant } from "./pathwayCompiler";
+export type {
+  CompileVoicePathwayOptions,
+  VoicePathwayCompiledAssistant,
+  VoicePathwayCompilerToolDefinition,
+} from "./pathwayCompiler";
+export {
+  renderVoicePathwayMermaid,
+  renderVoicePathwayText,
+  visualizeVoicePathway,
+} from "./pathwayVisualizer";
+export type { VoicePathwayVisualization } from "./pathwayVisualizer";
 export * from "./types";
