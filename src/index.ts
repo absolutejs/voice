@@ -1020,6 +1020,7 @@ export {
   createVoiceTransferCallTool,
   createVoiceVoicemailDetectionTool,
 } from "./agentTools";
+export { createVoiceConfiguration } from "./voiceConfiguration";
 export { defineVoiceAssistant } from "./defineVoiceAssistant";
 export type {
   DefinedVoiceAssistant,
