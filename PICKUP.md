@@ -177,12 +177,10 @@ Audio-bleep redaction is end-to-end:
 - voice: `deriveVoiceRecordingRedactionRanges` (.498) walks final transcripts → ranges
 - **NEW voice@0.0.22-beta.518**: `redactVoiceRecording({ pcm, format, transcripts, recordingStartedAtEpochMs?, paddingMs?, patterns?, fill? })` closes the loop — derive → merge → `applyAudioRedaction` in one call, returns `{ bytes, ranges, redactedCount }`. Imports media directly (voice already deps media@.19). The card-number PCI/HIPAA recording-redaction story is complete.
 
-### `@absolutejs/rag` (2)
+### `@absolutejs/rag` (0 remaining — CLOSED)
 
-| Gap | Size | Hook |
-|---|---|---|
-| Reranker interface (Cohere/Voyage/BGE) | small | New `Reranker` interface; cross-encoder rerank before LLM |
-| Citation IDs propagation | tiny | `ragTool.ts` emits citation IDs into the turn artifact |
+- Reranker interface: `RAGReranker` contract + heuristic reranker already shipped. **NEW rag@0.0.11**: vendor cross-encoder adapters `createCohereRAGReranker` / `createVoyageRAGReranker` / `createJinaRAGReranker` (shared `CrossEncoderRerankerConfig`, injectable `fetch`, top_n/top_k + scoreThreshold + candidateTopK). Each returns a `RAGRerankerProvider` that re-sorts candidates by vendor relevance score.
+- Citation IDs propagation: **NEW voice@0.0.22-beta.519**: `VoiceTurnCitation` added to both `VoiceRouteResult` and `VoiceTurnRecord`; `createVoiceAgent` auto-extracts citations from `searchKnowledgeBase` tool results (`extractVoiceRAGCitations`) and the session attaches them to the committed turn. `ragTool.ts`'s `VoiceRAGCitationSummary` is now an alias of `VoiceTurnCitation`.
 
 ### `@absolutejs/ai` (1)
 
