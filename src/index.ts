@@ -779,6 +779,24 @@ export {
   createVoiceAgentSquad,
   createVoiceAgentTool,
 } from "./agent";
+export {
+  createPersonaVoiceCaller,
+  createScriptedVoiceCaller,
+  renderVoiceSimulationTranscript,
+  runVoiceConversationSimulation,
+} from "./conversationSimulator";
+export type {
+  RunVoiceConversationSimulationInput,
+  VoiceConversationSimulationEndedReason,
+  VoiceConversationSimulationResult,
+  VoicePersonaCallerCompletion,
+  VoiceScriptedCallerStep,
+  VoiceSimulatedSpeaker,
+  VoiceSimulatedTurn,
+  VoiceSimulatorCaller,
+  VoiceSimulatorCallerModel,
+  VoiceSimulatorCallerReply,
+} from "./conversationSimulator";
 export { createAIVoiceModel } from "./aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
 export {
