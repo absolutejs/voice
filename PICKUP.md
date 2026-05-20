@@ -182,11 +182,9 @@ Audio-bleep redaction is end-to-end:
 - Reranker interface: `RAGReranker` contract + heuristic reranker already shipped. **NEW rag@0.0.11**: vendor cross-encoder adapters `createCohereRAGReranker` / `createVoyageRAGReranker` / `createJinaRAGReranker` (shared `CrossEncoderRerankerConfig`, injectable `fetch`, top_n/top_k + scoreThreshold + candidateTopK). Each returns a `RAGRerankerProvider` that re-sorts candidates by vendor relevance score.
 - Citation IDs propagation: **NEW voice@0.0.22-beta.519**: `VoiceTurnCitation` added to both `VoiceRouteResult` and `VoiceTurnRecord`; `createVoiceAgent` auto-extracts citations from `searchKnowledgeBase` tool results (`extractVoiceRAGCitations`) and the session attaches them to the committed turn. `ragTool.ts`'s `VoiceRAGCitationSummary` is now an alias of `VoiceTurnCitation`.
 
-### `@absolutejs/ai` (1)
+### `@absolutejs/ai` (0 remaining — CLOSED)
 
-| Gap | Size | Hook |
-|---|---|---|
-| OpenAI-compatible URL + OAuth2 client-credentials | tiny | Confirm/extend `openaiCompatible` adapter; pair with the voice-side custom-LLM gap above |
+`openaiCompatible({ baseUrl, apiKey?, tokenSource? })` already supported custom URLs + a `tokenSource` hook. **NEW ai@0.0.7**: `createOAuth2ClientCredentialsTokenSource({ tokenUrl, clientId, clientSecret, scope?, audience?, authStyle?, extraParams?, expirySkewMs?, fetch? })` returns a ready `() => Promise<string>` tokenSource — performs the client-credentials grant, caches in memory, auto-refreshes before expiry, dedupes concurrent calls, supports body or HTTP-Basic auth styles. Drop it straight into `openai()`/`openaiCompatible()` for Azure AD / Auth0 / enterprise LLM gateways.
 
 ### Embeddable widget — SHIPPED in voice@0.0.22-beta.516 (no separate package)
 
