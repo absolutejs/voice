@@ -806,9 +806,14 @@ export type {
   VoiceRedactionPattern,
   VoiceTranscriptRedactor,
 } from "./redaction";
-export { deriveVoiceRecordingRedactionRanges } from "./recordingRedaction";
+export {
+  deriveVoiceRecordingRedactionRanges,
+  redactVoiceRecording,
+} from "./recordingRedaction";
 export type {
   DeriveVoiceRecordingRedactionRangesInput,
+  RedactVoiceRecordingInput,
+  RedactVoiceRecordingResult,
   VoiceRecordingRedactionRange,
 } from "./recordingRedaction";
 export {

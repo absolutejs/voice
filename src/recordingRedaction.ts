@@ -1,4 +1,9 @@
-import type { Transcript } from "./types";
+import {
+  applyAudioRedaction,
+  mergeAudioRedactionRanges,
+  type AudioRedactionFill,
+} from "@absolutejs/media";
+import type { AudioFormat, Transcript } from "./types";
 import {
   DEFAULT_VOICE_REDACTION_PATTERNS,
   type VoiceRedactionPattern,
@@ -65,4 +70,55 @@ export const deriveVoiceRecordingRedactionRanges = (
     });
   }
   return out;
+};
+
+export type RedactVoiceRecordingInput = {
+  /** Raw pcm_s16le bytes of the recorded artifact. */
+  pcm: ArrayBuffer | ArrayBufferView;
+  /** Format of the recording (must be raw pcm_s16le). */
+  format: AudioFormat;
+  /** Final transcripts with timing, scanned for sensitive content. */
+  transcripts: ReadonlyArray<Transcript>;
+  recordingStartedAtEpochMs?: number;
+  paddingMs?: number;
+  patterns?: ReadonlyArray<VoiceRedactionPattern>;
+  /** Bleep style — silence (default) or a tone. */
+  fill?: AudioRedactionFill;
+};
+
+export type RedactVoiceRecordingResult = {
+  /** The redacted pcm_s16le bytes. */
+  bytes: Uint8Array;
+  /** The merged ranges that were bleeped. */
+  ranges: VoiceRecordingRedactionRange[];
+  /** How many ranges were redacted. */
+  redactedCount: number;
+};
+
+/**
+ * End-to-end recording redaction: derives sensitive ranges from final
+ * transcripts, merges overlaps, and applies the audio bleep via
+ * `@absolutejs/media`'s `applyAudioRedaction`. Returns the redacted bytes
+ * ready to re-store in place of the original artifact.
+ */
+export const redactVoiceRecording = (
+  input: RedactVoiceRecordingInput,
+): RedactVoiceRecordingResult => {
+  const derived = deriveVoiceRecordingRedactionRanges({
+    transcripts: input.transcripts,
+    ...(input.recordingStartedAtEpochMs !== undefined
+      ? { recordingStartedAtEpochMs: input.recordingStartedAtEpochMs }
+      : {}),
+    ...(input.paddingMs !== undefined ? { paddingMs: input.paddingMs } : {}),
+    ...(input.patterns !== undefined ? { patterns: input.patterns } : {}),
+  });
+  const ranges = mergeAudioRedactionRanges(derived);
+  const bytes = applyAudioRedaction(input.pcm, input.format, ranges, {
+    ...(input.fill !== undefined ? { fill: input.fill } : {}),
+  });
+  return {
+    bytes,
+    ranges,
+    redactedCount: ranges.length,
+  };
 };
