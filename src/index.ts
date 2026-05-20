@@ -797,6 +797,15 @@ export type {
   VoiceSimulatorCallerModel,
   VoiceSimulatorCallerReply,
 } from "./conversationSimulator";
+export { createVoiceMCPToolset } from "./mcpToolset";
+export type {
+  CreateVoiceMCPToolsetOptions,
+  MCPClientLike,
+  MCPToolCallResult,
+  MCPToolContentBlock,
+  MCPToolDefinition,
+  VoiceMCPToolResult,
+} from "./mcpToolset";
 export { createAIVoiceModel } from "./aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
 export {
