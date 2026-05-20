@@ -158,11 +158,22 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 | Live call viewer | `createLiveCallViewer({ sessionId, bufferLimit?, startedAt? })` returns an observable view-state. Consumer wires monitor-socket events to applyMonitorEvent/noteTranscript/notePartial/noteAgentAudio |
 | Replay UI | `buildReplayTimelineReport({ artifact })` flattens a `VoiceCallReviewArtifact` timeline into categorized events + turn-count summary |
 
-### `@absolutejs/media` (2)
+### Noise suppression — CLOSED across media + voice (media@0.0.1-beta.19, voice@0.0.22-beta.517)
+
+End-to-end noise suppression now spans server, browser, and the session itself:
+
+| Layer | Surface |
+|---|---|
+| Server (ffmpeg) | `createFFmpegNoiseSuppressor` — `afftdn` / `anlmdn` / `arnndn` (RNNoise model). Already shipped |
+| Server (pure JS) | `createEnergyGateNoiseSuppressor`, `createPassThroughNoiseSuppressor`, `composeNoiseSuppressors`. Already shipped |
+| Server (frame-based SDKs) | **NEW media@.19**: `createFrameProcessorNoiseSuppressor` buffers PCM into exact frames for any fixed-frame denoiser (Krisp/RNNoise/DeepFilterNet) + `createKrispNoiseSuppressor` (Krisp 10ms/480-sample default; commercial SDK plugs in via the interface, not bundled) |
+| Browser | `applyBrowserNoiseSuppression` (AudioWorklet wiring) + `BROWSER_NOISE_SUPPRESSOR_PRESETS` (rnnoise, deepfilternet). Already shipped |
+| **Session wiring** | **NEW voice@.517**: `noiseSuppressor?: VoiceNoiseSuppressor` + `noiseSuppressorFormat?` on plugin + session options. Runs per-chunk in `receiveAudioInternal` BEFORE conditioning + STT; graceful fallback to raw audio on error (logged via `logger.warn`); `close()` on teardown. `VoiceNoiseSuppressor` is a structural match to media's `NoiseSuppressor` (no hard import) |
+
+### `@absolutejs/media` (1 remaining)
 
 | Gap | Size | Hook |
 |---|---|---|
-| Krisp / RNNoise noise suppression processor | small (RNNoise) / medium (Krisp) | New `NoiseSuppressor` processor in the processor graph; ship `RnnoiseProcessor` (open) + `KrispProcessor` (commercial) adapters. Voice wires it in front of STT adapter sessions |
 | Audio bleep primitive | medium | Audio-edit primitive for card-number redaction in recorded artifacts (complements voice's text redaction shipped in .481) |
 
 ### `@absolutejs/rag` (2)
