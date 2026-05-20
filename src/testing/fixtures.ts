@@ -58,26 +58,40 @@ const DEFAULT_AUDIO_FORMAT: AudioFormat = {
 const DEFAULT_TELEPHONY_SAMPLE_RATE_HZ = 8_000;
 const DEFAULT_MULTI_SPEAKER_SILENCE_MS = 350;
 
-const FIXTURE_DIR_CANDIDATES = [
-  resolve(import.meta.dir, "..", "..", "fixtures"),
-  resolve(import.meta.dir, "..", "..", "..", "fixtures"),
-  resolve(import.meta.dir, "..", "..", "..", "..", "fixtures"),
-];
-
 const EXTERNAL_FIXTURE_ENV_KEYS = [
   "VOICE_FIXTURE_DIR",
   "VOICE_FIXTURE_DIRS",
 ] as const;
 
+// Fixtures are test/benchmark data, not shipped with the runtime package. The
+// default resolver looks at VOICE_FIXTURE_DIR(S), a `fixtures/` dir in the
+// working directory (e.g. the benchmarks repo), and this repo's `test/fixtures`.
+const resolveDefaultFixtureCandidates = () => {
+  const envDirs = EXTERNAL_FIXTURE_ENV_KEYS.flatMap((key) =>
+    (process.env[key] ?? "")
+      .split(/[\n,]/)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0),
+  );
+
+  return [
+    ...envDirs.map((dir) => resolve(dir)),
+    resolve(process.cwd(), "fixtures"),
+    resolve(process.cwd(), "test", "fixtures", "audio"),
+    resolve(import.meta.dir, "..", "..", "test", "fixtures", "audio"),
+    resolve(import.meta.dir, "..", "..", "..", "test", "fixtures", "audio"),
+  ];
+};
+
 const resolveFixtureDirectory = async () => {
-  for (const candidate of FIXTURE_DIR_CANDIDATES) {
+  for (const candidate of resolveDefaultFixtureCandidates()) {
     if (await Bun.file(resolve(candidate, "manifest.json")).exists()) {
       return candidate;
     }
   }
 
   throw new Error(
-    "Unable to locate the bundled voice test fixtures. Expected fixtures/manifest.json next to the package root.",
+    "Unable to locate voice test fixtures. Set VOICE_FIXTURE_DIR/VOICE_FIXTURE_DIRS, or provide a fixtures/ directory (with manifest.json) in the working directory.",
   );
 };
 

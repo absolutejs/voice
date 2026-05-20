@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/voice",
-  "version": "0.0.22-beta.527",
+  "version": "0.0.22-beta.528",
   "description": "Voice primitives and Elysia plugin for AbsoluteJS",
   "repository": {
     "type": "git",
@@ -8,7 +8,6 @@
   },
   "files": [
     "dist",
-    "fixtures",
     "README.md"
   ],
   "main": "./dist/index.js",
@@ -16,7 +15,7 @@
   "license": "CC BY-NC 4.0",
   "author": "Alex Kahn",
   "scripts": {
-    "build": "bun run ./scripts/build-htmx-bootstrap-asset.ts && rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute --external @absolutejs/ai --external @absolutejs/media && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && bun build ./src/embed/index.ts --outfile dist/embed/voice-widget.js --target browser --format iife --minify && bun build ./src/embed/index.ts --outdir dist/embed --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
+    "build": "rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute --external @absolutejs/ai --external @absolutejs/media && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && bun build ./src/embed/index.ts --outfile dist/embed/voice-widget.js --target browser --format iife --minify && bun build ./src/embed/index.ts --outdir dist/embed --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
     "format": "prettier --write \"./**/*.{js,jsx,ts,tsx,json,md}\"",
     "lint": "eslint ./src",
     "release": "bun run format && bun run build && bun publish",

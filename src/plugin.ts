@@ -11,7 +11,6 @@ import { resolveVoiceRuntimePreset } from "./presets";
 import { recordVoiceRuntimeOps } from "./runtimeOps";
 import { createId } from "./store";
 import { createVoiceSession } from "./session";
-import { HTMX_BOOTSTRAP_BUNDLE } from "./generated/htmxBootstrapBundle";
 import { resolveTurnDetectionConfig } from "./turnProfiles";
 import { applyVoiceProfileSwitchGuard } from "./profileSwitchRecommendation";
 import {
@@ -285,10 +284,6 @@ const loadHTMXBootstrap = (() => {
     }
 
     cached = (async () => {
-      if (HTMX_BOOTSTRAP_BUNDLE) {
-        return HTMX_BOOTSTRAP_BUNDLE;
-      }
-
       for (const candidate of HTMX_BOOTSTRAP_DIST_CANDIDATES) {
         const asset = Bun.file(candidate);
         if (await asset.exists()) {
