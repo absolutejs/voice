@@ -1071,6 +1071,16 @@ export type VoiceExpectedSpeakerTurn = {
   text: string;
 };
 
+/**
+ * Configures one of the plugin's optional route surfaces. Pass that surface's
+ * options object to mount it, `false` (or omit) to leave it off. Surfaces whose
+ * options are entirely optional may also be enabled with `true` for defaults.
+ */
+export type VoiceSurfaceConfig<O> =
+  | false
+  | O
+  | (Record<string, never> extends O ? true : never);
+
 export type VoicePluginConfig<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -1106,6 +1116,237 @@ export type VoicePluginConfig<
     TResult
   >;
   trace?: VoiceTraceEventStore;
+  assistantHealth?: VoiceSurfaceConfig<
+    import("./assistantHealth").VoiceAssistantHealthRoutesOptions
+  >;
+  auditDelivery?: VoiceSurfaceConfig<
+    import("./auditDeliveryRoutes").VoiceAuditDeliveryRoutesOptions
+  >;
+  auditTrail?: VoiceSurfaceConfig<
+    import("./auditRoutes").VoiceAuditTrailRoutesOptions
+  >;
+  bargeIn?: VoiceSurfaceConfig<
+    import("./bargeInRoutes").VoiceBargeInRoutesOptions
+  >;
+  browserCallProfile?: VoiceSurfaceConfig<
+    import("./browserCallProfiles").VoiceBrowserCallProfileRoutesOptions
+  >;
+  browserMedia?: VoiceSurfaceConfig<
+    import("./browserMediaRoutes").VoiceBrowserMediaRoutesOptions
+  >;
+  callDebugger?: VoiceSurfaceConfig<
+    import("./callDebugger").VoiceCallDebuggerRoutesOptions
+  >;
+  campaign?: VoiceSurfaceConfig<
+    import("./campaign").VoiceCampaignRoutesOptions
+  >;
+  competitiveCoverage?: VoiceSurfaceConfig<
+    import("./competitiveCoverage").VoiceCompetitiveCoverageRoutesOptions
+  >;
+  dataControl?: VoiceSurfaceConfig<
+    import("./dataControl").VoiceDataControlRoutesOptions
+  >;
+  deliveryRuntime?: VoiceSurfaceConfig<
+    import("./deliveryRuntime").VoiceDeliveryRuntimeRoutesOptions
+  >;
+  deliverySink?: VoiceSurfaceConfig<
+    import("./deliverySinkRoutes").VoiceDeliverySinkRoutesOptions
+  >;
+  demoReady?: VoiceSurfaceConfig<
+    import("./demoReadyRoutes").VoiceDemoReadyRoutesOptions
+  >;
+  diagnostics?: VoiceSurfaceConfig<
+    import("./diagnosticsRoutes").VoiceDiagnosticsRoutesOptions
+  >;
+  eval?: VoiceSurfaceConfig<
+    import("./evalRoutes").VoiceEvalRoutesOptions
+  >;
+  guardrail?: VoiceSurfaceConfig<
+    import("./guardrails").VoiceGuardrailRoutesOptions
+  >;
+  handoffHealth?: VoiceSurfaceConfig<
+    import("./handoffHealth").VoiceHandoffHealthRoutesOptions
+  >;
+  htmxDashboard?: VoiceSurfaceConfig<
+    import("./htmxDashboardRoutes").VoiceHTMXDashboardRoutesOptions
+  >;
+  incidentBundle?: VoiceSurfaceConfig<
+    import("./incidentBundle").VoiceIncidentBundleRoutesOptions
+  >;
+  incidentTimeline?: VoiceSurfaceConfig<
+    import("./incidentTimeline").VoiceIncidentTimelineRoutesOptions
+  >;
+  liveLatency?: VoiceSurfaceConfig<
+    import("./liveLatency").VoiceLiveLatencyRoutesOptions
+  >;
+  liveMonitor?: VoiceSurfaceConfig<
+    import("./monitor").VoiceLiveMonitorRoutesOptions
+  >;
+  liveOpsConsole?: VoiceSurfaceConfig<
+    import("./liveOps").VoiceLiveOpsRoutesOptions
+  >;
+  mediaPipeline?: VoiceSurfaceConfig<
+    import("./mediaPipelineRoutes").VoiceMediaPipelineRoutesOptions
+  >;
+  monitorReport?: VoiceSurfaceConfig<
+    import("./voiceMonitoring").VoiceMonitorRoutesOptions
+  >;
+  monitorRunner?: VoiceSurfaceConfig<
+    import("./voiceMonitoring").VoiceMonitorRunnerRoutesOptions
+  >;
+  observabilityExport?: VoiceSurfaceConfig<
+    import("./observabilityExport").VoiceObservabilityExportRoutesOptions
+  >;
+  observabilityExportReplay?: VoiceSurfaceConfig<
+    import("./observabilityExport").VoiceObservabilityExportReplayRoutesOptions
+  >;
+  operationalStatus?: VoiceSurfaceConfig<
+    import("./operationalStatus").VoiceOperationalStatusRoutesOptions
+  >;
+  operationsRecord?: VoiceSurfaceConfig<
+    import("./operationsRecord").VoiceOperationsRecordRoutesOptions
+  >;
+  opsActionAudit?: VoiceSurfaceConfig<
+    import("./opsActionAuditRoutes").VoiceOpsActionAuditRoutesOptions
+  >;
+  opsConsole?: VoiceSurfaceConfig<
+    import("./opsConsoleRoutes").VoiceOpsConsoleRoutesOptions
+  >;
+  opsRecovery?: VoiceSurfaceConfig<
+    import("./opsRecovery").VoiceOpsRecoveryRoutesOptions
+  >;
+  opsStatus?: VoiceSurfaceConfig<
+    import("./opsStatus").VoiceOpsStatusRoutesOptions
+  >;
+  opsWebhookReceiver?: VoiceSurfaceConfig<
+    import("./opsWebhook").VoiceOpsWebhookReceiverRoutesOptions
+  >;
+  outcomeContract?: VoiceSurfaceConfig<
+    import("./outcomeContract").VoiceOutcomeContractRoutesOptions
+  >;
+  phoneAgentProductionSmoke?: VoiceSurfaceConfig<
+    import("./phoneAgentProductionSmoke").VoicePhoneAgentProductionSmokeRoutesOptions
+  >;
+  platformCoverage?: VoiceSurfaceConfig<
+    import("./platformCoverage").VoicePlatformCoverageRoutesOptions
+  >;
+  postCallAnalysis?: VoiceSurfaceConfig<
+    import("./postCallAnalysis").VoicePostCallAnalysisRoutesOptions
+  >;
+  productionReadiness?: VoiceSurfaceConfig<
+    import("./productionReadiness").VoiceProductionReadinessRoutesOptions
+  >;
+  profileSwitchLiveDecision?: VoiceSurfaceConfig<
+    import("./profileSwitchRecommendation").VoiceProfileSwitchLiveDecisionRoutesOptions
+  >;
+  profileSwitchPolicyProof?: VoiceSurfaceConfig<
+    import("./profileSwitchRecommendation").VoiceProfileSwitchPolicyProofRoutesOptions
+  >;
+  profileSwitchReadiness?: VoiceSurfaceConfig<
+    import("./profileSwitchRecommendation").VoiceProfileSwitchReadinessRoutesOptions
+  >;
+  proofPack?: VoiceSurfaceConfig<
+    import("./proofPack").VoiceProofPackRoutesOptions
+  >;
+  proofTrend?: VoiceSurfaceConfig<
+    import("./proofTrends").VoiceProofTrendRoutesOptions
+  >;
+  proofTrendRecommendation?: VoiceSurfaceConfig<
+    import("./proofTrends").VoiceProofTrendRecommendationRoutesOptions
+  >;
+  providerCapability?: VoiceSurfaceConfig<
+    import("./providerCapabilities").VoiceProviderCapabilityRoutesOptions
+  >;
+  providerContractMatrix?: VoiceSurfaceConfig<
+    import("./providerStackRecommendations").VoiceProviderContractMatrixRoutesOptions
+  >;
+  providerDecisionTrace?: VoiceSurfaceConfig<
+    import("./providerDecisionTraces").VoiceProviderDecisionTraceRoutesOptions
+  >;
+  providerHealth?: VoiceSurfaceConfig<
+    import("./providerHealth").VoiceProviderHealthRoutesOptions
+  >;
+  providerOrchestration?: VoiceSurfaceConfig<
+    import("./providerOrchestration").VoiceProviderOrchestrationRoutesOptions
+  >;
+  providerSlo?: VoiceSurfaceConfig<
+    import("./providerSlo").VoiceProviderSloRoutesOptions
+  >;
+  quality?: VoiceSurfaceConfig<
+    import("./qualityRoutes").VoiceQualityRoutesOptions
+  >;
+  realCallEvidenceRuntime?: VoiceSurfaceConfig<
+    import("./proofTrends").VoiceRealCallEvidenceRuntimeRoutesOptions
+  >;
+  realCallProfileHistory?: VoiceSurfaceConfig<
+    import("./proofTrends").VoiceRealCallProfileHistoryRoutesOptions
+  >;
+  realCallProfileRecoveryAction?: VoiceSurfaceConfig<
+    import("./proofTrends").VoiceRealCallProfileRecoveryActionRoutesOptions
+  >;
+  realtimeChannel?: VoiceSurfaceConfig<
+    import("./realtimeChannel").VoiceRealtimeChannelRoutesOptions
+  >;
+  realtimeProviderContract?: VoiceSurfaceConfig<
+    import("./realtimeProviderContracts").VoiceRealtimeProviderContractRoutesOptions
+  >;
+  reconnectContract?: VoiceSurfaceConfig<
+    import("./reconnectContract").VoiceReconnectContractRoutesOptions
+  >;
+  reconnectProof?: VoiceSurfaceConfig<
+    import("./reconnectContract").VoiceReconnectProofRoutesOptions
+  >;
+  resilience?: VoiceSurfaceConfig<
+    import("./resilienceRoutes").VoiceResilienceRoutesOptions
+  >;
+  sessionList?: VoiceSurfaceConfig<
+    import("./sessionReplay").VoiceSessionListRoutesOptions
+  >;
+  sessionObservability?: VoiceSurfaceConfig<
+    import("./sessionObservability").VoiceSessionObservabilityRoutesOptions
+  >;
+  sessionReplay?: VoiceSurfaceConfig<
+    import("./sessionReplay").VoiceSessionReplayRoutesOptions
+  >;
+  sessionSnapshot?: VoiceSurfaceConfig<
+    import("./sessionSnapshot").VoiceSessionSnapshotRoutesOptions
+  >;
+  simulationSuite?: VoiceSurfaceConfig<
+    import("./simulationSuite").VoiceSimulationSuiteRoutesOptions
+  >;
+  sloCalibration?: VoiceSurfaceConfig<
+    import("./sloCalibration").VoiceSloCalibrationRoutesOptions
+  >;
+  sloReadinessThreshold?: VoiceSurfaceConfig<
+    import("./sloCalibration").VoiceSloReadinessThresholdRoutesOptions
+  >;
+  telephonyCarrierMatrix?: VoiceSurfaceConfig<
+    import("./telephony/matrix").VoiceTelephonyCarrierMatrixRoutesOptions
+  >;
+  telephonyMedia?: VoiceSurfaceConfig<
+    import("./telephonyMediaRoutes").VoiceTelephonyMediaRoutesOptions
+  >;
+  telephonyWebhook?: VoiceSurfaceConfig<
+    import("./telephonyOutcome").VoiceTelephonyWebhookRoutesOptions
+  >;
+  telephonyWebhookSecurity?: VoiceSurfaceConfig<
+    import("./telephony/security").VoiceTelephonyWebhookSecurityRoutesOptions
+  >;
+  toolContract?: VoiceSurfaceConfig<
+    import("./toolContract").VoiceToolContractRoutesOptions
+  >;
+  traceDelivery?: VoiceSurfaceConfig<
+    import("./traceDeliveryRoutes").VoiceTraceDeliveryRoutesOptions
+  >;
+  traceTimeline?: VoiceSurfaceConfig<
+    import("./traceTimeline").VoiceTraceTimelineRoutesOptions
+  >;
+  turnLatency?: VoiceSurfaceConfig<
+    import("./turnLatency").VoiceTurnLatencyRoutesOptions
+  >;
+  turnQuality?: VoiceSurfaceConfig<
+    import("./turnQuality").VoiceTurnQualityRoutesOptions
+  >;
 } & VoiceRouteConfig<TContext, TSession, TResult>;
 
 export type VoiceSessionRecordingConfig = {

@@ -14,6 +14,215 @@ import { createVoiceSession } from "./session";
 import { HTMX_BOOTSTRAP_BUNDLE } from "./generated/htmxBootstrapBundle";
 import { resolveTurnDetectionConfig } from "./turnProfiles";
 import { applyVoiceProfileSwitchGuard } from "./profileSwitchRecommendation";
+import {
+  createVoiceAssistantHealthRoutes,
+} from "./assistantHealth";
+import {
+  createVoiceAuditDeliveryRoutes,
+} from "./auditDeliveryRoutes";
+import {
+  createVoiceAuditTrailRoutes,
+} from "./auditRoutes";
+import {
+  createVoiceBargeInRoutes,
+} from "./bargeInRoutes";
+import {
+  createVoiceBrowserCallProfileRoutes,
+} from "./browserCallProfiles";
+import {
+  createVoiceBrowserMediaRoutes,
+} from "./browserMediaRoutes";
+import {
+  createVoiceCallDebuggerRoutes,
+} from "./callDebugger";
+import {
+  createVoiceCampaignRoutes,
+} from "./campaign";
+import {
+  createVoiceCompetitiveCoverageRoutes,
+} from "./competitiveCoverage";
+import {
+  createVoiceDataControlRoutes,
+} from "./dataControl";
+import {
+  createVoiceDeliveryRuntimeRoutes,
+} from "./deliveryRuntime";
+import {
+  createVoiceDeliverySinkRoutes,
+} from "./deliverySinkRoutes";
+import {
+  createVoiceDemoReadyRoutes,
+} from "./demoReadyRoutes";
+import {
+  createVoiceDiagnosticsRoutes,
+} from "./diagnosticsRoutes";
+import {
+  createVoiceEvalRoutes,
+} from "./evalRoutes";
+import {
+  createVoiceGuardrailRoutes,
+} from "./guardrails";
+import {
+  createVoiceHandoffHealthRoutes,
+} from "./handoffHealth";
+import {
+  createVoiceHTMXDashboardRoutes,
+} from "./htmxDashboardRoutes";
+import {
+  createVoiceIncidentBundleRoutes,
+} from "./incidentBundle";
+import {
+  createVoiceIncidentTimelineRoutes,
+} from "./incidentTimeline";
+import {
+  createVoiceLiveLatencyRoutes,
+} from "./liveLatency";
+import {
+  createVoiceLiveOpsRoutes,
+} from "./liveOps";
+import {
+  createVoiceMediaPipelineRoutes,
+} from "./mediaPipelineRoutes";
+import {
+  createVoiceLiveMonitorRoutes,
+} from "./monitor";
+import {
+  createVoiceObservabilityExportReplayRoutes,
+  createVoiceObservabilityExportRoutes,
+} from "./observabilityExport";
+import {
+  createVoiceOperationalStatusRoutes,
+} from "./operationalStatus";
+import {
+  createVoiceOperationsRecordRoutes,
+} from "./operationsRecord";
+import {
+  createVoiceOpsActionAuditRoutes,
+} from "./opsActionAuditRoutes";
+import {
+  createVoiceOpsConsoleRoutes,
+} from "./opsConsoleRoutes";
+import {
+  createVoiceOpsRecoveryRoutes,
+} from "./opsRecovery";
+import {
+  createVoiceOpsStatusRoutes,
+} from "./opsStatusRoutes";
+import {
+  createVoiceOpsWebhookReceiverRoutes,
+} from "./opsWebhook";
+import {
+  createVoiceOutcomeContractRoutes,
+} from "./outcomeContract";
+import {
+  createVoicePhoneAgentProductionSmokeRoutes,
+} from "./phoneAgentProductionSmoke";
+import {
+  createVoicePlatformCoverageRoutes,
+} from "./platformCoverage";
+import {
+  createVoicePostCallAnalysisRoutes,
+} from "./postCallAnalysis";
+import {
+  createVoiceProductionReadinessRoutes,
+} from "./productionReadiness";
+import {
+  createVoiceProfileSwitchLiveDecisionRoutes,
+  createVoiceProfileSwitchPolicyProofRoutes,
+  createVoiceProfileSwitchReadinessRoutes,
+} from "./profileSwitchRecommendation";
+import {
+  createVoiceProofPackRoutes,
+} from "./proofPack";
+import {
+  createVoiceProofTrendRecommendationRoutes,
+  createVoiceProofTrendRoutes,
+  createVoiceRealCallEvidenceRuntimeRoutes,
+  createVoiceRealCallProfileHistoryRoutes,
+  createVoiceRealCallProfileRecoveryActionRoutes,
+} from "./proofTrends";
+import {
+  createVoiceProviderCapabilityRoutes,
+} from "./providerCapabilities";
+import {
+  createVoiceProviderDecisionTraceRoutes,
+} from "./providerDecisionTraces";
+import {
+  createVoiceProviderHealthRoutes,
+} from "./providerHealth";
+import {
+  createVoiceProviderOrchestrationRoutes,
+} from "./providerOrchestration";
+import {
+  createVoiceProviderSloRoutes,
+} from "./providerSlo";
+import {
+  createVoiceProviderContractMatrixRoutes,
+} from "./providerStackRecommendations";
+import {
+  createVoiceQualityRoutes,
+} from "./qualityRoutes";
+import {
+  createVoiceRealtimeChannelRoutes,
+} from "./realtimeChannel";
+import {
+  createVoiceRealtimeProviderContractRoutes,
+} from "./realtimeProviderContracts";
+import {
+  createVoiceReconnectContractRoutes,
+  createVoiceReconnectProofRoutes,
+} from "./reconnectContract";
+import {
+  createVoiceResilienceRoutes,
+} from "./resilienceRoutes";
+import {
+  createVoiceSessionObservabilityRoutes,
+} from "./sessionObservability";
+import {
+  createVoiceSessionListRoutes,
+  createVoiceSessionReplayRoutes,
+} from "./sessionReplay";
+import {
+  createVoiceSessionSnapshotRoutes,
+} from "./sessionSnapshot";
+import {
+  createVoiceSimulationSuiteRoutes,
+} from "./simulationSuite";
+import {
+  createVoiceSloCalibrationRoutes,
+  createVoiceSloReadinessThresholdRoutes,
+} from "./sloCalibration";
+import {
+  createVoiceTelephonyCarrierMatrixRoutes,
+} from "./telephony/matrix";
+import {
+  createVoiceTelephonyWebhookSecurityRoutes,
+} from "./telephony/security";
+import {
+  createVoiceTelephonyMediaRoutes,
+} from "./telephonyMediaRoutes";
+import {
+  createVoiceTelephonyWebhookRoutes,
+} from "./telephonyOutcome";
+import {
+  createVoiceToolContractRoutes,
+} from "./toolContract";
+import {
+  createVoiceTraceDeliveryRoutes,
+} from "./traceDeliveryRoutes";
+import {
+  createVoiceTraceTimelineRoutes,
+} from "./traceTimeline";
+import {
+  createVoiceTurnLatencyRoutes,
+} from "./turnLatency";
+import {
+  createVoiceTurnQualityRoutes,
+} from "./turnQuality";
+import {
+  createVoiceMonitorRoutes,
+  createVoiceMonitorRunnerRoutes,
+} from "./voiceMonitoring";
 import type {
   AudioChunk,
   VoiceClientMessage,
@@ -721,6 +930,105 @@ export const voice = <
     });
   };
 
+  // Type-safety for surfaces is enforced on the VoicePluginConfig keys
+  // (each is a VoiceSurfaceConfig<…>); the internal mount is intentionally
+  // loose so heterogeneous/generic route factories compose uniformly.
+  const mountSurface = (
+    app: Elysia,
+    value: unknown,
+    factory: (options: never) => Elysia,
+  ): Elysia => {
+    if (value === undefined || value === false) {
+      return app;
+    }
+    const options = value === true ? {} : value;
+    return app.use(
+      (factory as (options: unknown) => Elysia)(options) as Elysia,
+    );
+  };
+
+  const surfaceRoutes = (): Elysia => {
+    let app: Elysia = new Elysia();
+    app = mountSurface(app, config.assistantHealth, createVoiceAssistantHealthRoutes);
+    app = mountSurface(app, config.auditDelivery, createVoiceAuditDeliveryRoutes);
+    app = mountSurface(app, config.auditTrail, createVoiceAuditTrailRoutes);
+    app = mountSurface(app, config.bargeIn, createVoiceBargeInRoutes);
+    app = mountSurface(app, config.browserCallProfile, createVoiceBrowserCallProfileRoutes);
+    app = mountSurface(app, config.browserMedia, createVoiceBrowserMediaRoutes);
+    app = mountSurface(app, config.callDebugger, createVoiceCallDebuggerRoutes);
+    app = mountSurface(app, config.campaign, createVoiceCampaignRoutes);
+    app = mountSurface(app, config.competitiveCoverage, createVoiceCompetitiveCoverageRoutes);
+    app = mountSurface(app, config.dataControl, createVoiceDataControlRoutes);
+    app = mountSurface(app, config.deliveryRuntime, createVoiceDeliveryRuntimeRoutes);
+    app = mountSurface(app, config.deliverySink, createVoiceDeliverySinkRoutes);
+    app = mountSurface(app, config.demoReady, createVoiceDemoReadyRoutes);
+    app = mountSurface(app, config.diagnostics, createVoiceDiagnosticsRoutes);
+    app = mountSurface(app, config.eval, createVoiceEvalRoutes);
+    app = mountSurface(app, config.guardrail, createVoiceGuardrailRoutes);
+    app = mountSurface(app, config.handoffHealth, createVoiceHandoffHealthRoutes);
+    app = mountSurface(app, config.htmxDashboard, createVoiceHTMXDashboardRoutes);
+    app = mountSurface(app, config.incidentBundle, createVoiceIncidentBundleRoutes);
+    app = mountSurface(app, config.incidentTimeline, createVoiceIncidentTimelineRoutes);
+    app = mountSurface(app, config.liveLatency, createVoiceLiveLatencyRoutes);
+    app = mountSurface(app, config.liveMonitor, createVoiceLiveMonitorRoutes);
+    app = mountSurface(app, config.liveOpsConsole, createVoiceLiveOpsRoutes);
+    app = mountSurface(app, config.mediaPipeline, createVoiceMediaPipelineRoutes);
+    app = mountSurface(app, config.monitorReport, createVoiceMonitorRoutes);
+    app = mountSurface(app, config.monitorRunner, createVoiceMonitorRunnerRoutes);
+    app = mountSurface(app, config.observabilityExport, createVoiceObservabilityExportRoutes);
+    app = mountSurface(app, config.observabilityExportReplay, createVoiceObservabilityExportReplayRoutes);
+    app = mountSurface(app, config.operationalStatus, createVoiceOperationalStatusRoutes);
+    app = mountSurface(app, config.operationsRecord, createVoiceOperationsRecordRoutes);
+    app = mountSurface(app, config.opsActionAudit, createVoiceOpsActionAuditRoutes);
+    app = mountSurface(app, config.opsConsole, createVoiceOpsConsoleRoutes);
+    app = mountSurface(app, config.opsRecovery, createVoiceOpsRecoveryRoutes);
+    app = mountSurface(app, config.opsStatus, createVoiceOpsStatusRoutes);
+    app = mountSurface(app, config.opsWebhookReceiver, createVoiceOpsWebhookReceiverRoutes);
+    app = mountSurface(app, config.outcomeContract, createVoiceOutcomeContractRoutes);
+    app = mountSurface(app, config.phoneAgentProductionSmoke, createVoicePhoneAgentProductionSmokeRoutes);
+    app = mountSurface(app, config.platformCoverage, createVoicePlatformCoverageRoutes);
+    app = mountSurface(app, config.postCallAnalysis, createVoicePostCallAnalysisRoutes);
+    app = mountSurface(app, config.productionReadiness, createVoiceProductionReadinessRoutes);
+    app = mountSurface(app, config.profileSwitchLiveDecision, createVoiceProfileSwitchLiveDecisionRoutes);
+    app = mountSurface(app, config.profileSwitchPolicyProof, createVoiceProfileSwitchPolicyProofRoutes);
+    app = mountSurface(app, config.profileSwitchReadiness, createVoiceProfileSwitchReadinessRoutes);
+    app = mountSurface(app, config.proofPack, createVoiceProofPackRoutes);
+    app = mountSurface(app, config.proofTrend, createVoiceProofTrendRoutes);
+    app = mountSurface(app, config.proofTrendRecommendation, createVoiceProofTrendRecommendationRoutes);
+    app = mountSurface(app, config.providerCapability, createVoiceProviderCapabilityRoutes);
+    app = mountSurface(app, config.providerContractMatrix, createVoiceProviderContractMatrixRoutes);
+    app = mountSurface(app, config.providerDecisionTrace, createVoiceProviderDecisionTraceRoutes);
+    app = mountSurface(app, config.providerHealth, createVoiceProviderHealthRoutes);
+    app = mountSurface(app, config.providerOrchestration, createVoiceProviderOrchestrationRoutes);
+    app = mountSurface(app, config.providerSlo, createVoiceProviderSloRoutes);
+    app = mountSurface(app, config.quality, createVoiceQualityRoutes);
+    app = mountSurface(app, config.realCallEvidenceRuntime, createVoiceRealCallEvidenceRuntimeRoutes);
+    app = mountSurface(app, config.realCallProfileHistory, createVoiceRealCallProfileHistoryRoutes);
+    app = mountSurface(app, config.realCallProfileRecoveryAction, createVoiceRealCallProfileRecoveryActionRoutes);
+    app = mountSurface(app, config.realtimeChannel, createVoiceRealtimeChannelRoutes);
+    app = mountSurface(app, config.realtimeProviderContract, createVoiceRealtimeProviderContractRoutes);
+    app = mountSurface(app, config.reconnectContract, createVoiceReconnectContractRoutes);
+    app = mountSurface(app, config.reconnectProof, createVoiceReconnectProofRoutes);
+    app = mountSurface(app, config.resilience, createVoiceResilienceRoutes);
+    app = mountSurface(app, config.sessionList, createVoiceSessionListRoutes);
+    app = mountSurface(app, config.sessionObservability, createVoiceSessionObservabilityRoutes);
+    app = mountSurface(app, config.sessionReplay, createVoiceSessionReplayRoutes);
+    app = mountSurface(app, config.sessionSnapshot, createVoiceSessionSnapshotRoutes);
+    app = mountSurface(app, config.simulationSuite, createVoiceSimulationSuiteRoutes);
+    app = mountSurface(app, config.sloCalibration, createVoiceSloCalibrationRoutes);
+    app = mountSurface(app, config.sloReadinessThreshold, createVoiceSloReadinessThresholdRoutes);
+    app = mountSurface(app, config.telephonyCarrierMatrix, createVoiceTelephonyCarrierMatrixRoutes);
+    app = mountSurface(app, config.telephonyMedia, createVoiceTelephonyMediaRoutes);
+    app = mountSurface(app, config.telephonyWebhook, createVoiceTelephonyWebhookRoutes);
+    app = mountSurface(app, config.telephonyWebhookSecurity, createVoiceTelephonyWebhookSecurityRoutes);
+    app = mountSurface(app, config.toolContract, createVoiceToolContractRoutes);
+    app = mountSurface(app, config.traceDelivery, createVoiceTraceDeliveryRoutes);
+    app = mountSurface(app, config.traceTimeline, createVoiceTraceTimelineRoutes);
+    app = mountSurface(app, config.turnLatency, createVoiceTurnLatencyRoutes);
+    app = mountSurface(app, config.turnQuality, createVoiceTurnQualityRoutes);
+    return app;
+  };
+
   const htmxRoutes = () => {
     if (!config.htmx) {
       return new Elysia();
@@ -949,5 +1257,6 @@ export const voice = <
         await session.connect(buildSocketAdapter(ws, sessionState.sessionId));
       },
     })
-    .use(htmxRoutes());
+    .use(htmxRoutes())
+    .use(surfaceRoutes());
 };
