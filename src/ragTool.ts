@@ -2,7 +2,7 @@ import {
   createVoiceAgentTool,
   type VoiceAgentTool,
 } from "./agent";
-import type { VoiceSessionRecord } from "./types";
+import type { VoiceSessionRecord, VoiceTurnCitation } from "./types";
 
 export type VoiceRAGQueryResult = {
   chunkId: string;
@@ -42,12 +42,7 @@ export type VoiceRAGToolResult = {
   topK: number;
 };
 
-export type VoiceRAGCitationSummary = {
-  chunkId: string;
-  score: number;
-  source?: string;
-  title?: string;
-};
+export type VoiceRAGCitationSummary = VoiceTurnCitation;
 
 export const extractVoiceRAGCitations = (
   toolResults: ReadonlyArray<{

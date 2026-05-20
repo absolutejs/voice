@@ -1351,3 +1351,64 @@ test("evaluateVoiceAgentSquadContractEvidence reports missing squad proof", () =
     ]),
   );
 });
+
+test("createVoiceAgent surfaces RAG citations from the knowledge-base tool", async () => {
+  const { createVoiceRAGTool } = await import("../src/ragTool");
+  const collection = {
+    search: async () => [
+      {
+        chunkId: "kb-1",
+        chunkText: "Reset your password from the account settings page.",
+        score: 0.91,
+        source: "help-center",
+        title: "Password reset",
+      },
+      {
+        chunkId: "kb-2",
+        chunkText: "Contact support if you are locked out.",
+        score: 0.72,
+        source: "help-center",
+        title: "Account lockout",
+      },
+    ],
+  };
+  const ragTool = createVoiceRAGTool(collection);
+
+  const model: VoiceAgentModel = {
+    generate: ({ messages }) => {
+      const toolMessage = messages.find((message) => message.role === "tool");
+      if (!toolMessage) {
+        return {
+          toolCalls: [
+            {
+              args: { query: "how do I reset my password" },
+              id: "call-kb",
+              name: "searchKnowledgeBase",
+            },
+          ],
+        };
+      }
+      return { assistantText: "You can reset it in account settings." };
+    },
+  };
+
+  const agent = createVoiceAgent({
+    id: "kb-agent",
+    model,
+    tools: [ragTool],
+  });
+
+  const result = await agent.run({
+    api: createApi(),
+    context: {},
+    session: createVoiceSessionRecord("session-kb"),
+    turn: createTurn("How do I reset my password?"),
+  });
+
+  expect(result.citations).toBeDefined();
+  expect(result.citations?.map((citation) => citation.chunkId)).toEqual([
+    "kb-1",
+    "kb-2",
+  ]);
+  expect(result.citations?.[0]?.title).toBe("Password reset");
+});

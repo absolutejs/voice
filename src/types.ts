@@ -350,6 +350,13 @@ export type VoiceReconnectClientState = {
   status: VoiceReconnectClientStatus;
 };
 
+export type VoiceTurnCitation = {
+  chunkId: string;
+  score: number;
+  source?: string;
+  title?: string;
+};
+
 export type VoiceTurnRecord<TResult = unknown> = {
   id: string;
   text: string;
@@ -357,6 +364,7 @@ export type VoiceTurnRecord<TResult = unknown> = {
   transcripts: Transcript[];
   assistantText?: string;
   attachments?: import("./agent").VoiceAgentMessageAttachment[];
+  citations?: VoiceTurnCitation[];
   committedAt: number;
   result?: TResult;
 };
@@ -711,6 +719,7 @@ export type VoiceRouteResult<TResult = unknown> = {
   complete?: boolean;
   result?: TResult;
   assistantText?: string;
+  citations?: ReadonlyArray<VoiceTurnCitation>;
   transfer?: {
     metadata?: Record<string, unknown>;
     reason?: string;

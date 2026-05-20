@@ -39,6 +39,7 @@ import type {
   VoiceServerMessage,
   VoiceSessionHandle,
   VoiceSessionRecord,
+  VoiceTurnCitation,
   VoiceTurnCorrectionDiagnostics,
   VoiceTurnRecord,
   VoiceTranscriptQuality,
@@ -314,6 +315,7 @@ const setTurnResult = <TSession extends VoiceSessionRecord, TResult = unknown>(
   input: {
     assistantText?: string;
     result?: TResult;
+    citations?: ReadonlyArray<VoiceTurnCitation>;
   },
 ) => {
   session.turns = session.turns.map((turn) =>
@@ -322,6 +324,10 @@ const setTurnResult = <TSession extends VoiceSessionRecord, TResult = unknown>(
           ...turn,
           assistantText: input.assistantText ?? turn.assistantText,
           result: input.result ?? turn.result,
+          citations:
+            input.citations && input.citations.length > 0
+              ? [...input.citations]
+              : turn.citations,
         }
       : turn,
   );
@@ -2177,6 +2183,7 @@ export const createVoiceSession = <
     });
     const output = {
       assistantText: committedOutput?.assistantText,
+      citations: committedOutput?.citations,
       complete: committedOutput?.complete,
       escalate: committedOutput?.escalate,
       noAnswer: committedOutput?.noAnswer,
@@ -2184,6 +2191,13 @@ export const createVoiceSession = <
       transfer: committedOutput?.transfer,
       voicemail: committedOutput?.voicemail,
     };
+
+    if (output.citations && output.citations.length > 0) {
+      const turnCitations = output.citations;
+      await writeSession((currentSession) => {
+        setTurnResult(currentSession, turn.id, { citations: turnCitations });
+      });
+    }
 
     if (output?.assistantText) {
       const assistantTextStartedAt = Date.now();

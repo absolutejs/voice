@@ -13,6 +13,7 @@ import {
   type VoiceAuditLogger,
   type VoiceAuditOutcome,
 } from "./audit";
+import { extractVoiceRAGCitations } from "./ragTool";
 
 export type VoiceAgentMessageRole = "assistant" | "system" | "tool" | "user";
 
@@ -742,9 +743,12 @@ export const createVoiceAgent = <
       type: "agent.result",
     });
 
+    const citations = extractVoiceRAGCitations(toolResults);
+
     return {
       agentId: options.id,
       assistantText: output.assistantText,
+      ...(citations.length > 0 ? { citations } : {}),
       complete: output.complete,
       escalate: output.escalate,
       handoff: output.handoff,
