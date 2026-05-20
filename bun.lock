@@ -5,7 +5,7 @@
     "": {
       "name": "@absolutejs/voice",
       "dependencies": {
-        "@absolutejs/media": "0.0.1-beta.16",
+        "@absolutejs/media": "0.0.1-beta.19",
       },
       "devDependencies": {
         "@absolutejs/absolute": "0.19.0-beta.646",
@@ -42,7 +42,7 @@
 
     "@absolutejs/linked-providers": ["@absolutejs/linked-providers@0.0.2", "", {}, "sha512-MNUIQBzUFWIqsrC33PO8YpWzT8tW0S3QWpcLZuLrt+nhyffU8w8aDNni/6jrGh36WGqauHWIsaz2gn7hLS+5Sw=="],
 
-    "@absolutejs/media": ["@absolutejs/media@0.0.1-beta.16", "", {}, "sha512-j/q4vQYucokeLp6XkAAduon+3pO/IeUI8fNRRQ2OyZ+QB+Ph/slP3oPaPOJNWW+RAcg0ZGWX4XfJhGgAhZ/ztw=="],
+    "@absolutejs/media": ["@absolutejs/media@0.0.1-beta.19", "", {}, "sha512-H/sfJNmX8A/Tzuc/fHGyp6TnZmvGQtAx6IOKnV0EZ+xXa8Vofn3lwkAPmTLHyLgyS+y7ZCKMFuunQSgiJfAaFA=="],
 
     "@absolutejs/native-darwin-arm64": ["@absolutejs/native-darwin-arm64@0.19.0-beta.646", "", { "os": "darwin", "cpu": "arm64" }, "sha512-3axr9/i93ZMmuSMPz2qD/aVeYsbMSU8TF3x0r8Rk0dlOXl47doEf9au+Gsv299nZyeNoj1kNnaMc+GwN7pm5cg=="],
 

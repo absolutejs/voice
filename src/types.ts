@@ -46,6 +46,23 @@ export type AudioFormat = {
 
 export type AudioChunk = ArrayBuffer | ArrayBufferView;
 
+/**
+ * Structural contract for an inbound noise suppressor applied before STT.
+ * Matches `@absolutejs/media`'s `NoiseSuppressor`, so any media suppressor
+ * (`createFFmpegNoiseSuppressor`, `createEnergyGateNoiseSuppressor`, a Krisp
+ * adapter, etc.) satisfies it without a hard import.
+ */
+export type VoiceNoiseSuppressor = {
+  readonly kind: string;
+  process: (input: {
+    format: AudioFormat;
+    pcm: ArrayBuffer | ArrayBufferView;
+  }) =>
+    | Promise<{ bytes: Uint8Array; format: AudioFormat }>
+    | { bytes: Uint8Array; format: AudioFormat };
+  close?: () => Promise<void> | void;
+};
+
 export type VoiceLanguageStrategy =
   | {
       mode: "auto-detect";
@@ -1066,6 +1083,8 @@ export type VoicePluginConfig<
   reconnect?: VoiceReconnectConfig;
   turnDetection?: VoiceTurnDetectionConfig;
   audioConditioning?: VoiceAudioConditioningConfig;
+  noiseSuppressor?: VoiceNoiseSuppressor;
+  noiseSuppressorFormat?: AudioFormat;
   logger?: VoiceLogger;
   htmx?: boolean | VoiceHTMXConfig<TSession, NoInfer<TResult>>;
   handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
@@ -1122,6 +1141,8 @@ export type CreateVoiceSessionOptions<
   sttLifecycle: VoiceSTTLifecycle;
   turnDetection: VoiceResolvedTurnDetectionConfig;
   audioConditioning?: VoiceResolvedAudioConditioningConfig;
+  noiseSuppressor?: VoiceNoiseSuppressor;
+  noiseSuppressorFormat?: AudioFormat;
   handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;
   liveOps?: VoiceLiveOpsRuntimeConfig;
   route: VoiceNormalizedRouteConfig<TContext, TSession, TResult>;

@@ -2988,3 +2988,109 @@ test("voice session commits a turn immediately when semantic detector signals en
   expect(turnTexts).toEqual(["I need help with my account."]);
 });
 
+
+test("voice session runs the noise suppressor before sending audio to STT", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  let processCalls = 0;
+  let closeCalls = 0;
+  const session = createVoiceSession({
+    context: {},
+    id: "session-noise-suppressor",
+    noiseSuppressor: {
+      close: () => {
+        closeCalls += 1;
+      },
+      kind: "test-suppressor",
+      process: ({ format, pcm }) => {
+        processCalls += 1;
+        const view =
+          pcm instanceof Uint8Array
+            ? pcm
+            : pcm instanceof ArrayBuffer
+              ? new Uint8Array(pcm)
+              : new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+        // Zero out every byte so we can prove the STT got the suppressed copy.
+        return { bytes: new Uint8Array(view.length), format };
+      },
+    },
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => {},
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  expect(processCalls).toBe(1);
+  const sent = adapter.getSentAudio();
+  expect(sent).toHaveLength(1);
+  // Suppressor zeroed the buffer, so every byte the STT received is 0.
+  expect(sent[0]?.every((byte) => byte === 0)).toBe(true);
+
+  await session.close("done");
+  expect(closeCalls).toBe(1);
+});
+
+test("voice session falls back to raw audio when the suppressor throws", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const warnings: string[] = [];
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-noise-suppressor-fallback",
+    logger: {
+      warn: (message) => {
+        warnings.push(message);
+      },
+    },
+    noiseSuppressor: {
+      kind: "throwing-suppressor",
+      process: () => {
+        throw new Error("suppressor unavailable");
+      },
+    },
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => {},
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+
+  expect(adapter.getSentAudioChunks()).toBe(1);
+  expect(warnings.some((message) => message.includes("noise suppression failed"))).toBe(
+    true,
+  );
+});

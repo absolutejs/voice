@@ -306,6 +306,8 @@ const resolveSessionOptions = <
       config.audioConditioning !== undefined
         ? resolveAudioConditioningConfig(config.audioConditioning)
         : preset.audioConditioning,
+    noiseSuppressor: config.noiseSuppressor,
+    noiseSuppressorFormat: config.noiseSuppressorFormat,
     costTelemetry: config.costTelemetry,
     sttFallback: resolveSTTFallbackConfig(config.sttFallback),
     logger: config.logger,
@@ -648,6 +650,8 @@ export const voice = <
 
     return createVoiceSession<TContext, TSession, TResult>({
       audioConditioning: sessionOptions.audioConditioning,
+      noiseSuppressor: sessionOptions.noiseSuppressor,
+      noiseSuppressorFormat: sessionOptions.noiseSuppressorFormat,
       context,
       id: sessionId,
       handoff: config.handoff,

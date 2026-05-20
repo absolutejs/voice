@@ -2750,8 +2750,24 @@ export const createVoiceSession = <
     }
 
     const adapter = await ensureAdapter();
+    let inboundAudio = audio;
+    if (options.noiseSuppressor) {
+      try {
+        const suppressed = await options.noiseSuppressor.process({
+          format: options.noiseSuppressorFormat ?? DEFAULT_FORMAT,
+          pcm: audio,
+        });
+        inboundAudio = suppressed.bytes;
+      } catch (error) {
+        options.logger?.warn?.(
+          `noise suppression failed, passing raw audio through: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
     const conditionedAudio = conditionAudioChunk(
-      audio,
+      inboundAudio,
       options.audioConditioning,
     );
     const audioLevel = measureAudioLevel(conditionedAudio);
@@ -2846,6 +2862,13 @@ export const createVoiceSession = <
     clearSilenceTimer();
     clearCallSilenceWatchdog();
     clearAmdEvaluationTimer();
+    if (options.noiseSuppressor?.close) {
+      try {
+        await options.noiseSuppressor.close();
+      } catch {
+        // suppressor teardown is best-effort
+      }
+    }
     await closeTTSSession(reason);
     await closeAdapter(reason);
     await persistRecordings();
