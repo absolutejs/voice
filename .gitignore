@@ -20,3 +20,6 @@ VOICE_PLAN.md
 
 .DS_Store
 Thumbs.db
+
+.playwright-mcp/
+*-page.png

@@ -212,13 +212,13 @@ We already have a real self-hosted primitive advantage in areas hosted platforms
 - Primitive-first ops surfaces: self-hosted ops console, ops status, demo-ready, readiness, quality, eval, trace, handoff, and diagnostic routes instead of a vendor dashboard dependency.
 - Observability: trace events, trace timelines, session observability reports, turn waterfalls, diagnostics, trace sinks, delivery workers, redaction, and live browser latency traces.
 - Readiness: production-readiness gates, provider health, provider capabilities, turn latency, turn quality, live latency, carrier matrix, campaign readiness, handoff health, and app status.
-- Evaluation: eval routes, scenario fixtures, baseline comparison, markdown/json benchmark outputs, fixture workflows, and scenario workflow contracts.
+- Evaluation: eval routes, scenario fixtures, baseline comparison, markdown/json eval outputs, fixture workflows, and scenario workflow contracts.
 - Core workflow primitives: assistants, tools, tool contracts, workflow contracts, outcome contracts, ops tasks, reviews, handoffs, webhooks, and integration events.
 - Provider neutrality: OpenAI, Anthropic, Gemini model adapters, STT routing, TTS routing, Deepgram and AssemblyAI STT adapters, OpenAI TTS primitive, realtime provider adapter packages (`@absolutejs/voice-openai` and `@absolutejs/voice-gemini`), provider contract matrices, and provider simulation controls.
 - Recovered fallback semantics: provider errors that recover through fallback remain visible in replay, but do not fail session health or production readiness unless recovery fails.
 - Storage and operations: file, SQLite, Postgres, Redis queue/idempotency/leases, S3 review storage, task workers, webhook workers, trace sink workers, and runtime storage helpers.
 - Telephony primitives: Twilio, Telnyx, and Plivo routes/bridges, webhook verification, carrier webhook security reports/routes/readiness gates, carrier matrix, telephony outcomes, response shaping, and handoff adapters.
-- Domain adaptation: phrase hints, lexicons, deterministic correction, risk-tiered corrections, jargon benchmarks, and routing correction helpers.
+- Domain adaptation: phrase hints, lexicons, deterministic correction, risk-tiered corrections, and routing correction helpers.
 - Support/debugging primitives: session snapshots, linked debug artifacts, operations records, session observability reports, failure replay, incident Markdown, latest-session call debugger routes, call-debugger launch widgets, and React/Vue/Svelte/Angular/HTML/HTMX framework access to the latest support artifact.
 - Proof surfaces: synthetic turn latency proof, live browser latency proof, persisted live latency events, p50/p95 live latency trend routes, reconnect recovery contracts, barge-in readiness proof, package-level platform coverage routes/widgets that map hosted-platform buyer needs to self-hosted evidence, production-readiness gate explanation assertions, framework readiness-gate screenshot proof, and `createVoiceProductionReadinessProofRuntime(...)` so stale local demo sessions do not pollute release evidence.
 - Live operations intervention: operator action routes, action-center primitives, framework live-ops hooks/composables/services, runtime pause/resume/takeover controls, injected operator instructions, skipped-turn trace evidence, and package-level runtime proof in `test/liveOpsRuntime.test.ts`.
@@ -685,7 +685,7 @@ Deliverables:
 - Add a documented primitive-first recipe that wires the common routes without hiding the lower-level APIs.
 - Make `/live-latency`, `/turn-latency`, `/traces`, `/quality`, `/production-readiness`, `/data-control`, and `/api/voice/ops-status` part of the default recommended demo path.
 
-Status: README now has the buyer-path table, hosted-platform positioning, proof-pack checklist, default debug path, "Switching from Vapi" map, fastest-first-success recipes, compliance recipes, a capability matrix, plus support-triage, appointment-scheduling, campaign-outreach, meeting-recorder, and compliance-sensitive workflow use-case recipes. Example proof-pack output now includes headline provider SLO numbers and screenshot artifacts. Remaining work is customer-owned observability/export packaging and longer-running benchmark artifacts, not a missing top-level product story.
+Status: README now has the buyer-path table, hosted-platform positioning, proof-pack checklist, default debug path, "Switching from Vapi" map, fastest-first-success recipes, compliance recipes, a capability matrix, plus support-triage, appointment-scheduling, campaign-outreach, meeting-recorder, and compliance-sensitive workflow use-case recipes. Example proof-pack output now includes headline provider SLO numbers and screenshot artifacts. Remaining work is customer-owned observability/export packaging, not a missing top-level product story.
 
 Acceptance criteria:
 
@@ -783,7 +783,6 @@ Deliverables:
   - user speech detected
   - assistant audio canceled/ducked
   - new turn ownership committed
-- Duplex benchmarks for browser and telephony surfaces.
 
 Acceptance criteria:
 
@@ -1184,7 +1183,7 @@ We are ahead of Vapi-style hosted platforms for AbsoluteJS users when:
 - Add example screens only when they demonstrate new package primitives.
 - Keep proof-pack screenshots current for production readiness, provider SLOs, simulation suite, and operations records.
 - Keep call-debugger/session-snapshot screenshots current once they are part of the proof-pack artifact list.
-- Add longer-running benchmark markdown artifacts for latency, telephony, STT, TTS, duplex, campaigns, and long proof-window history.
+- Extend long proof-window history coverage (STT/TTS/duplex/telephony/campaign benchmark artifacts now live in the absolutejs/benchmarks repo).
 - Add source-backed market comparison docs with updated competitor notes once core gaps are closed.
 
 ## Source Notes
