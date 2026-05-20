@@ -170,11 +170,12 @@ End-to-end noise suppression now spans server, browser, and the session itself:
 | Browser | `applyBrowserNoiseSuppression` (AudioWorklet wiring) + `BROWSER_NOISE_SUPPRESSOR_PRESETS` (rnnoise, deepfilternet). Already shipped |
 | **Session wiring** | **NEW voice@.517**: `noiseSuppressor?: VoiceNoiseSuppressor` + `noiseSuppressorFormat?` on plugin + session options. Runs per-chunk in `receiveAudioInternal` BEFORE conditioning + STT; graceful fallback to raw audio on error (logged via `logger.warn`); `close()` on teardown. `VoiceNoiseSuppressor` is a structural match to media's `NoiseSuppressor` (no hard import) |
 
-### `@absolutejs/media` (1 remaining)
+### `@absolutejs/media` (0 remaining — audio bleep CLOSED)
 
-| Gap | Size | Hook |
-|---|---|---|
-| Audio bleep primitive | medium | Audio-edit primitive for card-number redaction in recorded artifacts (complements voice's text redaction shipped in .481) |
+Audio-bleep redaction is end-to-end:
+- media: `applyAudioRedaction` (silence + 1kHz tone fill, configurable freq/dB) + `mergeAudioRedactionRanges` — already shipped
+- voice: `deriveVoiceRecordingRedactionRanges` (.498) walks final transcripts → ranges
+- **NEW voice@0.0.22-beta.518**: `redactVoiceRecording({ pcm, format, transcripts, recordingStartedAtEpochMs?, paddingMs?, patterns?, fill? })` closes the loop — derive → merge → `applyAudioRedaction` in one call, returns `{ bytes, ranges, redactedCount }`. Imports media directly (voice already deps media@.19). The card-number PCI/HIPAA recording-redaction story is complete.
 
 ### `@absolutejs/rag` (2)
 
