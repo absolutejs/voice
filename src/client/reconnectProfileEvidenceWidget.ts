@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceReconnectProfileEvidenceStore,
   type VoiceReconnectProfileEvidenceClientOptions,
@@ -42,14 +43,6 @@ const DEFAULT_LINKS = [
     label: "Profile history JSON",
   },
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value)

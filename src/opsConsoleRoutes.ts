@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   buildVoiceDeliverySinkReport,
@@ -97,14 +98,6 @@ const DEFAULT_LINKS: VoiceOpsConsoleLink[] = [
     label: "Handoffs",
   },
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const countProviderStatuses = (
   providers: Array<{ status: string }>,

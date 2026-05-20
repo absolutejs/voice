@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -180,14 +181,6 @@ export type VoiceEvalRoutesOptions = {
   thresholds?: VoiceQualityThresholds;
   title?: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const rate = (count: number, total: number) => count / Math.max(1, total);
 

@@ -18,38 +18,45 @@ export type VoicePromptInjectionVerdict = {
   ok: boolean;
 };
 
-export const DEFAULT_VOICE_PROMPT_INJECTION_RULES: VoicePromptInjectionRule[] = [
-  {
-    label: "ignore-prior-instructions",
-    pattern: /\bignore (?:all |the |any )?(?:previous|prior|above|earlier) (?:instructions|rules|prompts?)\b/iu,
-    severity: "high",
-  },
-  {
-    label: "role-override",
-    pattern: /\byou are (?:now )?(?:a |an )?(?:different|new) (?:assistant|model|role)\b/iu,
-    severity: "high",
-  },
-  {
-    label: "system-prompt-leak",
-    pattern: /\b(?:reveal|show|print|repeat|tell (?:me|us)|share) (?:your |the )?(?:system|hidden|secret) (?:prompt|instructions|message)\b/iu,
-    severity: "high",
-  },
-  {
-    label: "developer-impersonation",
-    pattern: /\b(?:as your |i am the )?(?:developer|engineer|owner|admin)(?: of)?\b[^.]{0,40}\b(?:override|disable|bypass)/iu,
-    severity: "medium",
-  },
-  {
-    label: "jailbreak-persona",
-    pattern: /\b(?:DAN|do anything now|jailbreak|developer mode|god mode)\b/iu,
-    severity: "high",
-  },
-  {
-    label: "tool-misuse-request",
-    pattern: /\b(?:call|invoke|use) (?:the )?(?:transfer|hangup|end[_ ]call)(?:[_ ]?(?:tool|function))?\b/iu,
-    severity: "low",
-  },
-];
+export const DEFAULT_VOICE_PROMPT_INJECTION_RULES: VoicePromptInjectionRule[] =
+  [
+    {
+      label: "ignore-prior-instructions",
+      pattern:
+        /\bignore (?:all |the |any )?(?:previous|prior|above|earlier) (?:instructions|rules|prompts?)\b/iu,
+      severity: "high",
+    },
+    {
+      label: "role-override",
+      pattern:
+        /\byou are (?:now )?(?:a |an )?(?:different|new) (?:assistant|model|role)\b/iu,
+      severity: "high",
+    },
+    {
+      label: "system-prompt-leak",
+      pattern:
+        /\b(?:reveal|show|print|repeat|tell (?:me|us)|share) (?:your |the )?(?:system|hidden|secret) (?:prompt|instructions|message)\b/iu,
+      severity: "high",
+    },
+    {
+      label: "developer-impersonation",
+      pattern:
+        /\b(?:as your |i am the )?(?:developer|engineer|owner|admin)(?: of)?\b[^.]{0,40}\b(?:override|disable|bypass)/iu,
+      severity: "medium",
+    },
+    {
+      label: "jailbreak-persona",
+      pattern:
+        /\b(?:DAN|do anything now|jailbreak|developer mode|god mode)\b/iu,
+      severity: "high",
+    },
+    {
+      label: "tool-misuse-request",
+      pattern:
+        /\b(?:call|invoke|use) (?:the )?(?:transfer|hangup|end[_ ]call)(?:[_ ]?(?:tool|function))?\b/iu,
+      severity: "low",
+    },
+  ];
 
 export type CreateVoicePromptInjectionGuardOptions = {
   /** Custom rule set. Defaults to DEFAULT_VOICE_PROMPT_INJECTION_RULES. */

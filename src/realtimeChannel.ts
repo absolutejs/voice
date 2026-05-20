@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { AudioFormat } from "./types";
 import type { StoredVoiceTraceEvent } from "./trace";
@@ -111,14 +112,6 @@ const DEFAULT_REALTIME_FORMAT: AudioFormat = {
   encoding: "pcm_s16le",
   sampleRateHz: 24_000,
 };
-
-const escapeHtml = (value: unknown) =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatLabel = (format: AudioFormat) =>
   `${format.container}/${format.encoding}/${String(format.sampleRateHz)}hz/${String(format.channels)}ch`;

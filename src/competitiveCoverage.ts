@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 
 export type VoiceCompetitiveCoverageStatus = "fail" | "pass" | "warn";
@@ -136,14 +137,6 @@ export type VoiceCompetitiveCoverageRoutesOptions = {
     | VoiceCompetitiveCoverageReportInput;
   title?: string;
 };
-
-const escapeHtml = (value: unknown) =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const escapeMarkdown = (value: string) => value.replaceAll("|", "\\|");
 

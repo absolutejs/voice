@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { Database } from "bun:sqlite";
 import {
@@ -5438,14 +5439,6 @@ export const buildVoiceProofTrendRecommendationReport = (
     },
   };
 };
-
-const escapeHtml = (value: unknown) =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const escapeMarkdown = (value: string) => value.replaceAll("|", "\\|");
 

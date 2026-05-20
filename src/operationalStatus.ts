@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   buildVoiceDeliveryRuntimeReport,
@@ -61,14 +63,6 @@ export type VoiceOperationalStatusRoutesOptions =
     title?: string;
   };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const resolveValue = async <TValue>(
   value: VoiceOperationalStatusValue<TValue> | undefined,
 ) =>
@@ -91,12 +85,7 @@ const isDeliveryRuntime = (
 
 const worstStatus = (
   statuses: readonly VoiceOperationalStatus[],
-): VoiceOperationalStatus =>
-  statuses.includes("fail")
-    ? "fail"
-    : statuses.includes("warn")
-      ? "warn"
-      : "pass";
+): VoiceOperationalStatus => worstVoiceStatus(statuses);
 
 const proofPackStatusToCheck = (
   status: VoiceProofPackRefreshStatus,

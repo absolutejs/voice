@@ -90,7 +90,9 @@ export const aggregateVoiceTurnLatencySpans = (
       continue;
     }
     const stage =
-      typeof event.payload?.stage === "string" ? event.payload.stage : undefined;
+      typeof event.payload?.stage === "string"
+        ? event.payload.stage
+        : undefined;
     if (!stage) {
       continue;
     }
@@ -126,7 +128,10 @@ export type VoiceOTELExporterOptions = {
 
 export const buildVoiceOTELPayload = (
   spanSets: VoiceTurnLatencySpanSet[],
-  options: { resourceAttributes?: Record<string, string>; serviceName?: string } = {},
+  options: {
+    resourceAttributes?: Record<string, string>;
+    serviceName?: string;
+  } = {},
 ): VoiceOTELPayload => {
   const resourceAttributes: VoiceOTELAttribute[] = [
     stringAttr("service.name", options.serviceName ?? "absolutejs-voice"),
@@ -169,7 +174,10 @@ export const buildVoiceOTELPayload = (
         kind: SPAN_KIND_INTERNAL,
         name: `voice.turn.stage.${stage.stage}`,
         parentSpanId,
-        spanId: buildOTELSpanId(set.sessionId, `${set.turnId}:${stage.stage}:${index}`),
+        spanId: buildOTELSpanId(
+          set.sessionId,
+          `${set.turnId}:${stage.stage}:${index}`,
+        ),
         startTimeUnixNano: toUnixNano(stage.at),
         status: { code: STATUS_OK },
         traceId,
@@ -188,7 +196,9 @@ export const buildVoiceOTELPayload = (
 };
 
 export type VoiceOTELExporter = {
-  export: (events: StoredVoiceTraceEvent[]) => Promise<{ ok: boolean; status?: number }>;
+  export: (
+    events: StoredVoiceTraceEvent[],
+  ) => Promise<{ ok: boolean; status?: number }>;
 };
 
 export const createVoiceOTELHTTPExporter = (

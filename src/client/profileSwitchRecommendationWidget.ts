@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceProfileSwitchRecommendationStore,
   type VoiceProfileSwitchRecommendationClientOptions,
@@ -13,14 +14,6 @@ export type VoiceProfileSwitchRecommendationWidgetOptions =
 const DEFAULT_TITLE = "Profile Switch Recommendation";
 const DEFAULT_DESCRIPTION =
   "Compares the current session against measured profile evidence and recommends whether to switch stacks.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatRoute = (routes: Record<string, string> | undefined) =>
   routes

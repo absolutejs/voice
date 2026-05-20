@@ -40,7 +40,8 @@ export const VoiceLiveCallViewer = defineComponent({
   },
   setup(props) {
     const owned = !props.viewer;
-    const viewer = props.viewer ?? createLiveCallViewer({ sessionId: props.sessionId });
+    const viewer =
+      props.viewer ?? createLiveCallViewer({ sessionId: props.sessionId });
     const state = shallowRef<LiveCallViewState>(viewer.getState());
 
     const unsubscribe = viewer.subscribe(() => {
@@ -170,11 +171,7 @@ export const VoiceLiveCallViewer = defineComponent({
                   ),
                   h("strong", { style: { fontSize: "13px" } }, event.title),
                   event.detail
-                    ? h(
-                        "span",
-                        { style: { opacity: "0.85" } },
-                        event.detail,
-                      )
+                    ? h("span", { style: { opacity: "0.85" } }, event.detail)
                     : null,
                 ],
               ),

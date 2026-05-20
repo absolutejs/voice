@@ -1158,9 +1158,7 @@ export type VoicePluginConfig<
   diagnostics?: VoiceSurfaceConfig<
     import("./diagnosticsRoutes").VoiceDiagnosticsRoutesOptions
   >;
-  eval?: VoiceSurfaceConfig<
-    import("./evalRoutes").VoiceEvalRoutesOptions
-  >;
+  eval?: VoiceSurfaceConfig<import("./evalRoutes").VoiceEvalRoutesOptions>;
   guardrail?: VoiceSurfaceConfig<
     import("./guardrails").VoiceGuardrailRoutesOptions
   >;

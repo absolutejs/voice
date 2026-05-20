@@ -1,7 +1,4 @@
-import {
-  createVoiceAgentTool,
-  type VoiceAgentTool,
-} from "./agent";
+import { createVoiceAgentTool, type VoiceAgentTool } from "./agent";
 import type {
   VoiceRouteResult,
   VoiceSessionHandle,
@@ -24,7 +21,13 @@ export type VoiceEndCallToolOptions<
   TResult = unknown,
 > = {
   description?: string;
-  farewell?: string | ((input: { args: VoiceEndCallToolArgs; context: TContext; session: TSession }) => string | undefined);
+  farewell?:
+    | string
+    | ((input: {
+        args: VoiceEndCallToolArgs;
+        context: TContext;
+        session: TSession;
+      }) => string | undefined);
   name?: string;
   resolveResult?: (input: {
     args: VoiceEndCallToolArgs;
@@ -39,7 +42,13 @@ export const createVoiceEndCallTool = <
   TResult = unknown,
 >(
   options: VoiceEndCallToolOptions<TContext, TSession, TResult> = {},
-): VoiceAgentTool<TContext, TSession, VoiceEndCallToolArgs, VoiceEndCallToolResult, TResult> =>
+): VoiceAgentTool<
+  TContext,
+  TSession,
+  VoiceEndCallToolArgs,
+  VoiceEndCallToolResult,
+  TResult
+> =>
   createVoiceAgentTool<
     TContext,
     TSession,
@@ -74,8 +83,7 @@ export const createVoiceEndCallTool = <
       },
       type: "object",
     },
-    resultToMessage: (result) =>
-      result.farewell ?? "Call ended.",
+    resultToMessage: (result) => result.farewell ?? "Call ended.",
   });
 
 export type VoiceTransferCallToolDestination = {
@@ -135,8 +143,9 @@ export const createVoiceTransferCallTool = <
   }
   const destinationIds = options.destinations.map((entry) => entry.id);
   const destinationDocs = options.destinations
-    .map((entry) =>
-      `- ${entry.id} → ${entry.target}${entry.description ? `: ${entry.description}` : ""}`,
+    .map(
+      (entry) =>
+        `- ${entry.id} → ${entry.target}${entry.description ? `: ${entry.description}` : ""}`,
     )
     .join("\n");
   return createVoiceAgentTool<
@@ -188,7 +197,8 @@ export const createVoiceTransferCallTool = <
           type: "string",
         },
         reason: {
-          description: "Optional one-line summary of why the transfer is happening.",
+          description:
+            "Optional one-line summary of why the transfer is happening.",
           type: "string",
         },
       },
@@ -232,7 +242,12 @@ export const createVoiceDTMFTool = <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
 >(
   options: VoiceDTMFToolOptions<TContext, TSession>,
-): VoiceAgentTool<TContext, TSession, VoiceDTMFToolArgs, VoiceDTMFToolResult> => {
+): VoiceAgentTool<
+  TContext,
+  TSession,
+  VoiceDTMFToolArgs,
+  VoiceDTMFToolResult
+> => {
   const allowedSet = new Set(
     (options.allowedDigits ?? DEFAULT_DTMF_ALLOWED).split(""),
   );
@@ -247,8 +262,7 @@ export const createVoiceDTMFTool = <
       options.description ??
       "Send DTMF (touch-tone) digits to the active call. Use for IVR navigation and keypad entry.",
     execute: async ({ api, args, context, session }) => {
-      const raw =
-        typeof args?.digits === "string" ? args.digits.trim() : "";
+      const raw = typeof args?.digits === "string" ? args.digits.trim() : "";
       if (raw.length === 0) {
         throw new Error("DTMF tool requires a non-empty digits string.");
       }
@@ -374,7 +388,8 @@ export const createVoiceVoicemailDetectionTool = <
           type: "number",
         },
         reason: {
-          description: "One-line description of the cue that triggered detection.",
+          description:
+            "One-line description of the cue that triggered detection.",
           type: "string",
         },
       },
@@ -464,8 +479,7 @@ export const createVoiceApiRequestTool = <
 > => {
   const method = options.method ?? "GET";
   const fetchImpl: VoiceApiRequestToolFetch =
-    options.fetch ??
-    ((request) => fetch(request));
+    options.fetch ?? ((request) => fetch(request));
   return createVoiceAgentTool<
     TContext,
     TSession,
@@ -475,10 +489,7 @@ export const createVoiceApiRequestTool = <
     description: options.description,
     execute: async ({ args, context, session }) => {
       const url = new URL(options.url);
-      appendSearchParams(
-        url,
-        options.buildQuery?.({ args, context, session }),
-      );
+      appendSearchParams(url, options.buildQuery?.({ args, context, session }));
       const baseHeaders = new Headers(options.headers ?? {});
       const dynamicHeaders = options.buildHeaders?.({
         args,
@@ -493,9 +504,7 @@ export const createVoiceApiRequestTool = <
         method === "GET" || method === "DELETE"
           ? undefined
           : options.buildBody
-            ? JSON.stringify(
-                options.buildBody({ args, context, session }),
-              )
+            ? JSON.stringify(options.buildBody({ args, context, session }))
             : JSON.stringify(args);
       if (body !== undefined && !baseHeaders.has("content-type")) {
         baseHeaders.set("content-type", "application/json");

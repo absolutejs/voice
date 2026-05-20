@@ -808,10 +808,7 @@ export type {
 } from "./mcpToolset";
 export { createAIVoiceModel } from "./aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
-export {
-  createVoiceAIJudgeCompletion,
-  createVoiceLLMJudge,
-} from "./llmJudge";
+export { createVoiceAIJudgeCompletion, createVoiceLLMJudge } from "./llmJudge";
 export type {
   CreateVoiceAIJudgeCompletionOptions,
   CreateVoiceLLMJudgeOptions,
@@ -908,10 +905,7 @@ export {
   deriveVoiceAgentUIState,
   voiceAgentUIStateOrder,
 } from "./agentState";
-export type {
-  VoiceAgentUIInput,
-  VoiceAgentUIState,
-} from "./agentState";
+export type { VoiceAgentUIInput, VoiceAgentUIState } from "./agentState";
 export {
   createInMemoryDNCList,
   isPhoneOnDNC,
@@ -1584,7 +1578,10 @@ export {
   createVoicePostgresTraceSinkDeliveryStore,
   createVoicePostgresTraceEventStore,
 } from "./postgresStore";
-export { createVoiceS3RecordingStore, createVoiceS3ReviewStore } from "./s3Store";
+export {
+  createVoiceS3RecordingStore,
+  createVoiceS3ReviewStore,
+} from "./s3Store";
 export { createVoiceMemoryStore } from "./memoryStore";
 export {
   createVoiceCRMActivitySink,
@@ -1724,19 +1721,8 @@ export {
   resolveTurnDetectionConfig,
   TURN_PROFILE_DEFAULTS,
 } from "./turnProfiles";
-export {
-  createVoiceCallReviewFromLiveTelephonyReport,
-  createVoiceCallReviewRecorder,
-  renderVoiceCallReviewHTML,
-  renderVoiceCallReviewMarkdown,
-} from "./testing/review";
-export {
-  getDefaultVoiceTelephonyBenchmarkScenarios,
-  runVoiceTelephonyBenchmark,
-  runVoiceTelephonyBenchmarkScenario,
-  runVoiceTelephonyMediaOperationsSmoke,
-  summarizeVoiceTelephonyBenchmark,
-} from "./testing/telephony";
+// Call-review + telephony-benchmark helpers are test/benchmark utilities,
+// exposed via the "@absolutejs/voice/testing" subpath only.
 export type {
   VoiceCampaign,
   VoiceCampaignAttempt,
@@ -2903,10 +2889,7 @@ export type {
   VoiceDTMFDigit,
   CreateVoiceDTMFCollectorOptions,
 } from "./dtmfCollector";
-export {
-  createVoiceDNCRegistry,
-  importVoiceDNCFromCSV,
-} from "./dncRegistry";
+export { createVoiceDNCRegistry, importVoiceDNCFromCSV } from "./dncRegistry";
 export type {
   VoiceDNCEntry,
   VoiceDNCExternalLookup,

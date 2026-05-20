@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type {
   VoiceSessionObservabilityLink,
   VoiceSessionObservabilityTurn,
@@ -37,14 +38,6 @@ export type VoiceSessionObservabilityWidgetOptions =
 const DEFAULT_TITLE = "Session Observability";
 const DEFAULT_DESCRIPTION =
   "One support/debug report for a voice call across traces, provider recovery, tools, handoffs, guardrails, turn waterfalls, and incident handoff.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value: number | undefined) =>
   typeof value === "number" ? `${value}ms` : "n/a";

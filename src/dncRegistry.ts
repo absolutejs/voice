@@ -51,7 +51,11 @@ export const createVoiceDNCRegistry = (
 
   const block = (
     phoneNumber: string,
-    options: { source?: VoiceDNCSource; reason?: string; expiresAt?: number } = {},
+    options: {
+      source?: VoiceDNCSource;
+      reason?: string;
+      expiresAt?: number;
+    } = {},
   ): VoiceDNCEntry => {
     const normalized = normalizePhone(phoneNumber);
     const entry: VoiceDNCEntry = {
@@ -59,7 +63,9 @@ export const createVoiceDNCRegistry = (
       phoneNumber: normalized,
       source: options.source ?? "internal",
       ...(options.reason !== undefined ? { reason: options.reason } : {}),
-      ...(options.expiresAt !== undefined ? { expiresAt: options.expiresAt } : {}),
+      ...(options.expiresAt !== undefined
+        ? { expiresAt: options.expiresAt }
+        : {}),
     };
     store.set(normalized, entry);
     return entry;
@@ -146,9 +152,7 @@ export const importVoiceDNCFromCSV = (
       addedAt: at,
       phoneNumber: normalizePhone(phone),
       source: options.source ?? "imported",
-      ...(reasonIdx >= 0 && row[reasonIdx]
-        ? { reason: row[reasonIdx] }
-        : {}),
+      ...(reasonIdx >= 0 && row[reasonIdx] ? { reason: row[reasonIdx] } : {}),
     });
   }
   return entries;

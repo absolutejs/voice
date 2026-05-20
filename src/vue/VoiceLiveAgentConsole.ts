@@ -122,46 +122,50 @@ export const VoiceLiveAgentConsole = defineComponent({
                 ],
               )
             : null,
-          h("div", { style: { display: "flex", gap: "10px", marginBottom: "12px" } }, [
-            s.hasTakeover
-              ? h(
-                  "button",
-                  {
-                    onClick: () => console.releaseTakeover(),
-                    style: {
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      borderRadius: "12px",
-                      color: "#f8fafc",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      padding: "8px 14px",
+          h(
+            "div",
+            { style: { display: "flex", gap: "10px", marginBottom: "12px" } },
+            [
+              s.hasTakeover
+                ? h(
+                    "button",
+                    {
+                      onClick: () => console.releaseTakeover(),
+                      style: {
+                        background: "rgba(255,255,255,0.08)",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        borderRadius: "12px",
+                        color: "#f8fafc",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        padding: "8px 14px",
+                      },
+                      type: "button",
                     },
-                    type: "button",
-                  },
-                  "Release back to agent",
-                )
-              : h(
-                  "button",
-                  {
-                    onClick: () => {
-                      console.takeover(props.takeoverReason);
-                      emit("takeover", props.takeoverReason);
+                    "Release back to agent",
+                  )
+                : h(
+                    "button",
+                    {
+                      onClick: () => {
+                        console.takeover(props.takeoverReason);
+                        emit("takeover", props.takeoverReason);
+                      },
+                      style: {
+                        background: "#ef4444",
+                        border: "none",
+                        borderRadius: "12px",
+                        color: "#f8fafc",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        padding: "8px 14px",
+                      },
+                      type: "button",
                     },
-                    style: {
-                      background: "#ef4444",
-                      border: "none",
-                      borderRadius: "12px",
-                      color: "#f8fafc",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      padding: "8px 14px",
-                    },
-                    type: "button",
-                  },
-                  props.takeoverButtonLabel,
-                ),
-          ]),
+                    props.takeoverButtonLabel,
+                  ),
+            ],
+          ),
           h(
             "ol",
             {

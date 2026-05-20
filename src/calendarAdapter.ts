@@ -99,7 +99,9 @@ export const createVoiceInMemoryCalendarAdapter = (
         startMs: input.startMs,
         status: "scheduled",
         ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.attendees !== undefined ? { attendees: input.attendees } : {}),
+        ...(input.attendees !== undefined
+          ? { attendees: input.attendees }
+          : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
         ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
       };
@@ -133,7 +135,9 @@ export const createVoiceInMemoryCalendarAdapter = (
           ? { granularityMinutes: query.granularityMinutes }
           : {}),
         ...(query.maxSlots !== undefined ? { maxSlots: query.maxSlots } : {}),
-        ...(options.timezone !== undefined ? { timezone: options.timezone } : {}),
+        ...(options.timezone !== undefined
+          ? { timezone: options.timezone }
+          : {}),
         toMs: query.toMs,
       });
     },

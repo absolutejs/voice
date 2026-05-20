@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   listVoiceRoutingEvents,
@@ -164,14 +165,6 @@ const statusRank: Record<VoiceProviderSloStatus, number> = {
   warn: 1,
   fail: 2,
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const roundMetric = (value: number) => Math.round(value * 10_000) / 10_000;
 

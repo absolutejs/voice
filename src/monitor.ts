@@ -20,9 +20,7 @@ export type VoiceMonitorAudioEvent = {
 export type VoiceMonitorSessionRecord = {
   handle: VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>;
   metadata?: Record<string, unknown>;
-  onAudio: (
-    handler: (event: VoiceMonitorAudioEvent) => void,
-  ) => () => void;
+  onAudio: (handler: (event: VoiceMonitorAudioEvent) => void) => () => void;
   onClose: (handler: (reason?: string) => void) => () => void;
   sessionId: string;
 };
@@ -479,7 +477,10 @@ export const createVoiceMonitorRuntimeBinding = (
 
 type ElysiaWebSocketLike = {
   close: (code?: number, reason?: string) => void;
-  data?: { params?: Record<string, string | undefined>; query?: Record<string, unknown> };
+  data?: {
+    params?: Record<string, string | undefined>;
+    query?: Record<string, unknown>;
+  };
   raw?: { request?: unknown };
   send: (payload: ArrayBuffer | ArrayBufferView | string | Uint8Array) => void;
 };
@@ -520,8 +521,7 @@ export const createVoiceLiveMonitorRoutes = (
       options.controlHandlers?.escalate ??
       buildDefaultControlHandler("escalate"),
     hangup:
-      options.controlHandlers?.hangup ??
-      buildDefaultControlHandler("hangup"),
+      options.controlHandlers?.hangup ?? buildDefaultControlHandler("hangup"),
     inject: options.controlHandlers?.inject,
     mute: options.controlHandlers?.mute,
     "no-answer":
@@ -674,8 +674,7 @@ export const createVoiceLiveMonitorRoutes = (
         } catch (error) {
           webSocket.send(
             JSON.stringify({
-              error:
-                error instanceof Error ? error.message : String(error),
+              error: error instanceof Error ? error.message : String(error),
               ok: false,
               type: message.type,
             } satisfies VoiceMonitorControlAck),

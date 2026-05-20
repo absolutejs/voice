@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 
 export type VoiceMonitorStatus = "fail" | "pass" | "warn";
@@ -219,23 +221,11 @@ export type VoiceMonitorRunnerRoutesOptions = {
   runner: VoiceMonitorRunner;
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const issueIdForRun = (run: VoiceMonitorRun) =>
   `voice-monitor:${run.id}:${run.impactedSessions?.[0] ?? "global"}`;
 
 const rollupStatus = (runs: VoiceMonitorRun[]): VoiceMonitorStatus =>
-  runs.some((run) => run.status === "fail")
-    ? "fail"
-    : runs.some((run) => run.status === "warn")
-      ? "warn"
-      : "pass";
+  worstVoiceStatus(runs.map((run) => run.status));
 
 export const createVoiceMemoryMonitorIssueStore = (
   initial: readonly VoiceMonitorIssue[] = [],

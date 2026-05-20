@@ -70,7 +70,8 @@ export const provisionTwilioPhoneNumber = async (
   body.set("PhoneNumber", phoneNumber);
   body.set("VoiceUrl", input.voiceUrl);
   if (input.friendlyName) body.set("FriendlyName", input.friendlyName);
-  if (input.statusCallbackUrl) body.set("StatusCallback", input.statusCallbackUrl);
+  if (input.statusCallbackUrl)
+    body.set("StatusCallback", input.statusCallbackUrl);
   if (input.smsUrl) body.set("SmsUrl", input.smsUrl);
   const purchaseUrl = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(
     input.accountSid,
@@ -122,10 +123,7 @@ export const provisionTelnyxPhoneNumber = async (
   const searchUrl = new URL(
     "https://api.telnyx.com/v2/available_phone_numbers",
   );
-  searchUrl.searchParams.set(
-    "filter[country_code]",
-    input.countryCode ?? "US",
-  );
+  searchUrl.searchParams.set("filter[country_code]", input.countryCode ?? "US");
   searchUrl.searchParams.set("filter[features]", "voice");
   if (input.areaCode) {
     searchUrl.searchParams.set(

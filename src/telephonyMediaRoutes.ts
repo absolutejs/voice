@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   buildMediaTelephonyStreamLifecycleReport,
@@ -151,14 +152,6 @@ const byteLength = (audio: MediaFrame["audio"]): number => {
   }
   return audio instanceof ArrayBuffer ? audio.byteLength : audio.byteLength;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const buildVoiceTelephonyMediaReport = (
   input: {

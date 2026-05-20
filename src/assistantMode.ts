@@ -1,7 +1,4 @@
-import type {
-  CreateVoiceSessionOptions,
-  VoiceSessionRecord,
-} from "./types";
+import type { CreateVoiceSessionOptions, VoiceSessionRecord } from "./types";
 
 export type VoiceAssistantMode = "cascade" | "s2s";
 

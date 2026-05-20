@@ -38,10 +38,18 @@ export type CreateVoiceRetryPolicyOptions = {
 };
 
 const DEFAULT_RULES: VoiceRetryDispositionRule[] = [
-  { action: "retry", cooldownMs: 4 * 60 * 60 * 1000, disposition: "voicemail-left" },
+  {
+    action: "retry",
+    cooldownMs: 4 * 60 * 60 * 1000,
+    disposition: "voicemail-left",
+  },
   { action: "retry", cooldownMs: 30 * 60 * 1000, disposition: "no-answer" },
   { action: "retry", cooldownMs: 10 * 60 * 1000, disposition: "busy" },
-  { action: "retry", cooldownMs: 24 * 60 * 60 * 1000, disposition: "callback-requested" },
+  {
+    action: "retry",
+    cooldownMs: 24 * 60 * 60 * 1000,
+    disposition: "callback-requested",
+  },
   { action: "abandon", disposition: "do-not-call" },
   { action: "abandon", disposition: "not-interested" },
   { action: "abandon", disposition: "wrong-number" },

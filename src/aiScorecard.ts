@@ -123,11 +123,14 @@ export const createVoiceAIScorecard = (
       const prompt = buildPrompt(input);
       const raw = await options.completion({ prompt, systemPrompt });
       const parsed = parseVoiceAIScorecardResponse(raw, input.rubric);
-      const scoreMap: Record<string, { score: number; rationale?: string }> = {};
+      const scoreMap: Record<string, { score: number; rationale?: string }> =
+        {};
       for (const entry of parsed.scores) {
         scoreMap[entry.criterionId] = {
           score: entry.score,
-          ...(entry.rationale !== undefined ? { rationale: entry.rationale } : {}),
+          ...(entry.rationale !== undefined
+            ? { rationale: entry.rationale }
+            : {}),
         };
       }
       for (const criterion of input.rubric.criteria) {

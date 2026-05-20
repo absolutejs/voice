@@ -14,13 +14,7 @@ export type VoiceReminderJob = {
   triggerId: string;
   channel: VoiceReminderChannel;
   scheduledAtMs: number;
-  status:
-    | "pending"
-    | "in-flight"
-    | "sent"
-    | "skipped"
-    | "failed"
-    | "cancelled";
+  status: "pending" | "in-flight" | "sent" | "skipped" | "failed" | "cancelled";
   attempts: number;
   lastError?: string;
   metadata?: Record<string, string>;
@@ -76,10 +70,9 @@ export const createVoiceReminderScheduler = (
     for (const listener of listeners) listener(job);
   };
 
-  const schedule = (
-    input: ScheduleVoiceRemindersInput,
-  ): VoiceReminderJob[] => {
-    const triggers = input.triggers.length > 0 ? input.triggers : defaultTriggers;
+  const schedule = (input: ScheduleVoiceRemindersInput): VoiceReminderJob[] => {
+    const triggers =
+      input.triggers.length > 0 ? input.triggers : defaultTriggers;
     const at = now();
     const created: VoiceReminderJob[] = [];
     for (const trigger of triggers) {

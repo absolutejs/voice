@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type {
   StoredVoiceHandoffDelivery,
@@ -130,14 +131,6 @@ export type VoiceOutcomeContractRoutesOptions<
   name?: string;
   path?: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const resolveSessionHref = (
   value: false | string | ((sessionId: string) => string) | undefined,

@@ -71,16 +71,14 @@ export const VoiceWidget = defineComponent({
   },
   emits: { error: (_message: string) => true },
   setup(props, { emit }) {
-    const controller = useVoiceController(
-      props.path,
-      props.controllerOptions,
-    );
+    const controller = useVoiceController(props.path, props.controllerOptions);
 
     const theme = computed(() => ({ ...DEFAULT_THEME, ...props.theme }));
     const labels = computed(() => ({ ...DEFAULT_LABELS, ...props.labels }));
 
     const agentState = computed(() => {
-      const lastAssistantAt = controller.assistantAudio.value.at(-1)?.receivedAt;
+      const lastAssistantAt =
+        controller.assistantAudio.value.at(-1)?.receivedAt;
       const lastTranscriptAt = controller.turns.value.at(-1)?.committedAt;
       return deriveVoiceAgentUIState({
         hasActivePartial: controller.partial.value.length > 0,
@@ -114,7 +112,8 @@ export const VoiceWidget = defineComponent({
                   : l.idle;
 
       const showStart =
-        !controller.isRecording.value && controller.status.value !== "completed";
+        !controller.isRecording.value &&
+        controller.status.value !== "completed";
 
       return h(
         "div",
@@ -184,76 +183,72 @@ export const VoiceWidget = defineComponent({
                 `“${controller.partial.value}”`,
               )
             : null,
-          h(
-            "div",
-            { style: { display: "flex", gap: "10px" } },
-            [
-              showStart
-                ? h(
-                    "button",
-                    {
-                      onClick: () => {
-                        void controller.startRecording();
-                      },
-                      style: {
-                        background: t.accent,
-                        border: "none",
-                        borderRadius: "12px",
-                        color: t.foreground,
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: "500",
-                        padding: "10px 14px",
-                      },
-                      type: "button",
+          h("div", { style: { display: "flex", gap: "10px" } }, [
+            showStart
+              ? h(
+                  "button",
+                  {
+                    onClick: () => {
+                      void controller.startRecording();
                     },
-                    l.startCall,
-                  )
-                : null,
-              controller.isRecording.value
-                ? h(
-                    "button",
-                    {
-                      onClick: () => controller.stopRecording(),
-                      style: {
-                        background: "transparent",
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        borderRadius: "12px",
-                        color: t.foreground,
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: "500",
-                        padding: "10px 14px",
-                      },
-                      type: "button",
+                    style: {
+                      background: t.accent,
+                      border: "none",
+                      borderRadius: "12px",
+                      color: t.foreground,
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      padding: "10px 14px",
                     },
-                    l.mute,
-                  )
-                : null,
-              controller.isConnected.value
-                ? h(
-                    "button",
-                    {
-                      onClick: () => {
-                        void controller.close();
-                      },
-                      style: {
-                        background: t.errorAccent,
-                        border: "none",
-                        borderRadius: "12px",
-                        color: t.foreground,
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: "500",
-                        padding: "10px 14px",
-                      },
-                      type: "button",
+                    type: "button",
+                  },
+                  l.startCall,
+                )
+              : null,
+            controller.isRecording.value
+              ? h(
+                  "button",
+                  {
+                    onClick: () => controller.stopRecording(),
+                    style: {
+                      background: "transparent",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      borderRadius: "12px",
+                      color: t.foreground,
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      padding: "10px 14px",
                     },
-                    l.endCall,
-                  )
-                : null,
-            ],
-          ),
+                    type: "button",
+                  },
+                  l.mute,
+                )
+              : null,
+            controller.isConnected.value
+              ? h(
+                  "button",
+                  {
+                    onClick: () => {
+                      void controller.close();
+                    },
+                    style: {
+                      background: t.errorAccent,
+                      border: "none",
+                      borderRadius: "12px",
+                      color: t.foreground,
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      padding: "10px 14px",
+                    },
+                    type: "button",
+                  },
+                  l.endCall,
+                )
+              : null,
+          ]),
           controller.error.value
             ? h(
                 "p",

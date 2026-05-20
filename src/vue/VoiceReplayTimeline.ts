@@ -120,7 +120,11 @@ export const VoiceReplayTimeline = defineComponent({
                       ),
                       h("strong", { style: { fontSize: "13px" } }, event.label),
                       event.detail
-                        ? h("span", { style: { opacity: "0.85" } }, event.detail)
+                        ? h(
+                            "span",
+                            { style: { opacity: "0.85" } },
+                            event.detail,
+                          )
                         : null,
                     ],
                   ),

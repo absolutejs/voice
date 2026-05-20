@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import type { VoiceCampaignRecord, VoiceCampaignStore } from "./campaign";
 import { Elysia } from "elysia";
 import {
@@ -567,14 +568,6 @@ const parseRetentionScopes = (
       allowed.has(entry as VoiceDataRetentionScope),
     );
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const buildStorageSurfaces = (
   options: VoiceDataControlRoutesOptions,

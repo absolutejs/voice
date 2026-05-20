@@ -171,7 +171,10 @@ export const compileVoicePathwayToAssistant = (
   const report = validateVoicePathway(options.pathway);
   if (!report.valid) {
     throw new Error(
-      `Cannot compile invalid pathway: ${report.issues.filter((i) => i.severity === "error").map((i) => i.message).join("; ")}`,
+      `Cannot compile invalid pathway: ${report.issues
+        .filter((i) => i.severity === "error")
+        .map((i) => i.message)
+        .join("; ")}`,
     );
   }
   const prefix = options.toolNamePrefix ?? `pathway_${options.pathway.id}`;

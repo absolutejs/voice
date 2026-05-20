@@ -55,14 +55,9 @@ export const isWithinCampaignWindow = (
 ): boolean => {
   const now = input.now ?? new Date();
   const offsetMinutes = input.window.timeZoneOffsetMinutes ?? 0;
-  const shifted = new Date(
-    now.getTime() + offsetMinutes * 60_000,
-  );
+  const shifted = new Date(now.getTime() + offsetMinutes * 60_000);
   const day = shifted.getUTCDay();
-  if (
-    input.window.daysOfWeek &&
-    !input.window.daysOfWeek.includes(day)
-  ) {
+  if (input.window.daysOfWeek && !input.window.daysOfWeek.includes(day)) {
     return false;
   }
   const hour = shifted.getUTCHours();

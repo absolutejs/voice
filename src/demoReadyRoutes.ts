@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceOpsStatusReport } from "./opsStatus";
 import type { VoicePhoneAgentProductionSmokeReport } from "./phoneAgentProductionSmoke";
@@ -81,22 +83,10 @@ export type VoiceDemoReadyRoutesOptions = {
   title?: string;
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const rollupStatus = (
   sections: VoiceDemoReadySection[],
 ): VoiceDemoReadyStatus =>
-  sections.some((section) => section.status === "fail")
-    ? "fail"
-    : sections.some((section) => section.status === "warn")
-      ? "warn"
-      : "pass";
+  worstVoiceStatus(sections.map((section) => section.status));
 
 const resolveLoader = async <TValue>(
   loader: VoiceDemoReadyLoader<TValue>,

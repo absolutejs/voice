@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceProviderSimulationControlsStore,
   type VoiceProviderSimulationControlsOptions,
@@ -18,14 +19,6 @@ export type VoiceProviderSimulationControlsViewModel<
   resultText: string | null;
   title: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatKind = (kind: string | undefined) => (kind ?? "stt").toUpperCase();
 

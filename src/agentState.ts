@@ -1,8 +1,4 @@
-export type VoiceAgentUIState =
-  | "idle"
-  | "listening"
-  | "speaking"
-  | "thinking";
+export type VoiceAgentUIState = "idle" | "listening" | "speaking" | "thinking";
 
 export type VoiceAgentUIInput = {
   hasActivePartial: boolean;

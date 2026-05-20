@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type {
   VoiceRealCallProfileDefault,
@@ -279,14 +280,6 @@ export type VoiceProfileSwitchReadinessRoutesOptions =
 const readDefaults = (
   input: VoiceRealCallProfileDefaultsReport | VoiceRealCallProfileHistoryReport,
 ) => ("defaults" in input ? input.defaults : input);
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const stringifyForHtml = (value: unknown) =>
   escapeHtml(JSON.stringify(value, null, 2) ?? "");

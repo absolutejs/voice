@@ -1,4 +1,8 @@
-import type { Transcript, VoiceSessionHandle, VoiceSessionRecord } from "./types";
+import type {
+  Transcript,
+  VoiceSessionHandle,
+  VoiceSessionRecord,
+} from "./types";
 
 export type VoiceAMDDetectorInput<
   TContext = unknown,
@@ -26,10 +30,7 @@ export type VoiceAMDDetector<
 > = {
   evaluate: (
     input: VoiceAMDDetectorInput<TContext, TSession, TResult>,
-  ) =>
-    | Promise<VoiceAMDVerdict | undefined>
-    | VoiceAMDVerdict
-    | undefined;
+  ) => Promise<VoiceAMDVerdict | undefined> | VoiceAMDVerdict | undefined;
   intervalMs?: number;
 };
 

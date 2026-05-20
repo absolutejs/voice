@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceRoutingDecisionSummary } from "../resilienceRoutes";
 import {
   createVoiceRoutingStatusStore,
@@ -27,14 +28,6 @@ export type VoiceRoutingStatusWidgetOptions =
 const DEFAULT_TITLE = "Voice Routing";
 const DEFAULT_DESCRIPTION =
   "Latest provider routing decision from the self-hosted trace store.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatValue = (value: unknown, fallback = "None") =>
   typeof value === "string" && value.trim()

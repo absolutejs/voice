@@ -591,14 +591,18 @@ export const createVoiceSession = <
       return;
     }
     clearCallSilenceWatchdog();
-    callSilenceWatchdog = setTimeout(fireCallSilenceTimeout, callSilenceTimeoutMs);
+    callSilenceWatchdog = setTimeout(
+      fireCallSilenceTimeout,
+      callSilenceTimeoutMs,
+    );
   };
 
   const recordingConfig = options.recording;
   const recordingChannels = new Set<"assistant" | "user">(
     recordingConfig?.channels ?? ["assistant", "user"],
   );
-  const recordingMaxBytes = recordingConfig?.maxBytesPerChannel ?? 50 * 1024 * 1024;
+  const recordingMaxBytes =
+    recordingConfig?.maxBytesPerChannel ?? 50 * 1024 * 1024;
   const recordingBuffers: Record<"assistant" | "user", Uint8Array[]> = {
     assistant: [],
     user: [],
@@ -607,7 +611,8 @@ export const createVoiceSession = <
     assistant: 0,
     user: 0,
   };
-  const recordingFormats: Partial<Record<"assistant" | "user", AudioFormat>> = {};
+  const recordingFormats: Partial<Record<"assistant" | "user", AudioFormat>> =
+    {};
   let recordingPersisted = false;
   const captureRecordingChunk = (
     channel: "assistant" | "user",

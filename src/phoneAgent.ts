@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   createPlivoVoiceRoutes,
@@ -272,14 +273,6 @@ const PHONE_AGENT_LIFECYCLE_STAGES: VoicePhoneAgentLifecycleStage[] = [
   "completed",
   "failed",
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
 
 const loadRouteJson = async <TValue>(input: {
   app: Elysia;

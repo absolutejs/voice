@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceProviderContractMatrixRow } from "../providerStackRecommendations";
 import {
   createVoiceProviderContractsStore,
@@ -34,14 +35,6 @@ export type VoiceProviderContractsWidgetOptions =
 const DEFAULT_TITLE = "Provider Contracts";
 const DEFAULT_DESCRIPTION =
   "Production contract coverage for provider env, latency, fallback, streaming, and capabilities.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatProvider = (provider: string) =>
   provider

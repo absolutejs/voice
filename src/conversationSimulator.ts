@@ -1,7 +1,4 @@
-import type {
-  VoiceAgent,
-  VoiceAgentRunResult,
-} from "./agent";
+import type { VoiceAgent, VoiceAgentRunResult } from "./agent";
 import { createVoiceSessionRecord } from "./store";
 import type {
   Transcript,
@@ -76,11 +73,7 @@ export type RunVoiceConversationSimulationInput<
   generateId?: () => string;
 };
 
-const createStubApi = <
-  TContext,
-  TSession extends VoiceSessionRecord,
-  TResult,
->(
+const createStubApi = <TContext, TSession extends VoiceSessionRecord, TResult>(
   sessionId: string,
 ): VoiceSessionHandle<TContext, TSession, TResult> =>
   ({ id: sessionId }) as VoiceSessionHandle<TContext, TSession, TResult>;
@@ -247,8 +240,7 @@ export const createPersonaVoiceCaller = (options: {
     model: async ({ persona, transcript }) => {
       const history = transcript
         .map(
-          (turn) =>
-            `${turn.role === "caller" ? "You" : "Agent"}: ${turn.text}`,
+          (turn) => `${turn.role === "caller" ? "You" : "Agent"}: ${turn.text}`,
         )
         .join("\n");
       const raw = await options.completion({

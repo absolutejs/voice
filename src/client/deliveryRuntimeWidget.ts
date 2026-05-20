@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceDeliveryRuntimeStore,
   type VoiceDeliveryRuntimeClientOptions,
@@ -40,14 +41,6 @@ export type VoiceDeliveryRuntimeWidgetOptions =
 const DEFAULT_TITLE = "Voice Delivery Runtime";
 const DEFAULT_DESCRIPTION =
   "Audit and trace delivery worker health from your AbsoluteJS voice app.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const createSurface = (
   id: "audit" | "trace",

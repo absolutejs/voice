@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeVoiceProviderHealth,
@@ -69,14 +70,6 @@ export type VoiceProviderCapabilityRoutesOptions<
   name?: string;
   path?: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const fromProviderList = <TProvider extends string>(
   kind: VoiceProviderCapabilityKind,

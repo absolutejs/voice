@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from "./trace";
 import type {
@@ -68,14 +69,6 @@ export type VoiceTurnLatencyRoutesOptions<
 
 const DEFAULT_WARN_AFTER_MS = 1800;
 const DEFAULT_FAIL_AFTER_MS = 3200;
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const firstNumber = (values: Array<number | undefined>) =>
   values

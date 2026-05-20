@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceProviderSloThresholdConfig } from "./providerSlo";
 import type { VoiceProductionReadinessRoutesOptions } from "./productionReadiness";
@@ -471,14 +472,6 @@ export const buildVoiceSloReadinessThresholdReport = (
 };
 
 const escapeMarkdown = (value: string) => value.replaceAll("|", "\\|");
-
-const escapeHtml = (value: unknown) =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value: number | undefined) =>
   value === undefined ? "n/a" : `${value.toLocaleString()} ms`;

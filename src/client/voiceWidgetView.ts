@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceAgentUIState } from "../agentState";
 import { deriveVoiceAgentUIState } from "../agentState";
 import type { VoiceControllerState } from "../types";
@@ -128,8 +129,7 @@ export const createVoiceWidgetViewModel = (
     controls: {
       canEnd: input.state.isConnected,
       canMute: input.state.isRecording,
-      canStart:
-        !input.state.isRecording && input.state.status !== "completed",
+      canStart: !input.state.isRecording && input.state.status !== "completed",
     },
     errorMessage: input.state.error ?? undefined,
     labels,
@@ -140,20 +140,10 @@ export const createVoiceWidgetViewModel = (
   };
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const resolveRadius = (radius: number | string) =>
   typeof radius === "number" ? `${radius}px` : radius;
 
-export const renderVoiceWidgetHTML = (
-  model: VoiceWidgetViewModel,
-): string => {
+export const renderVoiceWidgetHTML = (model: VoiceWidgetViewModel): string => {
   const t = model.theme;
   const containerStyle = `background:${t.background};border-radius:${resolveRadius(t.radius)};color:${t.foreground};font-family:${t.fontFamily};min-width:240px;padding:20px 22px;`;
   const dotStyle = `background:${model.errorMessage ? t.errorAccent : model.agentState === "idle" ? "rgba(148,163,184,0.6)" : t.accent};border-radius:50%;height:10px;width:10px;`;

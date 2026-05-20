@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   listVoiceRoutingEvents,
@@ -111,14 +113,6 @@ export type VoiceProviderDecisionTraceRoutesOptions =
     title?: string;
   };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const getString = (value: unknown) =>
   typeof value === "string" ? value : undefined;
 
@@ -148,14 +142,8 @@ const surfaceForKind = (kind: VoiceRoutingEventKind | undefined) => {
   }
 };
 
-const statusRank = { fail: 2, pass: 0, warn: 1 } as const;
-
 const reportStatus = (issues: readonly VoiceProviderDecisionTraceIssue[]) =>
-  issues.reduce<"fail" | "pass" | "warn">(
-    (status, issue) =>
-      statusRank[issue.status] > statusRank[status] ? issue.status : status,
-    "pass",
-  );
+  worstVoiceStatus(issues.map((issue) => issue.status));
 
 const uniqueSorted = (values: Array<string | undefined>) =>
   [

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceRedisTaskLeaseCoordinator } from "./queue";
 import type {
@@ -2048,14 +2049,6 @@ export const assertVoiceCampaignReadinessEvidence = (
   }
   return assertion;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const getString = (value: unknown) =>
   typeof value === "string" && value.length > 0 ? value : undefined;

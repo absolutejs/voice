@@ -1,16 +1,9 @@
+import { escapeHtml } from "../internal/html";
 import {
   createLiveAgentConsole as createCoreConsole,
   type CreateLiveAgentConsoleOptions,
   type LiveAgentConsoleState,
 } from "../client/liveAgentConsole";
-
-const escapeHtml = (text: string) =>
-  text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export type CreateVoiceLiveAgentConsoleSvelteOptions =
   CreateLiveAgentConsoleOptions & {

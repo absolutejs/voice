@@ -74,9 +74,7 @@ export const VoiceCallPlayer = defineComponent({
       } else if (!state.value.isPlaying && !el.paused) {
         el.pause();
       }
-      if (
-        Math.abs(el.currentTime * 1_000 - state.value.currentTimeMs) > 250
-      ) {
+      if (Math.abs(el.currentTime * 1_000 - state.value.currentTimeMs) > 250) {
         el.currentTime = state.value.currentTimeMs / 1_000;
       }
       el.playbackRate = state.value.playbackRate;
@@ -195,8 +193,7 @@ export const VoiceCallPlayer = defineComponent({
                 step: 0.001,
                 style: { flex: "1" },
                 type: "range",
-                value:
-                  s.durationMs > 0 ? s.currentTimeMs / s.durationMs : 0,
+                value: s.durationMs > 0 ? s.currentTimeMs / s.durationMs : 0,
               }),
             ],
           ),

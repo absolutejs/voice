@@ -118,7 +118,10 @@ export const createVoiceCallPlayer = (
   };
 
   const refreshActive = () => {
-    const { id, index } = findActiveTranscript(transcripts, state.currentTimeMs);
+    const { id, index } = findActiveTranscript(
+      transcripts,
+      state.currentTimeMs,
+    );
     if (
       id !== state.activeTranscriptId ||
       index !== state.activeTranscriptIndex
@@ -163,10 +166,7 @@ export const createVoiceCallPlayer = (
     },
     seekToTranscript: (transcriptId) => {
       const found = transcripts.find((t) => t.id === transcriptId);
-      if (
-        !found ||
-        typeof found.startedAtMs !== "number"
-      ) {
+      if (!found || typeof found.startedAtMs !== "number") {
         return;
       }
       update({ currentTimeMs: Math.max(0, found.startedAtMs) });

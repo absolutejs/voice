@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   formatVoiceProofTrendAge,
   type VoiceProofTrendReport,
@@ -39,14 +40,6 @@ const DEFAULT_LINKS = [
   { href: "/voice/proof-trends", label: "Trend page" },
   { href: "/api/voice/proof-trends", label: "Trend JSON" },
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value)

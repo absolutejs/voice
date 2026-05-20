@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from "./trace";
 import type {
@@ -104,14 +105,6 @@ const defaultRequirements: VoicePhoneAgentProductionSmokeRequirement[] = [
   "lifecycle-outcome",
   "no-session-error",
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const payloadType = (event: StoredVoiceTraceEvent) =>
   typeof event.payload.type === "string" ? event.payload.type : undefined;

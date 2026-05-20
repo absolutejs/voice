@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceOpsStatusReport } from "../opsStatus";
 import {
   createVoiceOpsStatusStore,
@@ -45,14 +46,6 @@ const SURFACE_LABELS: Record<string, string> = {
   sessions: "Sessions",
   workflows: "Workflows",
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const readNumber = (value: unknown, key: string) =>
   value && typeof value === "object" && key in value

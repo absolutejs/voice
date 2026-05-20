@@ -81,9 +81,15 @@ export const buildVoiceVariableAnalytics = (
   input: BuildVoiceVariableAnalyticsInput,
 ): VoiceVariableAnalyticsReport => {
   const successOutcomes = new Set(
-    (input.successOutcomes ?? ["won", "resolved", "qualified", "completed", "booked"]).map(
-      (outcome) => outcome.toLowerCase(),
-    ),
+    (
+      input.successOutcomes ?? [
+        "won",
+        "resolved",
+        "qualified",
+        "completed",
+        "booked",
+      ]
+    ).map((outcome) => outcome.toLowerCase()),
   );
   const totalCalls = input.calls.length;
 

@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type {
   VoiceProductionReadinessCheck,
   VoiceProductionReadinessGateExplanation,
@@ -45,14 +46,6 @@ const DEFAULT_LINKS = [
   { href: "/production-readiness", label: "Readiness page" },
   { href: "/voice/slo-readiness-thresholds", label: "Gate thresholds" },
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatExplanationValue = (
   value: VoiceProductionReadinessGateExplanation["observed"],

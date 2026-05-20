@@ -1,17 +1,10 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeVoiceOpsStatus,
   type VoiceOpsStatusReport,
   type VoiceOpsStatusRoutesOptions,
 } from "./opsStatus";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const renderVoiceOpsStatusHTML = (
   report: VoiceOpsStatusReport,

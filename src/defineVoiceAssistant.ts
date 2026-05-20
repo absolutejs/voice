@@ -102,7 +102,13 @@ export type VoiceAssistantDefinition<
   route?: Partial<VoiceRouteConfig<TContext, TSession, TResult>>;
   semanticTurnDetector?: VoiceSemanticTurnDetector;
   tools?: ReadonlyArray<
-    VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>
+    VoiceAgentTool<
+      TContext,
+      TSession,
+      Record<string, unknown>,
+      unknown,
+      TResult
+    >
   >;
   turnDetection?: VoiceTurnDetectionConfig;
   voice: VoiceAssistantVoiceConfig;

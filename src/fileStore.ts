@@ -1096,10 +1096,8 @@ export const createStoredVoiceExternalObjectMap = <
     sourceType: mapping.sourceType,
   });
 
-const recordingFileName = (
-  sessionId: string,
-  channel: VoiceRecordingChannel,
-) => `${encodeURIComponent(sessionId)}_${channel}.wav`;
+const recordingFileName = (sessionId: string, channel: VoiceRecordingChannel) =>
+  `${encodeURIComponent(sessionId)}_${channel}.wav`;
 
 const recordingMetadataFileName = (
   sessionId: string,

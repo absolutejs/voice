@@ -1,7 +1,4 @@
-import type {
-  AIProviderConfig,
-  AIProviderMessage,
-} from "@absolutejs/ai";
+import type { AIProviderConfig, AIProviderMessage } from "@absolutejs/ai";
 
 export type VoiceLLMJudgeRubricCriterion = {
   description: string;
@@ -85,7 +82,9 @@ const extractJson = (raw: string): unknown => {
     if (start >= 0 && end > start) {
       return JSON.parse(candidate.slice(start, end + 1));
     }
-    throw new Error(`LLM judge response was not valid JSON: ${raw.slice(0, 200)}`);
+    throw new Error(
+      `LLM judge response was not valid JSON: ${raw.slice(0, 200)}`,
+    );
   }
 };
 
@@ -119,8 +118,7 @@ const parseCriteria = (
     verdictById.set(criterionId, {
       criterionId,
       passed: record.passed === true,
-      rationale:
-        typeof record.rationale === "string" ? record.rationale : "",
+      rationale: typeof record.rationale === "string" ? record.rationale : "",
     });
   }
   const criteria = rubric.criteria.map(
@@ -199,13 +197,10 @@ export type CreateVoiceAIJudgeCompletionOptions = {
   provider: AIProviderConfig;
 };
 
-export const createVoiceAIJudgeCompletion = (
-  options: CreateVoiceAIJudgeCompletionOptions,
-): VoiceLLMJudgeCompletion =>
+export const createVoiceAIJudgeCompletion =
+  (options: CreateVoiceAIJudgeCompletionOptions): VoiceLLMJudgeCompletion =>
   async ({ prompt, systemPrompt }) => {
-    const messages: AIProviderMessage[] = [
-      { content: prompt, role: "user" },
-    ];
+    const messages: AIProviderMessage[] = [{ content: prompt, role: "user" }];
     const stream = options.provider.stream({
       messages,
       model: options.model,

@@ -80,7 +80,8 @@ export const createVoicePostCallSurvey = (
   options: CreateVoicePostCallSurveyOptions,
 ) => {
   const now = options.now ?? (() => Date.now());
-  const questions = options.questions ?? DEFAULT_VOICE_POST_CALL_SURVEY_QUESTIONS;
+  const questions =
+    options.questions ?? DEFAULT_VOICE_POST_CALL_SURVEY_QUESTIONS;
   const response: VoicePostCallSurveyResponse = {
     answers: [],
     completedAt: null,
@@ -105,13 +106,15 @@ export const createVoicePostCallSurvey = (
     if (question.type === "rating") stored = validateRating(question, value);
     if (question.type === "boolean") {
       if (typeof value !== "boolean") {
-        throw new TypeError(
-          `Question ${questionId} requires a boolean answer`,
-        );
+        throw new TypeError(`Question ${questionId} requires a boolean answer`);
       }
       stored = value;
     }
-    if (question.type === "comment" && value !== null && typeof value !== "string") {
+    if (
+      question.type === "comment" &&
+      value !== null &&
+      typeof value !== "string"
+    ) {
       throw new TypeError(`Question ${questionId} requires a string answer`);
     }
     if (question.required && (stored === null || stored === "")) {
@@ -171,22 +174,18 @@ export const summarizeVoicePostCallSurveys = (
   const completed = responses.filter((r) => r.completedAt !== null);
   const ratings = completed
     .flatMap((r) => r.answers)
-    .filter((a): a is VoicePostCallSurveyAnswer & { value: number } =>
-      a.questionId === "nps" && typeof a.value === "number",
+    .filter(
+      (a): a is VoicePostCallSurveyAnswer & { value: number } =>
+        a.questionId === "nps" && typeof a.value === "number",
     );
   const promoters = ratings.filter((a) => a.value >= 9).length;
   const detractors = ratings.filter((a) => a.value <= 6).length;
   const denom = ratings.length || 1;
   return {
     completion:
-      responses.length === 0
-        ? 0
-        : completed.length / responses.length,
+      responses.length === 0 ? 0 : completed.length / responses.length,
     detractors,
-    nps:
-      ratings.length === 0
-        ? null
-        : ((promoters - detractors) / denom) * 100,
+    nps: ratings.length === 0 ? null : ((promoters - detractors) / denom) * 100,
     promoters,
     sampleSize: ratings.length,
   };

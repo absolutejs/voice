@@ -129,17 +129,21 @@ const deliverWithRetry = async (input: {
       await sleep(backoffMs * attempt);
     }
   }
-  return last ?? {
-    attempt: 0,
-    durationMs: 0,
-    error: "no attempts ran",
-    ok: false,
-    sinkId: input.sink.id,
-  };
+  return (
+    last ?? {
+      attempt: 0,
+      durationMs: 0,
+      error: "no attempts ran",
+      ok: false,
+      sinkId: input.sink.id,
+    }
+  );
 };
 
 export type VoiceWebhookFanout = {
-  deliver: (event: VoiceWebhookFanoutEvent) => Promise<VoiceWebhookFanoutReport>;
+  deliver: (
+    event: VoiceWebhookFanoutEvent,
+  ) => Promise<VoiceWebhookFanoutReport>;
 };
 
 export const createVoiceWebhookFanout = (

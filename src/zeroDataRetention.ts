@@ -50,11 +50,7 @@ export const createVoiceZeroDataRetentionPolicy = (
 ): VoiceZeroDataRetentionPolicy => {
   const mode = options.mode ?? "off";
   const base =
-    mode === "strict"
-      ? RETAIN_NONE
-      : mode === "off"
-        ? RETAIN_ALL
-        : RETAIN_ALL;
+    mode === "strict" ? RETAIN_NONE : mode === "off" ? RETAIN_ALL : RETAIN_ALL;
   return {
     mode,
     retain: { ...base, ...(options.retain ?? {}) },

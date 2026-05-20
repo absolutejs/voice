@@ -107,7 +107,8 @@ const coercePathway = (parsed: unknown, fallbackId: string): VoicePathway => {
   const root = parsed as Partial<VoicePathway>;
   return {
     entryStateId: String(root.entryStateId ?? ""),
-    id: typeof root.id === "string" && root.id.length > 0 ? root.id : fallbackId,
+    id:
+      typeof root.id === "string" && root.id.length > 0 ? root.id : fallbackId,
     label: String(root.label ?? "Generated pathway"),
     slots: Array.isArray(root.slots) ? root.slots : [],
     states: Array.isArray(root.states) ? root.states : [],
@@ -138,7 +139,9 @@ export const generateVoicePathwayFromPrompt = async (
         : `The previous pathway JSON failed validation with these errors:\n${lastReport!.issues
             .filter((issue) => issue.severity === "error")
             .map((issue) => `- ${issue.message}`)
-            .join("\n")}\n\nHere was your previous output:\n${rawOutputs.at(-1)}\n\nReturn a corrected pathway JSON that fixes every error.`;
+            .join(
+              "\n",
+            )}\n\nHere was your previous output:\n${rawOutputs.at(-1)}\n\nReturn a corrected pathway JSON that fixes every error.`;
 
     const raw = await input.completion({ prompt, systemPrompt });
     rawOutputs.push(raw);

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from "./trace";
 
@@ -274,14 +275,6 @@ export const summarizeVoiceProviderHealth = async <
 
   return summaries;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const renderVoiceProviderHealthHTML = (
   providers: VoiceProviderHealthSummary[],

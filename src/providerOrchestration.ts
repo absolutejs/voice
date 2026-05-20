@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type {
   VoiceProviderOrchestrationProfile,
@@ -103,14 +104,6 @@ const statusRank: Record<VoiceProviderOrchestrationStatus, number> = {
   warn: 1,
   fail: 2,
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const isProviderList = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");

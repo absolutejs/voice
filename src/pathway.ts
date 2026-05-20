@@ -102,9 +102,7 @@ const slotRefsInActions = (actions?: VoicePathwayAction[]): string[] => {
   return refs;
 };
 
-const slotRefsInCondition = (
-  condition: VoicePathwayCondition,
-): string[] => {
+const slotRefsInCondition = (condition: VoicePathwayCondition): string[] => {
   if (condition.kind === "always" || condition.kind === "fallback") return [];
   return [condition.slotId];
 };
@@ -237,8 +235,7 @@ export const validateVoicePathway = (
   if (!hasReachableTerminal) {
     issues.push({
       code: "no-terminal-reachable",
-      message:
-        "No terminal state is reachable; pathway has no exit condition",
+      message: "No terminal state is reachable; pathway has no exit condition",
       severity: "error",
     });
   }
@@ -253,11 +250,9 @@ export const validateVoicePathway = (
 export const findVoicePathwayState = (
   pathway: VoicePathway,
   id: string,
-): VoicePathwayState | null =>
-  pathway.states.find((s) => s.id === id) ?? null;
+): VoicePathwayState | null => pathway.states.find((s) => s.id === id) ?? null;
 
 export const findVoicePathwaySlot = (
   pathway: VoicePathway,
   id: string,
-): VoicePathwaySlot | null =>
-  pathway.slots.find((s) => s.id === id) ?? null;
+): VoicePathwaySlot | null => pathway.slots.find((s) => s.id === id) ?? null;

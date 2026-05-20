@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import { Buffer } from "node:buffer";
 import { Elysia } from "elysia";
 import { resolveAudioConditioningConfig } from "../audioConditioning";
@@ -326,14 +327,6 @@ const resolveTwilioStreamParameters = async (
 
 const joinUrlPath = (origin: string, path: string) =>
   `${origin.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
 
 const getWebhookVerificationUrl = <
   TContext,

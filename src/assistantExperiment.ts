@@ -105,7 +105,9 @@ export const createVoiceAssistantExperiment = <
   options: VoiceAssistantExperimentOptions<TContext, TSession, TResult>,
 ): VoiceAssistantExperiment<TContext, TSession, TResult> => {
   if (options.variants.length === 0) {
-    throw new Error("createVoiceAssistantExperiment requires at least one variant");
+    throw new Error(
+      "createVoiceAssistantExperiment requires at least one variant",
+    );
   }
   const allocator = options.allocator;
   const findById = (id: string) => {

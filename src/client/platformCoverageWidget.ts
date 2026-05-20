@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoicePlatformCoverageSurface } from "../platformCoverage";
 import {
   createVoicePlatformCoverageStore,
@@ -37,14 +38,6 @@ const DEFAULT_LINKS = [
   { href: "/switching-from-vapi", label: "Switching guide" },
   { href: "/api/voice/vapi-coverage", label: "Coverage JSON" },
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatStatus = (status: string) =>
   status

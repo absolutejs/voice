@@ -149,43 +149,39 @@ export const VoiceCostDashboard = defineComponent({
                 },
                 [
                   h("thead", [
-                    h(
-                      "tr",
-                      { style: { opacity: "0.7", textAlign: "left" } },
-                      [
-                        h("th", { style: { padding: "8px 12px" } }, "Bucket"),
-                        h(
-                          "th",
-                          { style: { padding: "8px 12px", textAlign: "right" } },
-                          "Calls",
-                        ),
-                        h(
-                          "th",
-                          { style: { padding: "8px 12px", textAlign: "right" } },
-                          "LLM",
-                        ),
-                        h(
-                          "th",
-                          { style: { padding: "8px 12px", textAlign: "right" } },
-                          "TTS",
-                        ),
-                        h(
-                          "th",
-                          { style: { padding: "8px 12px", textAlign: "right" } },
-                          "STT",
-                        ),
-                        h(
-                          "th",
-                          { style: { padding: "8px 12px", textAlign: "right" } },
-                          "Tel.",
-                        ),
-                        h(
-                          "th",
-                          { style: { padding: "8px 12px", textAlign: "right" } },
-                          "Total",
-                        ),
-                      ],
-                    ),
+                    h("tr", { style: { opacity: "0.7", textAlign: "left" } }, [
+                      h("th", { style: { padding: "8px 12px" } }, "Bucket"),
+                      h(
+                        "th",
+                        { style: { padding: "8px 12px", textAlign: "right" } },
+                        "Calls",
+                      ),
+                      h(
+                        "th",
+                        { style: { padding: "8px 12px", textAlign: "right" } },
+                        "LLM",
+                      ),
+                      h(
+                        "th",
+                        { style: { padding: "8px 12px", textAlign: "right" } },
+                        "TTS",
+                      ),
+                      h(
+                        "th",
+                        { style: { padding: "8px 12px", textAlign: "right" } },
+                        "STT",
+                      ),
+                      h(
+                        "th",
+                        { style: { padding: "8px 12px", textAlign: "right" } },
+                        "Tel.",
+                      ),
+                      h(
+                        "th",
+                        { style: { padding: "8px 12px", textAlign: "right" } },
+                        "Total",
+                      ),
+                    ]),
                   ]),
                   h("tbody", rows),
                 ],

@@ -44,7 +44,8 @@ export const createVoiceBookingFlow = (
 ) => {
   const initial: VoiceBookingFlowState = {
     proposedSlots: [],
-    step: options.initialStep ?? (options.services ? "ask-service" : "ask-date"),
+    step:
+      options.initialStep ?? (options.services ? "ask-service" : "ask-date"),
   };
   let state = initial;
   const listeners = new Set<(state: VoiceBookingFlowState) => void>();
@@ -82,7 +83,10 @@ export const createVoiceBookingFlow = (
         : {}),
       toMs: input.toMs,
     });
-    setState({ proposedSlots: slots, step: slots.length > 0 ? "ask-time" : "ask-date" });
+    setState({
+      proposedSlots: slots,
+      step: slots.length > 0 ? "ask-time" : "ask-date",
+    });
     return slots;
   };
 
@@ -108,7 +112,9 @@ export const createVoiceBookingFlow = (
         calendarId: options.calendarId,
         endMs: state.selectedSlot.endMs,
         startMs: state.selectedSlot.startMs,
-        ...(input.attendees !== undefined ? { attendees: input.attendees } : {}),
+        ...(input.attendees !== undefined
+          ? { attendees: input.attendees }
+          : {}),
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
       });
@@ -126,7 +132,8 @@ export const createVoiceBookingFlow = (
   const reset = () => {
     state = {
       proposedSlots: [],
-      step: options.initialStep ?? (options.services ? "ask-service" : "ask-date"),
+      step:
+        options.initialStep ?? (options.services ? "ask-service" : "ask-date"),
     };
     for (const listener of listeners) listener(state);
   };

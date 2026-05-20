@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeMediaProcessorGraphReport,
@@ -398,7 +399,10 @@ export type VoiceOperationsRecordRoutesOptions = Omit<
     | VoiceMediaPipelineReport
     | ((input: {
         sessionId: string;
-      }) => Promise<VoiceMediaPipelineReport | undefined> | VoiceMediaPipelineReport | undefined);
+      }) =>
+        | Promise<VoiceMediaPipelineReport | undefined>
+        | VoiceMediaPipelineReport
+        | undefined);
   name?: string;
   path?: string;
   render?: (record: VoiceOperationsRecord) => string | Promise<string>;
@@ -1304,9 +1308,7 @@ export const buildVoiceFailureReplay = (
     record.telephonyMedia.total > 0 && record.telephonyMedia.outbound === 0
       ? "Carrier stream has no outbound assistant media/control evidence."
       : undefined,
-    ...pipelineIssueCodes.map(
-      (code) => `Media pipeline issue: ${code}.`,
-    ),
+    ...pipelineIssueCodes.map((code) => `Media pipeline issue: ${code}.`),
   ].filter((issue): issue is string => typeof issue === "string");
   const userHeard = [
     ...new Set(record.transcript.flatMap((turn) => turn.assistantReplies)),
@@ -1455,14 +1457,6 @@ export const renderVoiceFailureReplayMarkdown = (
     heard,
   ].join("\n");
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value: number | undefined) =>
   value === undefined ? "n/a" : `${String(value)}ms`;
@@ -1741,10 +1735,7 @@ export const renderVoiceOperationsRecordHTML = (
     ? `<section id="media-pipeline"><h2>Media Pipeline</h2><p class="muted">Surface: ${escapeHtml(record.mediaPipeline.surface)} · Status: ${escapeHtml(record.mediaPipeline.status)} · Quality: ${escapeHtml(record.mediaPipeline.qualityStatus)} · Transport: ${escapeHtml(record.mediaPipeline.transportStatus ?? "n/a")} · Graph: ${escapeHtml(record.mediaPipeline.processorGraphStatus ?? "n/a")} · Frames: ${String(record.mediaPipeline.frames)} · Jitter: ${record.mediaPipeline.jitterMs === undefined ? "n/a" : `${String(record.mediaPipeline.jitterMs)}ms`}</p><ul>${
         record.mediaPipeline.issueCodes.length
           ? record.mediaPipeline.issueCodes
-              .map(
-                (code) =>
-                  `<li><strong>${escapeHtml(code)}</strong></li>`,
-              )
+              .map((code) => `<li><strong>${escapeHtml(code)}</strong></li>`)
               .join("")
           : "<li>No media pipeline issue codes.</li>"
       }</ul></section>`

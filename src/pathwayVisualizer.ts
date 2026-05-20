@@ -22,7 +22,9 @@ const conditionLabel = (condition: VoicePathwayCondition): string => {
   }
 };
 
-const mermaidShape = (state: VoicePathwayState): { open: string; close: string } => {
+const mermaidShape = (
+  state: VoicePathwayState,
+): { open: string; close: string } => {
   switch (state.kind) {
     case "entry":
       return { close: ")", open: "((" };

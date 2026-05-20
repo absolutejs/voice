@@ -215,7 +215,9 @@ export const createVoiceS3RecordingStore = (
     if (!(await metadataFile.exists())) {
       return undefined;
     }
-    const meta = JSON.parse(await metadataFile.text()) as StoredRecordingMetadata;
+    const meta = JSON.parse(
+      await metadataFile.text(),
+    ) as StoredRecordingMetadata;
     const wavBytes = await getFile(wavKey).bytes();
     return {
       audioBytes: wavBytes,

@@ -97,10 +97,7 @@ export const buildVoiceCallScorecard = (
     sectionAccum.set(section, entry);
   }
 
-  const weightedSum = results.reduce(
-    (sum, r) => sum + r.score * r.weight,
-    0,
-  );
+  const weightedSum = results.reduce((sum, r) => sum + r.score * r.weight, 0);
   const weightedScore = weightedSum / (totalWeight * scaleMax);
 
   const sectionScores: Record<string, number> = {};

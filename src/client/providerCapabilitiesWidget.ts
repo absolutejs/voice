@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type {
   VoiceProviderCapabilityKind,
   VoiceProviderCapabilitySummary,
@@ -37,14 +38,6 @@ export type VoiceProviderCapabilitiesWidgetOptions =
 const DEFAULT_TITLE = "Provider Capabilities";
 const DEFAULT_DESCRIPTION =
   "Configured, selected, and healthy voice providers for this deployment.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatProvider = (provider: string) =>
   provider

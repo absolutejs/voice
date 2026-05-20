@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type {
   VoiceReconnectClientState,
@@ -98,14 +99,6 @@ export type VoiceReconnectContractRoutesOptions = Omit<
   path?: string;
   render?: (report: VoiceReconnectContractReport) => string | Promise<string>;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const unique = <T>(values: T[]) => [...new Set(values)];
 

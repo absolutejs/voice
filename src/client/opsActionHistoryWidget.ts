@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceOpsActionHistoryStore,
   type VoiceOpsActionHistoryClientOptions,
@@ -9,14 +10,6 @@ export type VoiceOpsActionHistoryWidgetOptions =
     limit?: number;
     title?: string;
   };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const renderVoiceOpsActionHistoryWidgetHTML = (
   snapshot: VoiceOpsActionHistorySnapshot,

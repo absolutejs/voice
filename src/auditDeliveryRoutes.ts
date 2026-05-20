@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeVoiceAuditSinkDeliveries,
@@ -46,14 +47,6 @@ export type VoiceAuditDeliveryRoutesOptions = {
   worker?: VoiceAuditDeliveryDrainWorker;
   workerPath?: false | string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const getString = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;

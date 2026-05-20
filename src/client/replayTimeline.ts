@@ -32,7 +32,11 @@ const categorize = (
 ): ReplayTimelineEvent["category"] => {
   const event = entry.event.toLowerCase();
   if (event.startsWith("stt.") || event.includes("user")) return "user";
-  if (event.startsWith("tts.") || event.includes("assistant") || event.includes("agent"))
+  if (
+    event.startsWith("tts.") ||
+    event.includes("assistant") ||
+    event.includes("agent")
+  )
     return "agent";
   if (event.startsWith("tool.") || event.includes("tool")) return "tool";
   return "lifecycle";

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   createVoiceAuditEvent,
@@ -226,14 +227,6 @@ export const buildVoiceOpsActionHistoryReport = async (
     total: entries.length,
   };
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const renderVoiceOpsActionHistoryHTML = (
   report: VoiceOpsActionHistoryReport,

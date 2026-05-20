@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceRealtimeChannelReport } from "./realtimeChannel";
 
@@ -170,19 +172,7 @@ const statusExceeds = (
 const rollupStatus = (
   checks: readonly VoiceRealtimeProviderContractCheck[],
 ): VoiceRealtimeProviderContractStatus =>
-  checks.some((check) => check.status === "fail")
-    ? "fail"
-    : checks.some((check) => check.status === "warn")
-      ? "warn"
-      : "pass";
-
-const escapeHtml = (value: unknown) =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  worstVoiceStatus(checks.map((check) => check.status));
 
 const resolveProviderHref = <TProvider extends string>(
   value: string | Record<string, string | undefined> | undefined,

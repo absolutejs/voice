@@ -66,7 +66,7 @@ const partsAt = (
     Tue: 2,
     Wed: 3,
   };
-  const hourValue = map.hour === "24" ? "00" : map.hour ?? "0";
+  const hourValue = map.hour === "24" ? "00" : (map.hour ?? "0");
   return {
     date: `${map.year}-${map.month}-${map.day}`,
     minutes: Number(hourValue) * 60 + Number(map.minute ?? "0"),
@@ -97,9 +97,7 @@ export const generateVoiceCalendarSlots = (
     list.push(block);
     hoursByDay.set(block.weekday, list);
   }
-  const blackoutDates = new Set(
-    (input.blackoutDates ?? []).map((b) => b.date),
-  );
+  const blackoutDates = new Set((input.blackoutDates ?? []).map((b) => b.date));
   const slots: VoiceCalendarSlot[] = [];
   const stepMs = granularity * 60_000;
   const durationMs = input.durationMinutes * 60_000;

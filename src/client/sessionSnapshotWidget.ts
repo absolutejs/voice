@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceSessionSnapshotStore,
   type VoiceSessionSnapshotClientOptions,
@@ -28,14 +29,6 @@ const DEFAULT_TITLE = "Session Snapshot";
 const DEFAULT_DESCRIPTION =
   "Portable call artifact with media graph, provider routing, proof, quality, and telephony evidence.";
 const DEFAULT_DOWNLOAD_LABEL = "Download snapshot";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatStatus = (status?: string) => status ?? "n/a";
 

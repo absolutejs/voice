@@ -45,9 +45,7 @@ const formatBucketKey = (
   return `${y}-${m}-${d}T${h}`;
 };
 
-const isCostBreakdown = (
-  value: unknown,
-): value is VoiceCostBreakdown =>
+const isCostBreakdown = (value: unknown): value is VoiceCostBreakdown =>
   Boolean(value) &&
   typeof value === "object" &&
   typeof (value as VoiceCostBreakdown).totalUsd === "number";
@@ -80,8 +78,7 @@ const roundCurrency = (bucket: VoiceCostDashboardBucket) => {
   bucket.llmUsd = Math.round(bucket.llmUsd * 1_000_000) / 1_000_000;
   bucket.sttUsd = Math.round(bucket.sttUsd * 1_000_000) / 1_000_000;
   bucket.ttsUsd = Math.round(bucket.ttsUsd * 1_000_000) / 1_000_000;
-  bucket.telephonyUsd =
-    Math.round(bucket.telephonyUsd * 1_000_000) / 1_000_000;
+  bucket.telephonyUsd = Math.round(bucket.telephonyUsd * 1_000_000) / 1_000_000;
   bucket.totalUsd = Math.round(bucket.totalUsd * 1_000_000) / 1_000_000;
 };
 

@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceAgentSquadStatusStore,
   type VoiceAgentSquadSpecialist,
@@ -26,14 +27,6 @@ export type VoiceAgentSquadStatusWidgetOptions =
 const DEFAULT_TITLE = "Voice Agent Squad";
 const DEFAULT_DESCRIPTION =
   "Current specialist and recent handoffs from your self-hosted voice traces.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const labelFor = (current?: VoiceAgentSquadSpecialist) => {
   if (!current) return "Waiting for specialist activity";

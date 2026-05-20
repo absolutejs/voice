@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceTraceTimelineSession } from "../traceTimeline";
 import {
   createVoiceTraceTimelineStore,
@@ -38,14 +39,6 @@ export type VoiceTraceTimelineWidgetOptions =
 const DEFAULT_TITLE = "Voice Traces";
 const DEFAULT_DESCRIPTION =
   "Latest call timelines with provider latency, fallbacks, handoffs, and errors from your self-hosted trace store.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value: number | undefined) =>
   typeof value === "number" ? `${value}ms` : "n/a";

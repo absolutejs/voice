@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import { Elysia } from "elysia";
 import {
   evaluateVoiceTelephonyContract,
@@ -70,14 +71,6 @@ export type VoiceTelephonyCarrierMatrixRoutesOptions = {
   title?: string;
   contract?: VoiceTelephonyContractOptions;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
 
 const labelForProvider = (provider: VoiceTelephonyProvider) =>
   provider

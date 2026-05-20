@@ -1,7 +1,4 @@
-import type {
-  VoicePathwaySlot,
-  VoicePathwaySlotType,
-} from "./pathway";
+import type { VoicePathwaySlot, VoicePathwaySlotType } from "./pathway";
 import type { VoicePathwaySlotValue } from "./pathwayRuntime";
 
 export type VoicePathwaySlotParseResult =
@@ -73,7 +70,11 @@ const parseNumber: VoicePathwaySlotParser = (raw, slot) => {
   const min = slot.validation?.min ?? Number.NEGATIVE_INFINITY;
   const max = slot.validation?.max ?? Number.POSITIVE_INFINITY;
   if (value < min || value > max) {
-    return { hint: `Expected ${min}–${max}`, ok: false, reason: "out-of-range" };
+    return {
+      hint: `Expected ${min}–${max}`,
+      ok: false,
+      reason: "out-of-range",
+    };
   }
   return { normalized: String(value), ok: true, value };
 };
@@ -81,7 +82,9 @@ const parseNumber: VoicePathwaySlotParser = (raw, slot) => {
 const parseBoolean: VoicePathwaySlotParser = (raw) => {
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed) return { ok: false, reason: "empty" };
-  if (["yes", "yeah", "yep", "correct", "true", "sure", "ok"].includes(trimmed)) {
+  if (
+    ["yes", "yeah", "yep", "correct", "true", "sure", "ok"].includes(trimmed)
+  ) {
     return { normalized: "true", ok: true, value: true };
   }
   if (["no", "nope", "nah", "false", "incorrect"].includes(trimmed)) {
@@ -94,7 +97,8 @@ const parseDate: VoicePathwaySlotParser = (raw) => {
   const trimmed = raw.trim();
   if (!trimmed) return { ok: false, reason: "empty" };
   const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) return { ok: false, reason: "type-mismatch" };
+  if (Number.isNaN(date.getTime()))
+    return { ok: false, reason: "type-mismatch" };
   const iso = date.toISOString().slice(0, 10);
   return { normalized: iso, ok: true, value: iso };
 };
@@ -127,22 +131,34 @@ const parsePhone: VoicePathwaySlotParser = (raw) => {
 const parseEmail: VoicePathwaySlotParser = (raw) => {
   const trimmed = raw.trim();
   if (!trimmed) return { ok: false, reason: "empty" };
-  const collapsed = trimmed.replace(/\s+at\s+/gu, "@").replace(/\s+dot\s+/gu, ".");
+  const collapsed = trimmed
+    .replace(/\s+at\s+/gu, "@")
+    .replace(/\s+dot\s+/gu, ".");
   const ok = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/iu.test(collapsed);
   if (!ok) return { ok: false, reason: "type-mismatch" };
-  return { normalized: collapsed.toLowerCase(), ok: true, value: collapsed.toLowerCase() };
+  return {
+    normalized: collapsed.toLowerCase(),
+    ok: true,
+    value: collapsed.toLowerCase(),
+  };
 };
 
 const parseCurrency: VoicePathwaySlotParser = (raw, slot) => {
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed) return { ok: false, reason: "empty" };
-  const cleaned = trimmed.replace(/[$,]/gu, "").replace(/\s*(dollars?|usd)$/u, "");
+  const cleaned = trimmed
+    .replace(/[$,]/gu, "")
+    .replace(/\s*(dollars?|usd)$/u, "");
   const value = Number(cleaned);
   if (Number.isNaN(value)) return { ok: false, reason: "type-mismatch" };
   const min = slot.validation?.min ?? 0;
   const max = slot.validation?.max ?? Number.POSITIVE_INFINITY;
   if (value < min || value > max) {
-    return { hint: `Expected ${min}–${max}`, ok: false, reason: "out-of-range" };
+    return {
+      hint: `Expected ${min}–${max}`,
+      ok: false,
+      reason: "out-of-range",
+    };
   }
   return { normalized: value.toFixed(2), ok: true, value };
 };
@@ -173,9 +189,7 @@ export const DEFAULT_VOICE_PATHWAY_SLOT_PARSERS: Record<
 };
 
 export type CreateVoicePathwaySlotCollectorOptions = {
-  parsers?: Partial<
-    Record<VoicePathwaySlotType, VoicePathwaySlotParser>
-  >;
+  parsers?: Partial<Record<VoicePathwaySlotType, VoicePathwaySlotParser>>;
   maxAttemptsPerSlot?: number;
 };
 

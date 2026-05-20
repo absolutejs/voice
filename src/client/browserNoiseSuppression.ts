@@ -23,8 +23,7 @@ export type BrowserNoiseSuppressorHandle = {
 };
 
 const isBrowser = () =>
-  typeof window !== "undefined" &&
-  typeof window.AudioContext !== "undefined";
+  typeof window !== "undefined" && typeof window.AudioContext !== "undefined";
 
 export const applyBrowserNoiseSuppression = async (
   options: BrowserNoiseSuppressorOptions,
@@ -35,7 +34,8 @@ export const applyBrowserNoiseSuppression = async (
     );
   }
   const ownsContext = !options.audioContext;
-  const audioContext = options.audioContext ?? new AudioContext({ sampleRate: 48_000 });
+  const audioContext =
+    options.audioContext ?? new AudioContext({ sampleRate: 48_000 });
   if (audioContext.state === "suspended") {
     try {
       await audioContext.resume();

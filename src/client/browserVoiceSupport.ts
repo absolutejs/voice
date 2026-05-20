@@ -62,11 +62,12 @@ export const probeBrowserVoiceSupport = (
     : false;
   const hasGetUserMedia = Boolean(
     win.navigator?.mediaDevices &&
-      typeof win.navigator.mediaDevices.getUserMedia === "function",
+    typeof win.navigator.mediaDevices.getUserMedia === "function",
   );
   const hasMediaRecorder = typeof win.MediaRecorder === "function";
   const hasRTCPeerConnection = typeof win.RTCPeerConnection === "function";
-  const hasWebSocket = typeof (win as { WebSocket?: unknown }).WebSocket === "function";
+  const hasWebSocket =
+    typeof (win as { WebSocket?: unknown }).WebSocket === "function";
   const isInsecureContext =
     typeof win.isSecureContext === "boolean" ? !win.isSecureContext : false;
   const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
@@ -98,28 +99,44 @@ export const checkBrowserVoiceSupport = (
   const warnings: string[] = [];
 
   if (!capabilities.hasWebSocket) {
-    blockers.push("WebSocket is not available — voice runtime cannot stream audio.");
+    blockers.push(
+      "WebSocket is not available — voice runtime cannot stream audio.",
+    );
   }
   if (!capabilities.hasGetUserMedia) {
-    blockers.push("navigator.mediaDevices.getUserMedia is not available — cannot capture microphone.");
+    blockers.push(
+      "navigator.mediaDevices.getUserMedia is not available — cannot capture microphone.",
+    );
   }
   if (capabilities.isInsecureContext) {
-    blockers.push("Page is served from an insecure context; getUserMedia requires HTTPS or localhost.");
+    blockers.push(
+      "Page is served from an insecure context; getUserMedia requires HTTPS or localhost.",
+    );
   }
   if (!capabilities.hasAudioContext) {
-    blockers.push("AudioContext is not available — cannot decode or play TTS audio.");
+    blockers.push(
+      "AudioContext is not available — cannot decode or play TTS audio.",
+    );
   }
   if (!capabilities.hasAudioWorklet) {
-    warnings.push("AudioWorklet is unavailable — noise suppression and custom audio processors won't run.");
+    warnings.push(
+      "AudioWorklet is unavailable — noise suppression and custom audio processors won't run.",
+    );
   }
   if (!capabilities.hasRTCPeerConnection) {
-    warnings.push("RTCPeerConnection is unavailable — WebRTC transport paths are disabled.");
+    warnings.push(
+      "RTCPeerConnection is unavailable — WebRTC transport paths are disabled.",
+    );
   }
   if (!capabilities.hasOpusEncoding) {
-    warnings.push("MediaRecorder does not advertise Opus support — fall back to PCM streaming.");
+    warnings.push(
+      "MediaRecorder does not advertise Opus support — fall back to PCM streaming.",
+    );
   }
   if (capabilities.requiresUserGestureToResumeAudio) {
-    warnings.push("Safari / iOS requires a user gesture before audioContext.resume() succeeds.");
+    warnings.push(
+      "Safari / iOS requires a user gesture before audioContext.resume() succeeds.",
+    );
   }
 
   return {

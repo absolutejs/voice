@@ -32,8 +32,7 @@ export const createVoiceBackchannelDriver = (
   const minSpeechMs = options.minSpeechMs ?? 2_500;
   const cueIntervalMs = options.cueIntervalMs ?? 2_500;
   const cueIndexFn =
-    options.cueIndex ??
-    ((index: number) => index % Math.max(cues.length, 1));
+    options.cueIndex ?? ((index: number) => index % Math.max(cues.length, 1));
 
   let speechStartedAt: number | undefined;
   let lastCueAt: number | undefined;

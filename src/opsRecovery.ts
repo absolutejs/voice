@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeVoiceAuditSinkDeliveries,
@@ -132,14 +134,6 @@ export type VoiceOpsRecoveryRoutesOptions<TProvider extends string = string> =
     title?: string;
   };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const getString = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
@@ -168,11 +162,7 @@ const operationsRecordHrefForSession = (
 const rollupStatus = (
   issues: VoiceOpsRecoveryIssue[],
 ): VoiceOpsRecoveryStatus =>
-  issues.some((issue) => issue.severity === "fail")
-    ? "fail"
-    : issues.some((issue) => issue.severity === "warn")
-      ? "warn"
-      : "pass";
+  worstVoiceStatus(issues.map((issue) => issue.severity));
 
 const providerUnresolved = (provider: VoiceProviderHealthSummary) =>
   provider.status === "degraded" ||

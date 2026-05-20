@@ -135,16 +135,13 @@ export const buildVoiceAgentPerformanceReport = (
     0,
     Math.max(1, Math.floor(scorecards.length / 2)),
   );
-  const secondHalf = scorecards.slice(
-    Math.floor(scorecards.length / 2),
-  );
+  const secondHalf = scorecards.slice(Math.floor(scorecards.length / 2));
   const halfAverage = (cards: VoiceScorecard[], criterionId: string) => {
-    const matches = cards
-      .flatMap((c) =>
-        c.results
-          .filter((r) => r.criterionId === criterionId)
-          .map((r) => r.score / c.scaleMax),
-      );
+    const matches = cards.flatMap((c) =>
+      c.results
+        .filter((r) => r.criterionId === criterionId)
+        .map((r) => r.score / c.scaleMax),
+    );
     if (matches.length === 0) return null;
     return matches.reduce((a, b) => a + b, 0) / matches.length;
   };

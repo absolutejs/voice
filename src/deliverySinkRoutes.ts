@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeVoiceAuditSinkDeliveries,
@@ -85,14 +87,6 @@ export type VoiceDeliverySinkRoutesOptions = {
   };
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const deliveryStatus = (summary?: {
   deadLettered: number;
   delivered: number;
@@ -123,11 +117,7 @@ const rollupDeliverySinkStatus = (
     deliveryStatus(report.traceDeliveries?.summary),
   ];
 
-  return statuses.includes("fail")
-    ? "fail"
-    : statuses.includes("warn")
-      ? "warn"
-      : "pass";
+  return worstVoiceStatus(statuses);
 };
 
 const deliverySinkLabel = (kind: VoiceDeliverySinkKind) =>

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type {
   MediaPipelineCalibrationIssue,
@@ -35,14 +36,6 @@ export type VoiceBrowserMediaRoutesOptions = {
   store: VoiceTraceEventStore;
   title?: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const isMediaWebRTCStatsReport = (
   value: unknown,

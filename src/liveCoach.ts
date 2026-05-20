@@ -43,19 +43,20 @@ const DEFAULT_TEMPLATES: Record<VoiceCoachNudgeKind, string> = {
     "Supervisor correction (do not repeat this verbatim; weave it into your next response): {{text}}",
   hint: "Supervisor hint: {{text}}",
   knowledge: "Reference information from supervisor: {{text}}",
-  "script-line":
-    "Supervisor-approved phrasing to use next: {{text}}",
+  "script-line": "Supervisor-approved phrasing to use next: {{text}}",
   warning: "Supervisor warning: {{text}}. Adjust your approach.",
 };
 
-export const createVoiceLiveCoach = (
-  options: CreateVoiceLiveCoachOptions,
-) => {
+export const createVoiceLiveCoach = (options: CreateVoiceLiveCoachOptions) => {
   const now = options.now ?? (() => Date.now());
   const generateId =
-    options.generateId ?? (() => `nudge_${Math.random().toString(36).slice(2, 10)}`);
+    options.generateId ??
+    (() => `nudge_${Math.random().toString(36).slice(2, 10)}`);
   const role = options.injectionRole ?? "system";
-  const templates = { ...DEFAULT_TEMPLATES, ...(options.templateForKind ?? {}) };
+  const templates = {
+    ...DEFAULT_TEMPLATES,
+    ...(options.templateForKind ?? {}),
+  };
   const nudges: VoiceCoachNudge[] = [];
   const listeners = new Set<(nudge: VoiceCoachNudge) => void>();
 

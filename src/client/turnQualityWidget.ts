@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceTurnQualityItem } from "../turnQuality";
 import {
   createVoiceTurnQualityStore,
@@ -30,14 +31,6 @@ export type VoiceTurnQualityWidgetOptions = VoiceTurnQualityClientOptions & {
 const DEFAULT_TITLE = "Turn Quality";
 const DEFAULT_DESCRIPTION =
   "Per-turn STT confidence, fallback selection, corrections, and transcript coverage.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatConfidence = (value: number | undefined) =>
   typeof value === "number" ? `${Math.round(value * 100)}%` : "n/a";

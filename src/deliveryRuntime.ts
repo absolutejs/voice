@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -177,14 +178,6 @@ export type VoiceDeliveryRuntimePresetOptions =
   | VoiceDeliveryRuntimeFilePresetOptions
   | VoiceDeliveryRuntimeS3PresetOptions
   | VoiceDeliveryRuntimeWebhookPresetOptions;
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const renderSummaryCard = (
   label: string,

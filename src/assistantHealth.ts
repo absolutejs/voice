@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeVoiceAssistantRuns,
@@ -58,14 +59,6 @@ export type VoiceAssistantHealthRoutesOptions<
   name?: string;
   path?: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const renderCountMap = (values: Record<string, number>) => {
   const entries = Object.entries(values).sort(

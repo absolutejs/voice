@@ -37,10 +37,7 @@ export { VoiceCostDashboard } from "./VoiceCostDashboard";
 export { VoiceLiveAgentConsole } from "./VoiceLiveAgentConsole";
 export { VoiceLiveCallViewer } from "./VoiceLiveCallViewer";
 export { VoiceReplayTimeline } from "./VoiceReplayTimeline";
-export type {
-  VoiceWidgetLabels,
-  VoiceWidgetTheme,
-} from "./VoiceWidget";
+export type { VoiceWidgetLabels, VoiceWidgetTheme } from "./VoiceWidget";
 export { useVoiceProviderStatus } from "./useVoiceProviderStatus";
 export { useVoiceProviderCapabilities } from "./useVoiceProviderCapabilities";
 export { useVoiceProviderContracts } from "./useVoiceProviderContracts";

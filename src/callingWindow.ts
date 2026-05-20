@@ -67,7 +67,13 @@ const minutesOf = (range: VoiceCallingTimeRange) => {
 const parts = (
   date: Date,
   timezone: string | undefined,
-): { year: string; month: string; day: string; weekday: number; minutes: number } => {
+): {
+  year: string;
+  month: string;
+  day: string;
+  weekday: number;
+  minutes: number;
+} => {
   const formatter = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     hour: "2-digit",
@@ -91,7 +97,7 @@ const parts = (
     Tue: 2,
     Wed: 3,
   };
-  const hourValue = map.hour === "24" ? "00" : map.hour ?? "0";
+  const hourValue = map.hour === "24" ? "00" : (map.hour ?? "0");
   return {
     day: map.day ?? "00",
     minutes: Number(hourValue) * 60 + Number(map.minute ?? "0"),
@@ -112,13 +118,15 @@ export const createVoiceCallingWindow = (
 ) => {
   const now = options.now ?? (() => new Date());
   const allowedDayIndexes = new Set(
-    (options.allowedDays ?? [
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-    ]).map((d) => DAY_INDEX[d]),
+    (
+      options.allowedDays ?? [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+      ]
+    ).map((d) => DAY_INDEX[d]),
   );
   const blockedDates = new Set(options.blockedDates ?? []);
 

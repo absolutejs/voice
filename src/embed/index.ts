@@ -33,9 +33,7 @@ export type VoiceEmbedHandle = {
   controller: ReturnType<typeof createVoiceController>;
 };
 
-const resolveTarget = (
-  target: string | HTMLElement,
-): HTMLElement => {
+const resolveTarget = (target: string | HTMLElement): HTMLElement => {
   if (typeof target !== "string") return target;
   const el = document.querySelector(target);
   if (!el) {

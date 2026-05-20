@@ -151,11 +151,20 @@ export const createVoiceLiveCallViewerHTMXRoute = (
 };
 
 export type VoiceHTMXDashboardRoutesOptions = {
-  cost?: Omit<VoiceHTMXCostDashboardRoutesOptions, keyof VoiceHTMXDashboardRoutesShared>;
-  liveCall?: Omit<VoiceHTMXLiveCallViewerRoutesOptions, keyof VoiceHTMXDashboardRoutesShared>;
+  cost?: Omit<
+    VoiceHTMXCostDashboardRoutesOptions,
+    keyof VoiceHTMXDashboardRoutesShared
+  >;
+  liveCall?: Omit<
+    VoiceHTMXLiveCallViewerRoutesOptions,
+    keyof VoiceHTMXDashboardRoutesShared
+  >;
   name?: string;
   render?: VoiceDashboardHTMXRendererConfig;
-  replay?: Omit<VoiceHTMXReplayTimelineRoutesOptions, keyof VoiceHTMXDashboardRoutesShared>;
+  replay?: Omit<
+    VoiceHTMXReplayTimelineRoutesOptions,
+    keyof VoiceHTMXDashboardRoutesShared
+  >;
 };
 
 export const createVoiceHTMXDashboardRoutes = (

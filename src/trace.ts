@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import type { S3Client, S3Options } from "bun";
 
 export type VoiceTraceEventType =
@@ -1024,13 +1025,6 @@ const toNumber = (value: unknown) =>
 
 const toOptionalNumber = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined;
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 
 const formatTraceValue = (value: unknown): string => {
   if (value === undefined || value === null) {

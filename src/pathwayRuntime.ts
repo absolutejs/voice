@@ -98,7 +98,12 @@ const buildPendingActions = (
   slots: Record<string, VoicePathwaySlotValue>,
   pathway: VoicePathway,
   emit: (event: VoicePathwayRuntimeEvent) => void,
-): { actions: VoicePathwayAction[]; awaitingSlotId: string | null; ended: boolean; reason?: string } => {
+): {
+  actions: VoicePathwayAction[];
+  awaitingSlotId: string | null;
+  ended: boolean;
+  reason?: string;
+} => {
   const pending: VoicePathwayAction[] = [];
   let awaitingSlotId: string | null = null;
   for (const action of state.actions ?? []) {
@@ -107,10 +112,7 @@ const buildPendingActions = (
       continue;
     }
     if (action.kind === "collect-slot") {
-      if (
-        slots[action.slotId] === undefined ||
-        slots[action.slotId] === null
-      ) {
+      if (slots[action.slotId] === undefined || slots[action.slotId] === null) {
         const slot = findVoicePathwaySlot(pathway, action.slotId);
         emit({
           prompt: slot?.prompt ?? `Please provide ${action.slotId}.`,
@@ -136,11 +138,24 @@ const buildPendingActions = (
     }
     if (action.kind === "transfer") {
       emit({ destination: action.destination, type: "transfer" });
-      return { actions: pending, awaitingSlotId: null, ended: true, reason: `transfer:${action.destination}` };
+      return {
+        actions: pending,
+        awaitingSlotId: null,
+        ended: true,
+        reason: `transfer:${action.destination}`,
+      };
     }
     if (action.kind === "end-call") {
-      emit({ ...(action.reason !== undefined ? { reason: action.reason } : {}), type: "end-call" });
-      return { actions: pending, awaitingSlotId: null, ended: true, ...(action.reason !== undefined ? { reason: action.reason } : {}) };
+      emit({
+        ...(action.reason !== undefined ? { reason: action.reason } : {}),
+        type: "end-call",
+      });
+      return {
+        actions: pending,
+        awaitingSlotId: null,
+        ended: true,
+        ...(action.reason !== undefined ? { reason: action.reason } : {}),
+      };
     }
   }
   return { actions: pending, awaitingSlotId, ended: false };
@@ -153,7 +168,10 @@ export const createVoicePathwayRuntime = (
     const report = validateVoicePathway(options.pathway);
     if (!report.valid) {
       throw new Error(
-        `Invalid pathway: ${report.issues.filter((i) => i.severity === "error").map((i) => i.message).join("; ")}`,
+        `Invalid pathway: ${report.issues
+          .filter((i) => i.severity === "error")
+          .map((i) => i.message)
+          .join("; ")}`,
       );
     }
   }
@@ -174,7 +192,11 @@ export const createVoicePathwayRuntime = (
   const enter = (stateId: string) => {
     const target = findVoicePathwayState(options.pathway, stateId);
     if (!target) {
-      state = { ...state, lastError: `Unknown state ${stateId}`, status: "errored" };
+      state = {
+        ...state,
+        lastError: `Unknown state ${stateId}`,
+        status: "errored",
+      };
       emit({ message: state.lastError as string, type: "errored" });
       return;
     }
@@ -185,7 +207,12 @@ export const createVoicePathwayRuntime = (
       pendingActions: [],
     };
     emit({ stateId, type: "state-entered" });
-    const result = buildPendingActions(target, state.slots, options.pathway, emit);
+    const result = buildPendingActions(
+      target,
+      state.slots,
+      options.pathway,
+      emit,
+    );
     state = {
       ...state,
       awaitingSlotId: result.awaitingSlotId,
@@ -232,7 +259,12 @@ export const createVoicePathwayRuntime = (
         state.currentStateId,
       );
       if (current) {
-        const result = buildPendingActions(current, state.slots, options.pathway, emit);
+        const result = buildPendingActions(
+          current,
+          state.slots,
+          options.pathway,
+          emit,
+        );
         state = {
           ...state,
           awaitingSlotId: result.awaitingSlotId,
@@ -242,7 +274,9 @@ export const createVoicePathwayRuntime = (
             : result.awaitingSlotId
               ? "awaiting-slot"
               : "branching",
-          ...(result.reason !== undefined ? { endedReason: result.reason } : {}),
+          ...(result.reason !== undefined
+            ? { endedReason: result.reason }
+            : {}),
         };
         if (state.status === "branching") tryTransition();
       }

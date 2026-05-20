@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceCallDebuggerStore,
   type VoiceCallDebuggerClientOptions,
@@ -29,14 +30,6 @@ const DEFAULT_TITLE = "Call Debugger";
 const DEFAULT_DESCRIPTION =
   "Open the latest call artifact with snapshot, operations record, failure replay, provider path, transcript, and incident markdown.";
 const DEFAULT_LINK_LABEL = "Open debugger";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const defaultHref = (
   path: string,

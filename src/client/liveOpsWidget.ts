@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   VOICE_LIVE_OPS_ACTIONS,
   type VoiceLiveOpsAction,
@@ -29,14 +30,6 @@ const ACTION_LABELS: Record<VoiceLiveOpsAction, string> = {
   "resume-assistant": "Resume assistant",
   tag: "Tag",
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const createVoiceLiveOpsInput = (
   action: VoiceLiveOpsAction,

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import type {
   VoiceHTMXConfig,
   VoiceHTMXRenderConfig,
@@ -19,14 +20,6 @@ const DEFAULT_HTMX_TARGETS: VoiceHTMXTargets = {
   status: "voice-htmx-status",
   turns: "voice-htmx-turns",
 };
-
-const escapeHtml = (text: string) =>
-  text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const stringifyResult = (result: unknown) => {
   if (result === undefined) {

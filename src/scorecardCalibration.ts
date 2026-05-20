@@ -69,7 +69,13 @@ export const computeVoiceScorecardCalibration = (
   const topN = options.topDivergences ?? 10;
   const gapsByCriterion = new Map<
     string,
-    { absSum: number; biasSum: number; humanSum: number; llmSum: number; count: number }
+    {
+      absSum: number;
+      biasSum: number;
+      humanSum: number;
+      llmSum: number;
+      count: number;
+    }
   >();
   const allGaps: number[] = [];
   const divergences: VoiceScorecardCalibrationDivergence[] = [];
@@ -132,9 +138,7 @@ export const computeVoiceScorecardCalibration = (
   const rmse =
     allGaps.length === 0
       ? 0
-      : Math.sqrt(
-          allGaps.reduce((a, b) => a + b * b, 0) / allGaps.length,
-        );
+      : Math.sqrt(allGaps.reduce((a, b) => a + b * b, 0) / allGaps.length);
 
   const perCriterion = Array.from(gapsByCriterion.entries()).map(
     ([criterionId, e]) => ({
@@ -147,8 +151,7 @@ export const computeVoiceScorecardCalibration = (
   );
 
   return {
-    gradeAgreementRate:
-      comparedPairs === 0 ? 0 : gradeAgreed / comparedPairs,
+    gradeAgreementRate: comparedPairs === 0 ? 0 : gradeAgreed / comparedPairs,
     meanAbsoluteError: mae,
     pairsCompared: comparedPairs,
     perCriterion,

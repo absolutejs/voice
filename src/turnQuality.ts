@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type {
   VoiceSessionRecord,
@@ -66,14 +67,6 @@ export type VoiceTurnQualityRoutesOptions<
 };
 
 const DEFAULT_CONFIDENCE_WARN_THRESHOLD = 0.72;
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const getTurnLatencyMs = (turn: VoiceTurnRecord) => {
   const firstTranscriptAt = turn.transcripts

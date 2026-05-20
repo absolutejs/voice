@@ -1,8 +1,4 @@
-import type {
-  Transcript,
-  VoiceSessionRecord,
-  VoiceTurnRecord,
-} from "./types";
+import type { Transcript, VoiceSessionRecord, VoiceTurnRecord } from "./types";
 import type { VoiceLLMJudgeCompletion } from "./llmJudge";
 
 export type MidCallSummary = {
@@ -93,10 +89,7 @@ export const createMidCallSummarizer = (
       if (turns.length === 0) return undefined;
       const turnsSince = turns.length - lastTurnCount;
       if (turnsSince < everyTurns) return undefined;
-      if (
-        lastSummary &&
-        Date.now() - lastSummary.generatedAt < minIntervalMs
-      ) {
+      if (lastSummary && Date.now() - lastSummary.generatedAt < minIntervalMs) {
         return undefined;
       }
       if (inFlight) return undefined;

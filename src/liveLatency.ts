@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceTraceEventStore } from "./trace";
 
@@ -37,14 +38,6 @@ export type VoiceLiveLatencyRoutesOptions = VoiceLiveLatencyOptions & {
   path?: string;
   title?: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const percentile = (values: number[], percentileValue: number) => {
   if (values.length === 0) {

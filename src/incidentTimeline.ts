@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import { recordVoiceOpsActionAudit } from "./opsActionAuditRoutes";
 import type {
@@ -261,14 +263,6 @@ export type VoiceIncidentTimelineRoutesOptions =
     trace?: VoiceTraceEventStore;
   };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const resolveValue = async <TValue>(
   value: VoiceIncidentTimelineValue<TValue> | undefined,
 ) =>
@@ -402,12 +396,7 @@ const defaultIncidentRecoveryActions = (
 
 const worstStatus = (
   statuses: readonly VoiceIncidentTimelineStatus[],
-): VoiceIncidentTimelineStatus =>
-  statuses.includes("fail")
-    ? "fail"
-    : statuses.includes("warn")
-      ? "warn"
-      : "pass";
+): VoiceIncidentTimelineStatus => worstVoiceStatus(statuses);
 
 const statusRank = (status: VoiceIncidentTimelineStatus | undefined) =>
   status === "fail" ? 3 : status === "warn" ? 2 : status === "pass" ? 1 : 0;

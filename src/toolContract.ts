@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceAgentTool, VoiceAgentToolCall } from "./agent";
 import {
@@ -161,14 +162,6 @@ const defaultApi = {} as VoiceSessionHandle<
 
 const sameJSON = (left: unknown, right: unknown) =>
   JSON.stringify(left) === JSON.stringify(right);
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const resolveSessionHref = (
   value: false | string | ((sessionId: string) => string) | undefined,

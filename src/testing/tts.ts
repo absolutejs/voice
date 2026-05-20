@@ -162,9 +162,7 @@ export const runTTSAdapterFixture = async (
           ...(openOptions ?? {}),
         });
 
-  type SessionEventListener = <
-    K extends "audio" | "close" | "error",
-  >(
+  type SessionEventListener = <K extends "audio" | "close" | "error">(
     event: K,
     handler: (
       payload: K extends "audio"

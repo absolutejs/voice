@@ -32,7 +32,8 @@ export class VoiceCostDashboardService {
     return {
       currency: options.currency ?? "USD",
       report,
-      setEvents: (next: ReadonlyArray<StoredVoiceTraceEvent>) => events.set(next),
+      setEvents: (next: ReadonlyArray<StoredVoiceTraceEvent>) =>
+        events.set(next),
       setFilters: (next: Partial<typeof options>) =>
         filters.update((current) => ({
           ...current,

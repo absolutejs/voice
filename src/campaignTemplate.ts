@@ -68,7 +68,10 @@ const formatPhone = (phone: string): string => {
   return phone;
 };
 
-const formatDate = (value: VoiceCampaignTemplateValue, locale?: string): string => {
+const formatDate = (
+  value: VoiceCampaignTemplateValue,
+  locale?: string,
+): string => {
   if (value === null || value === undefined) return "";
   const date = new Date(typeof value === "number" ? value : String(value));
   if (Number.isNaN(date.getTime())) return String(value);
@@ -84,7 +87,8 @@ export const DEFAULT_VOICE_CAMPAIGN_TEMPLATE_FILTERS: Record<
   VoiceCampaignTemplateFilter
 > = {
   capitalize: (value) => {
-    if (value === null || value === undefined || value === "") return value ?? "";
+    if (value === null || value === undefined || value === "")
+      return value ?? "";
     const text = String(value);
     return text.charAt(0).toUpperCase() + text.slice(1);
   },
@@ -97,7 +101,9 @@ export const DEFAULT_VOICE_CAMPAIGN_TEMPLATE_FILTERS: Record<
   },
   date: (value, locale) => formatDate(value, locale),
   default: (value, fallback) =>
-    value === null || value === undefined || value === "" ? fallback ?? "" : value,
+    value === null || value === undefined || value === ""
+      ? (fallback ?? "")
+      : value,
   lower: (value) => String(value ?? "").toLowerCase(),
   phone: (value) => formatPhone(String(value ?? "")),
   ssml: (value) => escapeSpeech(String(value ?? "")),

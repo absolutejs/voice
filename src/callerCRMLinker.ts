@@ -1,8 +1,5 @@
 import type { VoiceCallerIdentity } from "./callerMemory";
-import type {
-  VoiceCRMContactSummary,
-  VoiceCRMContract,
-} from "./crmContract";
+import type { VoiceCRMContactSummary, VoiceCRMContract } from "./crmContract";
 
 export type VoiceCallerCRMLinkRecord = {
   callerKey: string;
@@ -14,7 +11,9 @@ export type VoiceCallerCRMLinkRecord = {
 };
 
 export type VoiceCallerCRMLinkCacheStore = {
-  get(key: string): Promise<VoiceCallerCRMLinkRecord | null> | VoiceCallerCRMLinkRecord | null;
+  get(
+    key: string,
+  ): Promise<VoiceCallerCRMLinkRecord | null> | VoiceCallerCRMLinkRecord | null;
   put(record: VoiceCallerCRMLinkRecord): Promise<void> | void;
   remove(key: string): Promise<boolean> | boolean;
 };
@@ -28,10 +27,7 @@ export type CreateVoiceCallerCRMLinkerOptions = {
 
 const cacheKeyFor = (identity: VoiceCallerIdentity, vendor: string): string => {
   const id =
-    identity.externalId ??
-    identity.phone ??
-    identity.email ??
-    "anonymous";
+    identity.externalId ?? identity.phone ?? identity.email ?? "anonymous";
   return `${vendor}::${id}`;
 };
 
@@ -105,7 +101,9 @@ export const createVoiceCallerCRMLinker = (
     return record;
   };
 
-  const invalidate = async (identity: VoiceCallerIdentity): Promise<boolean> => {
+  const invalidate = async (
+    identity: VoiceCallerIdentity,
+  ): Promise<boolean> => {
     const key = cacheKeyFor(identity, options.contract.vendor);
     return Promise.resolve(cache.remove(key));
   };
@@ -118,4 +116,6 @@ export const createVoiceCallerCRMLinker = (
   };
 };
 
-export type VoiceCallerCRMLinker = ReturnType<typeof createVoiceCallerCRMLinker>;
+export type VoiceCallerCRMLinker = ReturnType<
+  typeof createVoiceCallerCRMLinker
+>;

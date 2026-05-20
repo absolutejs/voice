@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 
 export type VoiceBrowserCallProfileStatus =
@@ -106,14 +107,6 @@ export type VoiceBrowserCallProfileRoutesOptions = {
 };
 
 const DEFAULT_MAX_AGE_MS = 10 * 60 * 1000;
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const toTime = (
   value: Date | number | string | undefined,

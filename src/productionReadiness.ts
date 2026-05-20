@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import { summarizeVoiceHandoffHealth } from "./handoffHealth";
 import { summarizeVoiceProviderHealth } from "./providerHealth";
@@ -1040,23 +1042,19 @@ export type VoiceProductionReadinessRoutesOptions = {
   sessionObservability?:
     | false
     | VoiceSessionObservabilityReport
-    | ((
-        input: {
-          query: Record<string, unknown>;
-          request: Request;
-        },
-      ) =>
+    | ((input: {
+        query: Record<string, unknown>;
+        request: Request;
+      }) =>
         | Promise<VoiceSessionObservabilityReport>
         | VoiceSessionObservabilityReport);
   sessionObservabilityEvidence?:
     | false
     | VoiceSessionObservabilityEvidenceInput
-    | ((
-        input: {
-          query: Record<string, unknown>;
-          request: Request;
-        },
-      ) =>
+    | ((input: {
+        query: Record<string, unknown>;
+        request: Request;
+      }) =>
         | Promise<VoiceSessionObservabilityEvidenceInput>
         | VoiceSessionObservabilityEvidenceInput);
   traceDeliveries?: false | VoiceProductionReadinessTraceDeliveryOptions;
@@ -1076,14 +1074,6 @@ export type VoiceProductionReadinessRoutesOptions = {
   telephonyMediaMinMediaEvents?: number;
   reconnectResumeFailAfterMs?: number;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatVoiceProofFreshnessDuration = (valueMs: number) => {
   if (valueMs < 1_000) {
@@ -1308,11 +1298,7 @@ export const createVoiceProductionReadinessProofRuntime = (
 const rollupStatus = (
   checks: VoiceProductionReadinessCheck[],
 ): VoiceProductionReadinessStatus =>
-  checks.some((check) => check.status === "fail")
-    ? "fail"
-    : checks.some((check) => check.status === "warn")
-      ? "warn"
-      : "pass";
+  worstVoiceStatus(checks.map((check) => check.status));
 
 const readinessGateCodes: Record<string, string> = {
   "Agent squad contracts": "voice.readiness.agent_squad_contracts",
@@ -1343,7 +1329,8 @@ const readinessGateCodes: Record<string, string> = {
   "Reconnect recovery contracts": "voice.readiness.reconnect_contracts",
   "Routing evidence": "voice.readiness.routing_evidence",
   "Session health": "voice.readiness.session_health",
-  "Session observability evidence": "voice.readiness.session_observability_evidence",
+  "Session observability evidence":
+    "voice.readiness.session_observability_evidence",
   "Trace sink delivery": "voice.readiness.trace_sink_delivery",
 };
 
@@ -2985,20 +2972,17 @@ export const buildVoiceProductionReadinessReport = async (
           },
         )
       : undefined;
-  const sessionObservabilityEvidenceSummary =
-    sessionObservability
-      ? evaluateVoiceSessionObservabilityEvidence(
-          sessionObservability,
-          sessionObservabilityEvidence ?? {},
-        )
-      : undefined;
+  const sessionObservabilityEvidenceSummary = sessionObservability
+    ? evaluateVoiceSessionObservabilityEvidence(
+        sessionObservability,
+        sessionObservabilityEvidence ?? {},
+      )
+    : undefined;
   const sessionObservabilitySummary =
     sessionObservability && sessionObservabilityEvidenceSummary
       ? ({
-          failed:
-            sessionObservabilityEvidenceSummary.status === "fail" ? 1 : 0,
-          passed:
-            sessionObservabilityEvidenceSummary.status === "pass" ? 1 : 0,
+          failed: sessionObservabilityEvidenceSummary.status === "fail" ? 1 : 0,
+          passed: sessionObservabilityEvidenceSummary.status === "pass" ? 1 : 0,
           status: sessionObservabilityEvidenceSummary.status,
           total: 1,
           warnings:
@@ -3213,9 +3197,14 @@ export const buildVoiceProductionReadinessReport = async (
               sessionObservabilitySummary.status === "pass"
                 ? `Session observability is healthy with ${sessionObservabilityEvidenceSummary?.summary.turnsWithWaterfalls ?? 0} turn(s) containing waterfall stages and ${sessionObservabilityEvidenceSummary?.summary.providerDecisions ?? 0} provider decision stage(s).`
                 : `${sessionObservabilityEvidenceSummary?.issues.join("; ") ?? "Session observability has unresolved issues."}`,
-            href: options.links?.sessionObservability ?? "/voice/session-observability",
+            href:
+              options.links?.sessionObservability ??
+              "/voice/session-observability",
             label: "Session observability evidence",
-            proofSource: proofSource("sessionObservability", "sessionObservability"),
+            proofSource: proofSource(
+              "sessionObservability",
+              "sessionObservability",
+            ),
             status: sessionObservabilitySummary.status,
             value: `${sessionObservabilitySummary.passed}/${sessionObservabilitySummary.total}`,
             actions:

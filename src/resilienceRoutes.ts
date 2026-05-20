@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   summarizeVoiceProviderHealth,
@@ -122,14 +123,6 @@ export type VoiceResilienceRoutesOptions = {
   ttsProviders?: readonly string[];
   ttsSimulation?: VoiceResilienceIOSimulator<string>;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const getString = (value: unknown) =>
   typeof value === "string" ? value : undefined;

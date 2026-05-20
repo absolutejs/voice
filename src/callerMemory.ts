@@ -1,8 +1,4 @@
-import type {
-  Transcript,
-  VoiceSessionRecord,
-  VoiceTurnRecord,
-} from "./types";
+import type { Transcript, VoiceSessionRecord, VoiceTurnRecord } from "./types";
 import type { VoiceAssistantMemoryNamespaceInput } from "./assistantMemory";
 
 export type VoiceCallerIdentity = {
@@ -22,17 +18,17 @@ export type VoiceCallerMemorySnapshot = {
 export const VOICE_CALLER_MEMORY_KEY = "caller-memory-snapshot";
 
 const normalizeIdentifier = (value: string) =>
-  value.trim().replace(/[^a-zA-Z0-9+@._-]/g, "-").toLowerCase();
+  value
+    .trim()
+    .replace(/[^a-zA-Z0-9+@._-]/g, "-")
+    .toLowerCase();
 
 export const buildVoiceCallerMemoryNamespace = (
   identity: VoiceCallerIdentity | undefined,
   prefix = "caller",
 ) => {
   const identifier =
-    identity?.externalId ??
-    identity?.phone ??
-    identity?.email ??
-    "anonymous";
+    identity?.externalId ?? identity?.phone ?? identity?.email ?? "anonymous";
   return `${prefix}:${normalizeIdentifier(identifier)}`;
 };
 
@@ -42,16 +38,20 @@ export type CreateVoiceCallerMemoryNamespaceOptions<
 > = {
   identifyCaller: (
     input: VoiceAssistantMemoryNamespaceInput<TContext, TSession>,
-  ) => Promise<VoiceCallerIdentity | undefined> | VoiceCallerIdentity | undefined;
+  ) =>
+    | Promise<VoiceCallerIdentity | undefined>
+    | VoiceCallerIdentity
+    | undefined;
   prefix?: string;
 };
 
-export const createVoiceCallerMemoryNamespace = <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
->(
-  options: CreateVoiceCallerMemoryNamespaceOptions<TContext, TSession>,
-) =>
+export const createVoiceCallerMemoryNamespace =
+  <
+    TContext = unknown,
+    TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  >(
+    options: CreateVoiceCallerMemoryNamespaceOptions<TContext, TSession>,
+  ) =>
   async (input: VoiceAssistantMemoryNamespaceInput<TContext, TSession>) => {
     const identity = await Promise.resolve(options.identifyCaller(input));
     return buildVoiceCallerMemoryNamespace(identity, options.prefix);
@@ -81,9 +81,7 @@ const buildTranscriptBlock = (turns: VoiceTurnRecord[]) =>
     .map((turn, index) => {
       const userText = turn.text.trim();
       const assistantText =
-        typeof turn.assistantText === "string"
-          ? turn.assistantText.trim()
-          : "";
+        typeof turn.assistantText === "string" ? turn.assistantText.trim() : "";
       const lines = [`Turn ${index + 1}:`];
       if (userText) {
         lines.push(`  user: ${userText}`);

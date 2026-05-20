@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceRealCallProfileDefault } from "../proofTrends";
 import {
   createVoiceProfileComparisonStore,
@@ -39,14 +40,6 @@ const DEFAULT_LINKS = [
   { href: "/voice/real-call-profile-history", label: "Profile history" },
   { href: "/api/voice/real-call-profile-history", label: "JSON" },
 ];
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value)

@@ -137,21 +137,23 @@ export type VoiceFromVapiCustomToolFactory<
 > = (
   input: VoiceFromVapiCustomToolInput,
 ) =>
-  | VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>
+  | VoiceAgentTool<
+      TContext,
+      TSession,
+      Record<string, unknown>,
+      unknown,
+      TResult
+    >
   | undefined;
 
 export type VoiceFromVapiDTMFFactory<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
-> = (
-  input: { raw: VapiAssistantConfigTool },
-) =>
-  | VoiceDTMFToolOptions<TContext, TSession>["send"]
-  | undefined;
+> = (input: {
+  raw: VapiAssistantConfigTool;
+}) => VoiceDTMFToolOptions<TContext, TSession>["send"] | undefined;
 
-export type VoiceFromVapiKnowledgeBase<
-  TContext = unknown,
-> = {
+export type VoiceFromVapiKnowledgeBase<TContext = unknown> = {
   collection: VoiceRAGCollectionLike;
   toolOptions?: VoiceRAGToolOptions<TContext>;
 };
@@ -195,7 +197,11 @@ export type VoiceFromVapiAssistantOptions<
   TResult = unknown,
 > = {
   assistantId?: string;
-  customToolFactory?: VoiceFromVapiCustomToolFactory<TContext, TSession, TResult>;
+  customToolFactory?: VoiceFromVapiCustomToolFactory<
+    TContext,
+    TSession,
+    TResult
+  >;
   dtmfSendFactory?: VoiceFromVapiDTMFFactory<TContext, TSession>;
   fetch?: typeof fetch;
   knowledgeBase?: VoiceFromVapiKnowledgeBase<TContext>;
@@ -217,7 +223,13 @@ export type VoiceFromVapiAssistantResult<
   modelAgent: VoiceAgent<TContext, TSession, TResult>;
   routeHints: VoiceFromVapiRouteHints;
   tools: ReadonlyArray<
-    VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>
+    VoiceAgentTool<
+      TContext,
+      TSession,
+      Record<string, unknown>,
+      unknown,
+      TResult
+    >
   >;
   unsupported: readonly VoiceFromVapiUnsupportedReason[];
 };
@@ -240,7 +252,8 @@ const extractSystemPrompt = (
 ): string | undefined => {
   if (model?.systemPrompt) return model.systemPrompt;
   const systemMessage = model?.messages?.find(
-    (message) => message.role === "system" && typeof message.content === "string",
+    (message) =>
+      message.role === "system" && typeof message.content === "string",
   );
   if (systemMessage?.content) return systemMessage.content;
   return fallback;
@@ -300,7 +313,13 @@ const buildToolFromVapi = <
   options: VoiceFromVapiAssistantOptions<TContext, TSession, TResult>,
   unsupported: VoiceFromVapiUnsupportedReason[],
 ):
-  | VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>
+  | VoiceAgentTool<
+      TContext,
+      TSession,
+      Record<string, unknown>,
+      unknown,
+      TResult
+    >
   | undefined => {
   const type = raw.type ?? "function";
   if (type === "endCall") {
@@ -322,7 +341,9 @@ const buildToolFromVapi = <
         if (!target) return undefined;
         return {
           description: entry.description,
-          id: target.replace(/[^a-zA-Z0-9_-]/g, "-") || `destination-${String(index)}`,
+          id:
+            target.replace(/[^a-zA-Z0-9_-]/g, "-") ||
+            `destination-${String(index)}`,
           message: entry.message,
           metadata: entry.metadata,
           target,
@@ -333,7 +354,8 @@ const buildToolFromVapi = <
       );
     if (destinations.length === 0) {
       unsupported.push({
-        detail: "transferCall tool has no usable destinations (need number or sipUri).",
+        detail:
+          "transferCall tool has no usable destinations (need number or sipUri).",
         field: "tools[].destinations",
       });
       return undefined;
@@ -354,7 +376,8 @@ const buildToolFromVapi = <
     const send = options.dtmfSendFactory?.({ raw });
     if (!send) {
       unsupported.push({
-        detail: "dtmf tool requires a dtmfSendFactory to map to the telephony adapter.",
+        detail:
+          "dtmf tool requires a dtmfSendFactory to map to the telephony adapter.",
         field: "tools[].type=dtmf",
       });
       return undefined;
@@ -396,7 +419,8 @@ const buildToolFromVapi = <
       TSession,
       Record<string, unknown>
     >({
-      description: raw.function?.description ?? raw.description ?? `Call ${raw.url}`,
+      description:
+        raw.function?.description ?? raw.description ?? `Call ${raw.url}`,
       fetch: options.fetch,
       headers: raw.headers,
       method: httpMethodFor(raw.method),
@@ -586,7 +610,13 @@ export const fromVapiAssistantConfig = <
     options.variableResolver,
   );
   const tools: Array<
-    VoiceAgentTool<TContext, TSession, Record<string, unknown>, unknown, TResult>
+    VoiceAgentTool<
+      TContext,
+      TSession,
+      Record<string, unknown>,
+      unknown,
+      TResult
+    >
   > = [];
   for (const raw of config.model?.tools ?? []) {
     const tool = buildToolFromVapi<TContext, TSession, TResult>(
@@ -617,10 +647,7 @@ export const fromVapiAssistantConfig = <
       );
     }
   }
-  if (
-    config.model?.toolIds &&
-    config.model.toolIds.length > 0
-  ) {
+  if (config.model?.toolIds && config.model.toolIds.length > 0) {
     unsupported.push({
       detail:
         "model.toolIds references saved Vapi tools; provide their definitions via tools[] or customToolFactory.",

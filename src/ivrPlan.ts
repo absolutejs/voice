@@ -103,9 +103,7 @@ export type VoiceIVRSession = {
   reset: () => void;
 };
 
-export const createVoiceIVRSession = (
-  plan: VoiceIVRPlan,
-): VoiceIVRSession => {
+export const createVoiceIVRSession = (plan: VoiceIVRPlan): VoiceIVRSession => {
   const maxAttempts = plan.maxAttempts ?? 3;
   let attempts = 0;
   return {

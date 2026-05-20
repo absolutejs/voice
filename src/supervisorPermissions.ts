@@ -71,9 +71,7 @@ export const createVoiceSupervisorPermissions = (
   const get = (supervisorId: string): VoiceSupervisorPermission | null => {
     const permission = store.get(supervisorId);
     if (!permission) {
-      return defaultTier
-        ? { supervisorId, tier: defaultTier }
-        : null;
+      return defaultTier ? { supervisorId, tier: defaultTier } : null;
     }
     if (permission.expiresAt !== undefined && permission.expiresAt <= now()) {
       return null;
@@ -88,7 +86,8 @@ export const createVoiceSupervisorPermissions = (
     if (!permission) return [];
     const base = new Set(TIER_CAPABILITIES[permission.tier]);
     for (const extra of permission.extraCapabilities ?? []) base.add(extra);
-    for (const denied of permission.deniedCapabilities ?? []) base.delete(denied);
+    for (const denied of permission.deniedCapabilities ?? [])
+      base.delete(denied);
     return Array.from(base);
   };
 
@@ -131,14 +130,15 @@ export const createVoiceSupervisorPermissions = (
       ...(options.deniedCapabilities !== undefined
         ? { deniedCapabilities: options.deniedCapabilities }
         : {}),
-      ...(options.expiresAt !== undefined ? { expiresAt: options.expiresAt } : {}),
+      ...(options.expiresAt !== undefined
+        ? { expiresAt: options.expiresAt }
+        : {}),
     };
     store.set(supervisorId, permission);
     return permission;
   };
 
-  const revoke = (supervisorId: string): boolean =>
-    store.delete(supervisorId);
+  const revoke = (supervisorId: string): boolean => store.delete(supervisorId);
 
   const enforce = (
     supervisorId: string,

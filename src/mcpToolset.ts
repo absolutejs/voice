@@ -1,7 +1,4 @@
-import {
-  createVoiceAgentTool,
-  type VoiceAgentTool,
-} from "./agent";
+import { createVoiceAgentTool, type VoiceAgentTool } from "./agent";
 import type { VoiceSessionRecord } from "./types";
 
 /**
@@ -60,7 +57,8 @@ const flattenContent = (result: MCPToolCallResult): string => {
   const text = blocks
     .filter(
       (block): block is { type: "text"; text: string } =>
-        block.type === "text" && typeof (block as { text?: unknown }).text === "string",
+        block.type === "text" &&
+        typeof (block as { text?: unknown }).text === "string",
     )
     .map((block) => block.text)
     .join("\n")
@@ -81,7 +79,14 @@ export const createVoiceMCPToolset = async <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
 >(
   options: CreateVoiceMCPToolsetOptions,
-): Promise<VoiceAgentTool<TContext, TSession, Record<string, unknown>, VoiceMCPToolResult>[]> => {
+): Promise<
+  VoiceAgentTool<
+    TContext,
+    TSession,
+    Record<string, unknown>,
+    VoiceMCPToolResult
+  >[]
+> => {
   const prefix = options.namePrefix ?? "";
   const allowed = options.allowedTools
     ? new Set(options.allowedTools)

@@ -31,9 +31,7 @@ export type VoiceRecordingEncoderResult = {
 export type VoiceRecordingEncoder = {
   encode: (
     input: VoiceRecordingEncoderInput,
-  ) =>
-    | Promise<VoiceRecordingEncoderResult>
-    | VoiceRecordingEncoderResult;
+  ) => Promise<VoiceRecordingEncoderResult> | VoiceRecordingEncoderResult;
   kind: string;
 };
 

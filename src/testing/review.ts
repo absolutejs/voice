@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceCallDisposition, VoiceServerMessage } from "../types";
 
 type ReviewTimelineSource = "benchmark" | "stt" | "turn" | "twilio";
@@ -801,14 +802,6 @@ export const renderVoiceCallReviewMarkdown = (
     .filter((value): value is string => typeof value === "string")
     .join("\n");
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const renderVoiceCallReviewHTML = (
   artifact: VoiceCallReviewArtifact,

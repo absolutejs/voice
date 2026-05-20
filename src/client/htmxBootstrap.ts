@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import { createVoiceController } from "./controller";
 import { createVoiceAudioPlayer } from "./audioPlayer";
 import { createVoiceBargeInMonitor } from "./bargeInMonitor";
@@ -40,14 +41,6 @@ const DEFAULT_GUIDED_PROMPTS = [
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const readErrorField = (
   value: Record<string, unknown>,

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from "./trace";
 import type {
@@ -25,14 +26,6 @@ export type VoiceBargeInReport = VoiceBargeInMonitorSnapshot & {
     total: number;
   }>;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const isBargeInPayload = (value: unknown): value is VoiceBargeInMonitorEvent =>
   !!value &&

@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { StoredVoiceTraceEvent } from "../trace";
 import type { VoiceCallReviewArtifact } from "../testing/review";
 import {
@@ -17,14 +18,6 @@ import {
   type ReplayTimelineEvent,
   type ReplayTimelineReport,
 } from "./replayTimeline";
-
-const escapeHtml = (text: string) =>
-  text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatUsd = (value: number, currency = "USD") =>
   new Intl.NumberFormat("en-US", {
@@ -226,7 +219,8 @@ export type VoiceDashboardHTMXRendererConfig = {
   replayTimeline?: VoiceReplayTimelineRenderer;
 };
 
-export type ResolvedVoiceDashboardRenderers = Required<VoiceDashboardHTMXRendererConfig>;
+export type ResolvedVoiceDashboardRenderers =
+  Required<VoiceDashboardHTMXRendererConfig>;
 
 export const resolveVoiceDashboardRenderers = (
   custom?: VoiceDashboardHTMXRendererConfig,

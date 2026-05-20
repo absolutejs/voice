@@ -108,9 +108,7 @@ const computeMetrics = (
   const wordAccuracyRates = results.map(
     (result) => 1 - (result.accuracy.wordErrorRate ?? 0),
   );
-  const termRecalls = results.map(
-    (result) => result.expectedTerms.recall ?? 0,
-  );
+  const termRecalls = results.map((result) => result.expectedTerms.recall ?? 0);
   const passCount = results.filter((result) => result.passes).length;
   return {
     averageTermRecall: average(termRecalls),
@@ -128,8 +126,7 @@ const resolveLanguageThreshold = (
   perLanguage: readonly VoiceMultilingualProofLanguageThresholds[] | undefined,
 ): VoiceMultilingualProofLanguageThresholds => {
   const explicit = perLanguage?.find(
-    (entry) =>
-      entry.language.toLowerCase() === language.toLowerCase(),
+    (entry) => entry.language.toLowerCase() === language.toLowerCase(),
   );
   return {
     label: explicit?.label,
@@ -203,10 +200,7 @@ const collectFixtures = async (
     return options.fixtures.slice();
   }
   const loaded = await loadVoiceTestFixtures(
-    options.fixtureDirectories as
-      | string
-      | string[]
-      | undefined,
+    options.fixtureDirectories as string | string[] | undefined,
   );
   return options.filter ? loaded.filter(options.filter) : loaded;
 };
@@ -338,14 +332,10 @@ export const renderVoiceMultilingualProofMarkdown = (
         );
       }
       if (language.applied.minPassRate !== undefined) {
-        threshold.push(
-          `pass>=${language.applied.minPassRate.toFixed(3)}`,
-        );
+        threshold.push(`pass>=${language.applied.minPassRate.toFixed(3)}`);
       }
       if (language.applied.minTermRecall !== undefined) {
-        threshold.push(
-          `recall>=${language.applied.minTermRecall.toFixed(3)}`,
-        );
+        threshold.push(`recall>=${language.applied.minTermRecall.toFixed(3)}`);
       }
       lines.push(
         `| ${language.language}${language.label ? ` (${language.label})` : ""} | ${String(language.metrics.fixtureCount)} | ${language.metrics.averageWordErrorRate.toFixed(3)} | ${language.metrics.averageWordAccuracyRate.toFixed(3)} | ${(language.metrics.passRate * 100).toFixed(1)}% | ${threshold.join(", ") || "—"} | ${language.passes ? "pass" : "fail"} |`,

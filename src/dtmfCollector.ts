@@ -62,7 +62,8 @@ export const collectVoiceDTMFInput = (
       `maxLength (${maxLength}) cannot be less than minLength (${minLength})`,
     );
   }
-  const terminator = options.terminator === undefined ? "#" : options.terminator;
+  const terminator =
+    options.terminator === undefined ? "#" : options.terminator;
   const timeoutMs = options.timeoutMs ?? 8_000;
   const interDigitTimeoutMs = options.interDigitTimeoutMs ?? 3_000;
   const startedAt = now();

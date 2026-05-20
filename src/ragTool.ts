@@ -1,7 +1,4 @@
-import {
-  createVoiceAgentTool,
-  type VoiceAgentTool,
-} from "./agent";
+import { createVoiceAgentTool, type VoiceAgentTool } from "./agent";
 import type { VoiceSessionRecord, VoiceTurnCitation } from "./types";
 
 export type VoiceRAGQueryResult = {
@@ -24,9 +21,7 @@ export type VoiceRAGSearchInput = {
 export type VoiceRAGCollectionLike = {
   search: (
     input: VoiceRAGSearchInput,
-  ) =>
-    | Promise<readonly VoiceRAGQueryResult[]>
-    | readonly VoiceRAGQueryResult[];
+  ) => Promise<readonly VoiceRAGQueryResult[]> | readonly VoiceRAGQueryResult[];
 };
 
 export type VoiceRAGToolArgs = {
@@ -122,10 +117,7 @@ const buildDefaultCitationMessage = (
     const text = truncate(citation.chunkText, maxChunkChars);
     return `${String(index + 1)}. ${label} (score ${formatScore(citation.score)}): ${text}`;
   });
-  return [
-    `Knowledge base results for "${args.query}":`,
-    ...lines,
-  ].join("\n");
+  return [`Knowledge base results for "${args.query}":`, ...lines].join("\n");
 };
 
 const filterAllowedFilterKeys = (
@@ -215,8 +207,7 @@ export const createVoiceRAGTool = <
   >({
     description,
     execute: async ({ args, context }) => {
-      const query =
-        typeof args?.query === "string" ? args.query.trim() : "";
+      const query = typeof args?.query === "string" ? args.query.trim() : "";
       if (query.length === 0) {
         const empty: VoiceRAGToolResult = {
           citations: [],
@@ -251,8 +242,7 @@ export const createVoiceRAGTool = <
         : (
             entries: readonly VoiceRAGQueryResult[],
             innerArgs: VoiceRAGToolArgs,
-          ) =>
-            buildDefaultCitationMessage(entries, innerArgs, maxChunkChars);
+          ) => buildDefaultCitationMessage(entries, innerArgs, maxChunkChars);
       const message = formatter(citations, {
         filter,
         query,
@@ -267,7 +257,6 @@ export const createVoiceRAGTool = <
     },
     name,
     parameters,
-    resultToMessage:
-      options.resultToMessage ?? ((result) => result.message),
+    resultToMessage: options.resultToMessage ?? ((result) => result.message),
   });
 };

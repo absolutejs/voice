@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type { VoiceTurnLatencyItem } from "../turnLatency";
 import {
   createVoiceTurnLatencyStore,
@@ -33,14 +34,6 @@ const DEFAULT_TITLE = "Turn Latency";
 const DEFAULT_DESCRIPTION =
   "Per-turn timing from first transcript to commit and assistant response start.";
 const DEFAULT_PROOF_LABEL = "Run latency proof";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMs = (value?: number) =>
   typeof value === "number" ? `${Math.round(value)}ms` : "n/a";

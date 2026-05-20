@@ -26,25 +26,27 @@ export type VoiceCallQuotaResult =
   | { ok: true; reservation: VoiceCallReservation };
 
 export type VoiceCallQuota = {
-  describe: (customerId: string) => Promise<
-    | undefined
-    | {
-        activeCalls: number;
-        burstAllowance: number;
-        monthlyMinutesUsed: number;
-        reservedConcurrent: number;
-        tier: VoiceCallQuotaTier;
-      }
-  > | (
-    | undefined
-    | {
-        activeCalls: number;
-        burstAllowance: number;
-        monthlyMinutesUsed: number;
-        reservedConcurrent: number;
-        tier: VoiceCallQuotaTier;
-      }
-  );
+  describe: (customerId: string) =>
+    | Promise<
+        | undefined
+        | {
+            activeCalls: number;
+            burstAllowance: number;
+            monthlyMinutesUsed: number;
+            reservedConcurrent: number;
+            tier: VoiceCallQuotaTier;
+          }
+      >
+    | (
+        | undefined
+        | {
+            activeCalls: number;
+            burstAllowance: number;
+            monthlyMinutesUsed: number;
+            reservedConcurrent: number;
+            tier: VoiceCallQuotaTier;
+          }
+      );
   recordMinutes: (input: {
     callId?: string;
     customerId: string;

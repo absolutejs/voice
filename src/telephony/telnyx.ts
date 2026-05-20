@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import { Buffer } from "node:buffer";
 import { Database } from "bun:sqlite";
 import type { RedisClient } from "bun";
@@ -273,14 +274,6 @@ const escapeXml = (value: string) =>
     .replaceAll("&", "&amp;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 

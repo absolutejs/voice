@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import type {
   VoiceProviderHealthStatus,
   VoiceProviderHealthSummary,
@@ -35,14 +36,6 @@ export type VoiceProviderStatusWidgetOptions =
 const DEFAULT_TITLE = "Voice Providers";
 const DEFAULT_DESCRIPTION =
   "Live provider health, fallback counts, latency, and suppression state from your self-hosted trace store.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatProvider = (provider: string) =>
   provider

@@ -116,7 +116,9 @@ export const predictVoiceCallCost = (
   const sttSeconds = p.minutesPerCall * 60;
   const sttUsd = stt ? sttSeconds * stt.perSecondUsd : 0;
 
-  const telephonyUsd = telephony ? p.minutesPerCall * telephony.perMinuteUsd : 0;
+  const telephonyUsd = telephony
+    ? p.minutesPerCall * telephony.perMinuteUsd
+    : 0;
 
   const totalPerCall = llmUsd + ttsUsd + sttUsd + telephonyUsd;
   const callsPerDay = (p.inboundPerDay ?? 0) + (p.outboundPerDay ?? 0);
@@ -180,7 +182,9 @@ export const compareVoiceCostScenarios = (input: {
           monthlyUsd: round(
             prediction.monthly.totalUsd - baseline.monthly.totalUsd,
           ),
-          perCallUsd: round(prediction.perCall.totalUsd - baseline.perCall.totalUsd),
+          perCallUsd: round(
+            prediction.perCall.totalUsd - baseline.perCall.totalUsd,
+          ),
         },
         prediction,
         scenarioId: scenario.id,

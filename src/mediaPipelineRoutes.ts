@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   buildMediaInterruptionReport,
@@ -104,28 +106,9 @@ export type VoiceMediaPipelineRoutesOptions =
     title?: string;
   };
 
-const escapeHtml = (value: unknown) =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
-const statusRank: Record<MediaPipelineStatus, number> = {
-  pass: 0,
-  warn: 1,
-  fail: 2,
-};
-
 const worstStatus = (
   statuses: readonly MediaPipelineStatus[],
-): MediaPipelineStatus =>
-  statuses.reduce(
-    (worst, status) =>
-      statusRank[status] > statusRank[worst] ? status : worst,
-    "pass",
-  );
+): MediaPipelineStatus => worstVoiceStatus(statuses);
 
 export const buildVoiceMediaPipelineReport = (
   options: VoiceMediaPipelineReportOptions = {},
@@ -590,8 +573,7 @@ export type VoiceMediaPipelineProofSummaryOptions = {
 
 const collectIssueCodes = (
   issues: readonly MediaPipelineCalibrationIssue[],
-): readonly string[] =>
-  Array.from(new Set(issues.map((issue) => issue.code)));
+): readonly string[] => Array.from(new Set(issues.map((issue) => issue.code)));
 
 export const summarizeVoiceMediaPipelineReport = (
   report: VoiceMediaPipelineReport,
@@ -605,9 +587,7 @@ export const summarizeVoiceMediaPipelineReport = (
   const transport = report.transport
     ? summarizeMediaTransportReport(report.transport)
     : undefined;
-  const interruptionIssueCodes = collectIssueCodes(
-    report.interruption.issues,
-  );
+  const interruptionIssueCodes = collectIssueCodes(report.interruption.issues);
   const issueCodes = Array.from(
     new Set([
       ...collectIssueCodes(calibration.issues),

@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import type {
   StoredVoiceAuditEvent,
   VoiceAuditEventFilter,
@@ -21,14 +22,6 @@ export type VoiceAuditExport = {
   redacted: boolean;
   summary: VoiceAuditTrailSummary;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const normalizeRedactionKey = (key: string) =>
   key

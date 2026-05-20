@@ -1,3 +1,5 @@
+import { worstVoiceStatus } from "./internal/status";
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceReadinessProfileName } from "./readinessProfiles";
 
@@ -215,14 +217,6 @@ export type VoiceProviderContractMatrixAssertionReport<
   warned: number;
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const profileProviderPriorities: Record<
   VoiceReadinessProfileName,
   Record<VoiceProviderStackKind, string[]>
@@ -366,11 +360,7 @@ export const recommendVoiceProviderStack = <TProvider extends string = string>(
 const rollupContractStatus = (
   checks: readonly VoiceProviderContractCheck[],
 ): VoiceProviderContractCheckStatus =>
-  checks.some((check) => check.status === "fail")
-    ? "fail"
-    : checks.some((check) => check.status === "warn")
-      ? "warn"
-      : "pass";
+  worstVoiceStatus(checks.map((check) => check.status));
 
 const statusRank: Record<VoiceProviderContractCheckStatus, number> = {
   pass: 0,

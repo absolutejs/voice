@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   filterVoiceTraceEvents,
@@ -216,14 +217,6 @@ export const evaluateVoiceQuality = async (input: {
     thresholds,
   };
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const formatMetricValue = (metric: VoiceQualityMetric) =>
   metric.unit === "rate"

@@ -71,7 +71,10 @@ export const createVoiceRetentionScheduler = <TRecord extends { id: string }>(
   const intervalMs = Math.max(60_000, options.intervalMs ?? 6 * 60 * 60_000);
   let timer: ReturnType<typeof setInterval> | undefined;
   const run = async () => {
-    const report = await purgeVoiceRetentionStore(options.store, options.policy);
+    const report = await purgeVoiceRetentionStore(
+      options.store,
+      options.policy,
+    );
     options.onReport?.(report);
   };
   return {

@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceCallPlayer as createCorePlayer,
   formatVoiceCallPlayerTimestamp,
@@ -5,21 +6,20 @@ import {
   type VoiceCallPlayerState,
 } from "../client/callPlayer";
 
-const escapeHtml = (text: string) =>
-  text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 export type CreateVoiceCallPlayerOptions = VoiceCallPlayerOptions & {
   title?: string;
 };
 
 export const renderVoiceCallPlayerHTML = (
   state: VoiceCallPlayerState,
-  options: { title?: string; transcripts?: ReadonlyArray<{ id: string; text: string; startedAtMs?: number }> } = {},
+  options: {
+    title?: string;
+    transcripts?: ReadonlyArray<{
+      id: string;
+      text: string;
+      startedAtMs?: number;
+    }>;
+  } = {},
 ): string => {
   const title = options.title ?? "Call replay";
   const transcripts = options.transcripts ?? [];

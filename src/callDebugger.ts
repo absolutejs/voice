@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
   buildVoiceFailureReplay,
@@ -53,14 +54,6 @@ export type VoiceCallDebuggerRoutesOptions = Omit<
   snapshot?: VoiceSessionSnapshotRouteSource;
   title?: string;
 };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const resolveSessionId = (params: Record<string, unknown>) => {
   const sessionId = params.sessionId;

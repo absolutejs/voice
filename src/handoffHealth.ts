@@ -1,3 +1,4 @@
+import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { StoredVoiceTraceEvent, VoiceTraceEventStore } from "./trace";
 
@@ -56,14 +57,6 @@ export type VoiceHandoffHealthRoutesOptions =
     name?: string;
     path?: string;
   };
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 const getString = (value: unknown) =>
   typeof value === "string" && value.length > 0 ? value : undefined;

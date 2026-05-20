@@ -1,3 +1,4 @@
+import { escapeHtml } from "../internal/html";
 import {
   createVoiceOpsActionCenterStore,
   type VoiceOpsActionCenterClientOptions,
@@ -30,14 +31,6 @@ export type VoiceOpsActionCenterWidgetOptions =
 const DEFAULT_TITLE = "Voice Ops Action Center";
 const DEFAULT_DESCRIPTION =
   "Run production voice proofs and operator actions from one primitive panel.";
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
 export const createVoiceOpsActionCenterViewModel = (
   snapshot: VoiceOpsActionCenterSnapshot,
