@@ -3111,6 +3111,12 @@ export {
   visualizeVoicePathway,
 } from "./pathwayVisualizer";
 export type { VoicePathwayVisualization } from "./pathwayVisualizer";
+export { generateVoicePathwayFromPrompt } from "./pathwayGenerator";
+export type {
+  GenerateVoicePathwayInput,
+  GenerateVoicePathwayResult,
+  VoicePathwayGeneratorCompletion,
+} from "./pathwayGenerator";
 export { createVoiceCRMRegistry } from "./crmContract";
 export type {
   CreateVoiceCRMRegistryOptions,
