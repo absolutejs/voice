@@ -178,11 +178,15 @@ The framework-specific `<AgentState>`/`<InterruptButton>`/`<TypingIndicator>` co
 |---|---|---|
 | OpenAI-compatible URL + OAuth2 client-credentials | tiny | Confirm/extend `openaiCompatible` adapter; pair with the voice-side custom-LLM gap above |
 
-### New package
+### Embeddable widget — SHIPPED in voice@0.0.22-beta.516 (no separate package)
 
-| Gap | Size | Hook |
-|---|---|---|
-| `@absolutejs/voice-widget` — embeddable browser widget | medium | Drop-in `<VoiceWidget assistantId>` with mic perms, mute, push-to-talk, device picker, theming. Biggest funnel-improvement (most prospects want "paste this snippet"). Lower layers (`browserMediaRoutes`, `react/`, `client/duplex`) already exist |
+Closed the "paste this snippet" gap inside `@absolutejs/voice` rather than a new package, since the view-model + duplex client already lived here.
+
+| Surface | Detail |
+|---|---|
+| `@absolutejs/voice/embed` (ESM) | `import { mount } from "@absolutejs/voice/embed"` → `mount(target, { path?, title?, theme?, labels?, controllerOptions?, autoStart?, onError?, onStatusChange? })` returns `{ start, mute, end, unmount, controller }` |
+| `@absolutejs/voice/embed/voice-widget.js` (IIFE, 29KB min) | Zero-build CDN drop-in. Loads `window.AbsoluteVoice.mount("#el", { assistantId/path })`. Reuses `createVoiceController` + `createVoiceWidgetViewModel` + `renderVoiceWidgetHTML`. Wires data-action buttons (start/mute/end) to the controller |
+| Build | Two new `bun build` targets append to the build script: IIFE (`--format iife --minify`) + ESM, both `--target browser`, emitting to `dist/embed/`. `./embed` + `./embed/voice-widget.js` export entries + typesVersions added |
 
 ### Medium-term (2)
 
