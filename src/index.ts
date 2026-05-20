@@ -843,6 +843,30 @@ export type {
   RedactVoiceRecordingResult,
   VoiceRecordingRedactionRange,
 } from "./recordingRedaction";
+export { buildVoiceVariableAnalytics } from "./variableAnalytics";
+export type {
+  BuildVoiceVariableAnalyticsInput,
+  VoiceAnalyticsCall,
+  VoiceAnalyticsVariableValue,
+  VoiceVariableAnalyticsReport,
+  VoiceVariableBreakdown,
+  VoiceVariableValueStats,
+} from "./variableAnalytics";
+export {
+  VOICE_ZERO_DATA_RETENTION_REDACTION_MARKER,
+  createVoiceZeroDataRetentionPolicy,
+  isVoiceZeroDataRetentionActive,
+  scrubVoiceTraceForZeroDataRetention,
+  scrubVoiceTurnForZeroDataRetention,
+  shouldRetainVoiceRecording,
+  shouldRetainVoiceTranscript,
+} from "./zeroDataRetention";
+export type {
+  CreateVoiceZeroDataRetentionPolicyOptions,
+  VoiceZeroDataRetentionMode,
+  VoiceZeroDataRetentionPolicy,
+  VoiceZeroDataRetentionRetainFlags,
+} from "./zeroDataRetention";
 export {
   DEFAULT_VOICE_PRICE_BOOK,
   createVoiceCostAccountant,
