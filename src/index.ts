@@ -1707,6 +1707,7 @@ export {
   resolveVoiceSTTRoutingStrategy,
 } from "./routing";
 export {
+  applyLexiconCorrections,
   applyRiskTieredPhraseHintCorrections,
   applyPhraseHintCorrections,
   createDomainLexicon,
