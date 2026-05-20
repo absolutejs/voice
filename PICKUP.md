@@ -265,6 +265,21 @@ Closes the Vapi Workflows / Bland Pathways competitive gap. Declarative state-ma
 | Pathway → assistant compiler | `compileVoicePathwayToAssistant({ pathway, introduction?, fallbackBehavior?, toolNamePrefix? })` produces `{ systemPrompt, tools, initialPrompt?, metadata }`. Tools: `pathway_<id>_advance` (enum'd toStateId), `_fill_slot` (enum'd slotId + value), `_end_call`, plus pathway-declared `_tool_<id>` per `pathway.tools[]`. Drives any LLM agent that supports function-calling through the pathway |
 | Visualizer | `renderVoicePathwayMermaid(pathway)` produces flowchart-TD with shape coding (entry=circle, terminal=double-circle, branch=diamond, action/collect=rect). `renderVoicePathwayText(pathway)` produces hierarchical text walk with cycle detection. `visualizeVoicePathway(pathway)` returns both |
 
+### Audit #3 (May 2026) — Vapi/Retell/Bland/LiveKit re-audit
+
+Companion-package gaps from audit #2 are all closed (voice .516–.519, media .19, rag .11, ai .7). Fresh re-audit surfaced the 2026 frontier:
+
+| Gap | Status |
+|---|---|
+| **Simulation test suites** (Vapi Simulations; Hamming/Cekura/Coval ecosystem) | **SHIPPED voice@0.0.22-beta.520** — `runVoiceConversationSimulation({ agent, caller, maxTurns?, stopOnAgentComplete? })` drives a synthetic caller through a multi-turn dialogue against a `VoiceAgent`, appends each exchange to session history, returns `{ transcript, turnCount, endedReason, agentResults }`. Callers: `createScriptedVoiceCaller(lines)` (deterministic) + `createPersonaVoiceCaller({ persona, completion })` (LLM-backed, `[[END]]` hang-up sentinel). `renderVoiceSimulationTranscript` formats for the existing LLM-judge/scorecard (.482/.513). endedReason: agent-complete / caller-hung-up / max-turns / script-exhausted |
+| Prompt-to-agent builder (Vapi Composer, Bland Norm) | OPEN — `generateVoicePathwayFromPrompt`: LLM emits a validated `VoicePathway` from a plain-text description. Target rep already exists (Pathways DSL .514) |
+| MCP tool bridge (LiveKit Agents 1.5) | OPEN — `createVoiceMCPToolset`: expose Model-Context-Protocol server tools to voice agents via existing `agentTools` |
+| Monitoring & Issues (Vapi) | OPEN (tier 2) — trigger-based auto issue detection + alerting atop observability/drift |
+| Variable-value analytics (Vapi) | OPEN (tier 2) — group call analytics by extracted variable values |
+| Zero-Data-Retention mode (Vapi/Bland) | OPEN (tier 2) — formal ZDR toggle atop audit/retention/dataControl |
+
+Already covered (no gap): voicemail detection (AMD .479), barge-in/adaptive interruption (.476 + backchannel), HIPAA/PCI redaction (.481/.518), reranking (rag .11), outbound campaigns (.510), embeddable widget (.516).
+
 ### Out of scope — adapter-only
 
 These are not gaps to build; we license/integrate via adapters:
