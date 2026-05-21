@@ -16,7 +16,7 @@
   "author": "Alex Kahn",
   "scripts": {
     "build": "rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute --external @absolutejs/ai --external @absolutejs/media && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && bun build ./src/embed/index.ts --outfile dist/embed/voice-widget.js --target browser --format iife --minify && bun build ./src/embed/index.ts --outdir dist/embed --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
-    "format": "prettier --write \"./**/*.{js,jsx,ts,tsx,json,md}\"",
+    "format": "absolute prettier --write",
     "knip": "knip",
     "lint": "eslint ./src",
     "release": "bun run format && bun run build && bun publish",
@@ -26,7 +26,7 @@
     "test:deepgram": "bun test ./test/live/deepgram.live.test.ts",
     "test:elevenlabs": "bun test ./test/live/elevenlabs.live.test.ts",
     "test:openai": "bun test ./test/live/openai.live.test.ts",
-    "typecheck": "bun run tsc --noEmit"
+    "typecheck": "absolute typecheck"
   },
   "exports": {
     ".": {
@@ -118,7 +118,7 @@
     "@absolutejs/media": "0.0.1-beta.19"
   },
   "devDependencies": {
-    "@absolutejs/absolute": "0.19.0-beta.646",
+    "@absolutejs/absolute": "0.19.0-beta.1007",
     "@absolutejs/ai": "0.0.5",
     "@angular/core": "^21.0.0",
     "@types/bun": "1.3.9",

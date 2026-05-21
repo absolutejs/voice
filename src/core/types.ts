@@ -1,4 +1,3 @@
-import type { SessionStore } from "@absolutejs/absolute";
 import type {
   MediaWebRTCStatsCollector,
   MediaWebRTCStatsReport,
@@ -556,7 +555,13 @@ export type VoiceHandoffConfig<
 
 export type VoiceSessionStore<
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
-> = SessionStore<TSession, VoiceSessionSummary>;
+> = {
+  get: (id: string) => Promise<TSession | undefined>;
+  getOrCreate: (id: string) => Promise<TSession>;
+  set: (id: string, value: TSession) => Promise<void>;
+  list: () => Promise<VoiceSessionSummary[]>;
+  remove: (id: string) => Promise<void>;
+};
 
 export type VoiceLogger = {
   debug?: (message: string, meta?: Record<string, unknown>) => void;
