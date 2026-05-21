@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import {
   assertVoiceTelephonyWebhookNormalizationEvidence,
   createVoiceMemoryTraceEventStore,
-  runVoiceTelephonyMediaOperationsSmoke,
   evaluateVoiceTelephonyWebhookNormalizationEvidence,
 } from "../src";
+import { runVoiceTelephonyMediaOperationsSmoke } from "../src/testing/telephony";
 import {
   createTwilioMediaStreamBridge,
   createTwilioVoiceRoutes,

@@ -2,7 +2,7 @@ import { worstVoiceStatus } from "./internal/status";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import { summarizeVoiceHandoffHealth } from "./handoffHealth";
-import { summarizeVoiceProviderHealth } from "./providerHealth";
+import { summarizeVoiceProviderHealthByModality } from "./providerHealth";
 import { evaluateVoiceQuality } from "./qualityRoutes";
 import {
   listVoiceRoutingEvents,
@@ -2804,24 +2804,11 @@ export const buildVoiceProductionReadinessReport = async (
   ] = await Promise.all([
     time("quality", () => evaluateVoiceQuality({ events: readinessEvents })),
     time("providers", () =>
-      Promise.all([
-        summarizeVoiceProviderHealth({
-          events: readinessEvents,
-          providers: options.llmProviders ?? [],
-        }),
-        summarizeVoiceProviderHealth({
-          events: readinessEvents.filter(
-            (event) => event.payload.kind === "stt",
-          ),
-          providers: options.sttProviders ?? [],
-        }),
-        summarizeVoiceProviderHealth({
-          events: readinessEvents.filter(
-            (event) => event.payload.kind === "tts",
-          ),
-          providers: options.ttsProviders ?? [],
-        }),
-      ]).then((groups) => groups.flat()),
+      summarizeVoiceProviderHealthByModality(readinessEvents, {
+        llmProviders: options.llmProviders,
+        sttProviders: options.sttProviders,
+        ttsProviders: options.ttsProviders,
+      }),
     ),
     time("sessions", () =>
       summarizeVoiceSessions({ events: readinessEvents, status: "all" }),

@@ -9,7 +9,7 @@ import {
   type VoiceDeliverySinkRoutesOptions,
 } from "./deliverySinkRoutes";
 import { summarizeVoiceHandoffHealth } from "./handoffHealth";
-import { summarizeVoiceProviderHealth } from "./providerHealth";
+import { summarizeVoiceProviderHealthByModality } from "./providerHealth";
 import {
   evaluateVoiceQuality,
   type VoiceQualityRoutesOptions,
@@ -199,20 +199,11 @@ export const summarizeVoiceOpsStatus = async <
           })(),
       !shouldInclude("providers")
         ? undefined
-        : Promise.all([
-            summarizeVoiceProviderHealth({
-              events,
-              providers: options.llmProviders,
-            }),
-            summarizeVoiceProviderHealth({
-              events: events.filter((event) => event.payload.kind === "stt"),
-              providers: options.sttProviders,
-            }),
-            summarizeVoiceProviderHealth({
-              events: events.filter((event) => event.payload.kind === "tts"),
-              providers: options.ttsProviders,
-            }),
-          ]).then((groups) => groups.flat()),
+        : summarizeVoiceProviderHealthByModality(events, {
+            llmProviders: options.llmProviders,
+            sttProviders: options.sttProviders,
+            ttsProviders: options.ttsProviders,
+          }),
       !shouldInclude("sessions")
         ? undefined
         : summarizeVoiceSessions({

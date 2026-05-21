@@ -276,6 +276,38 @@ export const summarizeVoiceProviderHealth = async <
   return summaries;
 };
 
+export type VoiceProviderHealthByModalityOptions = {
+  llmProviders?: readonly string[];
+  sttProviders?: readonly string[];
+  ttsProviders?: readonly string[];
+};
+
+/**
+ * Provider-health summary across LLM/STT/TTS, scoping STT and TTS to their
+ * respective trace-event kinds. Returns the three groups flattened.
+ */
+export const summarizeVoiceProviderHealthByModality = async (
+  events: StoredVoiceTraceEvent[],
+  {
+    llmProviders,
+    sttProviders,
+    ttsProviders,
+  }: VoiceProviderHealthByModalityOptions,
+): Promise<VoiceProviderHealthSummary[]> => {
+  const groups = await Promise.all([
+    summarizeVoiceProviderHealth({ events, providers: llmProviders ?? [] }),
+    summarizeVoiceProviderHealth({
+      events: events.filter((event) => event.payload.kind === "stt"),
+      providers: sttProviders ?? [],
+    }),
+    summarizeVoiceProviderHealth({
+      events: events.filter((event) => event.payload.kind === "tts"),
+      providers: ttsProviders ?? [],
+    }),
+  ]);
+  return groups.flat();
+};
+
 export const renderVoiceProviderHealthHTML = (
   providers: VoiceProviderHealthSummary[],
 ) =>

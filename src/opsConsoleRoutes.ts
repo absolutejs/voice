@@ -6,7 +6,7 @@ import {
   type VoiceDeliverySinkRoutesOptions,
 } from "./deliverySinkRoutes";
 import { summarizeVoiceHandoffHealth } from "./handoffHealth";
-import { summarizeVoiceProviderHealth } from "./providerHealth";
+import { summarizeVoiceProviderHealthByModality } from "./providerHealth";
 import { evaluateVoiceQuality, type VoiceQualityReport } from "./qualityRoutes";
 import {
   listVoiceRoutingEvents,
@@ -121,20 +121,11 @@ export const buildVoiceOpsConsoleReport = async (
   options: VoiceOpsConsoleRoutesOptions,
 ): Promise<VoiceOpsConsoleReport> => {
   const events = await options.store.list();
-  const providers = [
-    ...(await summarizeVoiceProviderHealth({
-      events,
-      providers: options.llmProviders,
-    })),
-    ...(await summarizeVoiceProviderHealth({
-      events,
-      providers: options.sttProviders,
-    })),
-    ...(await summarizeVoiceProviderHealth({
-      events,
-      providers: options.ttsProviders,
-    })),
-  ];
+  const providers = await summarizeVoiceProviderHealthByModality(events, {
+    llmProviders: options.llmProviders,
+    sttProviders: options.sttProviders,
+    ttsProviders: options.ttsProviders,
+  });
   const handoffs = await summarizeVoiceHandoffHealth({ events });
   const sessions = await summarizeVoiceSessions({
     events,
