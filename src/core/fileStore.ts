@@ -145,8 +145,23 @@ type RecentJsonFileIndexEntry = {
 const recentJsonFileIndexPath = (directory: string) =>
   join(directory, ".recent-index");
 
+// Strictly-increasing clock so back-to-back appends never share an updatedAt
+// (Date.now() collides within a millisecond, which made "recent" ordering
+// non-deterministic).
+let lastRecentIndexTimestamp = 0;
+const nextRecentIndexTimestamp = () => {
+  const now = Date.now();
+  lastRecentIndexTimestamp =
+    now > lastRecentIndexTimestamp ? now : lastRecentIndexTimestamp + 1;
+  return lastRecentIndexTimestamp;
+};
+
 const sortRecentJsonFileIndexEntries = (entries: RecentJsonFileIndexEntry[]) =>
-  entries.sort((left, right) => right.updatedAt - left.updatedAt);
+  entries.sort(
+    (left, right) =>
+      right.updatedAt - left.updatedAt ||
+      (left.path < right.path ? 1 : left.path > right.path ? -1 : 0),
+  );
 
 const readRecentJsonFileIndex = async (directory: string) => {
   try {
@@ -220,7 +235,7 @@ const updateRecentJsonFileIndex = async (directory: string, path: string) => {
   );
   files.push({
     path,
-    updatedAt: Date.now(),
+    updatedAt: nextRecentIndexTimestamp(),
   });
   await writeRecentJsonFileIndex(directory, files);
 };
