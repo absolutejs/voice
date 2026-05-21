@@ -5,7 +5,7 @@
 export type VoiceStatus = "fail" | "pass" | "warn";
 
 /** Severity rank for a status (fail=2, warn=1, pass=0). Higher is worse. */
-export const voiceStatusRank = (status: VoiceStatus): number =>
+const voiceStatusRank = (status: VoiceStatus): number =>
   status === "fail" ? 2 : status === "warn" ? 1 : 0;
 
 /** Reduce a set of statuses to the worst one (fail > warn > pass). */
