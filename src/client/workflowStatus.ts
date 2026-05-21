@@ -12,18 +12,6 @@ export type VoiceWorkflowStatusSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceWorkflowStatus = async (
-  path = "/evals/scenarios/json",
-  options: Pick<VoiceWorkflowStatusClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice workflow status failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceScenarioEvalReport;
-};
-
 export const createVoiceWorkflowStatusStore = (
   path = "/evals/scenarios/json",
   options: VoiceWorkflowStatusClientOptions = {},
@@ -59,6 +47,7 @@ export const createVoiceWorkflowStatusStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -91,14 +80,27 @@ export const createVoiceWorkflowStatusStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceWorkflowStatus = async (
+  path = "/evals/scenarios/json",
+  options: Pick<VoiceWorkflowStatusClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice workflow status failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceScenarioEvalReport;
 };

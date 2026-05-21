@@ -79,22 +79,26 @@ export const collectVoiceDTMFInput = (
     if (at - startedAt > timeoutMs) {
       state = { digits: state.digits, reason: "timeout", status: "rejected" };
       notify();
+
       return true;
     }
     if (state.digits.length > 0 && at - lastDigitAt > interDigitTimeoutMs) {
       state = { digits: state.digits, reason: "timeout", status: "rejected" };
       notify();
+
       return true;
     }
+
     return false;
   };
 
   const finish = (reason: "length" | "terminator") => {
     if (state.status !== "collecting") return;
-    const digits = state.digits;
+    const {digits} = state;
     if (digits.length < minLength) {
       state = { digits, reason: "too-short", status: "rejected" };
       notify();
+
       return;
     }
     if (options.validator) {
@@ -102,6 +106,7 @@ export const collectVoiceDTMFInput = (
       if (verdict !== true) {
         state = { digits, reason: "invalid", status: "rejected" };
         notify();
+
         return;
       }
     }
@@ -110,11 +115,13 @@ export const collectVoiceDTMFInput = (
   };
 
   return {
+    prompt: options.prompt,
     cancel(): VoiceDTMFCollectorState {
       if (state.status === "collecting") {
         state = { digits: state.digits, status: "cancelled" };
         notify();
       }
+
       return state;
     },
     feed(digit: string, at: number = now()): VoiceDTMFCollectorState {
@@ -127,11 +134,13 @@ export const collectVoiceDTMFInput = (
           status: "rejected",
         };
         notify();
+
         return state;
       }
       lastDigitAt = at;
       if (terminator && digit === terminator) {
         finish("terminator");
+
         return state;
       }
       const digits = state.digits + digit;
@@ -141,19 +150,21 @@ export const collectVoiceDTMFInput = (
       } else {
         notify();
       }
+
       return state;
     },
     getState: () => state,
-    prompt: options.prompt,
     subscribe(listener: (state: VoiceDTMFCollectorState) => void) {
       listeners.add(listener);
       listener(state);
+
       return () => {
         listeners.delete(listener);
       };
     },
     tick(at: number = now()): VoiceDTMFCollectorState {
       checkTimeouts(at);
+
       return state;
     },
   };
@@ -174,5 +185,6 @@ export const validateVoiceDTMFLuhn = (digits: string): boolean => {
     sum += n;
     alt = !alt;
   }
+
   return sum % 10 === 0;
 };

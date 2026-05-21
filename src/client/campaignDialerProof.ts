@@ -17,34 +17,6 @@ export type VoiceCampaignDialerProofSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceCampaignDialerProofStatus = async (
-  path = "/api/voice/campaigns/dialer-proof",
-  options: Pick<VoiceCampaignDialerProofClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(
-      `Voice campaign dialer proof status failed: HTTP ${response.status}`,
-    );
-  }
-  return (await response.json()) as VoiceCampaignDialerProofStatus;
-};
-
-export const runVoiceCampaignDialerProofAction = async (
-  path = "/api/voice/campaigns/dialer-proof",
-  options: Pick<VoiceCampaignDialerProofClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path, { method: "POST" });
-  if (!response.ok) {
-    throw new Error(
-      `Voice campaign dialer proof failed: HTTP ${response.status}`,
-    );
-  }
-  return (await response.json()) as VoiceCampaignDialerProofReport;
-};
-
 export const createVoiceCampaignDialerProofStore = (
   path = "/api/voice/campaigns/dialer-proof",
   options: VoiceCampaignDialerProofClientOptions = {},
@@ -77,6 +49,7 @@ export const createVoiceCampaignDialerProofStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return status;
     } catch (error) {
       snapshot = {
@@ -110,6 +83,7 @@ export const createVoiceCampaignDialerProofStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -138,15 +112,44 @@ export const createVoiceCampaignDialerProofStore = (
 
   return {
     close,
-    getServerSnapshot: () => snapshot,
-    getSnapshot: () => snapshot,
     refresh,
     runProof,
+    getServerSnapshot: () => snapshot,
+    getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceCampaignDialerProofStatus = async (
+  path = "/api/voice/campaigns/dialer-proof",
+  options: Pick<VoiceCampaignDialerProofClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(
+      `Voice campaign dialer proof status failed: HTTP ${response.status}`,
+    );
+  }
+
+  return (await response.json()) as VoiceCampaignDialerProofStatus;
+};
+export const runVoiceCampaignDialerProofAction = async (
+  path = "/api/voice/campaigns/dialer-proof",
+  options: Pick<VoiceCampaignDialerProofClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(
+      `Voice campaign dialer proof failed: HTTP ${response.status}`,
+    );
+  }
+
+  return (await response.json()) as VoiceCampaignDialerProofReport;
 };

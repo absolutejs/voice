@@ -69,7 +69,7 @@ export const encodePcmAsWav = (
       `encodePcmAsWav only supports raw pcm_s16le input (got container=${format.container}, encoding=${format.encoding})`,
     );
   }
-  const channels = format.channels;
+  const {channels} = format;
   const sampleRate = format.sampleRateHz;
   const bitsPerSample = 16;
   const byteRate = (sampleRate * channels * bitsPerSample) / 8;
@@ -94,6 +94,7 @@ export const encodePcmAsWav = (
 
   const output = new Uint8Array(buffer);
   output.set(pcm, 44);
+
   return output;
 };
 
@@ -126,6 +127,7 @@ export const interleaveStereoPcm = (input: InterleavePcmInput): Uint8Array => {
     output[frame * 2] = leftSamples[frame] ?? 0;
     output[frame * 2 + 1] = rightSamples[frame] ?? 0;
   }
+
   return new Uint8Array(output.buffer);
 };
 
@@ -140,6 +142,50 @@ export type EncodeStereoWavInput = {
  * left = user track, right = assistant track. Review tools can split them
  * back out with any DAW.
  */
+export const computePcmDurationMs = (
+  pcmByteLength: number,
+  format: AudioFormat,
+): number => {
+  if (format.container !== "raw" || format.encoding !== "pcm_s16le") {
+    return 0;
+  }
+  const bytesPerSecond = format.sampleRateHz * format.channels * 2;
+  if (bytesPerSecond === 0) {
+    return 0;
+  }
+
+  return Math.round((pcmByteLength / bytesPerSecond) * 1000);
+};
+export const createVoiceMemoryRecordingStore = (): VoiceRecordingStore => {
+  const records = new Map<string, StoredVoiceRecordingArtifact>();
+  const key = (sessionId: string, channel: VoiceRecordingChannel) =>
+    `${sessionId}::${channel}`;
+
+  return {
+    get: async (sessionId, channel) => records.get(key(sessionId, channel)),
+    list: async (sessionId) =>
+      Array.from(records.values()).filter(
+        (record) => record.sessionId === sessionId,
+      ),
+    put: async (artifact) => {
+      const stored: StoredVoiceRecordingArtifact = {
+        ...artifact,
+        recordingUrl: `memory://recording/${artifact.sessionId}/${artifact.channel}.wav`,
+      };
+      records.set(key(artifact.sessionId, artifact.channel), stored);
+
+      return stored;
+    },
+  };
+};
+export const createVoiceWavRecordingEncoder = (): VoiceRecordingEncoder => ({
+  kind: "wav",
+  encode: ({ format, pcm }) => ({
+    bytes: encodePcmAsWav(pcm, format),
+    contentType: "audio/wav",
+    extension: "wav",
+  }),
+});
 export const encodeStereoWav = ({
   format,
   left,
@@ -154,49 +200,6 @@ export const encodeStereoWav = ({
     throw new Error("encodeStereoWav expects mono input channels");
   }
   const interleaved = interleaveStereoPcm({ left, right });
+
   return encodePcmAsWav(interleaved, { ...format, channels: 2 });
-};
-
-export const createVoiceWavRecordingEncoder = (): VoiceRecordingEncoder => ({
-  encode: ({ format, pcm }) => ({
-    bytes: encodePcmAsWav(pcm, format),
-    contentType: "audio/wav",
-    extension: "wav",
-  }),
-  kind: "wav",
-});
-
-export const computePcmDurationMs = (
-  pcmByteLength: number,
-  format: AudioFormat,
-): number => {
-  if (format.container !== "raw" || format.encoding !== "pcm_s16le") {
-    return 0;
-  }
-  const bytesPerSecond = format.sampleRateHz * format.channels * 2;
-  if (bytesPerSecond === 0) {
-    return 0;
-  }
-  return Math.round((pcmByteLength / bytesPerSecond) * 1000);
-};
-
-export const createVoiceMemoryRecordingStore = (): VoiceRecordingStore => {
-  const records = new Map<string, StoredVoiceRecordingArtifact>();
-  const key = (sessionId: string, channel: VoiceRecordingChannel) =>
-    `${sessionId}::${channel}`;
-  return {
-    get: async (sessionId, channel) => records.get(key(sessionId, channel)),
-    list: async (sessionId) =>
-      Array.from(records.values()).filter(
-        (record) => record.sessionId === sessionId,
-      ),
-    put: async (artifact) => {
-      const stored: StoredVoiceRecordingArtifact = {
-        ...artifact,
-        recordingUrl: `memory://recording/${artifact.sessionId}/${artifact.channel}.wav`,
-      };
-      records.set(key(artifact.sessionId, artifact.channel), stored);
-      return stored;
-    },
-  };
 };

@@ -33,6 +33,7 @@ const timingSafeEqual = (left: string, right: string) => {
   for (let index = 0; index < left.length; index += 1) {
     result |= left.charCodeAt(index) ^ right.charCodeAt(index);
   }
+
   return result === 0;
 };
 
@@ -51,15 +52,41 @@ const computeSignature = async (input: {
   );
   const payload = encoder.encode(`${input.timestamp}.${input.body}`);
   const signature = await crypto.subtle.sign("HMAC", key, payload);
+
   return `sha256=${toHex(new Uint8Array(signature))}`;
 };
 
+export const extractVoiceWebhookSignatureFromHeaders = (
+  headers: Headers | Record<string, string | string[] | undefined>,
+): { signature: string | null; timestamp: string | null } => {
+  const get = (name: string): string | null => {
+    if (headers instanceof Headers) {
+      return headers.get(name);
+    }
+    const lowerTarget = name.toLowerCase();
+    for (const [key, value] of Object.entries(headers)) {
+      if (key.toLowerCase() === lowerTarget) {
+        if (Array.isArray(value)) {
+          return value[0] ?? null;
+        }
+
+        return value ?? null;
+      }
+    }
+
+    return null;
+  };
+
+  return {
+    signature: get(VOICE_WEBHOOK_SIGNATURE_HEADER),
+    timestamp: get(VOICE_WEBHOOK_TIMESTAMP_HEADER),
+  };
+};
 export const signVoiceWebhookBody = async (input: {
   body: string;
   secret: string;
   timestamp: string;
 }) => computeSignature(input);
-
 export const verifyVoiceWebhookSignature = async (
   input: VoiceWebhookVerificationInput,
 ): Promise<VoiceWebhookVerificationResult> => {
@@ -92,29 +119,6 @@ export const verifyVoiceWebhookSignature = async (
   if (!timingSafeEqual(expected, input.signature)) {
     return { ok: false, reason: "signature-mismatch" };
   }
-  return { ok: true };
-};
 
-export const extractVoiceWebhookSignatureFromHeaders = (
-  headers: Headers | Record<string, string | string[] | undefined>,
-): { signature: string | null; timestamp: string | null } => {
-  const get = (name: string): string | null => {
-    if (headers instanceof Headers) {
-      return headers.get(name);
-    }
-    const lowerTarget = name.toLowerCase();
-    for (const [key, value] of Object.entries(headers)) {
-      if (key.toLowerCase() === lowerTarget) {
-        if (Array.isArray(value)) {
-          return value[0] ?? null;
-        }
-        return value ?? null;
-      }
-    }
-    return null;
-  };
-  return {
-    signature: get(VOICE_WEBHOOK_SIGNATURE_HEADER),
-    timestamp: get(VOICE_WEBHOOK_TIMESTAMP_HEADER),
-  };
+  return { ok: true };
 };

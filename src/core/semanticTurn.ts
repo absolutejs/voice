@@ -78,6 +78,7 @@ export const createPunctuationSemanticTurnDetector = (
       if (lastWord && fillerWords.includes(lastWord)) {
         return { endOfTurn: false, reason: "trailing-filler" };
       }
+
       return {
         confidence: 0.9,
         endOfTurn: true,
@@ -96,6 +97,7 @@ export const createRegexSemanticTurnDetector = (
   options: CreateRegexSemanticTurnDetectorOptions,
 ): VoiceSemanticTurnDetector => {
   const minPartialWords = options.minPartialWords ?? 2;
+
   return {
     evaluate: ({ lastFinalTranscript, partialText }) => {
       const candidate =
@@ -114,6 +116,7 @@ export const createRegexSemanticTurnDetector = (
       if (!match) {
         return { endOfTurn: false, reason: "pattern-miss" };
       }
+
       return {
         endOfTurn: true,
         reason: "pattern-match",

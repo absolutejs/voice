@@ -86,6 +86,7 @@ const average = (values: readonly number[]): number => {
   if (values.length === 0) return 0;
   let total = 0;
   for (const value of values) total += value;
+
   return total / values.length;
 };
 
@@ -110,6 +111,7 @@ const computeMetrics = (
   );
   const termRecalls = results.map((result) => result.expectedTerms.recall ?? 0);
   const passCount = results.filter((result) => result.passes).length;
+
   return {
     averageTermRecall: average(termRecalls),
     averageWordAccuracyRate: average(wordAccuracyRates),
@@ -128,6 +130,7 @@ const resolveLanguageThreshold = (
   const explicit = perLanguage?.find(
     (entry) => entry.language.toLowerCase() === language.toLowerCase(),
   );
+
   return {
     label: explicit?.label,
     language,
@@ -180,6 +183,7 @@ const evaluateLanguage = (
       `${language}: term recall ${metrics.averageTermRecall.toFixed(3)} below floor ${thresholds.minTermRecall.toFixed(3)}.`,
     );
   }
+
   return {
     applied: thresholds,
     failures,
@@ -202,6 +206,7 @@ const collectFixtures = async (
   const loaded = await loadVoiceTestFixtures(
     options.fixtureDirectories as string | string[] | undefined,
   );
+
   return options.filter ? loaded.filter(options.filter) : loaded;
 };
 
@@ -220,74 +225,8 @@ const groupByLanguage = (
     bucket.push(result);
     grouped.set(language, bucket);
   }
-  return grouped;
-};
 
-export const runVoiceMultilingualProof = async (
-  options: VoiceMultilingualProofOptions,
-): Promise<VoiceMultilingualProofReport> => {
-  if (options.adapters.length === 0) {
-    throw new Error(
-      "runVoiceMultilingualProof requires at least one adapter entry.",
-    );
-  }
-  const fixtures = await collectFixtures(options);
-  if (fixtures.length === 0) {
-    throw new Error(
-      "runVoiceMultilingualProof found zero fixtures. Did you set VOICE_FIXTURE_DIR or pass fixtures/fixtureDirectories?",
-    );
-  }
-  const languageCodes = new Set(
-    fixtures.map((fixture) => fixture.language ?? "unknown"),
-  );
-  const adapterReports: VoiceMultilingualProofAdapterReport[] = [];
-  for (const entry of options.adapters) {
-    const benchmark = await runSTTAdapterBenchmark({
-      adapter: entry.adapter,
-      adapterId: entry.adapterId,
-      fixtures,
-      options: entry.benchmarkOptions,
-    });
-    const grouped = groupByLanguage(benchmark.fixtures, fixtures);
-    const languageReports: VoiceMultilingualProofLanguageReport[] = [];
-    for (const language of languageCodes) {
-      const bucket = grouped.get(language) ?? [];
-      if (bucket.length === 0) continue;
-      const thresholds = resolveLanguageThreshold(
-        language,
-        options.defaultThresholds,
-        options.perLanguage,
-      );
-      languageReports.push(evaluateLanguage(language, bucket, thresholds));
-    }
-    const overall = computeMetrics(benchmark.fixtures);
-    const failures: string[] = languageReports.flatMap(
-      (report) => report.failures,
-    );
-    adapterReports.push({
-      adapterId: entry.adapterId,
-      benchmark,
-      failures,
-      fixtureCount: benchmark.fixtures.length,
-      languageReports,
-      overall,
-      passes: failures.length === 0,
-    });
-  }
-  const failedAdapters = adapterReports
-    .filter((report) => !report.passes)
-    .map((report) => report.adapterId);
-  return {
-    adapters: adapterReports,
-    generatedAt: Date.now(),
-    passes: failedAdapters.length === 0,
-    summary: {
-      adapterCount: adapterReports.length,
-      failedAdapters,
-      fixtureCount: fixtures.length,
-      languageCount: languageCodes.size,
-    },
-  };
+  return grouped;
 };
 
 export const renderVoiceMultilingualProofMarkdown = (
@@ -349,7 +288,75 @@ export const renderVoiceMultilingualProofMarkdown = (
     }
     lines.push("");
   }
+
   return lines.join("\n");
+};
+export const runVoiceMultilingualProof = async (
+  options: VoiceMultilingualProofOptions,
+): Promise<VoiceMultilingualProofReport> => {
+  if (options.adapters.length === 0) {
+    throw new Error(
+      "runVoiceMultilingualProof requires at least one adapter entry.",
+    );
+  }
+  const fixtures = await collectFixtures(options);
+  if (fixtures.length === 0) {
+    throw new Error(
+      "runVoiceMultilingualProof found zero fixtures. Did you set VOICE_FIXTURE_DIR or pass fixtures/fixtureDirectories?",
+    );
+  }
+  const languageCodes = new Set(
+    fixtures.map((fixture) => fixture.language ?? "unknown"),
+  );
+  const adapterReports: VoiceMultilingualProofAdapterReport[] = [];
+  for (const entry of options.adapters) {
+    const benchmark = await runSTTAdapterBenchmark({
+      adapter: entry.adapter,
+      adapterId: entry.adapterId,
+      fixtures,
+      options: entry.benchmarkOptions,
+    });
+    const grouped = groupByLanguage(benchmark.fixtures, fixtures);
+    const languageReports: VoiceMultilingualProofLanguageReport[] = [];
+    for (const language of languageCodes) {
+      const bucket = grouped.get(language) ?? [];
+      if (bucket.length === 0) continue;
+      const thresholds = resolveLanguageThreshold(
+        language,
+        options.defaultThresholds,
+        options.perLanguage,
+      );
+      languageReports.push(evaluateLanguage(language, bucket, thresholds));
+    }
+    const overall = computeMetrics(benchmark.fixtures);
+    const failures: string[] = languageReports.flatMap(
+      (report) => report.failures,
+    );
+    adapterReports.push({
+      adapterId: entry.adapterId,
+      benchmark,
+      failures,
+      fixtureCount: benchmark.fixtures.length,
+      languageReports,
+      overall,
+      passes: failures.length === 0,
+    });
+  }
+  const failedAdapters = adapterReports
+    .filter((report) => !report.passes)
+    .map((report) => report.adapterId);
+
+  return {
+    adapters: adapterReports,
+    generatedAt: Date.now(),
+    passes: failedAdapters.length === 0,
+    summary: {
+      adapterCount: adapterReports.length,
+      failedAdapters,
+      fixtureCount: fixtures.length,
+      languageCount: languageCodes.size,
+    },
+  };
 };
 
 export type VoiceMultilingualProofReadinessOptions = {
@@ -379,7 +386,7 @@ export const buildVoiceMultilingualProofReadinessCheck = (
       value: 0,
     };
   }
-  const failedAdapters = report.summary.failedAdapters;
+  const {failedAdapters} = report.summary;
   if (failedAdapters.length === 0) {
     const passingDetail = report.adapters
       .map(
@@ -387,6 +394,7 @@ export const buildVoiceMultilingualProofReadinessCheck = (
           `${adapter.adapterId}: WER ${adapter.overall.averageWordErrorRate.toFixed(3)} across ${String(adapter.fixtureCount)} fixtures`,
       )
       .join("; ");
+
     return {
       detail: passingDetail,
       href: options.baseHref,
@@ -395,6 +403,7 @@ export const buildVoiceMultilingualProofReadinessCheck = (
       value: report.summary.adapterCount,
     };
   }
+
   return {
     detail: `Failed adapters: ${failedAdapters.join(", ")}. ${report.adapters
       .filter((adapter) => !adapter.passes)

@@ -48,6 +48,7 @@ export const buildVoiceHTMXAttributes = (
     const key = normalizeHxKey(rawKey);
     out.push(`${key}="${escapeAttr(value)}"`);
   }
+
   return out.length === 0 ? "" : ` ${out.join(" ")}`;
 };
 
@@ -56,23 +57,6 @@ const FIRST_TAG_RE = /^(\s*)<([a-zA-Z][\w-]*)((?:\s|>|\/))/;
 /**
  * Injects HTMX polling attributes into the first opening tag of an HTML string.
  * Returns the original HTML unchanged when attrs produce no attributes.
- */
-export const wrapVoiceHTMLWithHTMXPolling = (
-  html: string,
-  attrs: VoiceHTMXPollingAttributes | undefined,
-): string => {
-  const attrString = buildVoiceHTMXAttributes(attrs);
-  if (!attrString) return html;
-  const match = FIRST_TAG_RE.exec(html);
-  if (!match) return html;
-  const [matched, leading, tag, terminator] = match;
-  const replaced = `${leading}<${tag}${attrString}${terminator}`;
-  return html.replace(matched, replaced);
-};
-
-/**
- * Wraps arbitrary HTML in a self-refreshing div that polls refreshUrl.
- * Use this when the inner HTML doesn't have a stable root element to mutate.
  */
 export const wrapVoiceHTMLInHTMXContainer = (
   html: string,
@@ -86,5 +70,19 @@ export const wrapVoiceHTMLInHTMXContainer = (
     ? ` class="${escapeAttr(attrs.className)}"`
     : "";
   const hx = buildVoiceHTMXAttributes(attrs);
+
   return `<${tag}${classAttr}${hx}>${html}</${tag}>`;
+};
+export const wrapVoiceHTMLWithHTMXPolling = (
+  html: string,
+  attrs: VoiceHTMXPollingAttributes | undefined,
+): string => {
+  const attrString = buildVoiceHTMXAttributes(attrs);
+  if (!attrString) return html;
+  const match = FIRST_TAG_RE.exec(html);
+  if (!match) return html;
+  const [matched, leading, tag, terminator] = match;
+  const replaced = `${leading}<${tag}${attrString}${terminator}`;
+
+  return html.replace(matched, replaced);
 };

@@ -52,6 +52,7 @@ const normalizeTranscriptTimes = (
   if (typeof baseEpoch !== "number") {
     return transcripts;
   }
+
   return transcripts.map((transcript) => {
     const adjusted: Transcript = { ...transcript };
     if (
@@ -66,6 +67,7 @@ const normalizeTranscriptTimes = (
     ) {
       adjusted.endedAtMs = adjusted.endedAtMs - baseEpoch;
     }
+
     return adjusted;
   });
 };
@@ -87,6 +89,7 @@ const findActiveTranscript = (
     }
     candidate = { id: transcript.id, index };
   }
+
   return candidate ?? {};
 };
 
@@ -209,6 +212,7 @@ export const createVoiceCallPlayer = (
     },
     subscribe: (listener) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
@@ -221,5 +225,6 @@ export const formatVoiceCallPlayerTimestamp = (ms: number): string => {
   const seconds = Math.max(0, Math.floor(ms / 1_000));
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
+
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 };

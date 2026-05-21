@@ -165,6 +165,7 @@ export const defineVoiceAssistant = <
 ): DefinedVoiceAssistant<TContext, TSession, TResult> => {
   const assistantOptions = buildAssistantOptions(definition);
   const assistant = createVoiceAssistant(assistantOptions);
+
   return {
     assistant,
     definition,
@@ -172,6 +173,7 @@ export const defineVoiceAssistant = <
     toSessionOptions: (input) => {
       const route = assistant.route(definition.route ?? {});
       const observability = definition.observability ?? {};
+
       return {
         amd: definition.amd,
         assistantMode: definition.assistantMode,

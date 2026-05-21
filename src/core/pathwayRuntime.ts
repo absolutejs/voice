@@ -90,6 +90,7 @@ const pickTransition = (
   const fallback = state.transitions.find(
     (t) => t.condition.kind === "fallback",
   );
+
   return fallback ?? null;
 };
 
@@ -138,6 +139,7 @@ const buildPendingActions = (
     }
     if (action.kind === "transfer") {
       emit({ destination: action.destination, type: "transfer" });
+
       return {
         actions: pending,
         awaitingSlotId: null,
@@ -150,6 +152,7 @@ const buildPendingActions = (
         ...(action.reason !== undefined ? { reason: action.reason } : {}),
         type: "end-call",
       });
+
       return {
         actions: pending,
         awaitingSlotId: null,
@@ -158,6 +161,7 @@ const buildPendingActions = (
       };
     }
   }
+
   return { actions: pending, awaitingSlotId, ended: false };
 };
 
@@ -198,6 +202,7 @@ export const createVoicePathwayRuntime = (
         status: "errored",
       };
       emit({ message: state.lastError as string, type: "errored" });
+
       return;
     }
     state = {
@@ -235,11 +240,13 @@ export const createVoicePathwayRuntime = (
     if (!current) return;
     if (current.transitions.length === 0) {
       state = { ...state, status: "ended" };
+
       return;
     }
     const transition = pickTransition(current, state.slots);
     if (!transition) {
       state = { ...state, status: "awaiting-slot" };
+
       return;
     }
     enter(transition.to);
@@ -285,15 +292,16 @@ export const createVoicePathwayRuntime = (
 
   return {
     fillSlot,
-    getState: () => state,
     start,
+    tryTransition,
+    getState: () => state,
     subscribe(listener: (event: VoicePathwayRuntimeEvent) => void) {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
-    tryTransition,
   };
 };
 

@@ -70,6 +70,7 @@ export const VoiceCostDashboard = ({
   ...options
 }: VoiceCostDashboardProps) => {
   const report = buildVoiceCostDashboardReport(options);
+
   return (
     <section
       aria-label="voice-cost-dashboard"

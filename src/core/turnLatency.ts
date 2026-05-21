@@ -96,6 +96,7 @@ const createTraceStageIndex = (events: StoredVoiceTraceEvent[]) => {
     }
     index.set(key, stages);
   }
+
   return index;
 };
 
@@ -210,7 +211,7 @@ const resolveSessions = async <
   if (!options.store) {
     return [];
   }
-  const summaries = (await options.store.list()) as VoiceSessionSummary[];
+  const summaries = (await options.store.list());
   const ids = options.sessionIds ?? summaries.map((summary) => summary.id);
   const hydrated = await Promise.all(
     ids.slice(0, options.limit ?? 25).map((id) => options.store?.get(id)),
@@ -218,9 +219,10 @@ const resolveSessions = async <
   const sessions: TSession[] = [];
   for (const session of hydrated) {
     if (session) {
-      sessions.push(session as TSession);
+      sessions.push(session);
     }
   }
+
   return sessions;
 };
 
@@ -283,6 +285,47 @@ export const summarizeVoiceTurnLatency = async <
 const formatMs = (value?: number) =>
   typeof value === "number" ? `${Math.round(value)}ms` : "n/a";
 
+export const createVoiceTurnLatencyHTMLHandler =
+  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
+    options: VoiceTurnLatencyHTMLHandlerOptions<TSession>,
+  ) =>
+  async () => {
+    const report = await summarizeVoiceTurnLatency(options);
+    const render =
+      options.render ?? ((input) => renderVoiceTurnLatencyHTML(input, options));
+    const body = await render(report);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceTurnLatencyJSONHandler =
+  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
+    options: VoiceTurnLatencyOptions<TSession>,
+  ) =>
+  async () =>
+    summarizeVoiceTurnLatency(options);
+export const createVoiceTurnLatencyRoutes = <
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+>(
+  options: VoiceTurnLatencyRoutesOptions<TSession>,
+) => {
+  const path = options.path ?? "/api/turn-latency";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-turn-latency",
+  }).get(path, createVoiceTurnLatencyJSONHandler(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceTurnLatencyHTMLHandler(options));
+  }
+
+  return routes;
+};
 export const renderVoiceTurnLatencyHTML = (
   report: VoiceTurnLatencyReport,
   options: { title?: string } = {},
@@ -321,48 +364,4 @@ await traceStore.append({
     .join("");
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.turn,.primitive{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(94,234,212,.16),rgba(251,191,36,.1))}.eyebrow{color:#5eead4;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.primitive p{color:#cbd5e1}.primitive pre{background:#0a0d10;border:1px solid #2a323a;border-radius:16px;color:#d9fff7;overflow:auto;padding:16px}.turn header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.pass{color:#86efac}.warn,.empty{color:#fde68a}.fail{color:#fca5a5}.turn.fail{border-color:rgba(248,113,113,.45)}dl{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}dt{color:#a8b0b8;font-size:.8rem}dd{font-weight:900;margin:0}@media(max-width:800px){main{padding:18px}.turn header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">End-to-end responsiveness</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill ${escapeHtml(report.status)}">${escapeHtml(report.status)}</span><span class="pill">${String(report.total)} turns</span><span class="pill">avg ${escapeHtml(formatMs(report.averageTotalMs))}</span><span class="pill">${String(report.warnings)} warnings</span><span class="pill">${String(report.failed)} failed</span></div></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceTurnLatencyRoutes(...)</code> exposes the full turn waterfall</h2><p>Attach stage traces for speech detection, commit, model response, TTS send, and first audio so teams can prove where latency actually comes from.</p><pre><code>${escapeHtml(snippet)}</code></pre></section>${turns || '<section class="turn"><p>No committed turns found.</p></section>'}</main></body></html>`;
-};
-
-export const createVoiceTurnLatencyJSONHandler =
-  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
-    options: VoiceTurnLatencyOptions<TSession>,
-  ) =>
-  async () =>
-    summarizeVoiceTurnLatency(options);
-
-export const createVoiceTurnLatencyHTMLHandler =
-  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
-    options: VoiceTurnLatencyHTMLHandlerOptions<TSession>,
-  ) =>
-  async () => {
-    const report = await summarizeVoiceTurnLatency(options);
-    const render =
-      options.render ?? ((input) => renderVoiceTurnLatencyHTML(input, options));
-    const body = await render(report);
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceTurnLatencyRoutes = <
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
->(
-  options: VoiceTurnLatencyRoutesOptions<TSession>,
-) => {
-  const path = options.path ?? "/api/turn-latency";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-turn-latency",
-  }).get(path, createVoiceTurnLatencyJSONHandler(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceTurnLatencyHTMLHandler(options));
-  }
-
-  return routes;
 };

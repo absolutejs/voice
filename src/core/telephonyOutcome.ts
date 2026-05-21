@@ -348,6 +348,7 @@ const findMissing = <Value extends string>(
     return [];
   }
   const valueSet = new Set(values);
+
   return required.filter((value) => !valueSet.has(value));
 };
 
@@ -403,6 +404,12 @@ const isCallDisposition = (value: unknown): value is VoiceCallDisposition =>
   value === "transferred" ||
   value === "voicemail";
 
+export const assertVoiceTelephonyWebhookNormalizationEvidence = (
+  input: VoiceTelephonyWebhookNormalizationEvidenceInput = {},
+): VoiceTelephonyWebhookNormalizationEvidenceReport => assertVoiceEvidence(
+    "Voice telephony webhook normalization evidence assertion failed",
+    evaluateVoiceTelephonyWebhookNormalizationEvidence(input),
+  );
 export const evaluateVoiceTelephonyWebhookNormalizationEvidence = (
   input: VoiceTelephonyWebhookNormalizationEvidenceInput = {},
 ): VoiceTelephonyWebhookNormalizationEvidenceReport => {
@@ -629,15 +636,6 @@ export const evaluateVoiceTelephonyWebhookNormalizationEvidence = (
   };
 };
 
-export const assertVoiceTelephonyWebhookNormalizationEvidence = (
-  input: VoiceTelephonyWebhookNormalizationEvidenceInput = {},
-): VoiceTelephonyWebhookNormalizationEvidenceReport => {
-  return assertVoiceEvidence(
-    "Voice telephony webhook normalization evidence assertion failed",
-    evaluateVoiceTelephonyWebhookNormalizationEvidence(input),
-  );
-};
-
 const normalizeToken = (value: unknown) =>
   typeof value === "string"
     ? value.trim().toLowerCase().replace(/\s+/g, "-").replace(/_+/g, "-")
@@ -784,6 +782,7 @@ const resolveTransferTarget = (
 
   if (typeof policy.transferTarget === "function") {
     const target = policy.transferTarget(event);
+
     return typeof target === "string" && target.trim()
       ? target.trim()
       : undefined;
@@ -881,6 +880,54 @@ const buildDecision = (
       : undefined,
 });
 
+export const applyVoiceTelephonyOutcome = async <
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
+>(
+  api: VoiceSessionHandle<TContext, TSession, TResult>,
+  decision: VoiceTelephonyOutcomeDecision,
+  result?: TResult,
+) => {
+  switch (decision.action) {
+    case "complete":
+      await api.complete(result);
+      break;
+    case "escalate":
+      await api.escalate({
+        metadata: decision.metadata,
+        reason: decision.reason ?? "telephony-escalation",
+        result,
+      });
+      break;
+    case "no-answer":
+      await api.markNoAnswer({
+        metadata: decision.metadata,
+        result,
+      });
+      break;
+    case "transfer":
+      if (!decision.target) {
+        return;
+      }
+
+      await api.transfer({
+        metadata: decision.metadata,
+        reason: decision.reason,
+        result,
+        target: decision.target,
+      });
+      break;
+    case "voicemail":
+      await api.markVoicemail({
+        metadata: decision.metadata,
+        result,
+      });
+      break;
+    default:
+      break;
+  }
+};
 export const createVoiceTelephonyOutcomePolicy = (
   policy: VoiceTelephonyOutcomePolicy = {},
 ): Required<
@@ -917,7 +964,6 @@ export const createVoiceTelephonyOutcomePolicy = (
   transferTarget: policy.transferTarget,
   voicemailStatuses: policy.voicemailStatuses ?? DEFAULT_VOICEMAIL_STATUSES,
 });
-
 export const resolveVoiceTelephonyOutcome = (
   event: VoiceTelephonyOutcomeProviderEvent,
   policyInput: VoiceTelephonyOutcomePolicy = {},
@@ -1017,7 +1063,6 @@ export const resolveVoiceTelephonyOutcome = (
 
   return buildDecision("ignore", { event, policy, source: "status" });
 };
-
 export const voiceTelephonyOutcomeToRouteResult = <TResult = unknown>(
   decision: VoiceTelephonyOutcomeDecision,
   result?: TResult,
@@ -1062,55 +1107,6 @@ export const voiceTelephonyOutcomeToRouteResult = <TResult = unknown>(
       };
     default:
       return { result };
-  }
-};
-
-export const applyVoiceTelephonyOutcome = async <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
-  TResult = unknown,
->(
-  api: VoiceSessionHandle<TContext, TSession, TResult>,
-  decision: VoiceTelephonyOutcomeDecision,
-  result?: TResult,
-) => {
-  switch (decision.action) {
-    case "complete":
-      await api.complete(result);
-      break;
-    case "escalate":
-      await api.escalate({
-        metadata: decision.metadata,
-        reason: decision.reason ?? "telephony-escalation",
-        result,
-      });
-      break;
-    case "no-answer":
-      await api.markNoAnswer({
-        metadata: decision.metadata,
-        result,
-      });
-      break;
-    case "transfer":
-      if (!decision.target) {
-        return;
-      }
-
-      await api.transfer({
-        metadata: decision.metadata,
-        reason: decision.reason,
-        result,
-        target: decision.target,
-      });
-      break;
-    case "voicemail":
-      await api.markVoicemail({
-        metadata: decision.metadata,
-        result,
-      });
-      break;
-    default:
-      break;
   }
 };
 
@@ -1322,6 +1318,7 @@ const defaultSessionId = (input: {
 }) => {
   const payload = flattenPayload(input.body);
   const metadataSessionId = input.event.metadata?.sessionId;
+
   return (
     firstString(input.query, ["sessionId", "session_id"]) ??
     firstString(payload, [
@@ -1453,14 +1450,7 @@ export const createVoiceTelephonyWebhookHandler =
       }
     }
     const decision = resolveVoiceTelephonyOutcome(event, options.policy);
-    const resultResolver = options.result as
-      | ((input: {
-          decision: VoiceTelephonyOutcomeDecision;
-          event: VoiceTelephonyOutcomeProviderEvent;
-          sessionId?: string;
-        }) => Promise<TResult | undefined> | TResult | undefined)
-      | TResult
-      | undefined;
+    const resultResolver = options.result;
     const result =
       typeof resultResolver === "function"
         ? await (

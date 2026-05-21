@@ -10,6 +10,7 @@ export const createVoiceSessionSnapshot = (
   options: VoiceSessionSnapshotWidgetOptions = {},
 ) => {
   const store = createVoiceSessionSnapshotStore(path, options);
+
   return {
     ...store,
     getHTML: () => renderVoiceSessionSnapshotHTML(store.getSnapshot(), options),

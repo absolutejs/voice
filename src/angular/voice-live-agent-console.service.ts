@@ -20,6 +20,7 @@ export class VoiceLiveAgentConsoleService {
     const unsubscribe = console.subscribe(() => {
       stateSignal.set(console.getState());
     });
+
     return {
       releaseTakeover: () => console.releaseTakeover(),
       setCaller: (caller: Parameters<LiveAgentConsole["setCaller"]>[0]) =>

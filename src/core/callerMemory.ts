@@ -29,6 +29,7 @@ export const buildVoiceCallerMemoryNamespace = (
 ) => {
   const identifier =
     identity?.externalId ?? identity?.phone ?? identity?.email ?? "anonymous";
+
   return `${prefix}:${normalizeIdentifier(identifier)}`;
 };
 
@@ -54,6 +55,7 @@ export const createVoiceCallerMemoryNamespace =
   ) =>
   async (input: VoiceAssistantMemoryNamespaceInput<TContext, TSession>) => {
     const identity = await Promise.resolve(options.identifyCaller(input));
+
     return buildVoiceCallerMemoryNamespace(identity, options.prefix);
   };
 
@@ -89,6 +91,7 @@ const buildTranscriptBlock = (turns: VoiceTurnRecord[]) =>
       if (assistantText) {
         lines.push(`  agent: ${assistantText}`);
       }
+
       return lines.join("\n");
     })
     .join("\n");
@@ -124,6 +127,7 @@ const coerceFacts = (input: unknown): Record<string, string> => {
       out[key] = String(value);
     }
   }
+
   return out;
 };
 
@@ -131,6 +135,7 @@ const coerceActions = (input: unknown): string[] => {
   if (!Array.isArray(input)) {
     return [];
   }
+
   return input
     .map((value) => (typeof value === "string" ? value.trim() : ""))
     .filter((value) => value.length > 0);
@@ -160,6 +165,7 @@ export const summarizeVoiceCallerTranscript = async (
     throw new Error("Caller-memory summarizer returned non-object JSON");
   }
   const record = parsed as Record<string, unknown>;
+
   return {
     facts: coerceFacts(record.facts),
     identity: input.identity,

@@ -85,6 +85,7 @@ export const VoiceCallPlayer = defineComponent({
 
     return () => {
       const s = state.value;
+
       return h(
         "section",
         {
@@ -126,6 +127,10 @@ export const VoiceCallPlayer = defineComponent({
             ],
           ),
           h("audio", {
+            preload: "metadata",
+            ref: audioRef,
+            src: s.audioUrl,
+            style: { display: "none" },
             onEnded: () => player.setPlaying(false),
             onError: () => player.setError("Audio playback error"),
             onLoadedmetadata: () => {
@@ -141,10 +146,6 @@ export const VoiceCallPlayer = defineComponent({
               if (!el) return;
               player.setTime(el.currentTime * 1_000);
             },
-            preload: "metadata",
-            ref: audioRef,
-            src: s.audioUrl,
-            style: { display: "none" },
           }),
           h(
             "div",
@@ -161,13 +162,6 @@ export const VoiceCallPlayer = defineComponent({
                 "button",
                 {
                   "aria-label": s.isPlaying ? "Pause" : "Play",
-                  onClick: () => {
-                    if (s.isPlaying) {
-                      player.pause();
-                    } else {
-                      void player.play();
-                    }
-                  },
                   style: {
                     background: "#3b82f6",
                     border: "none",
@@ -179,6 +173,13 @@ export const VoiceCallPlayer = defineComponent({
                     padding: "8px 14px",
                   },
                   type: "button",
+                  onClick: () => {
+                    if (s.isPlaying) {
+                      player.pause();
+                    } else {
+                      void player.play();
+                    }
+                  },
                 },
                 s.isPlaying ? "Pause" : "Play",
               ),
@@ -186,14 +187,14 @@ export const VoiceCallPlayer = defineComponent({
                 "aria-label": "seek",
                 max: 1,
                 min: 0,
-                onInput: (event: Event) => {
-                  const target = event.target as HTMLInputElement;
-                  player.seekMs(s.durationMs * Number(target.value));
-                },
                 step: 0.001,
                 style: { flex: "1" },
                 type: "range",
                 value: s.durationMs > 0 ? s.currentTimeMs / s.durationMs : 0,
+                onInput: (event: Event) => {
+                  const target = event.target as HTMLInputElement;
+                  player.seekMs(s.durationMs * Number(target.value));
+                },
               }),
             ],
           ),
@@ -216,7 +217,6 @@ export const VoiceCallPlayer = defineComponent({
                 "li",
                 {
                   key: transcript.id,
-                  onClick: () => player.seekToTranscript(transcript.id),
                   style: {
                     background:
                       transcript.id === s.activeTranscriptId
@@ -227,6 +227,7 @@ export const VoiceCallPlayer = defineComponent({
                     fontSize: "13px",
                     padding: "8px 12px",
                   },
+                  onClick: () => player.seekToTranscript(transcript.id),
                 },
                 [
                   h(

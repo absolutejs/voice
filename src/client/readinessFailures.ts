@@ -12,18 +12,6 @@ export type VoiceReadinessFailuresSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceReadinessFailures = async (
-  path = "/api/production-readiness",
-  options: Pick<VoiceReadinessFailuresClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice readiness failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceProductionReadinessReport;
-};
-
 export const createVoiceReadinessFailuresStore = (
   path = "/api/production-readiness",
   options: VoiceReadinessFailuresClientOptions = {},
@@ -55,6 +43,7 @@ export const createVoiceReadinessFailuresStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -87,14 +76,27 @@ export const createVoiceReadinessFailuresStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceReadinessFailures = async (
+  path = "/api/production-readiness",
+  options: Pick<VoiceReadinessFailuresClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice readiness failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceProductionReadinessReport;
 };

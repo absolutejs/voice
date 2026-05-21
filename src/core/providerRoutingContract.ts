@@ -92,8 +92,8 @@ const normalizeEvents = (
   events: StoredVoiceTraceEvent[] | VoiceRoutingEvent[],
 ): VoiceRoutingEvent[] =>
   (events.every(isRoutingEvent)
-    ? [...(events as VoiceRoutingEvent[])]
-    : listVoiceRoutingEvents(events as StoredVoiceTraceEvent[])
+    ? [...(events)]
+    : listVoiceRoutingEvents(events)
   ).sort((left, right) => left.at - right.at);
 
 const matchesExpectation = (
@@ -116,51 +116,6 @@ const describeExpectation = (expectation: VoiceProviderRoutingExpectation) =>
     .map(([key, value]) => `${key}=${String(value)}`)
     .join(", ");
 
-export const runVoiceProviderRoutingContract = async (
-  options: VoiceProviderRoutingContractRunOptions,
-): Promise<VoiceProviderRoutingContractReport> => {
-  const rawEvents = options.events ?? (await options.store?.list()) ?? [];
-  const events = normalizeEvents(rawEvents).filter(
-    (event) =>
-      (!options.contract.sessionId ||
-        event.sessionId === options.contract.sessionId) &&
-      (!options.contract.scenarioId ||
-        event.sessionId === options.contract.scenarioId ||
-        (rawEvents as StoredVoiceTraceEvent[]).some(
-          (rawEvent) =>
-            !isRoutingEvent(rawEvent) &&
-            rawEvent.sessionId === event.sessionId &&
-            rawEvent.scenarioId === options.contract.scenarioId,
-        )),
-  );
-  const issues: VoiceProviderRoutingContractIssue[] = [];
-  let searchFrom = 0;
-
-  for (const [index, expectation] of options.contract.expect.entries()) {
-    const matchIndex = events.findIndex(
-      (event, eventIndex) =>
-        eventIndex >= searchFrom && matchesExpectation(event, expectation),
-    );
-    if (matchIndex === -1) {
-      issues.push({
-        code: "provider_routing.expected_event_missing",
-        message: `Expected provider routing event ${index + 1}: ${describeExpectation(expectation)}.`,
-      });
-      continue;
-    }
-    searchFrom = matchIndex + 1;
-  }
-
-  return {
-    contractId: options.contract.id,
-    events,
-    issues,
-    pass: issues.length === 0,
-    scenarioId: options.contract.scenarioId,
-    sessionId: options.contract.sessionId,
-  };
-};
-
 export const assertVoiceProviderRoutingContract = async (
   options: VoiceProviderRoutingContractRunOptions,
 ): Promise<VoiceProviderRoutingContractReport> => {
@@ -172,9 +127,16 @@ export const assertVoiceProviderRoutingContract = async (
         .join(" ")}`,
     );
   }
+
   return report;
 };
-
+export const assertVoiceProviderRoutingContractEvidence = (
+  reports: readonly VoiceProviderRoutingContractReport[],
+  input: VoiceProviderRoutingContractAssertionInput = {},
+): VoiceProviderRoutingContractAssertionReport => assertVoiceEvidence(
+    "Voice provider routing contract evidence assertion failed",
+    evaluateVoiceProviderRoutingContractEvidence(reports, input),
+  );
 export const evaluateVoiceProviderRoutingContractEvidence = (
   reports: readonly VoiceProviderRoutingContractReport[],
   input: VoiceProviderRoutingContractAssertionInput = {},
@@ -304,8 +266,8 @@ export const evaluateVoiceProviderRoutingContractEvidence = (
     events: events.length,
     failed,
     fallbackProviders,
-    issues,
     issueCount,
+    issues,
     kinds,
     ok: issues.length === 0,
     operations,
@@ -317,13 +279,47 @@ export const evaluateVoiceProviderRoutingContractEvidence = (
     total: reports.length,
   };
 };
-
-export const assertVoiceProviderRoutingContractEvidence = (
-  reports: readonly VoiceProviderRoutingContractReport[],
-  input: VoiceProviderRoutingContractAssertionInput = {},
-): VoiceProviderRoutingContractAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice provider routing contract evidence assertion failed",
-    evaluateVoiceProviderRoutingContractEvidence(reports, input),
+export const runVoiceProviderRoutingContract = async (
+  options: VoiceProviderRoutingContractRunOptions,
+): Promise<VoiceProviderRoutingContractReport> => {
+  const rawEvents = options.events ?? (await options.store?.list()) ?? [];
+  const events = normalizeEvents(rawEvents).filter(
+    (event) =>
+      (!options.contract.sessionId ||
+        event.sessionId === options.contract.sessionId) &&
+      (!options.contract.scenarioId ||
+        event.sessionId === options.contract.scenarioId ||
+        (rawEvents as StoredVoiceTraceEvent[]).some(
+          (rawEvent) =>
+            !isRoutingEvent(rawEvent) &&
+            rawEvent.sessionId === event.sessionId &&
+            rawEvent.scenarioId === options.contract.scenarioId,
+        )),
   );
+  const issues: VoiceProviderRoutingContractIssue[] = [];
+  let searchFrom = 0;
+
+  for (const [index, expectation] of options.contract.expect.entries()) {
+    const matchIndex = events.findIndex(
+      (event, eventIndex) =>
+        eventIndex >= searchFrom && matchesExpectation(event, expectation),
+    );
+    if (matchIndex === -1) {
+      issues.push({
+        code: "provider_routing.expected_event_missing",
+        message: `Expected provider routing event ${index + 1}: ${describeExpectation(expectation)}.`,
+      });
+      continue;
+    }
+    searchFrom = matchIndex + 1;
+  }
+
+  return {
+    contractId: options.contract.id,
+    events,
+    issues,
+    pass: issues.length === 0,
+    scenarioId: options.contract.scenarioId,
+    sessionId: options.contract.sessionId,
+  };
 };

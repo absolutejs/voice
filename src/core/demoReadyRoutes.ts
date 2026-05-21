@@ -219,21 +219,6 @@ export const buildVoiceDemoReadyReport = async (
     title: options.title ?? "AbsoluteJS Voice Demo Ready",
   };
 };
-
-export const renderVoiceDemoReadyHTML = (report: VoiceDemoReadyReport) => {
-  const sections = report.sections
-    .map(
-      (section) => `<article class="section ${escapeHtml(section.status)}">
-<div><span>${escapeHtml(section.status.toUpperCase())}</span><h2>${escapeHtml(section.label)}</h2>${section.description ? `<p>${escapeHtml(section.description)}</p>` : ""}</div>
-<strong>${escapeHtml(String(section.value ?? section.status))}</strong>
-${section.href ? `<a href="${escapeHtml(section.href)}">Open</a>` : ""}
-</article>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(report.title)}</title><style>body{background:#0d141b;color:#f8f3e7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1060px;padding:32px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.2),rgba(245,158,11,.12));border:1px solid #283544;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #3f3f46;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.sections{display:grid;gap:14px}.section{align-items:center;background:#151d26;border:1px solid #283544;border-radius:22px;display:grid;gap:16px;grid-template-columns:1fr auto auto;padding:18px}.section span{color:#aab5c0;font-size:.78rem;font-weight:900;letter-spacing:.08em}.section h2{margin:.2rem 0}.section p{color:#b9c0c8;margin:.2rem 0 0}.section strong{font-size:1.4rem}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.65)}.fail{border-color:rgba(239,68,68,.75)}a{color:#5eead4}@media(max-width:760px){main{padding:20px}.section{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Demo readiness</p><h1>${escapeHtml(report.title)}</h1><p>One customer-facing checklist for the self-hosted voice proof surfaces: ops status, production readiness, phone setup, and phone smoke traces.</p><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p>Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}</p></section><section class="sections">${sections || '<article class="section warn"><div><span>WARN</span><h2>No checks configured</h2><p>Add ops status, production readiness, phone setup, or phone smoke loaders.</p></div><strong>warn</strong></article>'}</section></main></body></html>`;
-};
-
 export const createVoiceDemoReadyRoutes = (
   options: VoiceDemoReadyRoutesOptions,
 ) => {
@@ -264,4 +249,17 @@ export const createVoiceDemoReadyRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceDemoReadyHTML = (report: VoiceDemoReadyReport) => {
+  const sections = report.sections
+    .map(
+      (section) => `<article class="section ${escapeHtml(section.status)}">
+<div><span>${escapeHtml(section.status.toUpperCase())}</span><h2>${escapeHtml(section.label)}</h2>${section.description ? `<p>${escapeHtml(section.description)}</p>` : ""}</div>
+<strong>${escapeHtml(String(section.value ?? section.status))}</strong>
+${section.href ? `<a href="${escapeHtml(section.href)}">Open</a>` : ""}
+</article>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(report.title)}</title><style>body{background:#0d141b;color:#f8f3e7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1060px;padding:32px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.2),rgba(245,158,11,.12));border:1px solid #283544;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #3f3f46;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.sections{display:grid;gap:14px}.section{align-items:center;background:#151d26;border:1px solid #283544;border-radius:22px;display:grid;gap:16px;grid-template-columns:1fr auto auto;padding:18px}.section span{color:#aab5c0;font-size:.78rem;font-weight:900;letter-spacing:.08em}.section h2{margin:.2rem 0}.section p{color:#b9c0c8;margin:.2rem 0 0}.section strong{font-size:1.4rem}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.65)}.fail{border-color:rgba(239,68,68,.75)}a{color:#5eead4}@media(max-width:760px){main{padding:20px}.section{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Demo readiness</p><h1>${escapeHtml(report.title)}</h1><p>One customer-facing checklist for the self-hosted voice proof surfaces: ops status, production readiness, phone setup, and phone smoke traces.</p><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p>Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}</p></section><section class="sections">${sections || '<article class="section warn"><div><span>WARN</span><h2>No checks configured</h2><p>Add ops status, production readiness, phone setup, or phone smoke loaders.</p></div><strong>warn</strong></article>'}</section></main></body></html>`;
 };

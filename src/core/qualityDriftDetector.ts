@@ -42,6 +42,7 @@ const severityFor = (
 ): VoiceQualityDriftSeverity => {
   if (delta <= -regression) return "regression";
   if (delta <= -watch) return "watch";
+
   return "ok";
 };
 
@@ -62,6 +63,7 @@ const averageCriterion = (
       }
     }
   }
+
   return matches.length === 0
     ? 0
     : matches.reduce((a, b) => a + b, 0) / matches.length;

@@ -22,6 +22,32 @@ export type VoiceProviderSimulationControlsViewModel<
 
 const formatKind = (kind: string | undefined) => (kind ?? "stt").toUpperCase();
 
+export const bindVoiceProviderSimulationControls = <
+  TProvider extends string = string,
+>(
+  element: Element,
+  store: ReturnType<
+    typeof createVoiceProviderSimulationControlsStore<TProvider>
+  >,
+) => {
+  const onClick = (event: Event) => {
+    const {target} = event;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const failProvider = target.getAttribute("data-voice-provider-fail");
+    const recoverProvider = target.getAttribute("data-voice-provider-recover");
+    if (failProvider) {
+      void store.run(failProvider as TProvider, "failure").catch(() => {});
+    }
+    if (recoverProvider) {
+      void store.run(recoverProvider as TProvider, "recovery").catch(() => {});
+    }
+  };
+  element.addEventListener("click", onClick);
+
+  return () => element.removeEventListener("click", onClick);
+};
 export const createVoiceProviderSimulationControlsViewModel = <
   TProvider extends string = string,
 >(
@@ -66,96 +92,6 @@ export const createVoiceProviderSimulationControlsViewModel = <
     title: options.title ?? `${formatKind(options.kind)} Failure Simulation`,
   };
 };
-
-export const renderVoiceProviderSimulationControlsHTML = <
-  TProvider extends string = string,
->(
-  snapshot: VoiceProviderSimulationControlsSnapshot<TProvider>,
-  options: VoiceProviderSimulationControlsOptions<TProvider>,
-) => {
-  const model = createVoiceProviderSimulationControlsViewModel(
-    snapshot,
-    options,
-  );
-  const failureButtons = model.failureProviders
-    .map(
-      (provider) =>
-        `<button type="button" data-voice-provider-fail="${escapeHtml(provider.provider)}"${!model.canSimulateFailure || snapshot.isRunning ? " disabled" : ""}>Simulate ${escapeHtml(provider.provider)} ${escapeHtml(formatKind(options.kind))} failure</button>`,
-    )
-    .join("");
-  const recoveryButtons = model.providers
-    .map(
-      (provider) =>
-        `<button type="button" data-voice-provider-recover="${escapeHtml(provider.provider)}"${snapshot.isRunning ? " disabled" : ""}>Mark ${escapeHtml(provider.provider)} recovered</button>`,
-    )
-    .join("");
-
-  return `<section class="absolute-voice-provider-simulation absolute-voice-provider-simulation--${snapshot.error ? "error" : snapshot.isRunning ? "running" : "ready"}">
-  <header class="absolute-voice-provider-simulation__header">
-    <span class="absolute-voice-provider-simulation__eyebrow">${escapeHtml(model.title)}</span>
-    <strong class="absolute-voice-provider-simulation__label">${escapeHtml(model.label)}</strong>
-  </header>
-  <p class="absolute-voice-provider-simulation__description">${escapeHtml(model.description)}</p>
-  ${model.canSimulateFailure ? "" : `<p class="absolute-voice-provider-simulation__empty">${escapeHtml(options.fallbackRequiredMessage ?? "Configure fallback providers before simulating failure.")}</p>`}
-  <div class="absolute-voice-provider-simulation__actions">${failureButtons}${recoveryButtons}</div>
-  ${snapshot.error ? `<p class="absolute-voice-provider-simulation__error">${escapeHtml(snapshot.error)}</p>` : ""}
-  ${model.resultText ? `<pre class="absolute-voice-provider-simulation__result">${escapeHtml(model.resultText)}</pre>` : ""}
-</section>`;
-};
-
-export const bindVoiceProviderSimulationControls = <
-  TProvider extends string = string,
->(
-  element: Element,
-  store: ReturnType<
-    typeof createVoiceProviderSimulationControlsStore<TProvider>
-  >,
-) => {
-  const onClick = (event: Event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-    const failProvider = target.getAttribute("data-voice-provider-fail");
-    const recoverProvider = target.getAttribute("data-voice-provider-recover");
-    if (failProvider) {
-      void store.run(failProvider as TProvider, "failure").catch(() => {});
-    }
-    if (recoverProvider) {
-      void store.run(recoverProvider as TProvider, "recovery").catch(() => {});
-    }
-  };
-  element.addEventListener("click", onClick);
-  return () => element.removeEventListener("click", onClick);
-};
-
-export const mountVoiceProviderSimulationControls = <
-  TProvider extends string = string,
->(
-  element: Element,
-  options: VoiceProviderSimulationControlsOptions<TProvider>,
-) => {
-  const store = createVoiceProviderSimulationControlsStore(options);
-  const render = () => {
-    element.innerHTML = renderVoiceProviderSimulationControlsHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribeStore = store.subscribe(render);
-  const unsubscribeDom = bindVoiceProviderSimulationControls(element, store);
-  render();
-
-  return {
-    close: () => {
-      unsubscribeDom();
-      unsubscribeStore();
-      store.close();
-    },
-    run: store.run,
-  };
-};
-
 export const defineVoiceProviderSimulationControlsElement = (
   tagName = "absolute-voice-provider-simulation",
 ) => {
@@ -204,4 +140,65 @@ export const defineVoiceProviderSimulationControlsElement = (
       }
     },
   );
+};
+export const mountVoiceProviderSimulationControls = <
+  TProvider extends string = string,
+>(
+  element: Element,
+  options: VoiceProviderSimulationControlsOptions<TProvider>,
+) => {
+  const store = createVoiceProviderSimulationControlsStore(options);
+  const render = () => {
+    element.innerHTML = renderVoiceProviderSimulationControlsHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribeStore = store.subscribe(render);
+  const unsubscribeDom = bindVoiceProviderSimulationControls(element, store);
+  render();
+
+  return {
+    run: store.run,
+    close: () => {
+      unsubscribeDom();
+      unsubscribeStore();
+      store.close();
+    },
+  };
+};
+export const renderVoiceProviderSimulationControlsHTML = <
+  TProvider extends string = string,
+>(
+  snapshot: VoiceProviderSimulationControlsSnapshot<TProvider>,
+  options: VoiceProviderSimulationControlsOptions<TProvider>,
+) => {
+  const model = createVoiceProviderSimulationControlsViewModel(
+    snapshot,
+    options,
+  );
+  const failureButtons = model.failureProviders
+    .map(
+      (provider) =>
+        `<button type="button" data-voice-provider-fail="${escapeHtml(provider.provider)}"${!model.canSimulateFailure || snapshot.isRunning ? " disabled" : ""}>Simulate ${escapeHtml(provider.provider)} ${escapeHtml(formatKind(options.kind))} failure</button>`,
+    )
+    .join("");
+  const recoveryButtons = model.providers
+    .map(
+      (provider) =>
+        `<button type="button" data-voice-provider-recover="${escapeHtml(provider.provider)}"${snapshot.isRunning ? " disabled" : ""}>Mark ${escapeHtml(provider.provider)} recovered</button>`,
+    )
+    .join("");
+
+  return `<section class="absolute-voice-provider-simulation absolute-voice-provider-simulation--${snapshot.error ? "error" : snapshot.isRunning ? "running" : "ready"}">
+  <header class="absolute-voice-provider-simulation__header">
+    <span class="absolute-voice-provider-simulation__eyebrow">${escapeHtml(model.title)}</span>
+    <strong class="absolute-voice-provider-simulation__label">${escapeHtml(model.label)}</strong>
+  </header>
+  <p class="absolute-voice-provider-simulation__description">${escapeHtml(model.description)}</p>
+  ${model.canSimulateFailure ? "" : `<p class="absolute-voice-provider-simulation__empty">${escapeHtml(options.fallbackRequiredMessage ?? "Configure fallback providers before simulating failure.")}</p>`}
+  <div class="absolute-voice-provider-simulation__actions">${failureButtons}${recoveryButtons}</div>
+  ${snapshot.error ? `<p class="absolute-voice-provider-simulation__error">${escapeHtml(snapshot.error)}</p>` : ""}
+  ${model.resultText ? `<pre class="absolute-voice-provider-simulation__result">${escapeHtml(model.resultText)}</pre>` : ""}
+</section>`;
 };

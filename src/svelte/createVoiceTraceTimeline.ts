@@ -10,6 +10,7 @@ export const createVoiceTraceTimeline = (
   options: VoiceTraceTimelineWidgetOptions = {},
 ) => {
   const store = createSharedVoiceTraceTimelineStore(path, options);
+
   return {
     ...store,
     getHTML: () =>

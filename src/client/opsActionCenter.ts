@@ -139,33 +139,6 @@ export const createVoiceOpsActionCenterActions = (
 
   return actions;
 };
-
-export const runVoiceOpsAction = async (
-  action: VoiceOpsActionDescriptor,
-  options: Pick<VoiceOpsActionCenterClientOptions, "fetch"> = {},
-): Promise<VoiceOpsActionRunResult> => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(action.path, {
-    method: action.method ?? "POST",
-  });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "error" in body
-        ? String((body as { error: unknown }).error)
-        : `Voice ops action "${action.id}" failed: HTTP ${response.status}`;
-    throw new Error(message);
-  }
-
-  return {
-    actionId: action.id,
-    body,
-    ok: response.ok,
-    ranAt: Date.now(),
-    status: response.status,
-  };
-};
-
 export const createVoiceOpsActionCenterStore = (
   options: VoiceOpsActionCenterClientOptions = {},
 ) => {
@@ -218,6 +191,7 @@ export const createVoiceOpsActionCenterStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return result;
     } catch (error) {
       const result: VoiceOpsActionRunResult = {
@@ -257,15 +231,41 @@ export const createVoiceOpsActionCenterStore = (
 
   return {
     close,
-    getServerSnapshot: () => snapshot,
-    getSnapshot: () => snapshot,
     run,
     setActions,
+    getServerSnapshot: () => snapshot,
+    getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
+  };
+};
+export const runVoiceOpsAction = async (
+  action: VoiceOpsActionDescriptor,
+  options: Pick<VoiceOpsActionCenterClientOptions, "fetch"> = {},
+): Promise<VoiceOpsActionRunResult> => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(action.path, {
+    method: action.method ?? "POST",
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      body && typeof body === "object" && "error" in body
+        ? String((body as { error: unknown }).error)
+        : `Voice ops action "${action.id}" failed: HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return {
+    actionId: action.id,
+    body,
+    ok: response.ok,
+    ranAt: Date.now(),
+    status: response.status,
   };
 };

@@ -10,6 +10,25 @@ export type CreateVoiceCallPlayerOptions = VoiceCallPlayerOptions & {
   title?: string;
 };
 
+export const createVoiceCallPlayer = (
+  options: CreateVoiceCallPlayerOptions = {},
+) => {
+  const player = createCorePlayer(options);
+
+  return {
+    ...player,
+    getHTML: () =>
+      renderVoiceCallPlayerHTML(player.getState(), {
+        title: options.title,
+        transcripts: player.transcripts().map((t) => ({
+          id: t.id,
+          startedAtMs: t.startedAtMs,
+          text: t.text,
+        })),
+      }),
+    title: options.title,
+  };
+};
 export const renderVoiceCallPlayerHTML = (
   state: VoiceCallPlayerState,
   options: {
@@ -32,6 +51,7 @@ export const renderVoiceCallPlayerHTML = (
         </li>`,
     )
     .join("");
+
   return `<section aria-label="voice-call-player" class="absolute-voice-call-player" style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:center;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${escapeHtml(title)}</strong>
@@ -44,23 +64,4 @@ export const renderVoiceCallPlayerHTML = (
   </div>
   <ol style="display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;max-height:280px;overflow-y:auto;padding:0;">${items}</ol>
 </section>`;
-};
-
-export const createVoiceCallPlayer = (
-  options: CreateVoiceCallPlayerOptions = {},
-) => {
-  const player = createCorePlayer(options);
-  return {
-    ...player,
-    getHTML: () =>
-      renderVoiceCallPlayerHTML(player.getState(), {
-        title: options.title,
-        transcripts: player.transcripts().map((t) => ({
-          id: t.id,
-          startedAtMs: t.startedAtMs,
-          text: t.text,
-        })),
-      }),
-    title: options.title,
-  };
 };

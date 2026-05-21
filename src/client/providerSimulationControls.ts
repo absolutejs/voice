@@ -54,6 +54,7 @@ const postSimulation = async <TProvider extends string>(
         : `Voice provider simulation failed: HTTP ${response.status}`;
     throw new Error(message);
   }
+
   return body as VoiceIOProviderFailureSimulationResult<TProvider>;
 };
 
@@ -110,6 +111,7 @@ export const createVoiceProviderSimulationControlsStore = <
         updatedAt: Date.now(),
       };
       emit();
+
       return result;
     } catch (error) {
       snapshot = {
@@ -128,11 +130,12 @@ export const createVoiceProviderSimulationControlsStore = <
 
   return {
     close,
+    run,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    run,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

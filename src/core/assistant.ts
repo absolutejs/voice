@@ -279,6 +279,7 @@ const hashString = (value: string) => {
     hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
+
   return hash >>> 0;
 };
 
@@ -302,6 +303,7 @@ const resolveOutcome = <TResult>(result: VoiceRouteResult<TResult>) => {
   if (result.complete) {
     return "completed";
   }
+
   return "continued";
 };
 
@@ -395,63 +397,6 @@ const mergeOps = <TContext, TSession extends VoiceSessionRecord, TResult>(
   };
 };
 
-export const createVoiceExperiment = <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
-  TResult = unknown,
->(
-  options: VoiceAssistantExperimentOptions<TContext, TSession, TResult>,
-): VoiceAssistantExperiment<TContext, TSession, TResult> => {
-  if (!options.variants.length) {
-    throw new Error("createVoiceExperiment requires at least one variant.");
-  }
-  const firstVariant = options.variants[0] as VoiceAssistantVariant<
-    TContext,
-    TSession,
-    TResult
-  >;
-
-  return {
-    id: options.id,
-    resolve: (input) => {
-      const selected = options.selectVariant?.({
-        ...input,
-        variants: options.variants,
-      });
-      if (selected && typeof selected !== "object") {
-        const variant = options.variants.find((item) => item.id === selected);
-        if (variant) {
-          return variant;
-        }
-      }
-      if (selected && typeof selected === "object" && "id" in selected) {
-        return selected;
-      }
-
-      const totalWeight = options.variants.reduce(
-        (total, variant) => total + Math.max(0, variant.weight ?? 1),
-        0,
-      );
-      if (totalWeight <= 0) {
-        return firstVariant;
-      }
-
-      const bucket =
-        hashString(`${options.id}:${input.assistantId}:${input.session.id}`) %
-        totalWeight;
-      let cursor = 0;
-      for (const variant of options.variants) {
-        cursor += Math.max(0, variant.weight ?? 1);
-        if (bucket < cursor) {
-          return variant;
-        }
-      }
-      return firstVariant;
-    },
-    variants: options.variants,
-  };
-};
-
 export const createVoiceAssistant = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -492,8 +437,8 @@ export const createVoiceAssistant = <
       maxToolRounds: options.maxToolRounds,
       model: options.model,
       system: options.system,
-      trace: options.trace,
       tools: options.tools,
+      trace: options.trace,
     });
   }
 
@@ -556,6 +501,7 @@ export const createVoiceAssistant = <
         turnId: input.turn.id,
         type: "assistant.run",
       });
+
       return blocked;
     }
 
@@ -574,8 +520,8 @@ export const createVoiceAssistant = <
               variant.maxToolRounds ?? baseModelOptions.maxToolRounds,
             model: variant.model ?? baseModelOptions.model,
             system: variant.system ?? baseModelOptions.system,
-            trace: options.trace,
             tools: variant.tools ?? baseModelOptions.tools,
+            trace: options.trace,
           })
         : agent;
     const liveOpsInstruction = input.liveOps?.injectedInstruction?.trim();
@@ -650,6 +596,7 @@ export const createVoiceAssistant = <
       turnId: input.turn.id,
       type: "assistant.run",
     });
+
     return finalResult;
   };
 
@@ -665,7 +612,63 @@ export const createVoiceAssistant = <
     }),
   };
 };
+export const createVoiceExperiment = <
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
+>(
+  options: VoiceAssistantExperimentOptions<TContext, TSession, TResult>,
+): VoiceAssistantExperiment<TContext, TSession, TResult> => {
+  if (!options.variants.length) {
+    throw new Error("createVoiceExperiment requires at least one variant.");
+  }
+  const firstVariant = options.variants[0] as VoiceAssistantVariant<
+    TContext,
+    TSession,
+    TResult
+  >;
 
+  return {
+    id: options.id,
+    variants: options.variants,
+    resolve: (input) => {
+      const selected = options.selectVariant?.({
+        ...input,
+        variants: options.variants,
+      });
+      if (selected && typeof selected !== "object") {
+        const variant = options.variants.find((item) => item.id === selected);
+        if (variant) {
+          return variant;
+        }
+      }
+      if (selected && typeof selected === "object" && "id" in selected) {
+        return selected;
+      }
+
+      const totalWeight = options.variants.reduce(
+        (total, variant) => total + Math.max(0, variant.weight ?? 1),
+        0,
+      );
+      if (totalWeight <= 0) {
+        return firstVariant;
+      }
+
+      const bucket =
+        hashString(`${options.id}:${input.assistantId}:${input.session.id}`) %
+        totalWeight;
+      let cursor = 0;
+      for (const variant of options.variants) {
+        cursor += Math.max(0, variant.weight ?? 1);
+        if (bucket < cursor) {
+          return variant;
+        }
+      }
+
+      return firstVariant;
+    },
+  };
+};
 export const summarizeVoiceAssistantRuns = async (
   input:
     | StoredVoiceTraceEvent[]
@@ -719,6 +722,7 @@ export const summarizeVoiceAssistantRuns = async (
       };
       byAssistant.set(assistantId, summary);
     }
+
     return summary;
   };
 

@@ -20,6 +20,7 @@ export const useVoicePlatformCoverage = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

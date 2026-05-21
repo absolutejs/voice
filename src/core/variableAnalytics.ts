@@ -52,6 +52,7 @@ export type BuildVoiceVariableAnalyticsInput = {
 
 const stringifyValue = (value: VoiceAnalyticsVariableValue): string => {
   if (value === null || value === undefined) return "(none)";
+
   return String(value);
 };
 
@@ -74,6 +75,7 @@ const successRateFor = (
       : call.outcome !== undefined &&
         successOutcomes.has(call.outcome.toLowerCase()),
   ).length;
+
   return successes / flagged.length;
 };
 

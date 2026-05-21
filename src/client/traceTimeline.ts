@@ -12,18 +12,6 @@ export type VoiceTraceTimelineSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceTraceTimeline = async (
-  path = "/api/voice-traces",
-  options: Pick<VoiceTraceTimelineClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice trace timeline failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceTraceTimelineReport;
-};
-
 export const createVoiceTraceTimelineStore = (
   path = "/api/voice-traces",
   options: VoiceTraceTimelineClientOptions = {},
@@ -60,6 +48,7 @@ export const createVoiceTraceTimelineStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -88,14 +77,27 @@ export const createVoiceTraceTimelineStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceTraceTimeline = async (
+  path = "/api/voice-traces",
+  options: Pick<VoiceTraceTimelineClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice trace timeline failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceTraceTimelineReport;
 };

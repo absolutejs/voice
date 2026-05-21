@@ -20,6 +20,7 @@ export const useVoiceTurnQuality = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

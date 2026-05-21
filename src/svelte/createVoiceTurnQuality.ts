@@ -10,6 +10,7 @@ export const createVoiceTurnQuality = (
   options: VoiceTurnQualityWidgetOptions = {},
 ) => {
   const store = createVoiceTurnQualityStore(path, options);
+
   return {
     ...store,
     getHTML: () => renderVoiceTurnQualityHTML(store.getSnapshot(), options),

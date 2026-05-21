@@ -246,11 +246,9 @@ const normalizeHintAliases = (hint: VoicePhraseHint) =>
 export const applyPhraseHintCorrections = (
   text: string,
   phraseHints: VoicePhraseHint[],
-): VoicePhraseHintCorrectionResult => {
-  return applyRiskTieredPhraseHintCorrections(text, phraseHints, {
+): VoicePhraseHintCorrectionResult => applyRiskTieredPhraseHintCorrections(text, phraseHints, {
     riskTier: "risky",
   });
-};
 
 export const applyRiskTieredPhraseHintCorrections = (
   text: string,
@@ -324,9 +322,34 @@ const isSafeAlias = (alias: string) => {
   }
 
   const tokens = normalized.split(" ").filter((token) => token.length > 0);
+
   return tokens.length >= 2 || normalized.length >= 7;
 };
 
+export const createDomainLexicon = (
+  terms: VoiceDomainTerm[],
+): VoiceLexiconEntry[] => {
+  const entries: VoiceLexiconEntry[] = [];
+  const seen = new Set<string>();
+
+  for (const term of terms) {
+    const normalizedText = normalizeDomainTerm(term.text);
+    if (!normalizedText || seen.has(normalizedText)) {
+      continue;
+    }
+
+    entries.push({
+      aliases: dedupeAliases(term.aliases ?? []),
+      language: term.language,
+      metadata: term.metadata,
+      pronunciation: term.pronunciation,
+      text: term.text,
+    });
+    seen.add(normalizedText);
+  }
+
+  return entries;
+};
 export const createDomainPhraseHints = (
   terms: VoiceDomainTerm[],
   options: VoiceDomainHintGenerationOptions = {},
@@ -366,31 +389,6 @@ export const createDomainPhraseHints = (
   }
 
   return hints;
-};
-
-export const createDomainLexicon = (
-  terms: VoiceDomainTerm[],
-): VoiceLexiconEntry[] => {
-  const entries: VoiceLexiconEntry[] = [];
-  const seen = new Set<string>();
-
-  for (const term of terms) {
-    const normalizedText = normalizeDomainTerm(term.text);
-    if (!normalizedText || seen.has(normalizedText)) {
-      continue;
-    }
-
-    entries.push({
-      aliases: dedupeAliases(term.aliases ?? []),
-      language: term.language,
-      metadata: term.metadata,
-      pronunciation: term.pronunciation,
-      text: term.text,
-    });
-    seen.add(normalizedText);
-  }
-
-  return entries;
 };
 
 const averageTranscriptConfidence = (transcripts: Transcript[]) => {

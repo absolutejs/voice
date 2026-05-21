@@ -86,6 +86,7 @@ const deliverOnce = async (input: {
         status: response.status,
       };
     }
+
     return {
       attempt: 0,
       durationMs,
@@ -129,6 +130,7 @@ const deliverWithRetry = async (input: {
       await sleep(backoffMs * attempt);
     }
   }
+
   return (
     last ?? {
       attempt: 0,
@@ -150,6 +152,7 @@ export const createVoiceWebhookFanout = (
   options: VoiceWebhookFanoutOptions,
 ): VoiceWebhookFanout => {
   const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
+
   return {
     deliver: async (event) => {
       const body = JSON.stringify({
@@ -163,6 +166,7 @@ export const createVoiceWebhookFanout = (
         matching.map((sink) => deliverWithRetry({ body, fetchImpl, sink })),
       );
       const succeeded = deliveries.filter((d) => d.ok).length;
+
       return {
         deliveries,
         failed: deliveries.length - succeeded,

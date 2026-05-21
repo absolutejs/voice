@@ -122,5 +122,6 @@ export const summarizeVoiceNoShowVerdict = (
     .slice(0, 2)
     .map((d) => d.kind)
     .join(", ");
+
   return `${verdict.band} risk (${pct}%)${top ? ` — driven by ${top}` : ""}`;
 };

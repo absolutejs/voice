@@ -70,7 +70,7 @@ export const VoiceCostDashboard = defineComponent({
   name: "VoiceCostDashboard",
   props: {
     bucketBy: {
-      default: "day" as VoiceCostDashboardOptions["bucketBy"],
+      default: "day",
       type: String as PropType<VoiceCostDashboardOptions["bucketBy"]>,
     },
     currency: { default: "USD", type: String },
@@ -92,12 +92,14 @@ export const VoiceCostDashboard = defineComponent({
         toMs: props.toMs,
       }),
     );
+
     return () => {
       const r = report.value;
       const rows = r.buckets.map((bucket) =>
         renderRow(bucket, props.currency, false),
       );
       rows.push(renderRow(r.grandTotal, props.currency, true));
+
       return h(
         "section",
         {

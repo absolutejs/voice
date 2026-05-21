@@ -17,10 +17,11 @@ export class VoiceReplayTimelineService {
     const report = computed<ReplayTimelineReport>(() =>
       buildReplayTimelineReport({ artifact: artifact() }),
     );
+
     return {
       report,
-      setArtifact: (next: VoiceCallReviewArtifact) => artifact.set(next),
       title: options.title,
+      setArtifact: (next: VoiceCallReviewArtifact) => artifact.set(next),
     };
   }
 }

@@ -12,12 +12,12 @@ export const createVoiceOpsActionCenter = (
 
   return {
     close: store.close,
-    getHTML: () => renderVoiceOpsActionCenterHTML(store.getSnapshot(), options),
     getSnapshot: store.getSnapshot,
-    getViewModel: () =>
-      createVoiceOpsActionCenterViewModel(store.getSnapshot(), options),
     run: store.run,
     setActions: store.setActions,
     subscribe: store.subscribe,
+    getHTML: () => renderVoiceOpsActionCenterHTML(store.getSnapshot(), options),
+    getViewModel: () =>
+      createVoiceOpsActionCenterViewModel(store.getSnapshot(), options),
   };
 };

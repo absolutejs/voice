@@ -51,8 +51,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "continuous",
     turnDetection: {
-      qualityProfile: "short-command",
       profile: "balanced",
+      qualityProfile: "short-command",
     },
   },
   default: {
@@ -67,8 +67,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "continuous",
     turnDetection: {
-      qualityProfile: "general",
       profile: "fast",
+      qualityProfile: "general",
     },
   },
   dictation: {
@@ -90,8 +90,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "continuous",
     turnDetection: {
-      qualityProfile: "accent-heavy",
       profile: "long-form",
+      qualityProfile: "accent-heavy",
     },
   },
   "guided-intake": {
@@ -113,8 +113,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "turn-scoped",
     turnDetection: {
-      qualityProfile: "accent-heavy",
       profile: "long-form",
+      qualityProfile: "accent-heavy",
     },
   },
   "noisy-room": {
@@ -136,8 +136,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "continuous",
     turnDetection: {
-      qualityProfile: "noisy-room",
       profile: "long-form",
+      qualityProfile: "noisy-room",
       silenceMs: 2_100,
       speechThreshold: 0.02,
       transcriptStabilityMs: 1_650,
@@ -162,8 +162,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "continuous",
     turnDetection: {
-      qualityProfile: "noisy-room",
       profile: "long-form",
+      qualityProfile: "noisy-room",
       silenceMs: 660,
       speechThreshold: 0.012,
       transcriptStabilityMs: 300,
@@ -188,8 +188,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "continuous",
     turnDetection: {
-      qualityProfile: "noisy-room",
       profile: "long-form",
+      qualityProfile: "noisy-room",
       silenceMs: 620,
       speechThreshold: 0.012,
       transcriptStabilityMs: 280,
@@ -214,8 +214,8 @@ const PRESET_INPUTS: Record<VoiceRuntimePreset, VoiceRuntimePresetInput> = {
     },
     sttLifecycle: "continuous",
     turnDetection: {
-      qualityProfile: "noisy-room",
       profile: "long-form",
+      qualityProfile: "noisy-room",
     },
   },
 };

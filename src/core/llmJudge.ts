@@ -64,6 +64,7 @@ const buildPrompt = (
   const metadataBlock = input.metadata
     ? `\nMetadata:\n${JSON.stringify(input.metadata, null, 2)}\n`
     : "";
+
   return `Rubric criteria:\n${criteriaBlock}\n${metadataBlock}\nTranscript:\n${input.transcript}\n\nReturn JSON only.`;
 };
 
@@ -129,6 +130,7 @@ const parseCriteria = (
         rationale: "Judge did not return a verdict for this criterion.",
       },
   );
+
   return {
     criteria,
     summary: typeof root.summary === "string" ? root.summary : undefined,
@@ -165,6 +167,7 @@ const scoreVerdict = (
   }
   const score = earned / totalWeight;
   const minPassScore = rubric.minPassScore ?? 1;
+
   return {
     passed: allRequiredPassed && score >= minPassScore,
     score,
@@ -174,6 +177,7 @@ const scoreVerdict = (
 export const createVoiceLLMJudge = (
   options: CreateVoiceLLMJudgeOptions,
 ): VoiceLLMJudge => ({
+  rubric: options.rubric,
   evaluate: async (input) => {
     const prompt = buildPrompt(options.rubric, input);
     const raw = await options.completion({
@@ -182,6 +186,7 @@ export const createVoiceLLMJudge = (
     });
     const parsed = parseCriteria(extractJson(raw), options.rubric);
     const { passed, score } = scoreVerdict(options.rubric, parsed.criteria);
+
     return {
       criteria: parsed.criteria,
       passed,
@@ -189,7 +194,6 @@ export const createVoiceLLMJudge = (
       summary: parsed.summary,
     };
   },
-  rubric: options.rubric,
 });
 
 export type CreateVoiceAIJudgeCompletionOptions = {
@@ -212,5 +216,6 @@ export const createVoiceAIJudgeCompletion =
         buffered += chunk.content;
       }
     }
+
     return buffered;
   };

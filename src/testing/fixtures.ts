@@ -262,6 +262,7 @@ const toMuLaw = (sample: number) => {
   }
 
   const mantissa = (magnitude >> (exponent + 3)) & 0x0f;
+
   return ~(sign | (exponent << 4) | mantissa) & 0xff;
 };
 
@@ -271,6 +272,7 @@ const fromMuLaw = (encoded: number) => {
   const exponent = (normalized >> 4) & 0x07;
   const mantissa = normalized & 0x0f;
   const magnitude = ((mantissa | 0x10) << (exponent + 3)) - 0x84;
+
   return sign ? -magnitude : magnitude;
 };
 
@@ -350,6 +352,19 @@ const requireFixture = (fixtures: VoiceTestFixture[], id: string) => {
   return fixture;
 };
 
+export const createJargonVoiceTestFixtures = (
+  fixtures: VoiceTestFixture[],
+): VoiceTestFixture[] =>
+  JARGON_FIXTURE_IDS.map((id) => requireFixture(fixtures, id))
+    .filter((fixture) => (fixture.expectedTerms?.length ?? 0) > 0)
+    .map((fixture) => ({
+      ...fixture,
+      id: `${fixture.id}-jargon`,
+      tags: Array.from(
+        new Set([...(fixture.tags ?? []), "domain-heavy", "jargon"]),
+      ),
+      title: `${fixture.title} (jargon)`,
+    }));
 export const createMultiSpeakerVoiceTestFixtures = (
   fixtures: VoiceTestFixture[],
   options: VoiceMultiSpeakerFixtureOptions = {},
@@ -426,21 +441,6 @@ export const createMultiSpeakerVoiceTestFixtures = (
     },
   ];
 };
-
-export const createJargonVoiceTestFixtures = (
-  fixtures: VoiceTestFixture[],
-): VoiceTestFixture[] =>
-  JARGON_FIXTURE_IDS.map((id) => requireFixture(fixtures, id))
-    .filter((fixture) => (fixture.expectedTerms?.length ?? 0) > 0)
-    .map((fixture) => ({
-      ...fixture,
-      id: `${fixture.id}-jargon`,
-      tags: Array.from(
-        new Set([...(fixture.tags ?? []), "domain-heavy", "jargon"]),
-      ),
-      title: `${fixture.title} (jargon)`,
-    }));
-
 export const loadVoiceTestFixtures = async (
   fixtureDirectory?: string | string[] | VoiceFixtureLoadOptions,
 ): Promise<VoiceTestFixture[]> => {

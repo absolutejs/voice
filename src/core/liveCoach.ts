@@ -83,11 +83,13 @@ export const createVoiceLiveCoach = (options: CreateVoiceLiveCoachOptions) => {
     };
     nudges.push(nudge);
     for (const listener of listeners) listener(nudge);
+
     return nudge;
   };
 
   const pending = (): VoiceCoachNudge[] => {
     const at = now();
+
     return nudges.filter(
       (n) =>
         !n.injected &&
@@ -115,6 +117,7 @@ export const createVoiceLiveCoach = (options: CreateVoiceLiveCoachOptions) => {
         role,
       });
     }
+
     return result;
   };
 
@@ -123,18 +126,20 @@ export const createVoiceLiveCoach = (options: CreateVoiceLiveCoachOptions) => {
     if (!nudge) return false;
     nudge.acknowledged = true;
     nudge.acknowledgedAt = now();
+
     return true;
   };
 
   return {
     acknowledge,
     consumeForInjection,
-    history: () => nudges.slice(),
     pending,
     push,
     sessionId: options.sessionId,
+    history: () => nudges.slice(),
     subscribe(listener: (nudge: VoiceCoachNudge) => void) {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

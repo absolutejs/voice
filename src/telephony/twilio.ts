@@ -308,6 +308,7 @@ const resolveTwilioStreamUrl = async <
 
   const origin = resolveRequestOrigin(input.request);
   const wsOrigin = origin.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+
   return `${wsOrigin}${input.streamPath}`;
 };
 
@@ -751,6 +752,7 @@ const encodeMulawSample = (sample: number) => {
   }
 
   const mantissa = (value >> (exponent + 3)) & 0x0f;
+
   return ~(sign | (exponent << 4) | mantissa) & 0xff;
 };
 
@@ -761,6 +763,7 @@ const decodeMulawSample = (value: number) => {
   const mantissa = normalized & 0x0f;
   let sample = ((mantissa << 3) + MULAW_BIAS) << exponent;
   sample -= MULAW_BIAS;
+
   return sign ? -sample : sample;
 };
 
@@ -770,6 +773,7 @@ const int16ArrayToBytes = (samples: Int16Array) => {
   for (let index = 0; index < samples.length; index += 1) {
     view.setInt16(index * 2, samples[index] ?? 0, true);
   }
+
   return output;
 };
 
@@ -780,6 +784,7 @@ const bytesToInt16Array = (bytes: Uint8Array) => {
   for (let index = 0; index < sampleCount; index += 1) {
     output[index] = view.getInt16(index * 2, true);
   }
+
   return output;
 };
 
@@ -789,27 +794,17 @@ export const decodeTwilioMulawBase64 = (payload: string) => {
   for (let index = 0; index < bytes.length; index += 1) {
     samples[index] = decodeMulawSample(bytes[index] ?? 0);
   }
+
   return samples;
 };
-
 export const encodeTwilioMulawBase64 = (samples: Int16Array) => {
   const bytes = new Uint8Array(samples.length);
   for (let index = 0; index < samples.length; index += 1) {
     bytes[index] = encodeMulawSample(samples[index] ?? 0);
   }
+
   return Buffer.from(bytes).toString("base64");
 };
-
-export const transcodeTwilioInboundPayloadToPCM16 = (payload: string) => {
-  const narrowband = decodeTwilioMulawBase64(payload);
-  const wideband = linearResample(
-    narrowband,
-    TWILIO_MULAW_SAMPLE_RATE,
-    VOICE_PCM_SAMPLE_RATE,
-  );
-  return int16ArrayToBytes(wideband);
-};
-
 export const transcodePCMToTwilioOutboundPayload = (
   chunk: Uint8Array,
   format: AudioFormat,
@@ -839,6 +834,7 @@ export const transcodePCMToTwilioOutboundPayload = (
             (_, frameIndex) => {
               const left = pcm[frameIndex * 2] ?? 0;
               const right = pcm[frameIndex * 2 + 1] ?? 0;
+
               return clamp16((left + right) / 2);
             },
           ),
@@ -848,7 +844,18 @@ export const transcodePCMToTwilioOutboundPayload = (
     format.sampleRateHz,
     TWILIO_MULAW_SAMPLE_RATE,
   );
+
   return encodeTwilioMulawBase64(telephony);
+};
+export const transcodeTwilioInboundPayloadToPCM16 = (payload: string) => {
+  const narrowband = decodeTwilioMulawBase64(payload);
+  const wideband = linearResample(
+    narrowband,
+    TWILIO_MULAW_SAMPLE_RATE,
+    VOICE_PCM_SAMPLE_RATE,
+  );
+
+  return int16ArrayToBytes(wideband);
 };
 
 const parseTwilioMessage = (raw: string | TwilioInboundMessage) => {
@@ -947,6 +954,7 @@ const createTwilioSocketAdapter = <TResult>(
           } satisfies TwilioOutboundMediaMessage),
         ),
       );
+
       return;
     }
 
@@ -980,27 +988,6 @@ const createTwilioSocketAdapter = <TResult>(
     }
   },
 });
-
-export const createTwilioVoiceResponse = (
-  options: TwilioVoiceResponseOptions,
-) => {
-  const parameters = Object.entries(options.parameters ?? {})
-    .filter(
-      (entry): entry is [string, string | number | boolean] =>
-        entry[1] !== undefined,
-    )
-    .map(
-      ([name, value]) =>
-        `<Parameter name="${escapeXml(name)}" value="${escapeXml(String(value))}" />`,
-    )
-    .join("");
-
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${escapeXml(
-    options.streamUrl,
-  )}"${options.track ? ` track="${escapeXml(options.track)}"` : ""}${
-    options.streamName ? ` name="${escapeXml(options.streamName)}"` : ""
-  }>${parameters}</Stream></Connect></Response>`;
-};
 
 export const createTwilioMediaStreamBridge = <
   TContext = unknown,
@@ -1068,7 +1055,7 @@ export const createTwilioMediaStreamBridge = <
     scenarioId: options.scenarioId ?? null,
     sessionId: options.sessionId ?? null,
     streamSid: null,
-    trace: options.trace as VoiceTraceEventStore | undefined,
+    trace: options.trace,
   };
   let sessionHandle: VoiceSessionHandle<TContext, TSession, TResult> | null =
     null;
@@ -1082,7 +1069,7 @@ export const createTwilioMediaStreamBridge = <
       streamSid?: string;
     },
   ) => {
-    const trace = options.trace as VoiceTraceEventStore | undefined;
+    const {trace} = options;
     const sessionId =
       override?.sessionId ??
       bridgeState.sessionId ??
@@ -1121,7 +1108,7 @@ export const createTwilioMediaStreamBridge = <
   const resolveLexicon = async () => {
     if (typeof options.lexicon === "function") {
       return normalizeLexicon(
-        (await (options.lexicon as VoiceLexiconResolver<TContext>)({
+        (await (options.lexicon)({
           context: options.context,
           scenarioId: bridgeState.scenarioId ?? undefined,
           sessionId: bridgeState.sessionId ?? "",
@@ -1135,7 +1122,7 @@ export const createTwilioMediaStreamBridge = <
   const resolvePhraseHints = async () => {
     if (typeof options.phraseHints === "function") {
       return normalizePhraseHints(
-        (await (options.phraseHints as VoicePhraseHintResolver<TContext>)({
+        (await (options.phraseHints)({
           context: options.context,
           scenarioId: bridgeState.scenarioId ?? undefined,
           sessionId: bridgeState.sessionId ?? "",
@@ -1162,17 +1149,18 @@ export const createTwilioMediaStreamBridge = <
       onSession: options.onSession,
       onTurn: async (input) => {
         bridgeState.reviewRecorder?.recordVoiceMessage({
-          type: "turn",
           turn: input.turn,
+          type: "turn",
         });
         const result = await normalizedOnTurn(input);
         if (result?.assistantText) {
           bridgeState.reviewRecorder?.recordVoiceMessage({
-            type: "assistant",
             text: result.assistantText,
             turnId: input.turn.id,
+            type: "assistant",
           });
         }
+
         return result;
       },
     };
@@ -1184,9 +1172,7 @@ export const createTwilioMediaStreamBridge = <
     sessionHandle = createVoiceSession({
       audioConditioning,
       context: options.context,
-      costTelemetry: options.costTelemetry as
-        | VoiceCostTelemetryConfig<TContext, TSession, TResult>
-        | undefined,
+      costTelemetry: options.costTelemetry,
       id: bridgeState.sessionId,
       languageStrategy: options.languageStrategy,
       lexicon,
@@ -1197,10 +1183,10 @@ export const createTwilioMediaStreamBridge = <
       scenarioId: bridgeState.scenarioId ?? undefined,
       socket: voiceSocket,
       store: options.session as VoiceSessionStore<TSession>,
-      stt: options.stt as STTAdapter,
+      stt: options.stt,
       sttFallback: resolveSTTFallbackConfig(options.sttFallback),
       sttLifecycle: options.sttLifecycle ?? runtimePreset.sttLifecycle,
-      tts: options.tts as TTSAdapter | undefined,
+      tts: options.tts,
       turnDetection,
     } satisfies CreateVoiceSessionOptions<TContext, TSession, TResult>);
 
@@ -1231,6 +1217,7 @@ export const createTwilioMediaStreamBridge = <
           bridgeState.reviewRecorder?.recordTwilioInbound({
             event: "connected",
           });
+
           return;
         case "start": {
           bridgeState.streamSid = message.start.streamSid;
@@ -1251,6 +1238,7 @@ export const createTwilioMediaStreamBridge = <
             streamSid: bridgeState.streamSid ?? undefined,
           });
           await ensureSession();
+
           return;
         }
         case "media": {
@@ -1272,7 +1260,7 @@ export const createTwilioMediaStreamBridge = <
             bridgeState.reviewRecorder?.recordTwilioOutbound({
               event: "clear",
             });
-            await (options.trace as VoiceTraceEventStore | undefined)?.append({
+            await (options.trace)?.append({
               at: Date.now(),
               payload: {
                 callSid: bridgeState.callSid ?? undefined,
@@ -1296,6 +1284,7 @@ export const createTwilioMediaStreamBridge = <
           await activeSession.receiveAudio(
             transcodeTwilioInboundPayloadToPCM16(message.media.payload),
           );
+
           return;
         }
         case "mark":
@@ -1303,6 +1292,7 @@ export const createTwilioMediaStreamBridge = <
             event: "mark",
             name: message.mark?.name,
           });
+
           return;
         case "stop":
           bridgeState.reviewRecorder?.recordTwilioInbound({
@@ -1314,12 +1304,31 @@ export const createTwilioMediaStreamBridge = <
             streamSid: bridgeState.streamSid ?? undefined,
           });
           await sessionHandle?.close("twilio-stop");
-          return;
+          
       }
     },
   };
 };
+export const createTwilioVoiceResponse = (
+  options: TwilioVoiceResponseOptions,
+) => {
+  const parameters = Object.entries(options.parameters ?? {})
+    .filter(
+      (entry): entry is [string, string | number | boolean] =>
+        entry[1] !== undefined,
+    )
+    .map(
+      ([name, value]) =>
+        `<Parameter name="${escapeXml(name)}" value="${escapeXml(String(value))}" />`,
+    )
+    .join("");
 
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${escapeXml(
+    options.streamUrl,
+  )}"${options.track ? ` track="${escapeXml(options.track)}"` : ""}${
+    options.streamName ? ` name="${escapeXml(options.streamName)}"` : ""
+  }>${parameters}</Stream></Connect></Response>`;
+};
 export const createTwilioVoiceRoutes = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -1404,12 +1413,12 @@ export const createTwilioVoiceRoutes = <
     })
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
-        const bridge = bridges.get(ws as object);
-        bridges.delete(ws as object);
+        const bridge = bridges.get(ws);
+        bridges.delete(ws);
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
-        let bridge = bridges.get(ws as object);
+        let bridge = bridges.get(ws);
         if (!bridge) {
           bridge = createTwilioMediaStreamBridge(
             {
@@ -1422,7 +1431,7 @@ export const createTwilioVoiceRoutes = <
             },
             options,
           );
-          bridges.set(ws as object, bridge);
+          bridges.set(ws, bridge);
         }
 
         await bridge.handleMessage(raw as string);

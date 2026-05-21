@@ -48,6 +48,7 @@ const correlation = (xs: number[], ys: number[]): number => {
     denomY += dy * dy;
   }
   if (denomX === 0 || denomY === 0) return 0;
+
   return num / Math.sqrt(denomX * denomY);
 };
 

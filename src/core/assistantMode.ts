@@ -26,6 +26,7 @@ export const resolveVoiceAssistantMode = <
   if (options.realtime) {
     return "s2s";
   }
+
   return "cascade";
 };
 
@@ -54,6 +55,7 @@ export const describeVoiceAssistantMode = <
   const modalities: VoiceAssistantModality[] = options.modalities
     ? Array.from(new Set(options.modalities))
     : ["audio"];
+
   return {
     hasRealtime: Boolean(options.realtime),
     hasSTT: Boolean(options.stt),

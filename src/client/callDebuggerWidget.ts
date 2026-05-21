@@ -38,6 +38,7 @@ const defaultHref = (
   if (path.startsWith("/api/voice-call-debugger/")) {
     return path.replace("/api/voice-call-debugger/", "/voice-call-debugger/");
   }
+
   return report
     ? `/voice-call-debugger/${encodeURIComponent(report.sessionId)}`
     : path;
@@ -51,6 +52,7 @@ const resolveHref = (
   if (typeof options.href === "function") {
     return options.href({ report: state.report });
   }
+
   return options.href ?? defaultHref(path, state.report);
 };
 
@@ -59,7 +61,7 @@ export const createVoiceCallDebuggerLaunchViewModel = (
   state: VoiceCallDebuggerClientState,
   options: VoiceCallDebuggerLaunchOptions = {},
 ): VoiceCallDebuggerLaunchViewModel => {
-  const report = state.report;
+  const {report} = state;
   const href = resolveHref(path, state, options);
 
   return {
@@ -115,62 +117,6 @@ export const createVoiceCallDebuggerLaunchViewModel = (
     updatedAt: state.updatedAt,
   };
 };
-
-export const renderVoiceCallDebuggerLaunchHTML = (
-  path: string,
-  state: VoiceCallDebuggerClientState,
-  options: VoiceCallDebuggerLaunchOptions = {},
-) => {
-  const model = createVoiceCallDebuggerLaunchViewModel(path, state, options);
-  const rows = model.rows.length
-    ? `<dl>${model.rows
-        .map(
-          (row) => `<div>
-    <dt>${escapeHtml(row.label)}</dt>
-    <dd>${escapeHtml(row.value)}</dd>
-  </div>`,
-        )
-        .join("")}</dl>`
-    : '<p class="absolute-voice-call-debugger-launch__empty">Load a call debugger report to see the latest support artifact.</p>';
-
-  return `<section class="absolute-voice-call-debugger-launch absolute-voice-call-debugger-launch--${escapeHtml(model.status)}">
-  <header class="absolute-voice-call-debugger-launch__header">
-    <span class="absolute-voice-call-debugger-launch__eyebrow">${escapeHtml(model.title)}</span>
-    <strong class="absolute-voice-call-debugger-launch__label">${escapeHtml(model.label)}</strong>
-  </header>
-  <p class="absolute-voice-call-debugger-launch__description">${escapeHtml(model.description)}</p>
-  <a class="absolute-voice-call-debugger-launch__link" href="${escapeHtml(model.href)}">${escapeHtml(options.linkLabel ?? DEFAULT_LINK_LABEL)}</a>
-  ${rows}
-  ${model.error ? `<p class="absolute-voice-call-debugger-launch__error">${escapeHtml(model.error)}</p>` : ""}
-</section>`;
-};
-
-export const mountVoiceCallDebuggerLaunch = (
-  element: Element,
-  path: string,
-  options: VoiceCallDebuggerLaunchOptions = {},
-) => {
-  const store = createVoiceCallDebuggerStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceCallDebuggerLaunchHTML(
-      path,
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
 export const defineVoiceCallDebuggerLaunchElement = (
   tagName = "absolute-voice-call-debugger-launch",
 ) => {
@@ -208,4 +154,57 @@ export const defineVoiceCallDebuggerLaunchElement = (
       }
     },
   );
+};
+export const mountVoiceCallDebuggerLaunch = (
+  element: Element,
+  path: string,
+  options: VoiceCallDebuggerLaunchOptions = {},
+) => {
+  const store = createVoiceCallDebuggerStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceCallDebuggerLaunchHTML(
+      path,
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
+export const renderVoiceCallDebuggerLaunchHTML = (
+  path: string,
+  state: VoiceCallDebuggerClientState,
+  options: VoiceCallDebuggerLaunchOptions = {},
+) => {
+  const model = createVoiceCallDebuggerLaunchViewModel(path, state, options);
+  const rows = model.rows.length
+    ? `<dl>${model.rows
+        .map(
+          (row) => `<div>
+    <dt>${escapeHtml(row.label)}</dt>
+    <dd>${escapeHtml(row.value)}</dd>
+  </div>`,
+        )
+        .join("")}</dl>`
+    : '<p class="absolute-voice-call-debugger-launch__empty">Load a call debugger report to see the latest support artifact.</p>';
+
+  return `<section class="absolute-voice-call-debugger-launch absolute-voice-call-debugger-launch--${escapeHtml(model.status)}">
+  <header class="absolute-voice-call-debugger-launch__header">
+    <span class="absolute-voice-call-debugger-launch__eyebrow">${escapeHtml(model.title)}</span>
+    <strong class="absolute-voice-call-debugger-launch__label">${escapeHtml(model.label)}</strong>
+  </header>
+  <p class="absolute-voice-call-debugger-launch__description">${escapeHtml(model.description)}</p>
+  <a class="absolute-voice-call-debugger-launch__link" href="${escapeHtml(model.href)}">${escapeHtml(options.linkLabel ?? DEFAULT_LINK_LABEL)}</a>
+  ${rows}
+  ${model.error ? `<p class="absolute-voice-call-debugger-launch__error">${escapeHtml(model.error)}</p>` : ""}
+</section>`;
 };

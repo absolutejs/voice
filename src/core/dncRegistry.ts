@@ -31,6 +31,7 @@ const normalizePhone = (phone: string): string => {
   if (!/^\+?\d+$/u.test(digitsOnly)) {
     throw new Error(`Invalid phone number: ${phone}`);
   }
+
   return digitsOnly.startsWith("+") ? digitsOnly : `+${digitsOnly}`;
 };
 
@@ -68,11 +69,13 @@ export const createVoiceDNCRegistry = (
         : {}),
     };
     store.set(normalized, entry);
+
     return entry;
   };
 
   const unblock = (phoneNumber: string): boolean => {
     const normalized = normalizePhone(phoneNumber);
+
     return store.delete(normalized);
   };
 
@@ -82,13 +85,16 @@ export const createVoiceDNCRegistry = (
     if (!entry) return null;
     if (isExpired(entry, now())) {
       store.delete(normalized);
+
       return null;
     }
+
     return entry;
   };
 
   return {
     block,
+    unblock,
     async check(phoneNumber: string): Promise<VoiceDNCLookupVerdict> {
       const local = localLookup(phoneNumber);
       if (local) return { blocked: true, entry: local };
@@ -97,10 +103,12 @@ export const createVoiceDNCRegistry = (
       }
       const remote = await options.externalLookup(normalizePhone(phoneNumber));
       if (!remote) return { blocked: false, entry: null };
+
       return { blocked: true, entry: remote, matchedFromExternal: true };
     },
     checkSync(phoneNumber: string): VoiceDNCLookupVerdict {
       const local = localLookup(phoneNumber);
+
       return local
         ? { blocked: true, entry: local }
         : { blocked: false, entry: null };
@@ -114,9 +122,9 @@ export const createVoiceDNCRegistry = (
       for (const entry of store.values()) {
         if (!isExpired(entry, at)) live.push(entry);
       }
+
       return live;
     },
-    unblock,
   };
 };
 
@@ -155,5 +163,6 @@ export const importVoiceDNCFromCSV = (
       ...(reasonIdx >= 0 && row[reasonIdx] ? { reason: row[reasonIdx] } : {}),
     });
   }
+
   return entries;
 };

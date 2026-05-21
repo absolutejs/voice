@@ -83,6 +83,7 @@ const describeState = (state: VoicePathwayState): string => {
   const transitions = state.transitions
     .map((t) => `- ${describeTransition(t)}`)
     .join("\n");
+
   return [
     header,
     description,

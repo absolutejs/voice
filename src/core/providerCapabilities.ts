@@ -102,10 +102,89 @@ const resolveCapabilityDefinitions = <TProvider extends string>(
       return false;
     }
     seen.add(key);
+
     return true;
   });
 };
 
+export const createVoiceProviderCapabilityHTMLHandler =
+  <TProvider extends string = string>(
+    options: VoiceProviderCapabilityHTMLHandlerOptions<TProvider>,
+  ) =>
+  async () => {
+    const report = await summarizeVoiceProviderCapabilities(options);
+    const render =
+      options.render ??
+      ((input) => renderVoiceProviderCapabilityHTML(input, options));
+    const body = await render(report);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceProviderCapabilityJSONHandler =
+  <TProvider extends string = string>(
+    options: VoiceProviderCapabilityHandlerOptions<TProvider>,
+  ) =>
+  async () =>
+    summarizeVoiceProviderCapabilities(options);
+export const createVoiceProviderCapabilityRoutes = <
+  TProvider extends string = string,
+>(
+  options: VoiceProviderCapabilityRoutesOptions<TProvider>,
+) => {
+  const path = options.path ?? "/api/provider-capabilities";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-provider-capabilities",
+  }).get(path, createVoiceProviderCapabilityJSONHandler(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceProviderCapabilityHTMLHandler(options));
+  }
+
+  return routes;
+};
+export const renderVoiceProviderCapabilityHTML = <
+  TProvider extends string = string,
+>(
+  report: VoiceProviderCapabilityReport<TProvider>,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Voice Provider Capabilities";
+  const cards = report.capabilities
+    .map((capability) => {
+      const features = (capability.features ?? [])
+        .map((feature) => `<span class="pill">${escapeHtml(feature)}</span>`)
+        .join("");
+
+      return `<article class="card ${escapeHtml(capability.status)}">
+  <div class="card-header">
+    <div>
+      <p class="eyebrow">${escapeHtml(capability.kind)}</p>
+      <h2>${escapeHtml(capability.label ?? capability.provider)}</h2>
+    </div>
+    <strong>${escapeHtml(capability.status)}</strong>
+  </div>
+  ${capability.description ? `<p>${escapeHtml(capability.description)}</p>` : ""}
+  <dl>
+    <div><dt>Configured</dt><dd>${capability.configured ? "yes" : "no"}</dd></div>
+    <div><dt>Selected</dt><dd>${capability.selected ? "yes" : "no"}</dd></div>
+    <div><dt>Model</dt><dd>${escapeHtml(capability.model ?? "default")}</dd></div>
+    <div><dt>Runs</dt><dd>${String(capability.health?.runCount ?? 0)}</dd></div>
+    <div><dt>Errors</dt><dd>${String(capability.health?.errorCount ?? 0)}</dd></div>
+  </dl>
+  ${features ? `<div class="features">${features}</div>` : ""}
+</article>`;
+    })
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.card{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(14,165,233,.16),rgba(34,197,94,.12))}.eyebrow{color:#7dd3fc;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0 1rem}.summary,.features{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.card-header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.selected,.healthy{color:#86efac}.unconfigured,.degraded,.rate-limited,.suppressed{color:#fca5a5}.idle,.recoverable{color:#fde68a}dl{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}dt{color:#a8b0b8;font-size:.8rem}dd{margin:0}@media(max-width:800px){main{padding:18px}.card-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Provider Discovery</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill">${String(report.configured)} configured</span><span class="pill">${String(report.selected)} selected</span><span class="pill">${String(report.unconfigured)} missing</span><span class="pill">${String(report.total)} total</span></div></section><section class="grid">${cards || '<article class="card"><p>No provider capabilities configured.</p></article>'}</section></main></body></html>`;
+};
 export const summarizeVoiceProviderCapabilities = async <
   TProvider extends string = string,
 >(
@@ -156,85 +235,4 @@ export const summarizeVoiceProviderCapabilities = async <
     total: capabilities.length,
     unconfigured: capabilities.filter((entry) => !entry.configured).length,
   };
-};
-
-export const renderVoiceProviderCapabilityHTML = <
-  TProvider extends string = string,
->(
-  report: VoiceProviderCapabilityReport<TProvider>,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Voice Provider Capabilities";
-  const cards = report.capabilities
-    .map((capability) => {
-      const features = (capability.features ?? [])
-        .map((feature) => `<span class="pill">${escapeHtml(feature)}</span>`)
-        .join("");
-      return `<article class="card ${escapeHtml(capability.status)}">
-  <div class="card-header">
-    <div>
-      <p class="eyebrow">${escapeHtml(capability.kind)}</p>
-      <h2>${escapeHtml(capability.label ?? capability.provider)}</h2>
-    </div>
-    <strong>${escapeHtml(capability.status)}</strong>
-  </div>
-  ${capability.description ? `<p>${escapeHtml(capability.description)}</p>` : ""}
-  <dl>
-    <div><dt>Configured</dt><dd>${capability.configured ? "yes" : "no"}</dd></div>
-    <div><dt>Selected</dt><dd>${capability.selected ? "yes" : "no"}</dd></div>
-    <div><dt>Model</dt><dd>${escapeHtml(capability.model ?? "default")}</dd></div>
-    <div><dt>Runs</dt><dd>${String(capability.health?.runCount ?? 0)}</dd></div>
-    <div><dt>Errors</dt><dd>${String(capability.health?.errorCount ?? 0)}</dd></div>
-  </dl>
-  ${features ? `<div class="features">${features}</div>` : ""}
-</article>`;
-    })
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.card{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(14,165,233,.16),rgba(34,197,94,.12))}.eyebrow{color:#7dd3fc;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0 1rem}.summary,.features{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.card-header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.selected,.healthy{color:#86efac}.unconfigured,.degraded,.rate-limited,.suppressed{color:#fca5a5}.idle,.recoverable{color:#fde68a}dl{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}dt{color:#a8b0b8;font-size:.8rem}dd{margin:0}@media(max-width:800px){main{padding:18px}.card-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Provider Discovery</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill">${String(report.configured)} configured</span><span class="pill">${String(report.selected)} selected</span><span class="pill">${String(report.unconfigured)} missing</span><span class="pill">${String(report.total)} total</span></div></section><section class="grid">${cards || '<article class="card"><p>No provider capabilities configured.</p></article>'}</section></main></body></html>`;
-};
-
-export const createVoiceProviderCapabilityJSONHandler =
-  <TProvider extends string = string>(
-    options: VoiceProviderCapabilityHandlerOptions<TProvider>,
-  ) =>
-  async () =>
-    summarizeVoiceProviderCapabilities(options);
-
-export const createVoiceProviderCapabilityHTMLHandler =
-  <TProvider extends string = string>(
-    options: VoiceProviderCapabilityHTMLHandlerOptions<TProvider>,
-  ) =>
-  async () => {
-    const report = await summarizeVoiceProviderCapabilities(options);
-    const render =
-      options.render ??
-      ((input) => renderVoiceProviderCapabilityHTML(input, options));
-    const body = await render(report);
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceProviderCapabilityRoutes = <
-  TProvider extends string = string,
->(
-  options: VoiceProviderCapabilityRoutesOptions<TProvider>,
-) => {
-  const path = options.path ?? "/api/provider-capabilities";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-provider-capabilities",
-  }).get(path, createVoiceProviderCapabilityJSONHandler(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceProviderCapabilityHTMLHandler(options));
-  }
-
-  return routes;
 };

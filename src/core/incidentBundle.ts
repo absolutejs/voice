@@ -133,6 +133,7 @@ const filterIncidentBundleArtifacts = <
       ) {
         return false;
       }
+
       return true;
     })
     .sort(
@@ -140,32 +141,12 @@ const filterIncidentBundleArtifacts = <
         right.createdAt - left.createdAt || left.id.localeCompare(right.id),
     );
 
-export const createVoiceMemoryIncidentBundleStore = <
-  TArtifact extends StoredVoiceIncidentBundleArtifact =
-    StoredVoiceIncidentBundleArtifact,
->(): VoiceIncidentBundleStore<TArtifact> => {
-  const artifacts = new Map<string, TArtifact>();
-  return {
-    get: (id) => artifacts.get(id),
-    list: (filter) =>
-      filterIncidentBundleArtifacts([...artifacts.values()], filter),
-    remove: (id) => {
-      artifacts.delete(id);
-    },
-    set: (id, artifact) => {
-      artifacts.set(id, {
-        ...artifact,
-        id,
-      });
-    },
-  };
-};
-
 export const createStoredVoiceIncidentBundleArtifact = (
   bundle: VoiceIncidentBundle,
   options: VoiceIncidentBundleArtifactOptions = {},
 ): StoredVoiceIncidentBundleArtifact => {
   const createdAt = options.createdAt ?? Date.now();
+
   return {
     bundle,
     createdAt,
@@ -182,7 +163,27 @@ export const createStoredVoiceIncidentBundleArtifact = (
     sessionId: bundle.sessionId,
   };
 };
+export const createVoiceMemoryIncidentBundleStore = <
+  TArtifact extends StoredVoiceIncidentBundleArtifact =
+    StoredVoiceIncidentBundleArtifact,
+>(): VoiceIncidentBundleStore<TArtifact> => {
+  const artifacts = new Map<string, TArtifact>();
 
+  return {
+    get: (id) => artifacts.get(id),
+    list: (filter) =>
+      filterIncidentBundleArtifacts([...artifacts.values()], filter),
+    remove: (id) => {
+      artifacts.delete(id);
+    },
+    set: (id, artifact) => {
+      artifacts.set(id, {
+        ...artifact,
+        id,
+      });
+    },
+  };
+};
 export const saveVoiceIncidentBundleArtifact = async (input: {
   bundle: VoiceIncidentBundle;
   options?: VoiceIncidentBundleArtifactOptions;
@@ -193,6 +194,7 @@ export const saveVoiceIncidentBundleArtifact = async (input: {
     input.options,
   );
   await input.store.set(artifact.id, artifact);
+
   return artifact;
 };
 
@@ -221,6 +223,7 @@ const retentionTimeMatch = (
   ) {
     return false;
   }
+
   return true;
 };
 
@@ -290,7 +293,7 @@ const renderIncidentMarkdown = (input: {
   title?: string;
   traceMarkdown: string;
 }) => {
-  const recoveryOutcomes = input.recoveryOutcomes;
+  const {recoveryOutcomes} = input;
   const lines = [
     `# ${input.title ?? `Voice Incident ${input.summary.sessionId}`}`,
     "",
@@ -518,6 +521,7 @@ export const createVoiceIncidentBundleRoutes = (
       markdownPath,
       async ({ params }: { params: Record<string, string | undefined> }) => {
         const bundle = await buildBundle(getSessionId(params));
+
         return new Response(bundle.markdown, {
           headers: {
             "Content-Type": "text/markdown; charset=utf-8",

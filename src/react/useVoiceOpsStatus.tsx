@@ -20,6 +20,7 @@ export const useVoiceOpsStatus = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

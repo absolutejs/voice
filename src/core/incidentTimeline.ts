@@ -406,6 +406,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const getIncidentRecoveryBody = (event: StoredVoiceAuditEvent) => {
   const payload = isRecord(event.payload) ? event.payload : {};
+
   return isRecord(payload.body) ? payload.body : {};
 };
 
@@ -452,47 +453,6 @@ const toIncidentRecoveryOutcomeEntry = (
     status: typeof payload.status === "number" ? payload.status : undefined,
     traceId: event.traceId,
   };
-};
-
-export const buildVoiceIncidentRecoveryOutcomeReport = async (
-  options: VoiceIncidentRecoveryOutcomeOptions,
-): Promise<VoiceIncidentRecoveryOutcomeReport> => {
-  const events = options.audit
-    ? await options.audit.list({
-        limit: options.limit ?? 50,
-        resourceType: "voice.ops.action",
-        type: "operator.action",
-      })
-    : [];
-  const entries = events
-    .filter((event) => event.action.startsWith("incident."))
-    .map(toIncidentRecoveryOutcomeEntry)
-    .sort((left, right) => right.at - left.at);
-
-  return {
-    checkedAt: Date.now(),
-    entries,
-    failed: entries.filter((entry) => entry.outcome === "failed").length,
-    improved: entries.filter((entry) => entry.outcome === "improved").length,
-    regressed: entries.filter((entry) => entry.outcome === "regressed").length,
-    total: entries.length,
-    unchanged: entries.filter((entry) => entry.outcome === "unchanged").length,
-  };
-};
-
-export const renderVoiceIncidentRecoveryOutcomeHTML = (
-  report: VoiceIncidentRecoveryOutcomeReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Incident Recovery Outcomes";
-  const rows = report.entries
-    .map(
-      (entry) =>
-        `<article class="${escapeHtml(entry.outcome)}"><span>${escapeHtml(entry.outcome.toUpperCase())}</span><h2>${escapeHtml(entry.actionId)}</h2><p>${escapeHtml(new Date(entry.at).toLocaleString())}</p><strong>${escapeHtml(entry.beforeStatus ?? "unknown")} -> ${escapeHtml(entry.afterStatus ?? "unknown")}</strong>${entry.detail ? `<p>${escapeHtml(entry.detail)}</p>` : ""}</article>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10120d;color:#fbf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,article{background:#181711;border:1px solid #39301d;border-radius:24px;padding:20px}.hero{margin-bottom:16px}h1{font-size:clamp(2rem,6vw,4.5rem);line-height:.95}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{border:1px solid #4a3f23;border-radius:999px;padding:8px 12px}section{display:grid;gap:12px}article.improved{border-color:rgba(34,197,94,.65)}article.failed,article.regressed{border-color:rgba(239,68,68,.8)}article.unchanged{border-color:rgba(245,158,11,.7)}article span{color:#fcd34d;font-weight:900;letter-spacing:.08em}article strong{display:block;font-size:1.4rem;margin:.5rem 0}p{color:#cfc5a8}</style></head><body><main><section class="hero"><span>Recovery proof</span><h1>${escapeHtml(title)}</h1><div class="summary"><span>${String(report.improved)} improved</span><span>${String(report.unchanged)} unchanged</span><span>${String(report.regressed)} regressed</span><span>${String(report.failed)} failed</span><span>${String(report.total)} total</span></div></section><section>${rows || "<p>No incident recovery actions have been recorded.</p>"}</section></main></body></html>`;
 };
 
 export const buildVoiceIncidentRecoveryOutcomeReadinessCheck = (
@@ -549,7 +509,31 @@ export const buildVoiceIncidentRecoveryOutcomeReadinessCheck = (
     value: `${report.improved}/${report.total} improved`,
   };
 };
+export const buildVoiceIncidentRecoveryOutcomeReport = async (
+  options: VoiceIncidentRecoveryOutcomeOptions,
+): Promise<VoiceIncidentRecoveryOutcomeReport> => {
+  const events = options.audit
+    ? await options.audit.list({
+        limit: options.limit ?? 50,
+        resourceType: "voice.ops.action",
+        type: "operator.action",
+      })
+    : [];
+  const entries = events
+    .filter((event) => event.action.startsWith("incident."))
+    .map(toIncidentRecoveryOutcomeEntry)
+    .sort((left, right) => right.at - left.at);
 
+  return {
+    checkedAt: Date.now(),
+    entries,
+    failed: entries.filter((entry) => entry.outcome === "failed").length,
+    improved: entries.filter((entry) => entry.outcome === "improved").length,
+    regressed: entries.filter((entry) => entry.outcome === "regressed").length,
+    total: entries.length,
+    unchanged: entries.filter((entry) => entry.outcome === "unchanged").length,
+  };
+};
 export const buildVoiceIncidentRecoveryTrendSLOReadinessCheck = (
   report: VoiceIncidentRecoveryTrendReport,
   options: VoiceIncidentRecoveryTrendSloOptions = {},
@@ -672,6 +656,20 @@ export const buildVoiceIncidentRecoveryTrendSLOReadinessCheck = (
     value: `${Math.round(improvementRate * 100)}% improved, ${Math.round(regressedRate * 100)}% regressed`,
   };
 };
+export const renderVoiceIncidentRecoveryOutcomeHTML = (
+  report: VoiceIncidentRecoveryOutcomeReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Incident Recovery Outcomes";
+  const rows = report.entries
+    .map(
+      (entry) =>
+        `<article class="${escapeHtml(entry.outcome)}"><span>${escapeHtml(entry.outcome.toUpperCase())}</span><h2>${escapeHtml(entry.actionId)}</h2><p>${escapeHtml(new Date(entry.at).toLocaleString())}</p><strong>${escapeHtml(entry.beforeStatus ?? "unknown")} -> ${escapeHtml(entry.afterStatus ?? "unknown")}</strong>${entry.detail ? `<p>${escapeHtml(entry.detail)}</p>` : ""}</article>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10120d;color:#fbf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,article{background:#181711;border:1px solid #39301d;border-radius:24px;padding:20px}.hero{margin-bottom:16px}h1{font-size:clamp(2rem,6vw,4.5rem);line-height:.95}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{border:1px solid #4a3f23;border-radius:999px;padding:8px 12px}section{display:grid;gap:12px}article.improved{border-color:rgba(34,197,94,.65)}article.failed,article.regressed{border-color:rgba(239,68,68,.8)}article.unchanged{border-color:rgba(245,158,11,.7)}article span{color:#fcd34d;font-weight:900;letter-spacing:.08em}article strong{display:block;font-size:1.4rem;margin:.5rem 0}p{color:#cfc5a8}</style></head><body><main><section class="hero"><span>Recovery proof</span><h1>${escapeHtml(title)}</h1><div class="summary"><span>${String(report.improved)} improved</span><span>${String(report.unchanged)} unchanged</span><span>${String(report.regressed)} regressed</span><span>${String(report.failed)} failed</span><span>${String(report.total)} total</span></div></section><section>${rows || "<p>No incident recovery actions have been recorded.</p>"}</section></main></body></html>`;
+};
 
 const rate = (count: number, total: number) => (total > 0 ? count / total : 0);
 
@@ -762,6 +760,20 @@ export const buildVoiceIncidentRecoveryTrendReport = (
 const percent = (value: number | undefined) =>
   value === undefined ? "n/a" : `${Math.round(value * 100)}%`;
 
+export const renderVoiceIncidentRecoveryTrendHTML = (
+  report: VoiceIncidentRecoveryTrendReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Incident Recovery Trend";
+  const rows = report.cycles
+    .map(
+      (cycle) =>
+        `<tr><td>${escapeHtml(new Date(cycle.checkedAt).toLocaleString())}</td><td>${String(cycle.total)}</td><td>${String(cycle.improved)}</td><td>${String(cycle.unchanged)}</td><td>${String(cycle.regressed)}</td><td>${String(cycle.failed)}</td><td>${escapeHtml(percent(cycle.improvementRate))}</td><td>${escapeHtml(percent(cycle.regressionRate))}</td></tr>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10120d;color:#fbf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero,table{background:#181711;border:1px solid #39301d;border-radius:24px}.hero{margin-bottom:16px;padding:24px}h1{font-size:clamp(2rem,6vw,4.5rem);line-height:.95}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{border:1px solid #4a3f23;border-radius:999px;padding:8px 12px}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #39301d;padding:12px;text-align:left}.pass{color:#86efac}.warn,.empty{color:#fcd34d}.fail{color:#fca5a5}p{color:#cfc5a8}</style></head><body><main><section class="hero"><span>Recovery trend</span><h1>${escapeHtml(title)}</h1><p class="${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><div class="summary"><span>${String(report.summary.cycles)} cycles</span><span>${String(report.summary.total)} actions</span><span>${escapeHtml(percent(report.summary.improvementRate))} improved</span><span>${escapeHtml(percent(report.summary.regressionRate))} regressed</span><span>${escapeHtml(percent(report.trend.improvementRateDelta))} improvement delta</span></div></section><table><thead><tr><th>Checked at</th><th>Total</th><th>Improved</th><th>Unchanged</th><th>Regressed</th><th>Failed</th><th>Improve %</th><th>Regress %</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No recovery outcome history has been recorded.</td></tr>'}</tbody></table></main></body></html>`;
+};
 export const renderVoiceIncidentRecoveryTrendMarkdown = (
   report: VoiceIncidentRecoveryTrendReport,
   options: { title?: string } = {},
@@ -802,21 +814,6 @@ Regression delta: ${percent(report.trend.regressionRateDelta)}
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 ${rows || "| n/a | 0 | 0 | 0 | 0 | 0 | n/a | n/a |"}
 `;
-};
-
-export const renderVoiceIncidentRecoveryTrendHTML = (
-  report: VoiceIncidentRecoveryTrendReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Incident Recovery Trend";
-  const rows = report.cycles
-    .map(
-      (cycle) =>
-        `<tr><td>${escapeHtml(new Date(cycle.checkedAt).toLocaleString())}</td><td>${String(cycle.total)}</td><td>${String(cycle.improved)}</td><td>${String(cycle.unchanged)}</td><td>${String(cycle.regressed)}</td><td>${String(cycle.failed)}</td><td>${escapeHtml(percent(cycle.improvementRate))}</td><td>${escapeHtml(percent(cycle.regressionRate))}</td></tr>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10120d;color:#fbf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero,table{background:#181711;border:1px solid #39301d;border-radius:24px}.hero{margin-bottom:16px;padding:24px}h1{font-size:clamp(2rem,6vw,4.5rem);line-height:.95}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{border:1px solid #4a3f23;border-radius:999px;padding:8px 12px}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #39301d;padding:12px;text-align:left}.pass{color:#86efac}.warn,.empty{color:#fcd34d}.fail{color:#fca5a5}p{color:#cfc5a8}</style></head><body><main><section class="hero"><span>Recovery trend</span><h1>${escapeHtml(title)}</h1><p class="${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><div class="summary"><span>${String(report.summary.cycles)} cycles</span><span>${String(report.summary.total)} actions</span><span>${escapeHtml(percent(report.summary.improvementRate))} improved</span><span>${escapeHtml(percent(report.summary.regressionRate))} regressed</span><span>${escapeHtml(percent(report.trend.improvementRateDelta))} improvement delta</span></div></section><table><thead><tr><th>Checked at</th><th>Total</th><th>Improved</th><th>Unchanged</th><th>Regressed</th><th>Failed</th><th>Improve %</th><th>Regress %</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No recovery outcome history has been recorded.</td></tr>'}</tbody></table></main></body></html>`;
 };
 
 const pushOperationalStatusEvents = (
@@ -1100,79 +1097,6 @@ export const buildVoiceIncidentTimelineReport = async (
         : [...configuredActions],
   };
 };
-
-export const renderVoiceIncidentTimelineMarkdown = (
-  report: VoiceIncidentTimelineReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Incident Timeline";
-  const rows = report.events
-    .map((event) => {
-      const when = new Date(event.at).toISOString();
-      const target = event.href ? ` [open](${event.href})` : "";
-      const session = event.sessionId ? ` session=${event.sessionId}` : "";
-      const value = event.value === undefined ? "" : ` value=${event.value}`;
-
-      return `- ${when} ${event.severity.toUpperCase()} ${event.label}${session}${value}${target}${event.detail ? ` - ${event.detail}` : ""}`;
-    })
-    .join("\n");
-
-  return `# ${title}
-
-Status: ${report.status}
-
-Generated: ${new Date(report.generatedAt).toISOString()}
-
-Summary: ${report.summary.critical} critical, ${report.summary.warn} warn, ${report.summary.info} info, ${report.summary.total} total.
-
-## Events
-
-${rows || "- No incident timeline events."}
-
-## Recovery Actions
-
-${report.actions.map((action) => `- ${action.method ?? "GET"} ${action.id}: ${action.label}${action.href ? ` (${action.href})` : ""}${action.detail ? ` - ${action.detail}` : ""}`).join("\n") || "- No recovery actions."}
-`;
-};
-
-export const renderVoiceIncidentTimelineHTML = (
-  report: VoiceIncidentTimelineReport,
-  options: { actionPath?: string; title?: string } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Incident Timeline";
-  const actionPath =
-    options.actionPath ?? "/api/voice/incident-timeline/actions";
-  const events = report.events
-    .map(
-      (event) => `<article class="${escapeHtml(event.severity)}">
-  <span>${escapeHtml(event.severity.toUpperCase())} / ${escapeHtml(event.category)}</span>
-  <h2>${escapeHtml(event.label)}</h2>
-  <p>${escapeHtml(new Date(event.at).toLocaleString())}${event.sessionId ? ` · session ${escapeHtml(event.sessionId)}` : ""}</p>
-  ${event.value === undefined ? "" : `<strong>${escapeHtml(String(event.value))}</strong>`}
-  ${event.detail ? `<p>${escapeHtml(event.detail)}</p>` : ""}
-  <div>${event.href ? `<a href="${escapeHtml(event.href)}">Open source</a>` : ""}${event.action?.href ? `<a href="${escapeHtml(event.action.href)}">${escapeHtml(event.action.label)}</a>` : ""}</div>
-</article>`,
-    )
-    .join("");
-  const actions = report.actions
-    .map((action) => {
-      const label = escapeHtml(action.label);
-      const detail = action.detail ? `<p>${escapeHtml(action.detail)}</p>` : "";
-      const href = action.href
-        ? `<a href="${escapeHtml(action.href)}">Open target</a>`
-        : "";
-      const control =
-        action.method === "POST"
-          ? `<button type="button" data-voice-incident-action="${escapeHtml(action.id)}" ${action.disabled ? "disabled" : ""}>${label}</button>`
-          : href;
-
-      return `<article class="action"><span>${escapeHtml(action.method ?? "GET")}</span><h2>${label}</h2>${detail}<div>${control}${href && action.method === "POST" ? href : ""}</div></article>`;
-    })
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#11110d;color:#faf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero{background:linear-gradient(135deg,rgba(248,113,113,.2),rgba(245,158,11,.13),rgba(34,197,94,.12));border:1px solid #39301d;border-radius:30px;margin-bottom:18px;padding:28px}.eyebrow{color:#fcd34d;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #575030;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.status.pass{border-color:rgba(34,197,94,.65)}.status.warn{border-color:rgba(245,158,11,.75)}.status.fail{border-color:rgba(239,68,68,.85)}.grid{display:grid;gap:14px}.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:0 0 18px}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{background:#181711;border:1px solid #39301d;border-radius:999px;padding:8px 12px}article{background:#181711;border:1px solid #39301d;border-radius:22px;padding:18px}article.critical{border-color:rgba(239,68,68,.85)}article.warn{border-color:rgba(245,158,11,.75)}article.info{border-color:rgba(34,197,94,.55)}article.action{border-color:#5b4a22}article span{color:#fcd34d;font-size:.78rem;font-weight:900;letter-spacing:.08em}article h2{margin:.35rem 0}.muted,article p{color:#cfc5a8}article strong{display:block;font-size:1.3rem;margin:.5rem 0}a{color:#fde68a;margin-right:12px}button{background:#fcd34d;border:0;border-radius:999px;color:#171307;cursor:pointer;font-weight:900;padding:10px 14px}button:disabled{cursor:not-allowed;opacity:.55}</style></head><body><main><section class="hero"><p class="eyebrow">Operational triage</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p class="muted">Generated ${escapeHtml(new Date(report.generatedAt).toLocaleString())}</p><div class="summary"><span>${String(report.summary.critical)} critical</span><span>${String(report.summary.warn)} warn</span><span>${String(report.summary.info)} info</span><span>${String(report.summary.total)} total</span></div></section><h2>Recovery actions</h2><section class="actions">${actions || '<article class="action"><span>NONE</span><h2>No recovery actions</h2><p>No executable actions are available for this report.</p></article>'}</section><h2>Timeline</h2><section class="grid">${events || '<article class="info"><span>INFO</span><h2>No incident events</h2><p>No non-pass operational events were found in this window.</p></article>'}</section></main><script>const voiceIncidentActionPath=${JSON.stringify(actionPath)};document.querySelectorAll("[data-voice-incident-action]").forEach((button)=>{button.addEventListener("click",async()=>{const id=button.getAttribute("data-voice-incident-action");if(!id)return;button.disabled=true;const original=button.textContent;button.textContent="Running...";try{const response=await fetch(voiceIncidentActionPath+"/"+encodeURIComponent(id),{method:"POST"});button.textContent=response.ok?"Done":"Failed";if(response.ok)setTimeout(()=>location.reload(),700)}catch{button.textContent="Failed"}finally{setTimeout(()=>{button.disabled=false;button.textContent=original},1600)}})});</script></body></html>`;
-};
-
 export const createVoiceIncidentTimelineRoutes = (
   options: VoiceIncidentTimelineRoutesOptions,
 ) => {
@@ -1214,6 +1138,7 @@ export const createVoiceIncidentTimelineRoutes = (
       typeof options.recoveryTrendReports === "function"
         ? await options.recoveryTrendReports()
         : options.recoveryTrendReports;
+
     return buildVoiceIncidentRecoveryTrendReport(
       reports ?? [
         await buildVoiceIncidentRecoveryOutcomeReport({
@@ -1295,7 +1220,7 @@ export const createVoiceIncidentTimelineRoutes = (
         );
       })
       .post(`${actionPath}/:actionId`, async ({ params, request }) => {
-        const actionId = params.actionId;
+        const {actionId} = params;
         const report = await buildVoiceIncidentTimelineReport(options);
         const action = report.actions.find((item) => item.id === actionId);
         const handler = options.actionHandlers?.[actionId];
@@ -1462,4 +1387,74 @@ export const createVoiceIncidentTimelineRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceIncidentTimelineHTML = (
+  report: VoiceIncidentTimelineReport,
+  options: { actionPath?: string; title?: string } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Incident Timeline";
+  const actionPath =
+    options.actionPath ?? "/api/voice/incident-timeline/actions";
+  const events = report.events
+    .map(
+      (event) => `<article class="${escapeHtml(event.severity)}">
+  <span>${escapeHtml(event.severity.toUpperCase())} / ${escapeHtml(event.category)}</span>
+  <h2>${escapeHtml(event.label)}</h2>
+  <p>${escapeHtml(new Date(event.at).toLocaleString())}${event.sessionId ? ` · session ${escapeHtml(event.sessionId)}` : ""}</p>
+  ${event.value === undefined ? "" : `<strong>${escapeHtml(String(event.value))}</strong>`}
+  ${event.detail ? `<p>${escapeHtml(event.detail)}</p>` : ""}
+  <div>${event.href ? `<a href="${escapeHtml(event.href)}">Open source</a>` : ""}${event.action?.href ? `<a href="${escapeHtml(event.action.href)}">${escapeHtml(event.action.label)}</a>` : ""}</div>
+</article>`,
+    )
+    .join("");
+  const actions = report.actions
+    .map((action) => {
+      const label = escapeHtml(action.label);
+      const detail = action.detail ? `<p>${escapeHtml(action.detail)}</p>` : "";
+      const href = action.href
+        ? `<a href="${escapeHtml(action.href)}">Open target</a>`
+        : "";
+      const control =
+        action.method === "POST"
+          ? `<button type="button" data-voice-incident-action="${escapeHtml(action.id)}" ${action.disabled ? "disabled" : ""}>${label}</button>`
+          : href;
+
+      return `<article class="action"><span>${escapeHtml(action.method ?? "GET")}</span><h2>${label}</h2>${detail}<div>${control}${href && action.method === "POST" ? href : ""}</div></article>`;
+    })
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#11110d;color:#faf4df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero{background:linear-gradient(135deg,rgba(248,113,113,.2),rgba(245,158,11,.13),rgba(34,197,94,.12));border:1px solid #39301d;border-radius:30px;margin-bottom:18px;padding:28px}.eyebrow{color:#fcd34d;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #575030;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.status.pass{border-color:rgba(34,197,94,.65)}.status.warn{border-color:rgba(245,158,11,.75)}.status.fail{border-color:rgba(239,68,68,.85)}.grid{display:grid;gap:14px}.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:0 0 18px}.summary{display:flex;flex-wrap:wrap;gap:10px}.summary span{background:#181711;border:1px solid #39301d;border-radius:999px;padding:8px 12px}article{background:#181711;border:1px solid #39301d;border-radius:22px;padding:18px}article.critical{border-color:rgba(239,68,68,.85)}article.warn{border-color:rgba(245,158,11,.75)}article.info{border-color:rgba(34,197,94,.55)}article.action{border-color:#5b4a22}article span{color:#fcd34d;font-size:.78rem;font-weight:900;letter-spacing:.08em}article h2{margin:.35rem 0}.muted,article p{color:#cfc5a8}article strong{display:block;font-size:1.3rem;margin:.5rem 0}a{color:#fde68a;margin-right:12px}button{background:#fcd34d;border:0;border-radius:999px;color:#171307;cursor:pointer;font-weight:900;padding:10px 14px}button:disabled{cursor:not-allowed;opacity:.55}</style></head><body><main><section class="hero"><p class="eyebrow">Operational triage</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p class="muted">Generated ${escapeHtml(new Date(report.generatedAt).toLocaleString())}</p><div class="summary"><span>${String(report.summary.critical)} critical</span><span>${String(report.summary.warn)} warn</span><span>${String(report.summary.info)} info</span><span>${String(report.summary.total)} total</span></div></section><h2>Recovery actions</h2><section class="actions">${actions || '<article class="action"><span>NONE</span><h2>No recovery actions</h2><p>No executable actions are available for this report.</p></article>'}</section><h2>Timeline</h2><section class="grid">${events || '<article class="info"><span>INFO</span><h2>No incident events</h2><p>No non-pass operational events were found in this window.</p></article>'}</section></main><script>const voiceIncidentActionPath=${JSON.stringify(actionPath)};document.querySelectorAll("[data-voice-incident-action]").forEach((button)=>{button.addEventListener("click",async()=>{const id=button.getAttribute("data-voice-incident-action");if(!id)return;button.disabled=true;const original=button.textContent;button.textContent="Running...";try{const response=await fetch(voiceIncidentActionPath+"/"+encodeURIComponent(id),{method:"POST"});button.textContent=response.ok?"Done":"Failed";if(response.ok)setTimeout(()=>location.reload(),700)}catch{button.textContent="Failed"}finally{setTimeout(()=>{button.disabled=false;button.textContent=original},1600)}})});</script></body></html>`;
+};
+export const renderVoiceIncidentTimelineMarkdown = (
+  report: VoiceIncidentTimelineReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Incident Timeline";
+  const rows = report.events
+    .map((event) => {
+      const when = new Date(event.at).toISOString();
+      const target = event.href ? ` [open](${event.href})` : "";
+      const session = event.sessionId ? ` session=${event.sessionId}` : "";
+      const value = event.value === undefined ? "" : ` value=${event.value}`;
+
+      return `- ${when} ${event.severity.toUpperCase()} ${event.label}${session}${value}${target}${event.detail ? ` - ${event.detail}` : ""}`;
+    })
+    .join("\n");
+
+  return `# ${title}
+
+Status: ${report.status}
+
+Generated: ${new Date(report.generatedAt).toISOString()}
+
+Summary: ${report.summary.critical} critical, ${report.summary.warn} warn, ${report.summary.info} info, ${report.summary.total} total.
+
+## Events
+
+${rows || "- No incident timeline events."}
+
+## Recovery Actions
+
+${report.actions.map((action) => `- ${action.method ?? "GET"} ${action.id}: ${action.label}${action.href ? ` (${action.href})` : ""}${action.detail ? ` - ${action.detail}` : ""}`).join("\n") || "- No recovery actions."}
+`;
 };

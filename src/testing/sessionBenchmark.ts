@@ -201,6 +201,7 @@ const summarizeScenarioCosts = (
 
 const roundMetric = (value: number, digits = 4) => {
   const factor = 10 ** digits;
+
   return Math.round(value * factor) / factor;
 };
 
@@ -324,6 +325,33 @@ const waitForSessionIdle = async (
   }
 };
 
+export const runVoiceSessionBenchmark = async (input: {
+  adapter: STTAdapter;
+  adapterId: string;
+  correctTurn?: VoiceTurnCorrectionHandler;
+  scenarios: VoiceSessionBenchmarkScenario[];
+  sttFallback?: VoiceSTTFallbackConfig;
+  trace?: boolean;
+}) => {
+  const scenarioResults: VoiceSessionBenchmarkScenarioResult[] = [];
+
+  for (const scenario of input.scenarios) {
+    scenarioResults.push(
+      await runVoiceSessionBenchmarkScenario(input.adapter, scenario, {
+        correctTurn: input.correctTurn,
+        sttFallback: input.sttFallback,
+        trace: input.trace,
+      }),
+    );
+  }
+
+  return {
+    adapterId: input.adapterId,
+    generatedAt: Date.now(),
+    scenarios: scenarioResults,
+    summary: summarizeVoiceSessionBenchmark(input.adapterId, scenarioResults),
+  } satisfies VoiceSessionBenchmarkReport;
+};
 export const runVoiceSessionBenchmarkScenario = async (
   adapter: STTAdapter,
   fixture: VoiceSessionBenchmarkScenario,
@@ -608,7 +636,36 @@ export const runVoiceSessionBenchmarkScenario = async (
     trace: options.trace ? trace : undefined,
   };
 };
+export const runVoiceSessionBenchmarkSeries = async (input: {
+  adapter: STTAdapter;
+  adapterId: string;
+  correctTurn?: VoiceTurnCorrectionHandler;
+  runs: number;
+  scenarios: VoiceSessionBenchmarkScenario[];
+  sttFallback?: VoiceSTTFallbackConfig;
+  trace?: boolean;
+}) => {
+  const reports: VoiceSessionBenchmarkReport[] = [];
+  const runCount = Math.max(1, Math.floor(input.runs));
 
+  for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
+    reports.push(
+      await runVoiceSessionBenchmark({
+        adapter: input.adapter,
+        adapterId: input.adapterId,
+        correctTurn: input.correctTurn,
+        scenarios: input.scenarios,
+        sttFallback: input.sttFallback,
+        trace: input.trace,
+      }),
+    );
+  }
+
+  return summarizeVoiceSessionBenchmarkSeries({
+    adapterId: input.adapterId,
+    reports,
+  });
+};
 export const summarizeVoiceSessionBenchmark = (
   adapterId: string,
   scenarios: VoiceSessionBenchmarkScenarioResult[],
@@ -687,7 +744,6 @@ export const summarizeVoiceSessionBenchmark = (
     ).length,
   };
 };
-
 export const summarizeVoiceSessionBenchmarkSeries = (input: {
   adapterId: string;
   reports: VoiceSessionBenchmarkReport[];
@@ -843,63 +899,4 @@ export const summarizeVoiceSessionBenchmarkSeries = (input: {
       totalRunCount,
     },
   } satisfies VoiceSessionBenchmarkSeriesReport;
-};
-
-export const runVoiceSessionBenchmark = async (input: {
-  adapter: STTAdapter;
-  adapterId: string;
-  correctTurn?: VoiceTurnCorrectionHandler;
-  scenarios: VoiceSessionBenchmarkScenario[];
-  sttFallback?: VoiceSTTFallbackConfig;
-  trace?: boolean;
-}) => {
-  const scenarioResults: VoiceSessionBenchmarkScenarioResult[] = [];
-
-  for (const scenario of input.scenarios) {
-    scenarioResults.push(
-      await runVoiceSessionBenchmarkScenario(input.adapter, scenario, {
-        correctTurn: input.correctTurn,
-        sttFallback: input.sttFallback,
-        trace: input.trace,
-      }),
-    );
-  }
-
-  return {
-    adapterId: input.adapterId,
-    generatedAt: Date.now(),
-    scenarios: scenarioResults,
-    summary: summarizeVoiceSessionBenchmark(input.adapterId, scenarioResults),
-  } satisfies VoiceSessionBenchmarkReport;
-};
-
-export const runVoiceSessionBenchmarkSeries = async (input: {
-  adapter: STTAdapter;
-  adapterId: string;
-  correctTurn?: VoiceTurnCorrectionHandler;
-  runs: number;
-  scenarios: VoiceSessionBenchmarkScenario[];
-  sttFallback?: VoiceSTTFallbackConfig;
-  trace?: boolean;
-}) => {
-  const reports: VoiceSessionBenchmarkReport[] = [];
-  const runCount = Math.max(1, Math.floor(input.runs));
-
-  for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
-    reports.push(
-      await runVoiceSessionBenchmark({
-        adapter: input.adapter,
-        adapterId: input.adapterId,
-        correctTurn: input.correctTurn,
-        scenarios: input.scenarios,
-        sttFallback: input.sttFallback,
-        trace: input.trace,
-      }),
-    );
-  }
-
-  return summarizeVoiceSessionBenchmarkSeries({
-    adapterId: input.adapterId,
-    reports,
-  });
 };

@@ -354,6 +354,13 @@ const simulationSectionNames = [
   "tools",
 ] as const;
 
+export const assertVoiceSimulationSuiteEvidence = (
+  report: VoiceSimulationSuiteReport,
+  input: VoiceSimulationSuiteAssertionInput = {},
+): VoiceSimulationSuiteAssertionReport => assertVoiceEvidence(
+    "Voice simulation suite evidence assertion failed",
+    evaluateVoiceSimulationSuiteEvidence(report, input),
+  );
 export const evaluateVoiceSimulationSuiteEvidence = (
   report: VoiceSimulationSuiteReport,
   input: VoiceSimulationSuiteAssertionInput = {},
@@ -418,16 +425,6 @@ export const evaluateVoiceSimulationSuiteEvidence = (
   };
 };
 
-export const assertVoiceSimulationSuiteEvidence = (
-  report: VoiceSimulationSuiteReport,
-  input: VoiceSimulationSuiteAssertionInput = {},
-): VoiceSimulationSuiteAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice simulation suite evidence assertion failed",
-    evaluateVoiceSimulationSuiteEvidence(report, input),
-  );
-};
-
 const renderSection = (
   label: string,
   summary: VoiceSimulationSuiteSectionSummary | undefined,
@@ -441,11 +438,42 @@ const renderSection = (
 
 const renderAction = (action: VoiceSimulationSuiteAction) => {
   const content = `<strong>${escapeHtml(action.label)}</strong><p>${escapeHtml(action.description)}</p><span>${escapeHtml(action.section)} / ${escapeHtml(action.severity)}</span>`;
+
   return action.href
     ? `<a class="action" href="${escapeHtml(action.href)}">${content}</a>`
     : `<article class="action">${content}</article>`;
 };
 
+export const createVoiceSimulationSuiteRoutes = <
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+>(
+  options: VoiceSimulationSuiteRoutesOptions<TSession>,
+) => {
+  const path = options.path ?? "/api/voice/simulations";
+  const htmlPath =
+    options.htmlPath === undefined ? "/voice/simulations" : options.htmlPath;
+  const app = new Elysia({
+    name: options.name ?? "absolutejs-voice-simulation-suite",
+  }).get(path, () => runVoiceSimulationSuite(options));
+
+  if (htmlPath) {
+    app.get(htmlPath, async () => {
+      const report = await runVoiceSimulationSuite(options);
+      const html = options.render
+        ? await options.render(report)
+        : renderVoiceSimulationSuiteHTML(report, options);
+
+      return new Response(html, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      });
+    });
+  }
+
+  return app;
+};
 export const renderVoiceSimulationSuiteHTML = (
   report: VoiceSimulationSuiteReport,
   options: { title?: string } = {},
@@ -485,38 +513,7 @@ app.use(
 	})
 );`);
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10151c;color:#f8f3e7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero,.primitive{background:linear-gradient(135deg,rgba(34,197,94,.18),rgba(59,130,246,.12));border:1px solid #283544;border-radius:28px;margin-bottom:18px;padding:28px}.primitive{background:#151d27;border-color:#355078}.eyebrow{color:#93c5fd;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.badge{border:1px solid #3f3f46;border-radius:999px;display:inline-flex;padding:8px 12px}.pass{color:#86efac}.fail{color:#fca5a5}.grid,.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin:18px 0}.grid article,.action{background:#151d27;border:1px solid #283544;border-radius:18px;color:inherit;padding:16px;text-decoration:none}.grid span,.action span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0;text-transform:uppercase}.action strong{display:block;color:#f8f3e7;margin-bottom:.35rem}.action p,.primitive p{color:#d8dee6;line-height:1.55;margin:.3rem 0 .6rem}pre{background:#151d27;border:1px solid #283544;border-radius:18px;overflow:auto;padding:16px}.primitive pre{background:#0b1118;color:#dbeafe}.primitive code{color:#bfdbfe}</style></head><body><main><section class="hero"><p class="eyebrow">Pre-production proof</p><h1>${escapeHtml(title)}</h1><p>One report for session quality, scenario evals, fixture simulations, tool contracts, and outcome contracts.</p><p class="badge ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><section class="grid">${renderSection("Sessions", report.summary.sessions)}${renderSection("Scenarios", report.summary.scenarios)}${renderSection("Fixtures", report.summary.fixtures)}${renderSection("Tools", report.summary.tools)}${renderSection("Outcomes", report.summary.outcomes)}</section></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceSimulationSuiteRoutes(...)</code> builds this pre-production proof surface</h2><p>Run session quality checks, scenario evals, fixture-backed simulations, tool contracts, and outcome contracts from one route group before live traffic sees a regression.</p><pre><code>${snippet}</code></pre></section><h2>Actions</h2><section class="actions">${report.actions.length > 0 ? report.actions.map(renderAction).join("") : '<article class="action"><strong>No action required</strong><p>All enabled simulation sections are passing.</p></article>'}</section><pre>${escapeHtml(JSON.stringify({ summary: report.summary, actions: report.actions }, null, 2))}</pre></main></body></html>`;
-};
-
-export const createVoiceSimulationSuiteRoutes = <
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
->(
-  options: VoiceSimulationSuiteRoutesOptions<TSession>,
-) => {
-  const path = options.path ?? "/api/voice/simulations";
-  const htmlPath =
-    options.htmlPath === undefined ? "/voice/simulations" : options.htmlPath;
-  const app = new Elysia({
-    name: options.name ?? "absolutejs-voice-simulation-suite",
-  }).get(path, () => runVoiceSimulationSuite(options));
-
-  if (htmlPath) {
-    app.get(htmlPath, async () => {
-      const report = await runVoiceSimulationSuite(options);
-      const html = options.render
-        ? await options.render(report)
-        : renderVoiceSimulationSuiteHTML(report, options);
-
-      return new Response(html, {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      });
-    });
-  }
-
-  return app;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10151c;color:#f8f3e7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero,.primitive{background:linear-gradient(135deg,rgba(34,197,94,.18),rgba(59,130,246,.12));border:1px solid #283544;border-radius:28px;margin-bottom:18px;padding:28px}.primitive{background:#151d27;border-color:#355078}.eyebrow{color:#93c5fd;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.badge{border:1px solid #3f3f46;border-radius:999px;display:inline-flex;padding:8px 12px}.pass{color:#86efac}.fail{color:#fca5a5}.grid,.actions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin:18px 0}.grid article,.action{background:#151d27;border:1px solid #283544;border-radius:18px;color:inherit;padding:16px;text-decoration:none}.grid span,.action span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0;text-transform:uppercase}.action strong{display:block;color:#f8f3e7;margin-bottom:.35rem}.action p,.primitive p{color:#d8dee6;line-height:1.55;margin:.3rem 0 .6rem}pre{background:#151d27;border:1px solid #283544;border-radius:18px;overflow:auto;padding:16px}.primitive pre{background:#0b1118;color:#dbeafe}.primitive code{color:#bfdbfe}</style></head><body><main><section class="hero"><p class="eyebrow">Pre-production proof</p><h1>${escapeHtml(title)}</h1><p>One report for session quality, scenario evals, fixture simulations, tool contracts, and outcome contracts.</p><p class="badge ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><section class="grid">${renderSection("Sessions", report.summary.sessions)}${renderSection("Scenarios", report.summary.scenarios)}${renderSection("Fixtures", report.summary.fixtures)}${renderSection("Tools", report.summary.tools)}${renderSection("Outcomes", report.summary.outcomes)}</section></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceSimulationSuiteRoutes(...)</code> builds this pre-production proof surface</h2><p>Run session quality checks, scenario evals, fixture-backed simulations, tool contracts, and outcome contracts from one route group before live traffic sees a regression.</p><pre><code>${snippet}</code></pre></section><h2>Actions</h2><section class="actions">${report.actions.length > 0 ? report.actions.map(renderAction).join("") : '<article class="action"><strong>No action required</strong><p>All enabled simulation sections are passing.</p></article>'}</section><pre>${escapeHtml(JSON.stringify({ actions: report.actions, summary: report.summary }, null, 2))}</pre></main></body></html>`;
 };
 
 export type VoiceSimulationSuiteEvalRoutesOptions = VoiceEvalRoutesOptions;

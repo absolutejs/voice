@@ -34,6 +34,7 @@ const formatRelative = (ms: number) => {
   const seconds = Math.max(0, Math.floor(ms / 1_000));
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
+
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 };
 
@@ -105,6 +106,7 @@ const defaultCostDashboard: VoiceCostDashboardRenderer = ({
       <th style="padding:8px 12px;text-align:right;">Tel.</th>
       <th style="padding:8px 12px;text-align:right;">Total</th>
     </tr></thead><tbody>${body}${total}</tbody></table>`;
+
   return `<section aria-label="voice-cost-dashboard" class="absolute-voice-cost-dashboard"${polledWrapperAttributes(attributes)} style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:baseline;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${escapeHtml(title)}</strong>
@@ -156,6 +158,7 @@ const defaultReplayTimeline: VoiceReplayTimelineRenderer = ({
     report.events.length === 0
       ? `<p style="font-size:13px;opacity:0.7;">${escapeHtml(emptyMessage)}</p>`
       : `<ol style="display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0;">${items}</ol>`;
+
   return `<section aria-label="voice-replay-timeline" class="absolute-voice-replay-timeline"${polledWrapperAttributes(attributes)} style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:baseline;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${headline}</strong>
@@ -202,6 +205,7 @@ const defaultLiveCallViewer: VoiceLiveCallViewerRenderer = ({
   const items = state.events
     .map((event) => renderLiveEntry(event, firstAt))
     .join("");
+
   return `<section aria-label="voice-live-call-viewer" class="absolute-voice-live-call-viewer" data-agent-state="${escapeHtml(state.agentState)}"${polledWrapperAttributes(attributes)} style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:center;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${escapeHtml(title)}</strong>
@@ -222,31 +226,7 @@ export type VoiceDashboardHTMXRendererConfig = {
 export type ResolvedVoiceDashboardRenderers =
   Required<VoiceDashboardHTMXRendererConfig>;
 
-export const resolveVoiceDashboardRenderers = (
-  custom?: VoiceDashboardHTMXRendererConfig,
-): ResolvedVoiceDashboardRenderers => ({
-  costDashboard: custom?.costDashboard ?? defaultCostDashboard,
-  liveCallViewer: custom?.liveCallViewer ?? defaultLiveCallViewer,
-  replayTimeline: custom?.replayTimeline ?? defaultReplayTimeline,
-});
-
-export const renderVoiceCostDashboardHTMX = (
-  input: VoiceCostDashboardHTMXInput & { custom?: VoiceCostDashboardRenderer },
-): string => (input.custom ?? defaultCostDashboard)(input);
-
-export const renderVoiceReplayTimelineHTMX = (
-  input: VoiceReplayTimelineHTMXInput & {
-    custom?: VoiceReplayTimelineRenderer;
-  },
-): string => (input.custom ?? defaultReplayTimeline)(input);
-
-export const renderVoiceLiveCallViewerHTMX = (
-  input: VoiceLiveCallViewerHTMXInput & {
-    custom?: VoiceLiveCallViewerRenderer;
-  },
-): string => (input.custom ?? defaultLiveCallViewer)(input);
-
-// Helpers callers can use without importing the view-model builders.
+export const createLiveCallViewerFromOptions = createLiveCallViewer;
 export const renderVoiceCostDashboardFromEvents = (input: {
   attributes?: VoiceDashboardHTMXAttributes;
   currency?: string;
@@ -261,6 +241,7 @@ export const renderVoiceCostDashboardFromEvents = (input: {
     fromMs: input.options?.fromMs,
     toMs: input.options?.toMs,
   });
+
   return renderVoiceCostDashboardHTMX({
     attributes: input.attributes,
     currency: input.currency,
@@ -269,36 +250,9 @@ export const renderVoiceCostDashboardFromEvents = (input: {
     title: input.title,
   });
 };
-
-export const renderVoiceReplayTimelineFromArtifact = (input: {
-  artifact: VoiceCallReviewArtifact;
-  attributes?: VoiceDashboardHTMXAttributes;
-  renderer?: VoiceReplayTimelineRenderer;
-  title?: string;
-}): string => {
-  const report = buildReplayTimelineReport({ artifact: input.artifact });
-  return renderVoiceReplayTimelineHTMX({
-    attributes: input.attributes,
-    custom: input.renderer,
-    report,
-    title: input.title,
-  });
-};
-
-export const renderVoiceLiveCallViewerFromViewer = (input: {
-  attributes?: VoiceDashboardHTMXAttributes;
-  renderer?: VoiceLiveCallViewerRenderer;
-  title?: string;
-  viewer: LiveCallViewer;
-}): string =>
-  renderVoiceLiveCallViewerHTMX({
-    attributes: input.attributes,
-    custom: input.renderer,
-    state: input.viewer.getState(),
-    title: input.title,
-  });
-
-// Convenience: build a fresh viewer + render once. Useful for server-rendered first paint.
+export const renderVoiceCostDashboardHTMX = (
+  input: VoiceCostDashboardHTMXInput & { custom?: VoiceCostDashboardRenderer },
+): string => (input.custom ?? defaultCostDashboard)(input);
 export const renderVoiceLiveCallViewerFromState = (input: {
   attributes?: VoiceDashboardHTMXAttributes;
   renderer?: VoiceLiveCallViewerRenderer;
@@ -311,5 +265,47 @@ export const renderVoiceLiveCallViewerFromState = (input: {
     state: input.state,
     title: input.title,
   });
+export const renderVoiceLiveCallViewerFromViewer = (input: {
+  attributes?: VoiceDashboardHTMXAttributes;
+  renderer?: VoiceLiveCallViewerRenderer;
+  title?: string;
+  viewer: LiveCallViewer;
+}): string =>
+  renderVoiceLiveCallViewerHTMX({
+    attributes: input.attributes,
+    custom: input.renderer,
+    state: input.viewer.getState(),
+    title: input.title,
+  });
+export const renderVoiceLiveCallViewerHTMX = (
+  input: VoiceLiveCallViewerHTMXInput & {
+    custom?: VoiceLiveCallViewerRenderer;
+  },
+): string => (input.custom ?? defaultLiveCallViewer)(input);
+export const renderVoiceReplayTimelineFromArtifact = (input: {
+  artifact: VoiceCallReviewArtifact;
+  attributes?: VoiceDashboardHTMXAttributes;
+  renderer?: VoiceReplayTimelineRenderer;
+  title?: string;
+}): string => {
+  const report = buildReplayTimelineReport({ artifact: input.artifact });
 
-export const createLiveCallViewerFromOptions = createLiveCallViewer;
+  return renderVoiceReplayTimelineHTMX({
+    attributes: input.attributes,
+    custom: input.renderer,
+    report,
+    title: input.title,
+  });
+};
+export const renderVoiceReplayTimelineHTMX = (
+  input: VoiceReplayTimelineHTMXInput & {
+    custom?: VoiceReplayTimelineRenderer;
+  },
+): string => (input.custom ?? defaultReplayTimeline)(input);
+export const resolveVoiceDashboardRenderers = (
+  custom?: VoiceDashboardHTMXRendererConfig,
+): ResolvedVoiceDashboardRenderers => ({
+  costDashboard: custom?.costDashboard ?? defaultCostDashboard,
+  liveCallViewer: custom?.liveCallViewer ?? defaultLiveCallViewer,
+  replayTimeline: custom?.replayTimeline ?? defaultReplayTimeline,
+});

@@ -34,21 +34,6 @@ export type VoiceEvidenceAssertionInput<TEvidence> = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-export const createVoiceProofAssertion = (
-  input: VoiceProofAssertionInput,
-): VoiceProofAssertionResult => ({
-  kind: "json-assertion",
-  name: input.name,
-  ok: input.ok === true,
-  summary:
-    input.summary ??
-    (input.ok === true
-      ? undefined
-      : {
-          issues: [input.missingIssue ?? `${input.name} proof is missing.`],
-        }),
-});
-
 export const createVoiceEvidenceAssertion = <TEvidence>(
   input: VoiceEvidenceAssertionInput<TEvidence>,
 ): VoiceProofAssertionResult => {
@@ -71,7 +56,20 @@ export const createVoiceEvidenceAssertion = <TEvidence>(
       (isRecord(input.evidence) ? input.evidence : undefined),
   };
 };
-
+export const createVoiceProofAssertion = (
+  input: VoiceProofAssertionInput,
+): VoiceProofAssertionResult => ({
+  kind: "json-assertion",
+  name: input.name,
+  ok: input.ok === true,
+  summary:
+    input.summary ??
+    (input.ok === true
+      ? undefined
+      : {
+          issues: [input.missingIssue ?? `${input.name} proof is missing.`],
+        }),
+});
 export const summarizeVoiceProofAssertions = (
   assertions: VoiceProofAssertionResult[],
 ): VoiceProofAssertionSummary => {

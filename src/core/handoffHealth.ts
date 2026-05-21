@@ -91,7 +91,7 @@ const normalizeDelivery = (
 const normalizeDeliveries = (
   payload: Record<string, unknown>,
 ): VoiceHandoffHealthDelivery[] => {
-  const deliveries = payload.deliveries;
+  const {deliveries} = payload;
   if (!deliveries || typeof deliveries !== "object") {
     return [];
   }
@@ -247,6 +247,64 @@ const renderActionSummary = (summary: VoiceHandoffHealthSummary) => {
   ].join("");
 };
 
+export const createVoiceHandoffHealthHTMLHandler =
+  (options: VoiceHandoffHealthHTMLHandlerOptions = {}) =>
+  async ({ query }: { query?: Record<string, string | undefined> }) => {
+    const summary = await summarizeVoiceHandoffHealth({
+      ...options,
+      limit:
+        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
+      q: query?.q ?? options.q,
+      status:
+        query?.status === "delivered" ||
+        query?.status === "failed" ||
+        query?.status === "skipped" ||
+        query?.status === "all"
+          ? query.status
+          : options.status,
+    });
+    const body = await (options.render?.(summary) ??
+      renderVoiceHandoffHealthHTML(summary));
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceHandoffHealthJSONHandler =
+  (options: VoiceHandoffHealthSummaryOptions = {}) =>
+  async ({ query }: { query?: Record<string, string | undefined> }) =>
+    summarizeVoiceHandoffHealth({
+      ...options,
+      limit:
+        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
+      q: query?.q ?? options.q,
+      status:
+        query?.status === "delivered" ||
+        query?.status === "failed" ||
+        query?.status === "skipped" ||
+        query?.status === "all"
+          ? query.status
+          : options.status,
+    });
+export const createVoiceHandoffHealthRoutes = (
+  options: VoiceHandoffHealthRoutesOptions = {},
+) => {
+  const path = options.path ?? "/api/voice-handoffs";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-handoff-health",
+  }).get(path, createVoiceHandoffHealthJSONHandler(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceHandoffHealthHTMLHandler(options));
+  }
+
+  return routes;
+};
 export const renderVoiceHandoffHealthHTML = (
   summary: VoiceHandoffHealthSummary,
 ) =>
@@ -298,64 +356,3 @@ export const renderVoiceHandoffHealthHTML = (
     "</section>",
     "</div>",
   ].join("");
-
-export const createVoiceHandoffHealthJSONHandler =
-  (options: VoiceHandoffHealthSummaryOptions = {}) =>
-  async ({ query }: { query?: Record<string, string | undefined> }) =>
-    summarizeVoiceHandoffHealth({
-      ...options,
-      limit:
-        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
-      q: query?.q ?? options.q,
-      status:
-        query?.status === "delivered" ||
-        query?.status === "failed" ||
-        query?.status === "skipped" ||
-        query?.status === "all"
-          ? query.status
-          : options.status,
-    });
-
-export const createVoiceHandoffHealthHTMLHandler =
-  (options: VoiceHandoffHealthHTMLHandlerOptions = {}) =>
-  async ({ query }: { query?: Record<string, string | undefined> }) => {
-    const summary = await summarizeVoiceHandoffHealth({
-      ...options,
-      limit:
-        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
-      q: query?.q ?? options.q,
-      status:
-        query?.status === "delivered" ||
-        query?.status === "failed" ||
-        query?.status === "skipped" ||
-        query?.status === "all"
-          ? query.status
-          : options.status,
-    });
-    const body = await (options.render?.(summary) ??
-      renderVoiceHandoffHealthHTML(summary));
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceHandoffHealthRoutes = (
-  options: VoiceHandoffHealthRoutesOptions = {},
-) => {
-  const path = options.path ?? "/api/voice-handoffs";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-handoff-health",
-  }).get(path, createVoiceHandoffHealthJSONHandler(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceHandoffHealthHTMLHandler(options));
-  }
-
-  return routes;
-};

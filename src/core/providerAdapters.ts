@@ -134,10 +134,11 @@ const createEmitter = <TEvents extends Record<string, unknown>>() => {
       handler: (payload: TEvents[K]) => void | Promise<void>,
     ) => {
       const set = listeners.get(event) ?? new Set();
-      set.add(handler as never);
+      set.add(handler);
       listeners.set(event, set);
+
       return () => {
-        set.delete(handler as never);
+        set.delete(handler);
       };
     },
   };
@@ -149,6 +150,7 @@ const getTimeoutMs = <TProvider extends string, TAdapter, TOpenOptions>(
 ) => {
   const timeoutMs =
     options.providerProfiles?.[provider]?.timeoutMs ?? options.timeoutMs;
+
   return typeof timeoutMs === "number" &&
     Number.isFinite(timeoutMs) &&
     timeoutMs > 0
@@ -244,6 +246,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
       status: "healthy",
     };
     healthState.set(provider, next);
+
     return next;
   };
 
@@ -251,6 +254,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
     if (!healthOptions) {
       return undefined;
     }
+
     return {
       ...getHealth(provider),
     };
@@ -260,7 +264,8 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
     if (!healthOptions) {
       return undefined;
     }
-    const suppressedUntil = getHealth(provider).suppressedUntil;
+    const {suppressedUntil} = getHealth(provider);
+
     return typeof suppressedUntil === "number"
       ? Math.max(0, suppressedUntil - now())
       : undefined;
@@ -270,7 +275,8 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
     if (!healthOptions) {
       return false;
     }
-    const suppressedUntil = getHealth(provider).suppressedUntil;
+    const {suppressedUntil} = getHealth(provider);
+
     return typeof suppressedUntil === "number" && suppressedUntil > now();
   };
 
@@ -282,6 +288,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
     health.consecutiveFailures = 0;
     health.status = "healthy";
     health.suppressedUntil = undefined;
+
     return cloneHealth(provider);
   };
 
@@ -296,6 +303,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
       health.status = "suppressed";
       health.suppressedUntil = now() + cooldownMs;
     }
+
     return cloneHealth(provider);
   };
 
@@ -304,6 +312,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
       typeof policy?.allowProviders === "function"
         ? await policy.allowProviders(input)
         : policy?.allowProviders;
+
     return new Set(allowed ?? providerIds);
   };
 
@@ -330,6 +339,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
     ) {
       return false;
     }
+
     return true;
   };
 
@@ -339,6 +349,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
       return policy.scoreProvider(provider, profile);
     }
     const weights = policy?.weights ?? {};
+
     return (
       (profile?.cost ?? Number.MAX_SAFE_INTEGER) * (weights.cost ?? 1) +
       (profile?.latencyMs ?? Number.MAX_SAFE_INTEGER) *
@@ -409,6 +420,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
           return false;
         }
         seen.add(provider);
+
         return true;
       },
     );
@@ -502,6 +514,7 @@ export const createVoiceSTTProviderRouter = <
             },
             input,
           );
+
           return session;
         } catch (error) {
           lastError = error;
@@ -609,6 +622,7 @@ export const createVoiceTTSProviderRouter = <
           },
           input,
         );
+
         return session;
       };
 
@@ -650,6 +664,7 @@ export const createVoiceTTSProviderRouter = <
           },
           input,
         );
+
         return shouldFallback;
       };
 
@@ -696,6 +711,7 @@ export const createVoiceTTSProviderRouter = <
               run: () => session.send(text),
               timeoutMs: getTimeoutMs(options, provider),
             });
+
             return;
           } catch (error) {
             const shouldFallback = await failProvider({
@@ -717,6 +733,8 @@ export const createVoiceTTSProviderRouter = <
       };
 
       return {
+        on: emitter.on,
+        send: sendWithFallback,
         close: async (reason?: string) => {
           await activeSession?.close(reason);
           activeSession = undefined;
@@ -726,8 +744,6 @@ export const createVoiceTTSProviderRouter = <
             type: "close",
           } satisfies VoiceCloseEvent);
         },
-        on: emitter.on,
-        send: sendWithFallback,
       };
     },
   };

@@ -13,13 +13,13 @@ export const createVoiceDeliveryRuntime = (
 
   return {
     close: store.close,
-    getHTML: () => renderVoiceDeliveryRuntimeHTML(store.getSnapshot(), options),
     getSnapshot: store.getSnapshot,
-    getViewModel: () =>
-      createVoiceDeliveryRuntimeViewModel(store.getSnapshot(), options),
-    requeueDeadLetters: store.requeueDeadLetters,
     refresh: store.refresh,
+    requeueDeadLetters: store.requeueDeadLetters,
     subscribe: store.subscribe,
     tick: store.tick,
+    getHTML: () => renderVoiceDeliveryRuntimeHTML(store.getSnapshot(), options),
+    getViewModel: () =>
+      createVoiceDeliveryRuntimeViewModel(store.getSnapshot(), options),
   };
 };

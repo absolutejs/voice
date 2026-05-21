@@ -99,14 +99,24 @@ const slotRefsInActions = (actions?: VoicePathwayAction[]): string[] => {
       refs.push(...action.argsFromSlots);
     }
   }
+
   return refs;
 };
 
 const slotRefsInCondition = (condition: VoicePathwayCondition): string[] => {
   if (condition.kind === "always" || condition.kind === "fallback") return [];
+
   return [condition.slotId];
 };
 
+export const findVoicePathwaySlot = (
+  pathway: VoicePathway,
+  id: string,
+): VoicePathwaySlot | null => pathway.slots.find((s) => s.id === id) ?? null;
+export const findVoicePathwayState = (
+  pathway: VoicePathway,
+  id: string,
+): VoicePathwayState | null => pathway.states.find((s) => s.id === id) ?? null;
 export const validateVoicePathway = (
   pathway: VoicePathway,
 ): VoicePathwayValidationReport => {
@@ -240,19 +250,10 @@ export const validateVoicePathway = (
     });
   }
   const fatal = issues.some((i) => i.severity === "error");
+
   return {
     issues,
     reachableStates: Array.from(reachable),
     valid: !fatal,
   };
 };
-
-export const findVoicePathwayState = (
-  pathway: VoicePathway,
-  id: string,
-): VoicePathwayState | null => pathway.states.find((s) => s.id === id) ?? null;
-
-export const findVoicePathwaySlot = (
-  pathway: VoicePathway,
-  id: string,
-): VoicePathwaySlot | null => pathway.slots.find((s) => s.id === id) ?? null;

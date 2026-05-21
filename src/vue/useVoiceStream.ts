@@ -47,19 +47,19 @@ export function useVoiceStream<TResult = unknown>(
     assistantAudio,
     assistantTexts,
     call,
-    callControl: (message: Parameters<typeof stream.callControl>[0]) =>
-      stream.callControl(message),
-    close: () => destroy(),
-    endTurn: () => stream.endTurn(),
     error,
     isConnected,
     partial,
     reconnect,
-    sendAudio: (audio: Uint8Array | ArrayBuffer) => stream.sendAudio(audio),
-    simulateDisconnect: () => stream.simulateDisconnect(),
     sessionId,
     sessionMetadata,
     status,
     turns,
+    callControl: (message: Parameters<typeof stream.callControl>[0]) =>
+      stream.callControl(message),
+    close: () => destroy(),
+    endTurn: () => stream.endTurn(),
+    sendAudio: (audio: Uint8Array | ArrayBuffer) => stream.sendAudio(audio),
+    simulateDisconnect: () => stream.simulateDisconnect(),
   };
 }

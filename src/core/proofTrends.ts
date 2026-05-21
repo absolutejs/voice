@@ -1068,8 +1068,6 @@ export type VoiceRealCallProfileRecoveryEvidenceResult<
   sessionId: string;
 };
 
-export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
 export const DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS = [
   {
     description:
@@ -1108,6 +1106,7 @@ export const DEFAULT_VOICE_PROOF_TREND_PROFILE_DEFINITIONS = [
     turnOffsetMs: 7,
   },
 ] satisfies readonly VoiceProofTrendProfileDefinition[];
+export const DEFAULT_VOICE_PROOF_TRENDS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const normalizeMaxAgeMs = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) && value > 0
@@ -1124,9 +1123,19 @@ const toTimeMs = (value: Date | number | string | undefined) => {
   if (typeof value === "string") {
     return Date.parse(value);
   }
+
   return Date.now();
 };
 
+export const buildEmptyVoiceProofTrendReport = (
+  source = "",
+  maxAgeMs?: number,
+): VoiceProofTrendReport =>
+  buildVoiceProofTrendReport({
+    maxAgeMs,
+    source,
+    status: "empty",
+  });
 export const buildVoiceProofTrendReport = (
   input: VoiceProofTrendReportInput = {},
 ): VoiceProofTrendReport => {
@@ -1169,17 +1178,6 @@ export const buildVoiceProofTrendReport = (
     summary: input.summary ?? {},
   };
 };
-
-export const buildEmptyVoiceProofTrendReport = (
-  source = "",
-  maxAgeMs?: number,
-): VoiceProofTrendReport =>
-  buildVoiceProofTrendReport({
-    maxAgeMs,
-    source,
-    status: "empty",
-  });
-
 export const normalizeVoiceProofTrendReport = (
   value: VoiceProofTrendReport | VoiceProofTrendReportInput,
   options: {
@@ -1202,7 +1200,6 @@ export const normalizeVoiceProofTrendReport = (
     source: value.source ?? options.source,
   });
 };
-
 export const readVoiceProofTrendReportFile = async (
   path: string,
   options: { maxAgeMs?: number } = {},
@@ -1215,6 +1212,7 @@ export const readVoiceProofTrendReportFile = async (
 
   try {
     const parsed = (await file.json()) as VoiceProofTrendReportInput;
+
     return normalizeVoiceProofTrendReport(parsed, {
       maxAgeMs: options.maxAgeMs,
       source: path,
@@ -1232,6 +1230,7 @@ const maxNumber = (values: Array<number | undefined>) => {
     (value): value is number =>
       typeof value === "number" && Number.isFinite(value),
   );
+
   return finite.length > 0 ? Math.max(...finite) : undefined;
 };
 
@@ -1249,6 +1248,7 @@ export const buildVoiceReconnectProfileEvidenceSummary = (
     .sort((left, right) => {
       const leftAt = Date.parse(left.generatedAt ?? left.createdAt);
       const rightAt = Date.parse(right.generatedAt ?? right.createdAt);
+
       return (
         (Number.isFinite(rightAt) ? rightAt : 0) -
         (Number.isFinite(leftAt) ? leftAt : 0)
@@ -1309,11 +1309,13 @@ const percentile = (values: number[], rank: number) => {
     finite.length - 1,
     Math.max(0, Math.ceil((rank / 100) * finite.length) - 1),
   );
+
   return finite[index];
 };
 
 const averageNumber = (values: number[]) => {
   const finite = values.filter((value) => Number.isFinite(value));
+
   return finite.length === 0
     ? undefined
     : Math.round(
@@ -1356,11 +1358,13 @@ const readRuntimeChannelMetric = (
   key: Exclude<keyof VoiceProofTrendRuntimeChannelSummary, "status">,
 ) => {
   const summaryValue = report.summary.runtimeChannel?.[key];
+
   return typeof summaryValue === "number"
     ? summaryValue
     : maxNumber(
         report.cycles.map((cycle) => {
           const value = cycle.runtimeChannel?.[key];
+
           return typeof value === "number" ? value : undefined;
         }),
       );
@@ -1399,6 +1403,7 @@ const addProofTrendProfileOffset = (
   }
 
   const nextValue = Math.round(value + (offset ?? 0));
+
   return cap === undefined ? nextValue : Math.min(cap, nextValue);
 };
 
@@ -1566,7 +1571,7 @@ const summarizeReconnectTraceEvidence = (
 };
 
 const readTraceRecord = (event: StoredVoiceTraceEvent) =>
-  event.payload as Record<string, unknown>;
+  event.payload;
 
 const readTraceProfileId = (
   events: readonly StoredVoiceTraceEvent[],
@@ -1656,6 +1661,7 @@ const summarizeProviderTraceEvidence = (
   return [...providerMeta.entries()].map(([id, meta]) => {
     const latencies = providerLatencies.get(id) ?? [];
     const p95Ms = percentile(latencies, 95);
+
     return {
       averageMs: averageNumber(latencies),
       id,
@@ -1680,6 +1686,7 @@ const summarizeTurnTraceP95 = (events: readonly StoredVoiceTraceEvent[]) => {
     .filter((event) => event.type === "turn_latency.stage")
     .map((event) => {
       const payload = readTraceRecord(event);
+
       return (
         readNumber(payload.totalMs) ??
         readNumber(payload.elapsedMs) ??
@@ -1705,6 +1712,7 @@ const summarizeTurnTraceP95 = (events: readonly StoredVoiceTraceEvent[]) => {
       stages.length < 2 ? undefined : Math.max(...stages) - Math.min(...stages),
     )
     .filter((value): value is number => value !== undefined);
+
   return percentile(totals, 95);
 };
 
@@ -1736,6 +1744,7 @@ const summarizeRuntimeChannelTraceEvidence = (
   const interruptions = runtimeEvents
     .map((event) => {
       const payload = readTraceRecord(event);
+
       return (
         readNumber(payload.interruptionLatencyMs) ??
         readNumber(payload.interruptionMs) ??
@@ -1781,6 +1790,7 @@ const readRealCallProfileTraceSurfaces = (
       surfaces.add("reconnect");
     }
   }
+
   return [...surfaces].sort();
 };
 
@@ -1817,6 +1827,7 @@ export const buildVoiceRealCallProfileEvidenceFromTraceEvents = (
           .filter((event) => event.type === "client.live_latency")
           .map((event) => {
             const payload = readTraceRecord(event);
+
             return (
               readNumber(payload.latencyMs) ?? readNumber(payload.elapsedMs)
             );
@@ -1913,9 +1924,9 @@ export const buildVoiceRealCallProfileEvidenceFromReconnectProofReports = (
         attempts: contract.summary.attempts,
         exhausted: contract.summary.exhausted,
         maxAttempts: contract.summary.maxAttempts,
-        resumeLatencyP95Ms: contract.resumeLatencyP95Ms,
         reconnected: contract.summary.reconnected,
         resumed: contract.summary.resumed,
+        resumeLatencyP95Ms: contract.resumeLatencyP95Ms,
         samples: 1,
         snapshotCount: contract.snapshotCount,
         status: ok ? "pass" : "fail",
@@ -1925,7 +1936,11 @@ export const buildVoiceRealCallProfileEvidenceFromReconnectProofReports = (
     } satisfies VoiceProofTrendRealCallProfileEvidence;
   });
 };
-
+export const loadVoiceRealCallProfileEvidenceFromStore = async (
+  options: VoiceRealCallProfileEvidenceListOptions & {
+    store: VoiceRealCallProfileEvidenceStore;
+  },
+): Promise<VoiceRealCallProfileEvidenceRecord[]> => options.store.list(options);
 export const loadVoiceRealCallProfileEvidenceFromTraceStore = async (
   options: VoiceRealCallProfileTraceStoreEvidenceOptions,
 ) =>
@@ -1933,12 +1948,6 @@ export const loadVoiceRealCallProfileEvidenceFromTraceStore = async (
     await options.store.list({ limit: options.limit ?? 5000 }),
     options,
   );
-
-export const loadVoiceRealCallProfileEvidenceFromStore = async (
-  options: VoiceRealCallProfileEvidenceListOptions & {
-    store: VoiceRealCallProfileEvidenceStore;
-  },
-): Promise<VoiceRealCallProfileEvidenceRecord[]> => options.store.list(options);
 
 const readRealCallEvidenceRuntimeKey = (
   evidence: VoiceProofTrendRealCallProfileEvidence,
@@ -1956,6 +1965,7 @@ const resolveRealCallEvidenceRuntimeReconnectReports = async (
   if (!resolved) {
     return [];
   }
+
   return Array.isArray(resolved) ? resolved : [resolved];
 };
 
@@ -1980,6 +1990,7 @@ const resolveRealCallEvidenceRuntimeSurfaceEvidence = async <
   if (!resolved) {
     return [];
   }
+
   return Array.isArray(resolved) ? [...resolved] : [resolved];
 };
 
@@ -1990,40 +2001,6 @@ const createRealCallEvidenceRuntimeSessionId = (
   `${prefix}-${Date.parse(generatedAt) || Date.now()}-${Math.random()
     .toString(36)
     .slice(2, 8)}`;
-
-export const buildVoiceRealCallProfileEvidenceFromRuntimeSurface = (
-  input:
-    | VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions
-    | readonly VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions[],
-  options: {
-    defaultProfileId: string;
-    defaultSessionPrefix: string;
-    defaultSurfaces: readonly string[];
-    now?: () => Date;
-  },
-): VoiceProofTrendRealCallProfileEvidence[] => {
-  const evidence = Array.isArray(input) ? input : [input];
-
-  return evidence.map((item) => {
-    const generatedAt =
-      item.generatedAt ?? (options.now ?? (() => new Date()))().toISOString();
-    return {
-      ...item,
-      generatedAt,
-      profileId: item.profileId ?? options.defaultProfileId,
-      providers: item.providers ? [...item.providers] : undefined,
-      sessionId:
-        item.sessionId ??
-        createRealCallEvidenceRuntimeSessionId(
-          options.defaultSessionPrefix,
-          generatedAt,
-        ),
-      surfaces: [
-        ...new Set([...(item.surfaces ?? []), ...options.defaultSurfaces]),
-      ].sort(),
-    };
-  });
-};
 
 export const buildVoiceRealCallProfileEvidenceFromRuntimeProviderRoles = (
   input:
@@ -2042,6 +2019,40 @@ export const buildVoiceRealCallProfileEvidenceFromRuntimeProviderRoles = (
     defaultSurfaces: ["provider-path"],
     now: options.now,
   });
+export const buildVoiceRealCallProfileEvidenceFromRuntimeSurface = (
+  input:
+    | VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions
+    | readonly VoiceRealCallEvidenceRuntimeSurfaceEvidenceOptions[],
+  options: {
+    defaultProfileId: string;
+    defaultSessionPrefix: string;
+    defaultSurfaces: readonly string[];
+    now?: () => Date;
+  },
+): VoiceProofTrendRealCallProfileEvidence[] => {
+  const evidence = Array.isArray(input) ? input : [input];
+
+  return evidence.map((item) => {
+    const generatedAt =
+      item.generatedAt ?? (options.now ?? (() => new Date()))().toISOString();
+
+    return {
+      ...item,
+      generatedAt,
+      profileId: item.profileId ?? options.defaultProfileId,
+      providers: item.providers ? [...item.providers] : undefined,
+      sessionId:
+        item.sessionId ??
+        createRealCallEvidenceRuntimeSessionId(
+          options.defaultSessionPrefix,
+          generatedAt,
+        ),
+      surfaces: [
+        ...new Set([...(item.surfaces ?? []), ...options.defaultSurfaces]),
+      ].sort(),
+    };
+  });
+};
 
 const mergeRealCallEvidenceRuntimeOptions = (
   base: VoiceRealCallEvidenceRuntimeOptions,
@@ -2200,85 +2211,8 @@ const collectVoiceRealCallEvidenceRuntimeEvidence = async (
       ),
     );
   }
+
   return evidence;
-};
-
-export const createVoiceRealCallEvidenceRuntime = (
-  options: VoiceRealCallEvidenceRuntimeOptions,
-): VoiceRealCallEvidenceRuntime => {
-  const appendEvidence = async (
-    evidenceInput:
-      | VoiceProofTrendRealCallProfileEvidence
-      | readonly VoiceProofTrendRealCallProfileEvidence[],
-    collectOptions: Pick<
-      VoiceRealCallEvidenceRuntimeCollectOptions,
-      "dedupe"
-    > = {},
-  ) => {
-    const merged = mergeRealCallEvidenceRuntimeOptions(options, collectOptions);
-    const evidence = Array.isArray(evidenceInput)
-      ? [...evidenceInput]
-      : [evidenceInput];
-    const dedupe = merged.dedupe ?? true;
-    const existing = dedupe
-      ? await merged.evidenceStore.list({
-          limit: merged.existingEvidenceLimit ?? 5000,
-        })
-      : [];
-    const seen = new Set(existing.map(readRealCallEvidenceRuntimeKey));
-    const incomingSeen = new Set<string>();
-    const duplicateKeys: string[] = [];
-    let appended = 0;
-
-    for (const item of evidence) {
-      const key = readRealCallEvidenceRuntimeKey(item);
-      if (dedupe && (seen.has(key) || incomingSeen.has(key))) {
-        duplicateKeys.push(key);
-        continue;
-      }
-      incomingSeen.add(key);
-      await merged.evidenceStore.append(item);
-      appended += 1;
-    }
-
-    return buildRealCallEvidenceRuntimeReport(merged, {
-      appended,
-      collected: evidence,
-      duplicateKeys,
-      skippedDuplicates: duplicateKeys.length,
-    });
-  };
-
-  return {
-    appendEvidence,
-    buildHistoryReport: async (historyOptions = {}) =>
-      buildVoiceRealCallProfileHistoryReportFromStore({
-        ...(options.history ?? {}),
-        ...historyOptions,
-        limit: historyOptions.limit ?? options.existingEvidenceLimit ?? 5000,
-        store: options.evidenceStore,
-      }),
-    buildReport: async (collectOptions = {}) =>
-      buildRealCallEvidenceRuntimeReport(
-        mergeRealCallEvidenceRuntimeOptions(options, collectOptions),
-      ),
-    collect: async (collectOptions = {}) => {
-      const merged = mergeRealCallEvidenceRuntimeOptions(
-        options,
-        collectOptions,
-      );
-      const evidence =
-        await collectVoiceRealCallEvidenceRuntimeEvidence(merged);
-      return appendEvidence(evidence, {
-        dedupe: merged.dedupe,
-      });
-    },
-    listEvidence: async (listOptions = {}) =>
-      await options.evidenceStore.list({
-        limit: options.existingEvidenceLimit ?? 5000,
-        ...listOptions,
-      }),
-  };
 };
 
 export const buildVoiceRealCallEvidenceRuntimeReadinessCheck = (
@@ -2373,6 +2307,84 @@ export const buildVoiceRealCallEvidenceRuntimeReadinessCheck = (
     value: `${String(report.summary.storedEvidence)} evidence / ${String(report.summary.sessions)} sessions / ${String(report.summary.profiles)} profiles`,
   };
 };
+export const createVoiceRealCallEvidenceRuntime = (
+  options: VoiceRealCallEvidenceRuntimeOptions,
+): VoiceRealCallEvidenceRuntime => {
+  const appendEvidence = async (
+    evidenceInput:
+      | VoiceProofTrendRealCallProfileEvidence
+      | readonly VoiceProofTrendRealCallProfileEvidence[],
+    collectOptions: Pick<
+      VoiceRealCallEvidenceRuntimeCollectOptions,
+      "dedupe"
+    > = {},
+  ) => {
+    const merged = mergeRealCallEvidenceRuntimeOptions(options, collectOptions);
+    const evidence = Array.isArray(evidenceInput)
+      ? [...evidenceInput]
+      : [evidenceInput];
+    const dedupe = merged.dedupe ?? true;
+    const existing = dedupe
+      ? await merged.evidenceStore.list({
+          limit: merged.existingEvidenceLimit ?? 5000,
+        })
+      : [];
+    const seen = new Set(existing.map(readRealCallEvidenceRuntimeKey));
+    const incomingSeen = new Set<string>();
+    const duplicateKeys: string[] = [];
+    let appended = 0;
+
+    for (const item of evidence) {
+      const key = readRealCallEvidenceRuntimeKey(item);
+      if (dedupe && (seen.has(key) || incomingSeen.has(key))) {
+        duplicateKeys.push(key);
+        continue;
+      }
+      incomingSeen.add(key);
+      await merged.evidenceStore.append(item);
+      appended += 1;
+    }
+
+    return buildRealCallEvidenceRuntimeReport(merged, {
+      appended,
+      collected: evidence,
+      duplicateKeys,
+      skippedDuplicates: duplicateKeys.length,
+    });
+  };
+
+  return {
+    appendEvidence,
+    buildHistoryReport: async (historyOptions = {}) =>
+      buildVoiceRealCallProfileHistoryReportFromStore({
+        ...(options.history ?? {}),
+        ...historyOptions,
+        limit: historyOptions.limit ?? options.existingEvidenceLimit ?? 5000,
+        store: options.evidenceStore,
+      }),
+    buildReport: async (collectOptions = {}) =>
+      buildRealCallEvidenceRuntimeReport(
+        mergeRealCallEvidenceRuntimeOptions(options, collectOptions),
+      ),
+    collect: async (collectOptions = {}) => {
+      const merged = mergeRealCallEvidenceRuntimeOptions(
+        options,
+        collectOptions,
+      );
+      const evidence =
+        await collectVoiceRealCallEvidenceRuntimeEvidence(merged);
+
+      return appendEvidence(evidence, {
+        dedupe: merged.dedupe,
+      });
+    },
+    listEvidence: async (listOptions = {}) =>
+      await options.evidenceStore.list({
+        limit: options.existingEvidenceLimit ?? 5000,
+        ...listOptions,
+      }),
+  };
+};
 
 const readVoiceRealCallEvidenceRuntimeWorkerNow = (
   options:
@@ -2382,99 +2394,6 @@ const readVoiceRealCallEvidenceRuntimeWorkerNow = (
 
 const readVoiceRealCallEvidenceRuntimeWorkerError = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-
-export const createVoiceRealCallEvidenceRuntimeWorker = (
-  options: VoiceRealCallEvidenceRuntimeWorkerOptions,
-): VoiceRealCallEvidenceRuntimeWorker => {
-  let collectCount = 0;
-  let error: string | undefined;
-  let lastCollectedAt: string | undefined;
-  let lastReport: VoiceRealCallEvidenceRuntimeReport | undefined;
-  let lastTickAt: string | undefined;
-  let status: VoiceRealCallEvidenceRuntimeWorkerStatus = "idle";
-
-  const collect = async () => {
-    lastTickAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
-    try {
-      const report = await options.runtime.collect(options.collectOptions);
-      collectCount += 1;
-      error = undefined;
-      lastCollectedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
-      lastReport = report;
-      status = report.status;
-      await options.onCollect?.(report);
-      return report;
-    } catch (caught) {
-      error = readVoiceRealCallEvidenceRuntimeWorkerError(caught);
-      status = "fail";
-      await options.onError?.(caught);
-      throw caught;
-    }
-  };
-
-  return {
-    collect,
-    health: () => ({
-      collectCount,
-      error,
-      isRunning: false,
-      lastCollectedAt,
-      lastReport,
-      lastTickAt,
-      source: "real-call-evidence-runtime-worker",
-      status,
-    }),
-  };
-};
-
-export const createVoiceRealCallEvidenceRuntimeWorkerLoop = (
-  options: VoiceRealCallEvidenceRuntimeWorkerLoopOptions,
-): VoiceRealCallEvidenceRuntimeWorkerLoop => {
-  const worker = createVoiceRealCallEvidenceRuntimeWorker(options);
-  const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 30_000);
-  let timer: ReturnType<typeof setInterval> | undefined;
-  let lastStartedAt: string | undefined;
-  let lastStoppedAt: string | undefined;
-
-  const isRunning = () => timer !== undefined;
-  const tick = () => worker.collect();
-
-  return {
-    collect: tick,
-    health: () => {
-      const health = worker.health();
-      const running = isRunning();
-
-      return {
-        ...health,
-        isRunning: running,
-        lastStartedAt,
-        lastStoppedAt,
-        status: running && health.status === "idle" ? "running" : health.status,
-      };
-    },
-    isRunning,
-    start: () => {
-      if (timer) {
-        return;
-      }
-      lastStartedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
-      timer = setInterval(() => {
-        void tick().catch((error) => {
-          void options.onError?.(error);
-        });
-      }, pollIntervalMs);
-    },
-    stop: () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = undefined;
-      }
-      lastStoppedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
-    },
-    tick,
-  };
-};
 
 export const buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck = (
   health: VoiceRealCallEvidenceRuntimeWorkerHealthReport,
@@ -2564,6 +2483,98 @@ export const buildVoiceRealCallEvidenceRuntimeWorkerReadinessCheck = (
     value: `${health.isRunning ? "running" : "manual"} / ${String(health.collectCount)} collections / ${health.status}`,
   };
 };
+export const createVoiceRealCallEvidenceRuntimeWorker = (
+  options: VoiceRealCallEvidenceRuntimeWorkerOptions,
+): VoiceRealCallEvidenceRuntimeWorker => {
+  let collectCount = 0;
+  let error: string | undefined;
+  let lastCollectedAt: string | undefined;
+  let lastReport: VoiceRealCallEvidenceRuntimeReport | undefined;
+  let lastTickAt: string | undefined;
+  let status: VoiceRealCallEvidenceRuntimeWorkerStatus = "idle";
+
+  const collect = async () => {
+    lastTickAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+    try {
+      const report = await options.runtime.collect(options.collectOptions);
+      collectCount += 1;
+      error = undefined;
+      lastCollectedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+      lastReport = report;
+      status = report.status;
+      await options.onCollect?.(report);
+
+      return report;
+    } catch (caught) {
+      error = readVoiceRealCallEvidenceRuntimeWorkerError(caught);
+      status = "fail";
+      await options.onError?.(caught);
+      throw caught;
+    }
+  };
+
+  return {
+    collect,
+    health: () => ({
+      collectCount,
+      error,
+      isRunning: false,
+      lastCollectedAt,
+      lastReport,
+      lastTickAt,
+      source: "real-call-evidence-runtime-worker",
+      status,
+    }),
+  };
+};
+export const createVoiceRealCallEvidenceRuntimeWorkerLoop = (
+  options: VoiceRealCallEvidenceRuntimeWorkerLoopOptions,
+): VoiceRealCallEvidenceRuntimeWorkerLoop => {
+  const worker = createVoiceRealCallEvidenceRuntimeWorker(options);
+  const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 30_000);
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let lastStartedAt: string | undefined;
+  let lastStoppedAt: string | undefined;
+
+  const isRunning = () => timer !== undefined;
+  const tick = () => worker.collect();
+
+  return {
+    collect: tick,
+    isRunning,
+    tick,
+    health: () => {
+      const health = worker.health();
+      const running = isRunning();
+
+      return {
+        ...health,
+        isRunning: running,
+        lastStartedAt,
+        lastStoppedAt,
+        status: running && health.status === "idle" ? "running" : health.status,
+      };
+    },
+    start: () => {
+      if (timer) {
+        return;
+      }
+      lastStartedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+      timer = setInterval(() => {
+        void tick().catch((error) => {
+          void options.onError?.(error);
+        });
+      }, pollIntervalMs);
+    },
+    stop: () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+      lastStoppedAt = readVoiceRealCallEvidenceRuntimeWorkerNow(options);
+    },
+  };
+};
 
 const realCallProfileTraceSignalTypes = new Set([
   "client.barge_in",
@@ -2619,6 +2630,7 @@ export const createVoiceRealCallProfileTraceCollector = <
     append: async (event) => {
       const stored = await options.store.append(event);
       capture(stored);
+
       return stored;
     },
     buildHistoryReport: async (historyOptions = {}) => {
@@ -2627,6 +2639,7 @@ export const createVoiceRealCallProfileTraceCollector = <
         capturedSessionIds,
         historyOptions.evidenceOptions,
       );
+
       return buildVoiceRealCallProfileHistoryReport({
         ...historyOptions,
         evidence,
@@ -2659,6 +2672,7 @@ const buildRealCallProfileCollectorEvidence = async <
     evidenceOptions,
   );
   const requestedSessionIds = merged.sessionIds ?? [...capturedSessionIds];
+
   return buildVoiceRealCallProfileEvidenceFromTraceEvents(
     await baseOptions.store.list({ limit: merged.limit ?? 5000 }),
     {
@@ -2693,8 +2707,8 @@ const readProofTrendProfileStatus = (
     maxTurnP95Ms: number;
   },
 ) => {
-  const runtimeChannel = profile.runtimeChannel;
-  const reconnect = profile.reconnect;
+  const {runtimeChannel} = profile;
+  const {reconnect} = profile;
   const hasBudgetEvidence =
     profile.maxLiveP95Ms !== undefined ||
     profile.maxProviderP95Ms !== undefined ||
@@ -3050,8 +3064,8 @@ export const buildVoiceProofTrendReportFromRealCallProfiles = (
           : { p95Ms: evidence.liveP95Ms, samples: 1 },
       ok: evidence.ok !== false,
       providers: evidence.providers,
-      runtimeChannel: evidence.runtimeChannel,
       reconnect: evidence.reconnect,
+      runtimeChannel: evidence.runtimeChannel,
       turnLatency:
         evidence.turnP95Ms === undefined
           ? undefined
@@ -3139,6 +3153,7 @@ const buildProviderRouteDefaults = (
   for (const provider of providers) {
     routes[provider.role ?? provider.id] = provider.id;
   }
+
   return routes;
 };
 
@@ -3171,6 +3186,7 @@ export const buildVoiceRealCallProfileDefaults = (
         : missingRoles.length > 0
           ? "warn"
           : (recommendation?.status ?? "warn");
+
     return {
       evidence: {
         liveP95Ms: profile.maxLiveP95Ms,
@@ -3226,6 +3242,7 @@ export const buildVoiceRealCallProfileDefaults = (
       const missingRoles = requiredProviderRoles.filter(
         (role) => profile.providerRoutes[role] === undefined,
       );
+
       return missingRoles.length > 0
         ? [
             `${profile.label ?? profile.profileId} is missing provider defaults for ${missingRoles.join(", ")}.`,
@@ -3268,6 +3285,7 @@ export const buildVoiceRealCallProfileDefaults = (
 
 const normalizeProviderRouteCandidate = (provider: string, role: string) => {
   const rolePrefix = `${role}:`;
+
   return provider.startsWith(rolePrefix)
     ? provider.slice(rolePrefix.length)
     : provider;
@@ -3296,6 +3314,7 @@ const expandProviderRouteCandidates = (
         ? [normalizedAlias]
         : []),
   ];
+
   return [
     ...aliasCandidates,
     provider,
@@ -3391,7 +3410,7 @@ const buildRealCallProfileReadinessIssues = (
         `Required real-call profile ${profileId} has ${String(summaryProfile?.sessionCount ?? 0)} session(s), expected at least ${String(options.minProfileSessions)}.`,
       );
     }
-    const requiredProfileSurfaces = options.requiredProfileSurfaces;
+    const {requiredProfileSurfaces} = options;
     const requiredSurfaces = resolveRequiredRealCallProfileSurfaces(
       requiredProfileSurfaces,
       profileId,
@@ -3426,12 +3445,14 @@ const uniqueRealCallProfileActions = (
   actions: VoiceRealCallProfileRecoveryAction[],
 ) => {
   const seen = new Set<string>();
+
   return actions.filter((action) => {
     const key = `${action.method ?? "GET"}:${action.href}:${action.label}:${action.profileId ?? ""}`;
     if (seen.has(key)) {
       return false;
     }
     seen.add(key);
+
     return true;
   });
 };
@@ -3449,6 +3470,7 @@ const appendRealCallRecoveryActionQuery = (
   const [base = href, hash = ""] = href.split("#");
   const separator = base.includes("?") ? "&" : "?";
   const search = new URLSearchParams(entries).toString();
+
   return `${base}${separator}${search}${hash ? `#${hash}` : ""}`;
 };
 
@@ -3471,6 +3493,7 @@ const resolveRequiredRealCallProfileSurfaces = (
     string,
     readonly string[]
   >;
+
   return requiredSurfacesByProfile[profileId] ?? [];
 };
 
@@ -3501,12 +3524,14 @@ const uniqueVoiceRealCallProfileRecoveryLoopActions = (
   actions: VoiceRealCallProfileRecoveryLoopAction[],
 ) => {
   const seen = new Set<string>();
+
   return actions.filter((action) => {
     const key = `${action.method?.toUpperCase() ?? "GET"} ${action.href ?? ""}`;
     if (seen.has(key)) {
       return false;
     }
     seen.add(key);
+
     return true;
   });
 };
@@ -3525,6 +3550,7 @@ const normalizeRealCallProfileRecoveryProvider = (
       status: "selected" as const,
     };
   }
+
   return {
     ...provider,
     selectedProvider: provider.selectedProvider ?? provider.provider,
@@ -3547,10 +3573,10 @@ const profileRealCallRecoveryEvent = <TEvent extends VoiceTraceEvent>(
   payload: {
     ...(event.payload ?? {}),
     benchmarkProfileId:
-      (event.payload as Record<string, unknown>).benchmarkProfileId ??
+      (event.payload).benchmarkProfileId ??
       profileId,
     profileId:
-      (event.payload as Record<string, unknown>).profileId ?? profileId,
+      (event.payload).profileId ?? profileId,
   },
 });
 
@@ -3580,6 +3606,7 @@ export const appendVoiceRealCallProfileRecoveryEvidence = async <
     if (!provider) {
       return [];
     }
+
     return [
       profileRealCallRecoveryEvent(
         createVoiceProviderDecisionTraceEvent({
@@ -3651,230 +3678,6 @@ export const appendVoiceRealCallProfileRecoveryEvidence = async <
 
   return { events, sessionId };
 };
-
-export const runVoiceRealCallProfileRecoveryLoop = async (
-  options: VoiceRealCallProfileRecoveryLoopOptions,
-): Promise<VoiceRealCallProfileRecoveryLoopReport> => {
-  const baseUrl = options.baseUrl.replace(/\/$/, "");
-  const requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
-  const jobPollMs = options.jobPollMs ?? 1_200;
-  const jobTimeoutMs = options.jobTimeoutMs ?? 600_000;
-  const interPassDelayMs =
-    typeof options.interPassDelayMs === "number" &&
-    Number.isFinite(options.interPassDelayMs) &&
-    options.interPassDelayMs > 0
-      ? options.interPassDelayMs
-      : 5_000;
-  const maxPasses =
-    typeof options.maxPasses === "number" &&
-    Number.isFinite(options.maxPasses) &&
-    options.maxPasses > 0
-      ? Math.floor(options.maxPasses)
-      : 3;
-  const readinessCheckLabel =
-    options.readinessCheckLabel ?? "Real-call profile history";
-  const fetchImpl = options.fetch ?? fetch;
-  const recoveryActionsHref =
-    options.recoveryActionsHref ?? "/api/production-readiness/recovery-actions";
-  const readinessHref = options.readinessHref ?? "/api/production-readiness";
-  const refreshHref =
-    options.refreshHref === undefined
-      ? "/api/voice/real-call-profile-history/refresh"
-      : options.refreshHref;
-  const jobHref =
-    options.jobHref ?? "/api/voice/real-call-profile-history/actions";
-  const toAbsoluteUrl = (href: string) => new URL(href, baseUrl).toString();
-  const parseJson = async <Value>(response: Response): Promise<Value> => {
-    const text = await response.text();
-    try {
-      return JSON.parse(text) as Value;
-    } catch (error) {
-      throw new Error(
-        `Expected JSON from ${response.url}, got: ${text.slice(0, 300)}`,
-        { cause: error },
-      );
-    }
-  };
-  const fetchJson = async <Value>(href: string, init?: RequestInit) => {
-    const response = await fetchImpl(toAbsoluteUrl(href), {
-      headers: { accept: "application/json", ...init?.headers },
-      ...init,
-      signal: init?.signal ?? AbortSignal.timeout(requestTimeoutMs),
-    });
-    if (!response.ok) {
-      throw new Error(`${href} returned HTTP ${String(response.status)}.`);
-    }
-    return parseJson<Value>(response);
-  };
-  const resolveJobHref = (jobId: string) =>
-    typeof jobHref === "function"
-      ? jobHref(jobId)
-      : `${jobHref.replace(/\/$/, "")}/${jobId}`;
-  const getGate = async (fresh = false) => {
-    const href = fresh
-      ? `${readinessHref}${readinessHref.includes("?") ? "&" : "?"}voiceRecoveryLoopFresh=${String(Date.now())}`
-      : readinessHref;
-    const readiness = await fetchJson<{
-      checks?: VoiceProductionReadinessCheck[];
-    }>(href);
-    return (
-      readiness.checks?.find((check) => check.label === readinessCheckLabel) ??
-      null
-    );
-  };
-  const actionsResponse = await fetchJson<{
-    actions?: VoiceRealCallProfileRecoveryLoopAction[];
-  }>(recoveryActionsHref);
-  const actionFilter =
-    options.actionFilter ??
-    ((action: VoiceRealCallProfileRecoveryLoopAction) =>
-      defaultVoiceRealCallProfileRecoveryLoopActionFilter(
-        action,
-        readinessCheckLabel,
-      ));
-  const actions = uniqueVoiceRealCallProfileRecoveryLoopActions(
-    (actionsResponse.actions ?? []).filter(actionFilter),
-  );
-
-  if (actions.length === 0) {
-    const realCallProfileGate = await getGate();
-    return {
-      actionCount: 0,
-      actions,
-      jobs: [],
-      passes: 0,
-      ok: realCallProfileGate?.status === "pass",
-      realCallProfileGate,
-      startFailures: [],
-    };
-  }
-
-  const allJobs: VoiceRealCallProfileRecoveryLoopJobResult[] = [];
-  const allStartFailures: VoiceRealCallProfileRecoveryLoopStartFailure[] = [];
-  let realCallProfileGate: VoiceProductionReadinessCheck | null = null;
-  let passes = 0;
-
-  for (let pass = 1; pass <= maxPasses; pass += 1) {
-    passes = pass;
-    options.logger?.log(
-      `Running ${String(actions.length)} real-call profile recovery action(s) in parallel (pass ${String(pass)}/${String(maxPasses)}).`,
-    );
-    for (const action of actions) {
-      options.logger?.log(
-        `- ${describeVoiceRealCallProfileRecoveryLoopAction(action)}`,
-      );
-    }
-
-    const starts = await Promise.allSettled(
-      actions.map(async (action) => {
-        if (!action.href) {
-          throw new Error("Recovery action is missing href.");
-        }
-        const body = await fetchJson<{
-          jobId?: string;
-          jobStatus?: string;
-          message?: string;
-        }>(action.href, { method: "POST" });
-        return { action, ...body };
-      }),
-    );
-    const startedJobs = starts.flatMap((result) => {
-      if (result.status === "rejected") {
-        return [];
-      }
-      return result.value.jobId ? [result.value] : [];
-    });
-    const startFailures = starts.flatMap((result, index) =>
-      result.status === "rejected"
-        ? [
-            {
-              action: describeVoiceRealCallProfileRecoveryLoopAction(
-                actions[index] ?? {},
-              ),
-              error:
-                result.reason instanceof Error
-                  ? result.reason.message
-                  : String(result.reason),
-            },
-          ]
-        : [],
-    );
-    allStartFailures.push(...startFailures);
-
-    const pollJob = async (jobId: string) => {
-      const deadline = Date.now() + jobTimeoutMs;
-      while (Date.now() < deadline) {
-        const body = await fetchJson<{
-          job?: VoiceRealCallProfileRecoveryLoopJob;
-          ok?: boolean;
-        }>(resolveJobHref(jobId));
-        const job = body.job;
-        if (!job) {
-          throw new Error(`Recovery job ${jobId} was not found.`);
-        }
-        if (job.status === "pass" || job.status === "fail") {
-          return job;
-        }
-        await sleepVoiceRealCallProfileRecoveryLoop(jobPollMs);
-      }
-      throw new Error(
-        `Timed out waiting ${String(jobTimeoutMs)}ms for recovery job ${jobId}.`,
-      );
-    };
-
-    options.logger?.log(
-      `Polling ${String(startedJobs.length)} recovery job(s) in parallel.`,
-    );
-    const jobResults = await Promise.allSettled(
-      startedJobs.map((start) => pollJob(start.jobId as string)),
-    );
-    const jobs = jobResults.map((result, index) => ({
-      action: describeVoiceRealCallProfileRecoveryLoopAction(
-        startedJobs[index]?.action ?? {},
-      ),
-      jobId: startedJobs[index]?.jobId,
-      result:
-        result.status === "fulfilled"
-          ? result.value
-          : {
-              error:
-                result.reason instanceof Error
-                  ? result.reason.message
-                  : String(result.reason),
-              status: "fail" as const,
-            },
-    }));
-    allJobs.push(...jobs);
-
-    if (refreshHref !== false) {
-      await fetchJson<unknown>(refreshHref, { method: "POST" });
-    }
-    realCallProfileGate = await getGate(true);
-    if (realCallProfileGate?.status === "pass") {
-      break;
-    }
-    if (pass < maxPasses) {
-      options.logger?.log(
-        `Waiting ${String(interPassDelayMs)}ms before the next real-call profile recovery pass.`,
-      );
-      await sleepVoiceRealCallProfileRecoveryLoop(interPassDelayMs);
-    }
-  }
-
-  return {
-    actionCount: actions.length * passes,
-    actions,
-    jobs: allJobs,
-    passes,
-    ok:
-      allStartFailures.length === 0 &&
-      allJobs.every((job) => job.result.status === "pass") &&
-      realCallProfileGate?.status === "pass",
-    realCallProfileGate,
-    startFailures: allStartFailures,
-  };
-};
-
 export const buildVoiceRealCallProfileRecoveryActions = (
   report: VoiceRealCallProfileHistoryReport,
   options: VoiceRealCallProfileRecoveryActionOptions = {},
@@ -3930,12 +3733,13 @@ export const buildVoiceRealCallProfileRecoveryActions = (
     ) {
       return true;
     }
-    const requiredProfileSurfaces = options.requiredProfileSurfaces;
+    const {requiredProfileSurfaces} = options;
     const requiredSurfaces = resolveRequiredRealCallProfileSurfaces(
       requiredProfileSurfaces,
       profileId,
     );
     const observedSurfaces = new Set(summaryProfile?.surfaces ?? []);
+
     return requiredSurfaces.some((surface) => !observedSurfaces.has(surface));
   });
   const resolveRequiredProfileSurfaces = (profileId?: string) => {
@@ -4080,7 +3884,6 @@ export const buildVoiceRealCallProfileRecoveryActions = (
 
   return uniqueRealCallProfileActions(actions);
 };
-
 export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
   options: { idPrefix?: string; now?: () => Date } = {},
 ): VoiceRealCallProfileRecoveryJobStore => {
@@ -4103,6 +3906,7 @@ export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
         updatedAt: createdAt,
       };
       jobs.set(job.id, job);
+
       return job;
     },
     get(id) {
@@ -4115,12 +3919,14 @@ export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
         input.limit > 0
           ? Math.floor(input.limit)
           : 50;
+
       return [...jobs.values()]
         .filter((job) => !input.actionId || job.actionId === input.actionId)
         .filter((job) => !input.status || job.status === input.status)
         .sort((first, second) => {
           const updatedDelta =
             Date.parse(second.updatedAt) - Date.parse(first.updatedAt);
+
           return updatedDelta === 0
             ? second.id.localeCompare(first.id)
             : updatedDelta;
@@ -4138,8 +3944,236 @@ export const createVoiceInMemoryRealCallProfileRecoveryJobStore = (
         updatedAt: update.updatedAt ?? now(),
       };
       jobs.set(id, next);
+
       return next;
     },
+  };
+};
+export const runVoiceRealCallProfileRecoveryLoop = async (
+  options: VoiceRealCallProfileRecoveryLoopOptions,
+): Promise<VoiceRealCallProfileRecoveryLoopReport> => {
+  const baseUrl = options.baseUrl.replace(/\/$/, "");
+  const requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
+  const jobPollMs = options.jobPollMs ?? 1_200;
+  const jobTimeoutMs = options.jobTimeoutMs ?? 600_000;
+  const interPassDelayMs =
+    typeof options.interPassDelayMs === "number" &&
+    Number.isFinite(options.interPassDelayMs) &&
+    options.interPassDelayMs > 0
+      ? options.interPassDelayMs
+      : 5_000;
+  const maxPasses =
+    typeof options.maxPasses === "number" &&
+    Number.isFinite(options.maxPasses) &&
+    options.maxPasses > 0
+      ? Math.floor(options.maxPasses)
+      : 3;
+  const readinessCheckLabel =
+    options.readinessCheckLabel ?? "Real-call profile history";
+  const fetchImpl = options.fetch ?? fetch;
+  const recoveryActionsHref =
+    options.recoveryActionsHref ?? "/api/production-readiness/recovery-actions";
+  const readinessHref = options.readinessHref ?? "/api/production-readiness";
+  const refreshHref =
+    options.refreshHref === undefined
+      ? "/api/voice/real-call-profile-history/refresh"
+      : options.refreshHref;
+  const jobHref =
+    options.jobHref ?? "/api/voice/real-call-profile-history/actions";
+  const toAbsoluteUrl = (href: string) => new URL(href, baseUrl).toString();
+  const parseJson = async <Value>(response: Response): Promise<Value> => {
+    const text = await response.text();
+    try {
+      return JSON.parse(text) as Value;
+    } catch (error) {
+      throw new Error(
+        `Expected JSON from ${response.url}, got: ${text.slice(0, 300)}`,
+        { cause: error },
+      );
+    }
+  };
+  const fetchJson = async <Value>(href: string, init?: RequestInit) => {
+    const response = await fetchImpl(toAbsoluteUrl(href), {
+      headers: { accept: "application/json", ...init?.headers },
+      ...init,
+      signal: init?.signal ?? AbortSignal.timeout(requestTimeoutMs),
+    });
+    if (!response.ok) {
+      throw new Error(`${href} returned HTTP ${String(response.status)}.`);
+    }
+
+    return parseJson<Value>(response);
+  };
+  const resolveJobHref = (jobId: string) =>
+    typeof jobHref === "function"
+      ? jobHref(jobId)
+      : `${jobHref.replace(/\/$/, "")}/${jobId}`;
+  const getGate = async (fresh = false) => {
+    const href = fresh
+      ? `${readinessHref}${readinessHref.includes("?") ? "&" : "?"}voiceRecoveryLoopFresh=${String(Date.now())}`
+      : readinessHref;
+    const readiness = await fetchJson<{
+      checks?: VoiceProductionReadinessCheck[];
+    }>(href);
+
+    return (
+      readiness.checks?.find((check) => check.label === readinessCheckLabel) ??
+      null
+    );
+  };
+  const actionsResponse = await fetchJson<{
+    actions?: VoiceRealCallProfileRecoveryLoopAction[];
+  }>(recoveryActionsHref);
+  const actionFilter =
+    options.actionFilter ??
+    ((action: VoiceRealCallProfileRecoveryLoopAction) =>
+      defaultVoiceRealCallProfileRecoveryLoopActionFilter(
+        action,
+        readinessCheckLabel,
+      ));
+  const actions = uniqueVoiceRealCallProfileRecoveryLoopActions(
+    (actionsResponse.actions ?? []).filter(actionFilter),
+  );
+
+  if (actions.length === 0) {
+    const realCallProfileGate = await getGate();
+
+    return {
+      actionCount: 0,
+      actions,
+      jobs: [],
+      passes: 0,
+      ok: realCallProfileGate?.status === "pass",
+      realCallProfileGate,
+      startFailures: [],
+    };
+  }
+
+  const allJobs: VoiceRealCallProfileRecoveryLoopJobResult[] = [];
+  const allStartFailures: VoiceRealCallProfileRecoveryLoopStartFailure[] = [];
+  let realCallProfileGate: VoiceProductionReadinessCheck | null = null;
+  let passes = 0;
+
+  for (let pass = 1; pass <= maxPasses; pass += 1) {
+    passes = pass;
+    options.logger?.log(
+      `Running ${String(actions.length)} real-call profile recovery action(s) in parallel (pass ${String(pass)}/${String(maxPasses)}).`,
+    );
+    for (const action of actions) {
+      options.logger?.log(
+        `- ${describeVoiceRealCallProfileRecoveryLoopAction(action)}`,
+      );
+    }
+
+    const starts = await Promise.allSettled(
+      actions.map(async (action) => {
+        if (!action.href) {
+          throw new Error("Recovery action is missing href.");
+        }
+        const body = await fetchJson<{
+          jobId?: string;
+          jobStatus?: string;
+          message?: string;
+        }>(action.href, { method: "POST" });
+
+        return { action, ...body };
+      }),
+    );
+    const startedJobs = starts.flatMap((result) => {
+      if (result.status === "rejected") {
+        return [];
+      }
+
+      return result.value.jobId ? [result.value] : [];
+    });
+    const startFailures = starts.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [
+            {
+              action: describeVoiceRealCallProfileRecoveryLoopAction(
+                actions[index] ?? {},
+              ),
+              error:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : String(result.reason),
+            },
+          ]
+        : [],
+    );
+    allStartFailures.push(...startFailures);
+
+    const pollJob = async (jobId: string) => {
+      const deadline = Date.now() + jobTimeoutMs;
+      while (Date.now() < deadline) {
+        const body = await fetchJson<{
+          job?: VoiceRealCallProfileRecoveryLoopJob;
+          ok?: boolean;
+        }>(resolveJobHref(jobId));
+        const {job} = body;
+        if (!job) {
+          throw new Error(`Recovery job ${jobId} was not found.`);
+        }
+        if (job.status === "pass" || job.status === "fail") {
+          return job;
+        }
+        await sleepVoiceRealCallProfileRecoveryLoop(jobPollMs);
+      }
+      throw new Error(
+        `Timed out waiting ${String(jobTimeoutMs)}ms for recovery job ${jobId}.`,
+      );
+    };
+
+    options.logger?.log(
+      `Polling ${String(startedJobs.length)} recovery job(s) in parallel.`,
+    );
+    const jobResults = await Promise.allSettled(
+      startedJobs.map((start) => pollJob(start.jobId as string)),
+    );
+    const jobs = jobResults.map((result, index) => ({
+      action: describeVoiceRealCallProfileRecoveryLoopAction(
+        startedJobs[index]?.action ?? {},
+      ),
+      jobId: startedJobs[index]?.jobId,
+      result:
+        result.status === "fulfilled"
+          ? result.value
+          : {
+              error:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : String(result.reason),
+              status: "fail" as const,
+            },
+    }));
+    allJobs.push(...jobs);
+
+    if (refreshHref !== false) {
+      await fetchJson<unknown>(refreshHref, { method: "POST" });
+    }
+    realCallProfileGate = await getGate(true);
+    if (realCallProfileGate?.status === "pass") {
+      break;
+    }
+    if (pass < maxPasses) {
+      options.logger?.log(
+        `Waiting ${String(interPassDelayMs)}ms before the next real-call profile recovery pass.`,
+      );
+      await sleepVoiceRealCallProfileRecoveryLoop(interPassDelayMs);
+    }
+  }
+
+  return {
+    actionCount: actions.length * passes,
+    actions,
+    jobs: allJobs,
+    passes,
+    ok:
+      allStartFailures.length === 0 &&
+      allJobs.every((job) => job.result.status === "pass") &&
+      realCallProfileGate?.status === "pass",
+    realCallProfileGate,
+    startFailures: allStartFailures,
   };
 };
 
@@ -4227,10 +4261,12 @@ export const createVoiceSQLiteRealCallProfileEvidenceStore = (
       record.createdAt,
       JSON.stringify(record),
     );
+
     return record;
   };
   const readEvidence = (id: string) => {
     const row = selectStatement.get(id) as { payload: string } | null;
+
     return row
       ? (JSON.parse(row.payload) as VoiceRealCallProfileEvidenceRecord)
       : undefined;
@@ -4245,6 +4281,7 @@ export const createVoiceSQLiteRealCallProfileEvidenceStore = (
     );
     const since = parseRealCallProfileEvidenceBoundary(input.since);
     const until = parseRealCallProfileEvidenceBoundary(input.until);
+
     return (
       (!input.profileId || record.profileId === input.profileId) &&
       (!input.sessionId || record.sessionId === input.sessionId) &&
@@ -4256,6 +4293,7 @@ export const createVoiceSQLiteRealCallProfileEvidenceStore = (
   return {
     append(input) {
       const createdAt = input.createdAt ?? now();
+
       return writeEvidence({
         ...input,
         createdAt,
@@ -4272,6 +4310,7 @@ export const createVoiceSQLiteRealCallProfileEvidenceStore = (
         input.limit > 0
           ? Math.floor(input.limit)
           : 500;
+
       return listStatement
         .all()
         .map(
@@ -4294,305 +4333,6 @@ const normalizeRealCallRecoveryJobTableName = (value: string) =>
     .trim()
     .replace(/[^a-zA-Z0-9_]+/g, "_")
     .replace(/^_+|_+$/g, "") || "voice_real_call_profile_recovery_jobs";
-
-export const createVoiceSQLiteRealCallProfileRecoveryJobStore = (
-  options: VoiceSQLiteRealCallProfileRecoveryJobStoreOptions = {},
-): VoiceRealCallProfileRecoveryJobStore => {
-  const { Database: SQLiteDatabase } =
-    require("bun:sqlite") as typeof import("bun:sqlite");
-  const database =
-    options.database ??
-    new SQLiteDatabase(options.path ?? ":memory:", {
-      create: true,
-    });
-  const tableName = normalizeRealCallRecoveryJobTableName(
-    options.tableName ?? "voice_real_call_profile_recovery_jobs",
-  );
-  const now = () => (options.now ?? (() => new Date()))().toISOString();
-  const createId = () =>
-    `${options.idPrefix ?? "voice-recovery-job"}-${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2, 10)}`;
-
-  database.exec("PRAGMA journal_mode = WAL;");
-  database.exec("PRAGMA synchronous = NORMAL;");
-  database.exec("PRAGMA busy_timeout = 5000;");
-  database.exec(
-    `CREATE TABLE IF NOT EXISTS "${tableName}" (
-			id TEXT PRIMARY KEY,
-			sort_at INTEGER NOT NULL,
-			payload TEXT NOT NULL
-		)`,
-  );
-
-  const selectStatement = database.query(
-    `SELECT payload FROM "${tableName}" WHERE id = ?1 LIMIT 1`,
-  );
-  const listStatement = database.query(
-    `SELECT payload FROM "${tableName}" ORDER BY sort_at DESC, id DESC`,
-  );
-  const upsertStatement = database.query(
-    `INSERT INTO "${tableName}" (id, sort_at, payload)
-		 VALUES (?1, ?2, ?3)
-		 ON CONFLICT(id) DO UPDATE SET sort_at = excluded.sort_at, payload = excluded.payload`,
-  );
-
-  const writeJob = (job: VoiceRealCallProfileRecoveryJob) => {
-    upsertStatement.run(
-      job.id,
-      Date.parse(job.updatedAt) || Date.now(),
-      JSON.stringify(job),
-    );
-    return job;
-  };
-  const readJob = (id: string) => {
-    const row = selectStatement.get(id) as { payload: string } | null;
-    return row
-      ? (JSON.parse(row.payload) as VoiceRealCallProfileRecoveryJob)
-      : undefined;
-  };
-
-  return {
-    create(input) {
-      const createdAt = input.createdAt ?? now();
-      return writeJob({
-        actionId: input.actionId,
-        createdAt,
-        id: input.id ?? createId(),
-        message: input.message,
-        status: input.status ?? "queued",
-        updatedAt: createdAt,
-      });
-    },
-    get(id) {
-      return readJob(id);
-    },
-    list(input = {}) {
-      const limit =
-        Number.isFinite(input.limit) &&
-        input.limit !== undefined &&
-        input.limit > 0
-          ? Math.floor(input.limit)
-          : 50;
-      return listStatement
-        .all()
-        .map(
-          (row) =>
-            JSON.parse(
-              (row as { payload: string }).payload,
-            ) as VoiceRealCallProfileRecoveryJob,
-        )
-        .filter((job) => !input.actionId || job.actionId === input.actionId)
-        .filter((job) => !input.status || job.status === input.status)
-        .slice(0, limit);
-    },
-    update(id, update) {
-      const existing = readJob(id);
-      if (!existing) {
-        return undefined;
-      }
-      return writeJob({
-        ...existing,
-        ...update,
-        updatedAt: update.updatedAt ?? now(),
-      });
-    },
-  };
-};
-
-export const buildVoiceRealCallProfileReadinessCheck = (
-  report: VoiceRealCallProfileHistoryReport,
-  options: VoiceRealCallProfileReadinessCheckOptions = {},
-): VoiceProductionReadinessCheck => {
-  const { issues, warnings } = buildRealCallProfileReadinessIssues(
-    report,
-    options,
-  );
-  const status =
-    issues.length > 0
-      ? "fail"
-      : warnings.length > 0 && options.failOnWarnings === true
-        ? "fail"
-        : warnings.length > 0
-          ? "warn"
-          : "pass";
-  const detail =
-    status === "pass"
-      ? `${String(report.summary.profileCount)} profile(s), ${String(report.summary.cycles ?? 0)} cycle(s), ${String(report.defaults.summary.actionableProfiles)} actionable default(s).`
-      : [...issues, ...warnings].join(" ");
-
-  return {
-    actions: buildVoiceRealCallProfileRecoveryActions(report, options),
-    detail,
-    gateExplanation: {
-      evidenceHref: options.href ?? "/api/voice/real-call-profile-history",
-      observed: report.defaults.summary.actionableProfiles,
-      remediation:
-        "Run fresh browser or phone calls for required profiles so provider/runtime recommendations have measured profile evidence.",
-      sourceHref: options.sourceHref ?? "/voice/real-call-profile-history",
-      threshold: options.minActionableProfiles ?? 1,
-      thresholdLabel: "Minimum actionable real-call profiles",
-      unit: "count",
-    },
-    href: options.href ?? "/voice/real-call-profile-history",
-    label: options.label ?? "Real-call profile history",
-    proofSource: {
-      href: options.sourceHref ?? "/api/voice/real-call-profile-history",
-      source: report.source,
-      sourceLabel: "Real-call profile history",
-    },
-    status,
-    value: `${String(report.defaults.summary.actionableProfiles)}/${String(report.summary.profileCount)} actionable`,
-  };
-};
-
-export const buildVoiceRealCallProfileRecoveryJobHistoryCheck = async (
-  store: Pick<VoiceRealCallProfileRecoveryJobStore, "list"> | undefined,
-  options: VoiceRealCallProfileRecoveryJobHistoryCheckOptions = {},
-): Promise<VoiceProductionReadinessCheck> => {
-  const href = options.href ?? "/voice/real-call-profile-recovery";
-  const sourceHref =
-    options.sourceHref ?? "/api/voice/real-call-profile-history/actions/jobs";
-  const minCompletedJobs = options.minCompletedJobs ?? 1;
-  const label = options.label ?? "Real-call recovery job history";
-  if (!store?.list) {
-    return {
-      actions: [
-        {
-          description:
-            "Configure a recovery job store with list support so operators can inspect proof repair history.",
-          href,
-          label: "Configure recovery job history",
-        },
-      ],
-      detail:
-        "No real-call profile recovery job store with list support is configured.",
-      gateExplanation: {
-        evidenceHref: sourceHref,
-        observed: "missing",
-        remediation:
-          "Use the bundled memory or SQLite recovery job store, or implement list() on the custom store.",
-        sourceHref,
-        threshold: "list support",
-        thresholdLabel: "Inspectable recovery jobs",
-        unit: "status",
-      },
-      href,
-      label,
-      status: "fail",
-      value: "missing",
-    };
-  }
-
-  const jobs = await store.list({ limit: 50 });
-  const now = Date.now();
-  const recentJobs =
-    options.maxAgeMs === undefined
-      ? jobs
-      : jobs.filter(
-          (job) => now - Date.parse(job.updatedAt) <= options.maxAgeMs!,
-        );
-  const completedJobs = recentJobs.filter(
-    (job) => job.status === "pass" || job.status === "fail",
-  );
-  const failedJobs = recentJobs.filter((job) => job.status === "fail");
-  const runningJobs = recentJobs.filter(
-    (job) => job.status === "queued" || job.status === "running",
-  );
-  const issues: string[] = [];
-  const warnings: string[] = [];
-
-  if (completedJobs.length < minCompletedJobs) {
-    issues.push(
-      `Expected at least ${String(minCompletedJobs)} completed recovery job(s), found ${String(completedJobs.length)}.`,
-    );
-  }
-  if (!options.allowFailedJobs && failedJobs.length > 0) {
-    issues.push(`${String(failedJobs.length)} recent recovery job(s) failed.`);
-  }
-  if (runningJobs.length > 0) {
-    const message = `${String(runningJobs.length)} recovery job(s) are still queued or running.`;
-    if (options.failOnRunningJobs) {
-      issues.push(message);
-    } else {
-      warnings.push(message);
-    }
-  }
-
-  const status =
-    issues.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass";
-  const detail =
-    status === "pass"
-      ? `${String(completedJobs.length)} completed recovery job(s), ${String(failedJobs.length)} failed, ${String(runningJobs.length)} running.`
-      : [...issues, ...warnings].join(" ");
-
-  return {
-    actions: [
-      {
-        description:
-          "Open the recovery job UI and run or inspect proof repair jobs.",
-        href,
-        label: "Open recovery job history",
-      },
-      {
-        description: "Open the recovery job history API.",
-        href: sourceHref,
-        label: "Open recovery jobs API",
-      },
-    ],
-    detail,
-    gateExplanation: {
-      evidenceHref: sourceHref,
-      observed: completedJobs.length,
-      remediation:
-        "Run a browser or phone recovery proof job and ensure recent recovery jobs complete without failure.",
-      sourceHref,
-      threshold: minCompletedJobs,
-      thresholdLabel: "Minimum completed recovery jobs",
-      unit: "count",
-    },
-    href,
-    label,
-    proofSource: {
-      href: sourceHref,
-      source: "recovery-job-store",
-      sourceLabel: "Real-call recovery jobs",
-    },
-    status,
-    value: `${String(completedJobs.length)} completed / ${String(failedJobs.length)} failed / ${String(runningJobs.length)} running`,
-  };
-};
-
-export const resolveVoiceRealCallProfileProviderRoute = <
-  TProvider extends string = string,
->(
-  options: VoiceRealCallProfileProviderRouteOptions<TProvider>,
-): TProvider | undefined => {
-  const defaults = readRealCallProfileDefaultsReport(options.defaults);
-  const profile =
-    defaults.profiles.find((item) => item.profileId === options.profileId) ??
-    defaults.profiles.find((item) => item.status === "pass") ??
-    defaults.profiles[0];
-  const provider = profile?.providerRoutes[options.role];
-  const available = new Set(options.availableProviders ?? []);
-  const candidates = expandProviderRouteCandidates(
-    provider,
-    options.role,
-    options.providerAliases,
-  );
-
-  for (const candidate of candidates) {
-    if (
-      (options.availableProviders === undefined ||
-        available.has(candidate as TProvider)) &&
-      candidate
-    ) {
-      return candidate as TProvider;
-    }
-  }
-
-  return options.fallbackProvider;
-};
 
 export const buildVoiceRealCallProfileHistoryReport = (
   options: VoiceRealCallProfileHistoryOptions = {},
@@ -4714,7 +4454,6 @@ export const buildVoiceRealCallProfileHistoryReport = (
     trend,
   };
 };
-
 export const buildVoiceRealCallProfileHistoryReportFromStore = async (
   options: Omit<VoiceRealCallProfileHistoryOptions, "evidence"> &
     VoiceRealCallProfileEvidenceListOptions & {
@@ -4722,10 +4461,311 @@ export const buildVoiceRealCallProfileHistoryReportFromStore = async (
     },
 ): Promise<VoiceRealCallProfileHistoryReport> => {
   const evidence = await options.store.list(options);
+
   return buildVoiceRealCallProfileHistoryReport({
     ...options,
     evidence,
   });
+};
+export const buildVoiceRealCallProfileReadinessCheck = (
+  report: VoiceRealCallProfileHistoryReport,
+  options: VoiceRealCallProfileReadinessCheckOptions = {},
+): VoiceProductionReadinessCheck => {
+  const { issues, warnings } = buildRealCallProfileReadinessIssues(
+    report,
+    options,
+  );
+  const status =
+    issues.length > 0
+      ? "fail"
+      : warnings.length > 0 && options.failOnWarnings === true
+        ? "fail"
+        : warnings.length > 0
+          ? "warn"
+          : "pass";
+  const detail =
+    status === "pass"
+      ? `${String(report.summary.profileCount)} profile(s), ${String(report.summary.cycles ?? 0)} cycle(s), ${String(report.defaults.summary.actionableProfiles)} actionable default(s).`
+      : [...issues, ...warnings].join(" ");
+
+  return {
+    actions: buildVoiceRealCallProfileRecoveryActions(report, options),
+    detail,
+    gateExplanation: {
+      evidenceHref: options.href ?? "/api/voice/real-call-profile-history",
+      observed: report.defaults.summary.actionableProfiles,
+      remediation:
+        "Run fresh browser or phone calls for required profiles so provider/runtime recommendations have measured profile evidence.",
+      sourceHref: options.sourceHref ?? "/voice/real-call-profile-history",
+      threshold: options.minActionableProfiles ?? 1,
+      thresholdLabel: "Minimum actionable real-call profiles",
+      unit: "count",
+    },
+    href: options.href ?? "/voice/real-call-profile-history",
+    label: options.label ?? "Real-call profile history",
+    proofSource: {
+      href: options.sourceHref ?? "/api/voice/real-call-profile-history",
+      source: report.source,
+      sourceLabel: "Real-call profile history",
+    },
+    status,
+    value: `${String(report.defaults.summary.actionableProfiles)}/${String(report.summary.profileCount)} actionable`,
+  };
+};
+export const buildVoiceRealCallProfileRecoveryJobHistoryCheck = async (
+  store: Pick<VoiceRealCallProfileRecoveryJobStore, "list"> | undefined,
+  options: VoiceRealCallProfileRecoveryJobHistoryCheckOptions = {},
+): Promise<VoiceProductionReadinessCheck> => {
+  const href = options.href ?? "/voice/real-call-profile-recovery";
+  const sourceHref =
+    options.sourceHref ?? "/api/voice/real-call-profile-history/actions/jobs";
+  const minCompletedJobs = options.minCompletedJobs ?? 1;
+  const label = options.label ?? "Real-call recovery job history";
+  if (!store?.list) {
+    return {
+      actions: [
+        {
+          description:
+            "Configure a recovery job store with list support so operators can inspect proof repair history.",
+          href,
+          label: "Configure recovery job history",
+        },
+      ],
+      detail:
+        "No real-call profile recovery job store with list support is configured.",
+      gateExplanation: {
+        evidenceHref: sourceHref,
+        observed: "missing",
+        remediation:
+          "Use the bundled memory or SQLite recovery job store, or implement list() on the custom store.",
+        sourceHref,
+        threshold: "list support",
+        thresholdLabel: "Inspectable recovery jobs",
+        unit: "status",
+      },
+      href,
+      label,
+      status: "fail",
+      value: "missing",
+    };
+  }
+
+  const jobs = await store.list({ limit: 50 });
+  const now = Date.now();
+  const recentJobs =
+    options.maxAgeMs === undefined
+      ? jobs
+      : jobs.filter(
+          (job) => now - Date.parse(job.updatedAt) <= options.maxAgeMs!,
+        );
+  const completedJobs = recentJobs.filter(
+    (job) => job.status === "pass" || job.status === "fail",
+  );
+  const failedJobs = recentJobs.filter((job) => job.status === "fail");
+  const runningJobs = recentJobs.filter(
+    (job) => job.status === "queued" || job.status === "running",
+  );
+  const issues: string[] = [];
+  const warnings: string[] = [];
+
+  if (completedJobs.length < minCompletedJobs) {
+    issues.push(
+      `Expected at least ${String(minCompletedJobs)} completed recovery job(s), found ${String(completedJobs.length)}.`,
+    );
+  }
+  if (!options.allowFailedJobs && failedJobs.length > 0) {
+    issues.push(`${String(failedJobs.length)} recent recovery job(s) failed.`);
+  }
+  if (runningJobs.length > 0) {
+    const message = `${String(runningJobs.length)} recovery job(s) are still queued or running.`;
+    if (options.failOnRunningJobs) {
+      issues.push(message);
+    } else {
+      warnings.push(message);
+    }
+  }
+
+  const status =
+    issues.length > 0 ? "fail" : warnings.length > 0 ? "warn" : "pass";
+  const detail =
+    status === "pass"
+      ? `${String(completedJobs.length)} completed recovery job(s), ${String(failedJobs.length)} failed, ${String(runningJobs.length)} running.`
+      : [...issues, ...warnings].join(" ");
+
+  return {
+    actions: [
+      {
+        description:
+          "Open the recovery job UI and run or inspect proof repair jobs.",
+        href,
+        label: "Open recovery job history",
+      },
+      {
+        description: "Open the recovery job history API.",
+        href: sourceHref,
+        label: "Open recovery jobs API",
+      },
+    ],
+    detail,
+    gateExplanation: {
+      evidenceHref: sourceHref,
+      observed: completedJobs.length,
+      remediation:
+        "Run a browser or phone recovery proof job and ensure recent recovery jobs complete without failure.",
+      sourceHref,
+      threshold: minCompletedJobs,
+      thresholdLabel: "Minimum completed recovery jobs",
+      unit: "count",
+    },
+    href,
+    label,
+    proofSource: {
+      href: sourceHref,
+      source: "recovery-job-store",
+      sourceLabel: "Real-call recovery jobs",
+    },
+    status,
+    value: `${String(completedJobs.length)} completed / ${String(failedJobs.length)} failed / ${String(runningJobs.length)} running`,
+  };
+};
+export const createVoiceSQLiteRealCallProfileRecoveryJobStore = (
+  options: VoiceSQLiteRealCallProfileRecoveryJobStoreOptions = {},
+): VoiceRealCallProfileRecoveryJobStore => {
+  const { Database: SQLiteDatabase } =
+    require("bun:sqlite") as typeof import("bun:sqlite");
+  const database =
+    options.database ??
+    new SQLiteDatabase(options.path ?? ":memory:", {
+      create: true,
+    });
+  const tableName = normalizeRealCallRecoveryJobTableName(
+    options.tableName ?? "voice_real_call_profile_recovery_jobs",
+  );
+  const now = () => (options.now ?? (() => new Date()))().toISOString();
+  const createId = () =>
+    `${options.idPrefix ?? "voice-recovery-job"}-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+
+  database.exec("PRAGMA journal_mode = WAL;");
+  database.exec("PRAGMA synchronous = NORMAL;");
+  database.exec("PRAGMA busy_timeout = 5000;");
+  database.exec(
+    `CREATE TABLE IF NOT EXISTS "${tableName}" (
+			id TEXT PRIMARY KEY,
+			sort_at INTEGER NOT NULL,
+			payload TEXT NOT NULL
+		)`,
+  );
+
+  const selectStatement = database.query(
+    `SELECT payload FROM "${tableName}" WHERE id = ?1 LIMIT 1`,
+  );
+  const listStatement = database.query(
+    `SELECT payload FROM "${tableName}" ORDER BY sort_at DESC, id DESC`,
+  );
+  const upsertStatement = database.query(
+    `INSERT INTO "${tableName}" (id, sort_at, payload)
+		 VALUES (?1, ?2, ?3)
+		 ON CONFLICT(id) DO UPDATE SET sort_at = excluded.sort_at, payload = excluded.payload`,
+  );
+
+  const writeJob = (job: VoiceRealCallProfileRecoveryJob) => {
+    upsertStatement.run(
+      job.id,
+      Date.parse(job.updatedAt) || Date.now(),
+      JSON.stringify(job),
+    );
+
+    return job;
+  };
+  const readJob = (id: string) => {
+    const row = selectStatement.get(id) as { payload: string } | null;
+
+    return row
+      ? (JSON.parse(row.payload) as VoiceRealCallProfileRecoveryJob)
+      : undefined;
+  };
+
+  return {
+    create(input) {
+      const createdAt = input.createdAt ?? now();
+
+      return writeJob({
+        actionId: input.actionId,
+        createdAt,
+        id: input.id ?? createId(),
+        message: input.message,
+        status: input.status ?? "queued",
+        updatedAt: createdAt,
+      });
+    },
+    get(id) {
+      return readJob(id);
+    },
+    list(input = {}) {
+      const limit =
+        Number.isFinite(input.limit) &&
+        input.limit !== undefined &&
+        input.limit > 0
+          ? Math.floor(input.limit)
+          : 50;
+
+      return listStatement
+        .all()
+        .map(
+          (row) =>
+            JSON.parse(
+              (row as { payload: string }).payload,
+            ) as VoiceRealCallProfileRecoveryJob,
+        )
+        .filter((job) => !input.actionId || job.actionId === input.actionId)
+        .filter((job) => !input.status || job.status === input.status)
+        .slice(0, limit);
+    },
+    update(id, update) {
+      const existing = readJob(id);
+      if (!existing) {
+        return undefined;
+      }
+
+      return writeJob({
+        ...existing,
+        ...update,
+        updatedAt: update.updatedAt ?? now(),
+      });
+    },
+  };
+};
+export const resolveVoiceRealCallProfileProviderRoute = <
+  TProvider extends string = string,
+>(
+  options: VoiceRealCallProfileProviderRouteOptions<TProvider>,
+): TProvider | undefined => {
+  const defaults = readRealCallProfileDefaultsReport(options.defaults);
+  const profile =
+    defaults.profiles.find((item) => item.profileId === options.profileId) ??
+    defaults.profiles.find((item) => item.status === "pass") ??
+    defaults.profiles[0];
+  const provider = profile?.providerRoutes[options.role];
+  const available = new Set(options.availableProviders ?? []);
+  const candidates = expandProviderRouteCandidates(
+    provider,
+    options.role,
+    options.providerAliases,
+  );
+
+  for (const candidate of candidates) {
+    if (
+      (options.availableProviders === undefined ||
+        available.has(candidate as TProvider)) &&
+      candidate
+    ) {
+      return candidate as TProvider;
+    }
+  }
+
+  return options.fallbackProvider;
 };
 
 const normalizeProviderStatus = (
@@ -4764,6 +4804,7 @@ const compareProviders = (
       return compared;
     }
   }
+
   return 0;
 };
 
@@ -4821,6 +4862,7 @@ const summarizeProofTrendProviders = (
             : normalizeProviderStatus(provider.status) === "fail"
               ? "fail"
               : "warn";
+
       return {
         averageMs: provider.averageMs,
         id: provider.id,
@@ -4859,6 +4901,7 @@ const shouldSwitchProvider = (
   const improvementMs = current.p95Ms - best.p95Ms;
   const improvementRatio =
     current.p95Ms > 0 ? improvementMs / current.p95Ms : 0;
+
   return (
     improvementMs >= minImprovementMs || improvementRatio >= minImprovementRatio
   );
@@ -4875,6 +4918,7 @@ const bestProviderByRole = (
       best.set(role, provider);
     }
   }
+
   return [...best.values()].sort((left, right) =>
     String(left.role ?? left.id).localeCompare(String(right.role ?? right.id)),
   );
@@ -4953,6 +4997,7 @@ const buildProfileRecommendations = (
         : !latencyPass || !hasRequiredProviderRoles
           ? "warn"
           : "pass";
+
     return {
       bestProviders,
       id: profile.id,
@@ -4972,6 +5017,13 @@ const buildProfileRecommendations = (
     };
   });
 
+export const assertVoiceProofTrendEvidence = (
+  report: VoiceProofTrendReport,
+  input: VoiceProofTrendAssertionInput = {},
+): VoiceProofTrendAssertionReport => assertVoiceEvidence(
+    "Voice proof trends assertion failed",
+    evaluateVoiceProofTrendEvidence(report, input),
+  );
 export const evaluateVoiceProofTrendEvidence = (
   report: VoiceProofTrendReport,
   input: VoiceProofTrendAssertionInput = {},
@@ -5157,21 +5209,11 @@ export const evaluateVoiceProofTrendEvidence = (
     issues,
     maxLiveP95Ms,
     maxProviderP95Ms,
-    runtimeChannel,
     maxTurnP95Ms,
     ok: issues.length === 0,
+    runtimeChannel,
     status: report.status,
   };
-};
-
-export const assertVoiceProofTrendEvidence = (
-  report: VoiceProofTrendReport,
-  input: VoiceProofTrendAssertionInput = {},
-): VoiceProofTrendAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice proof trends assertion failed",
-    evaluateVoiceProofTrendEvidence(report, input),
-  );
 };
 
 const DEFAULT_RECOMMENDATION_BUDGETS = {
@@ -5192,9 +5234,9 @@ const recommendationStatusRank: Record<
   VoiceProofTrendRecommendationStatus,
   number
 > = {
+  fail: 2,
   pass: 0,
   warn: 1,
-  fail: 2,
 };
 
 const worstRecommendationStatus = (
@@ -5440,6 +5482,253 @@ export const buildVoiceProofTrendRecommendationReport = (
 
 const escapeMarkdown = (value: string) => value.replaceAll("|", "\\|");
 
+export const createVoiceProofTrendRecommendationRoutes = (
+  options: VoiceProofTrendRecommendationRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/proof-trend-recommendations";
+  const htmlPath =
+    options.htmlPath === undefined
+      ? "/voice/proof-trend-recommendations"
+      : options.htmlPath;
+  const markdownPath =
+    options.markdownPath === undefined
+      ? "/voice/proof-trend-recommendations.md"
+      : options.markdownPath;
+  const title = options.title ?? "Voice Provider Runtime Recommendations";
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-proof-trend-recommendations",
+  });
+  const loadReport = async () => {
+    const value =
+      options.source !== undefined
+        ? typeof options.source === "function"
+          ? await options.source()
+          : options.source
+        : options.jsonPath
+          ? await readVoiceProofTrendReportFile(options.jsonPath, {
+              maxAgeMs: options.maxAgeMs,
+            })
+          : buildEmptyVoiceProofTrendReport("", options.maxAgeMs);
+
+    return buildVoiceProofTrendRecommendationReport(
+      normalizeVoiceProofTrendReport(value, {
+        maxAgeMs: options.maxAgeMs,
+        source: options.jsonPath,
+      }),
+      options,
+    );
+  };
+
+  routes.get(path, async () =>
+    Response.json(await loadReport(), { headers: options.headers }),
+  );
+
+  if (htmlPath !== false) {
+    routes.get(htmlPath, async () => {
+      const report = await loadReport();
+
+      return new Response(
+        renderVoiceProofTrendRecommendationHTML(report, title),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  if (markdownPath !== false) {
+    routes.get(markdownPath, async () => {
+      const report = await loadReport();
+
+      return new Response(
+        renderVoiceProofTrendRecommendationMarkdown(report, title),
+        {
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  return routes;
+};
+export const createVoiceRealCallEvidenceRuntimeRoutes = (
+  options: VoiceRealCallEvidenceRuntimeRoutesOptions,
+) => {
+  const path = options.jsonPath ?? "/api/voice/real-call-evidence-runtime";
+  const collectPath =
+    options.collectPath === undefined ? `${path}/collect` : options.collectPath;
+  const htmlPath =
+    options.htmlPath === undefined
+      ? "/voice/real-call-evidence-runtime"
+      : options.htmlPath;
+  const markdownPath =
+    options.markdownPath === undefined
+      ? "/voice/real-call-evidence-runtime.md"
+      : options.markdownPath;
+  const title = options.title ?? "Voice Real-Call Evidence Runtime";
+  const runtime =
+    options.runtime ??
+    createVoiceRealCallEvidenceRuntime({
+      ...options,
+    });
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-real-call-evidence-runtime",
+  });
+
+  routes.get(path, async () =>
+    Response.json(await runtime.buildReport(), { headers: options.headers }),
+  );
+
+  if (collectPath !== false) {
+    routes.post(collectPath, async () =>
+      Response.json(await runtime.collect(), { headers: options.headers }),
+    );
+  }
+
+  if (htmlPath !== false) {
+    routes.get(htmlPath, async () => {
+      const report = await runtime.buildReport();
+
+      return new Response(
+        renderVoiceRealCallEvidenceRuntimeHTML(report, title),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  if (markdownPath !== false) {
+    routes.get(markdownPath, async () => {
+      const report = await runtime.buildReport();
+
+      return new Response(
+        renderVoiceRealCallEvidenceRuntimeMarkdown(report, title),
+        {
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  return routes;
+};
+export const createVoiceRealCallProfileHistoryRoutes = (
+  options: VoiceRealCallProfileHistoryRoutesOptions = {},
+) => {
+  const path = options.path ?? "/api/voice/real-call-profile-history";
+  const htmlPath =
+    options.htmlPath === undefined
+      ? "/voice/real-call-profile-history"
+      : options.htmlPath;
+  const markdownPath =
+    options.markdownPath === undefined
+      ? "/voice/real-call-profile-history.md"
+      : options.markdownPath;
+  const title = options.title ?? "Voice Real-Call Profile History";
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-real-call-profile-history",
+  });
+  const loadReport = async () => {
+    const { source, ...routeOptions } = options;
+    const sourceOptions =
+      source === undefined
+        ? routeOptions
+        : typeof source === "function"
+          ? await source()
+          : source;
+
+    return buildVoiceRealCallProfileHistoryReport({
+      ...routeOptions,
+      ...sourceOptions,
+    });
+  };
+
+  routes.get(path, async () =>
+    Response.json(await loadReport(), { headers: options.headers }),
+  );
+
+  if (htmlPath !== false) {
+    routes.get(htmlPath, async () => {
+      const report = await loadReport();
+
+      return new Response(
+        renderVoiceRealCallProfileHistoryHTML(report, title),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  if (markdownPath !== false) {
+    routes.get(markdownPath, async () => {
+      const report = await loadReport();
+
+      return new Response(
+        renderVoiceRealCallProfileHistoryMarkdown(report, title),
+        {
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            ...Object.fromEntries(new Headers(options.headers)),
+          },
+        },
+      );
+    });
+  }
+
+  return routes;
+};
+export const renderVoiceProofTrendRecommendationHTML = (
+  report: VoiceProofTrendRecommendationReport,
+  title = "Voice Provider Runtime Recommendations",
+) => {
+  const cards = report.recommendations
+    .map(
+      (recommendation) =>
+        `<article class="${escapeHtml(recommendation.status)}"><p class="eyebrow">${escapeHtml(recommendation.surface)} · ${escapeHtml(recommendation.status)}</p><h2>${escapeHtml(recommendation.recommendation)}</h2><p>${escapeHtml(recommendation.nextMove)}</p><pre>${escapeHtml(JSON.stringify(recommendation.evidence, null, 2))}</pre></article>`,
+    )
+    .join("");
+  const issues =
+    report.issues.length === 0
+      ? "<li>None</li>"
+      : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
+  const providerRows =
+    report.providers.length === 0
+      ? "<li>No provider-specific samples were present.</li>"
+      : report.providers
+          .map(
+            (provider) =>
+              `<li><strong>#${String(provider.rank)} ${escapeHtml(provider.label ?? provider.id)}</strong><span>${escapeHtml(provider.role ?? "provider")} · ${escapeHtml(provider.status)} · p95 ${escapeHtml(provider.p95Ms ?? "n/a")}ms · ${escapeHtml(provider.samples ?? "n/a")} sample(s)</span><small>${escapeHtml(provider.nextMove)}</small></li>`,
+          )
+          .join("");
+  const profileRows =
+    report.profiles.length === 0
+      ? "<li>No benchmark profiles were present.</li>"
+      : report.profiles
+          .map(
+            (profile) =>
+              `<li><strong>${escapeHtml(profile.label ?? profile.id)}</strong><span>${escapeHtml(profile.status)} · ${escapeHtml(formatProviderMix(profile.bestProviders))}</span><small>${escapeHtml(profile.nextMove)}</small></li>`,
+          )
+          .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}pre{background:#0b1110;border-radius:14px;overflow:auto;padding:12px}a{color:#5eead4}li{margin:.45rem 0}li span,li small{display:block;color:#c9d3ca}</style></head><body><main><section class="hero"><p class="eyebrow">Sustained proof recommendations</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Provider ${report.summary.keepCurrentProviderPath ? "keep" : "change"}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.bestProviders))}</span><span class="pill">Profiles ${String(report.profiles.length)}</span><span class="pill">Runtime ${report.summary.keepCurrentRuntimeChannel ? "keep" : "tune"}</span><span class="pill">${String(report.summary.recommendedActions)} action(s)</span></div></section>${cards}<section class="hero"><h2>Benchmark Profiles</h2><ul>${profileRows}</ul></section><section class="hero"><h2>Provider Comparison</h2><ul>${providerRows}</ul></section><section class="hero"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
+};
 export const renderVoiceProofTrendRecommendationMarkdown = (
   report: VoiceProofTrendRecommendationReport,
   title = "Voice Provider Runtime Recommendations",
@@ -5490,43 +5779,91 @@ export const renderVoiceProofTrendRecommendationMarkdown = (
       ? report.issues.map((issue) => `- ${issue}`)
       : ["- None"]),
   ].join("\n");
-
-export const renderVoiceProofTrendRecommendationHTML = (
-  report: VoiceProofTrendRecommendationReport,
-  title = "Voice Provider Runtime Recommendations",
+export const renderVoiceRealCallEvidenceRuntimeHTML = (
+  report: VoiceRealCallEvidenceRuntimeReport,
+  title = "Voice Real-Call Evidence Runtime",
 ) => {
-  const cards = report.recommendations
+  const issueItems =
+    report.issues.length === 0
+      ? "<li>None</li>"
+      : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
+  const profileRows = report.history.summary.profiles?.length
+    ? report.history.summary.profiles
+        .map(
+          (profile) =>
+            `<tr><td>${escapeHtml(profile.label ?? profile.id)}</td><td>${escapeHtml(profile.status ?? "unknown")}</td><td>${escapeHtml(profile.sessionCount ?? "n/a")}</td><td>${escapeHtml(profile.maxLiveP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.maxProviderP95Ms ?? "n/a")}</td><td>${escapeHtml(formatProviderMix(profile.providers ?? []))}</td></tr>`,
+        )
+        .join("")
+    : '<tr><td colspan="6">No profile history has been collected yet.</td></tr>';
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0f1618;color:#f2f7f2;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,.card{background:#162225;border:1px solid #2f4548;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(132,204,22,.1))}.eyebrow{color:#99f6e4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.1rem,6vw,4.3rem);letter-spacing:-.06em;line-height:.94;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #4b6669;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail,.empty,.stale{border-color:rgba(239,68,68,.75)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2f4548;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real-call evidence runtime</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill ${escapeHtml(report.status)}">Status ${escapeHtml(report.status)}</span><span class="pill">Stored ${String(report.summary.storedEvidence)}</span><span class="pill">Collected ${String(report.summary.collectedEvidence)}</span><span class="pill">Appended ${String(report.appended)}</span><span class="pill">Duplicates ${String(report.skippedDuplicates)}</span><span class="pill">Sessions ${String(report.summary.sessions)}</span><span class="pill">Profiles ${String(report.summary.profiles)}</span></div></section><section class="card"><h2>Rolling Profile History</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Sessions</th><th>Live p95</th><th>Provider p95</th><th>Provider mix</th></tr></thead><tbody>${profileRows}</tbody></table></section><section class="card"><h2>Issues</h2><ul>${issueItems}</ul></section></main></body></html>`;
+};
+export const renderVoiceRealCallEvidenceRuntimeMarkdown = (
+  report: VoiceRealCallEvidenceRuntimeReport,
+  title = "Voice Real-Call Evidence Runtime",
+) =>
+  [
+    `# ${title}`,
+    "",
+    `- Status: ${report.status}`,
+    `- Stored evidence: ${String(report.summary.storedEvidence)}`,
+    `- Collected evidence: ${String(report.summary.collectedEvidence)}`,
+    `- Appended: ${String(report.appended)}`,
+    `- Skipped duplicates: ${String(report.skippedDuplicates)}`,
+    `- Sessions: ${String(report.summary.sessions)}`,
+    `- Profiles: ${String(report.summary.profiles)}`,
+    "",
+    "## Rolling Profile History",
+    "",
+    renderVoiceRealCallProfileHistoryMarkdown(
+      report.history,
+      "Rolling Real-Call Profile History",
+    ),
+    "",
+    "## Issues",
+    "",
+    ...(report.issues.length
+      ? report.issues.map((issue) => `- ${issue}`)
+      : ["- None"]),
+  ].join("\n");
+export const renderVoiceRealCallProfileHistoryHTML = (
+  report: VoiceRealCallProfileHistoryReport,
+  title = "Voice Real-Call Profile History",
+) => {
+  const profileRows = report.summary.profiles?.length
+    ? report.summary.profiles
+        .map(
+          (profile) =>
+            `<tr><td>${escapeHtml(profile.label ?? profile.id)}</td><td>${escapeHtml(profile.status ?? "unknown")}</td><td>${escapeHtml(profile.maxLiveP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.maxProviderP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.maxTurnP95Ms ?? "n/a")}</td><td>${escapeHtml(formatProviderMix(profile.providers ?? []))}</td></tr>`,
+        )
+        .join("")
+    : '<tr><td colspan="6">No profiles present.</td></tr>';
+  const defaultRows =
+    report.defaults.profiles.length > 0
+      ? report.defaults.profiles
+          .map(
+            (profile) =>
+              `<tr><td>${escapeHtml(profile.label ?? profile.profileId)}</td><td>${escapeHtml(profile.status)}</td><td>${escapeHtml(
+                Object.entries(profile.providerRoutes)
+                  .map(([role, provider]) => `${role}: ${provider}`)
+                  .join(", ") || "n/a",
+              )}</td><td>${escapeHtml(profile.latencyBudgets.maxLiveP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.latencyBudgets.maxProviderP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.latencyBudgets.maxTurnP95Ms ?? "n/a")}</td></tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="6">No actionable defaults present.</td></tr>';
+  const recommendations = report.recommendations.recommendations
     .map(
       (recommendation) =>
-        `<article class="${escapeHtml(recommendation.status)}"><p class="eyebrow">${escapeHtml(recommendation.surface)} · ${escapeHtml(recommendation.status)}</p><h2>${escapeHtml(recommendation.recommendation)}</h2><p>${escapeHtml(recommendation.nextMove)}</p><pre>${escapeHtml(JSON.stringify(recommendation.evidence, null, 2))}</pre></article>`,
+        `<article class="${escapeHtml(recommendation.status)}"><p class="eyebrow">${escapeHtml(recommendation.surface)} · ${escapeHtml(recommendation.status)}</p><h2>${escapeHtml(recommendation.recommendation)}</h2><p>${escapeHtml(recommendation.nextMove)}</p></article>`,
     )
     .join("");
   const issues =
     report.issues.length === 0
       ? "<li>None</li>"
       : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
-  const providerRows =
-    report.providers.length === 0
-      ? "<li>No provider-specific samples were present.</li>"
-      : report.providers
-          .map(
-            (provider) =>
-              `<li><strong>#${String(provider.rank)} ${escapeHtml(provider.label ?? provider.id)}</strong><span>${escapeHtml(provider.role ?? "provider")} · ${escapeHtml(provider.status)} · p95 ${escapeHtml(provider.p95Ms ?? "n/a")}ms · ${escapeHtml(provider.samples ?? "n/a")} sample(s)</span><small>${escapeHtml(provider.nextMove)}</small></li>`,
-          )
-          .join("");
-  const profileRows =
-    report.profiles.length === 0
-      ? "<li>No benchmark profiles were present.</li>"
-      : report.profiles
-          .map(
-            (profile) =>
-              `<li><strong>${escapeHtml(profile.label ?? profile.id)}</strong><span>${escapeHtml(profile.status)} · ${escapeHtml(formatProviderMix(profile.bestProviders))}</span><small>${escapeHtml(profile.nextMove)}</small></li>`,
-          )
-          .join("");
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}pre{background:#0b1110;border-radius:14px;overflow:auto;padding:12px}a{color:#5eead4}li{margin:.45rem 0}li span,li small{display:block;color:#c9d3ca}</style></head><body><main><section class="hero"><p class="eyebrow">Sustained proof recommendations</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Provider ${report.summary.keepCurrentProviderPath ? "keep" : "change"}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.bestProviders))}</span><span class="pill">Profiles ${String(report.profiles.length)}</span><span class="pill">Runtime ${report.summary.keepCurrentRuntimeChannel ? "keep" : "tune"}</span><span class="pill">${String(report.summary.recommendedActions)} action(s)</span></div></section>${cards}<section class="hero"><h2>Benchmark Profiles</h2><ul>${profileRows}</ul></section><section class="hero"><h2>Provider Comparison</h2><ul>${providerRows}</ul></section><section class="hero"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111510;color:#f6f0dd;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article,.card{background:#182117;border:1px solid #32412d;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(132,204,22,.16),rgba(20,184,166,.12))}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #52624b;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #32412d;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real-call benchmark history</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Reports ${String(report.reports)}</span><span class="pill">Profiles ${String(report.summary.profileCount)}</span><span class="pill">Defaults ${String(report.defaults.summary.actionableProfiles)}/${String(report.defaults.summary.profileCount)}</span><span class="pill">Cycles ${String(report.summary.cycles ?? 0)}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.recommendations.bestProviders))}</span></div></section><section class="card"><h2>Profiles</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Live p95</th><th>Provider p95</th><th>Turn p95</th><th>Provider mix</th></tr></thead><tbody>${profileRows}</tbody></table></section><section class="card"><h2>Actionable Defaults</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Provider routes</th><th>Live budget</th><th>Provider budget</th><th>Turn budget</th></tr></thead><tbody>${defaultRows}</tbody></table></section>${recommendations}<section class="card"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
 };
-
 export const renderVoiceRealCallProfileHistoryMarkdown = (
   report: VoiceRealCallProfileHistoryReport,
   title = "Voice Real-Call Profile History",
@@ -5581,309 +5918,14 @@ export const renderVoiceRealCallProfileHistoryMarkdown = (
       : ["- None"]),
   ].join("\n");
 
-export const renderVoiceRealCallProfileHistoryHTML = (
-  report: VoiceRealCallProfileHistoryReport,
-  title = "Voice Real-Call Profile History",
-) => {
-  const profileRows = report.summary.profiles?.length
-    ? report.summary.profiles
-        .map(
-          (profile) =>
-            `<tr><td>${escapeHtml(profile.label ?? profile.id)}</td><td>${escapeHtml(profile.status ?? "unknown")}</td><td>${escapeHtml(profile.maxLiveP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.maxProviderP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.maxTurnP95Ms ?? "n/a")}</td><td>${escapeHtml(formatProviderMix(profile.providers ?? []))}</td></tr>`,
-        )
-        .join("")
-    : '<tr><td colspan="6">No profiles present.</td></tr>';
-  const defaultRows =
-    report.defaults.profiles.length > 0
-      ? report.defaults.profiles
-          .map(
-            (profile) =>
-              `<tr><td>${escapeHtml(profile.label ?? profile.profileId)}</td><td>${escapeHtml(profile.status)}</td><td>${escapeHtml(
-                Object.entries(profile.providerRoutes)
-                  .map(([role, provider]) => `${role}: ${provider}`)
-                  .join(", ") || "n/a",
-              )}</td><td>${escapeHtml(profile.latencyBudgets.maxLiveP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.latencyBudgets.maxProviderP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.latencyBudgets.maxTurnP95Ms ?? "n/a")}</td></tr>`,
-          )
-          .join("")
-      : '<tr><td colspan="6">No actionable defaults present.</td></tr>';
-  const recommendations = report.recommendations.recommendations
-    .map(
-      (recommendation) =>
-        `<article class="${escapeHtml(recommendation.status)}"><p class="eyebrow">${escapeHtml(recommendation.surface)} · ${escapeHtml(recommendation.status)}</p><h2>${escapeHtml(recommendation.recommendation)}</h2><p>${escapeHtml(recommendation.nextMove)}</p></article>`,
-    )
-    .join("");
-  const issues =
-    report.issues.length === 0
-      ? "<li>None</li>"
-      : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111510;color:#f6f0dd;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,article,.card{background:#182117;border:1px solid #32412d;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(132,204,22,.16),rgba(20,184,166,.12))}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #52624b;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #32412d;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real-call benchmark history</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Reports ${String(report.reports)}</span><span class="pill">Profiles ${String(report.summary.profileCount)}</span><span class="pill">Defaults ${String(report.defaults.summary.actionableProfiles)}/${String(report.defaults.summary.profileCount)}</span><span class="pill">Cycles ${String(report.summary.cycles ?? 0)}</span><span class="pill">Best mix ${escapeHtml(formatProviderMix(report.recommendations.bestProviders))}</span></div></section><section class="card"><h2>Profiles</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Live p95</th><th>Provider p95</th><th>Turn p95</th><th>Provider mix</th></tr></thead><tbody>${profileRows}</tbody></table></section><section class="card"><h2>Actionable Defaults</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Provider routes</th><th>Live budget</th><th>Provider budget</th><th>Turn budget</th></tr></thead><tbody>${defaultRows}</tbody></table></section>${recommendations}<section class="card"><h2>Issues</h2><ul>${issues}</ul></section></main></body></html>`;
-};
-
-export const renderVoiceRealCallEvidenceRuntimeMarkdown = (
-  report: VoiceRealCallEvidenceRuntimeReport,
-  title = "Voice Real-Call Evidence Runtime",
-) =>
-  [
-    `# ${title}`,
-    "",
-    `- Status: ${report.status}`,
-    `- Stored evidence: ${String(report.summary.storedEvidence)}`,
-    `- Collected evidence: ${String(report.summary.collectedEvidence)}`,
-    `- Appended: ${String(report.appended)}`,
-    `- Skipped duplicates: ${String(report.skippedDuplicates)}`,
-    `- Sessions: ${String(report.summary.sessions)}`,
-    `- Profiles: ${String(report.summary.profiles)}`,
-    "",
-    "## Rolling Profile History",
-    "",
-    renderVoiceRealCallProfileHistoryMarkdown(
-      report.history,
-      "Rolling Real-Call Profile History",
-    ),
-    "",
-    "## Issues",
-    "",
-    ...(report.issues.length
-      ? report.issues.map((issue) => `- ${issue}`)
-      : ["- None"]),
-  ].join("\n");
-
-export const renderVoiceRealCallEvidenceRuntimeHTML = (
-  report: VoiceRealCallEvidenceRuntimeReport,
-  title = "Voice Real-Call Evidence Runtime",
-) => {
-  const issueItems =
-    report.issues.length === 0
-      ? "<li>None</li>"
-      : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
-  const profileRows = report.history.summary.profiles?.length
-    ? report.history.summary.profiles
-        .map(
-          (profile) =>
-            `<tr><td>${escapeHtml(profile.label ?? profile.id)}</td><td>${escapeHtml(profile.status ?? "unknown")}</td><td>${escapeHtml(profile.sessionCount ?? "n/a")}</td><td>${escapeHtml(profile.maxLiveP95Ms ?? "n/a")}</td><td>${escapeHtml(profile.maxProviderP95Ms ?? "n/a")}</td><td>${escapeHtml(formatProviderMix(profile.providers ?? []))}</td></tr>`,
-        )
-        .join("")
-    : '<tr><td colspan="6">No profile history has been collected yet.</td></tr>';
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0f1618;color:#f2f7f2;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,.card{background:#162225;border:1px solid #2f4548;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(132,204,22,.1))}.eyebrow{color:#99f6e4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.1rem,6vw,4.3rem);letter-spacing:-.06em;line-height:.94;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #4b6669;border-radius:999px;padding:8px 12px}.pass{border-color:rgba(34,197,94,.55)}.warn{border-color:rgba(245,158,11,.7)}.fail,.empty,.stale{border-color:rgba(239,68,68,.75)}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2f4548;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real-call evidence runtime</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} from ${escapeHtml(report.source)}.</p><div class="summary"><span class="pill ${escapeHtml(report.status)}">Status ${escapeHtml(report.status)}</span><span class="pill">Stored ${String(report.summary.storedEvidence)}</span><span class="pill">Collected ${String(report.summary.collectedEvidence)}</span><span class="pill">Appended ${String(report.appended)}</span><span class="pill">Duplicates ${String(report.skippedDuplicates)}</span><span class="pill">Sessions ${String(report.summary.sessions)}</span><span class="pill">Profiles ${String(report.summary.profiles)}</span></div></section><section class="card"><h2>Rolling Profile History</h2><table><thead><tr><th>Profile</th><th>Status</th><th>Sessions</th><th>Live p95</th><th>Provider p95</th><th>Provider mix</th></tr></thead><tbody>${profileRows}</tbody></table></section><section class="card"><h2>Issues</h2><ul>${issueItems}</ul></section></main></body></html>`;
-};
-
-export const createVoiceProofTrendRecommendationRoutes = (
-  options: VoiceProofTrendRecommendationRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/proof-trend-recommendations";
-  const htmlPath =
-    options.htmlPath === undefined
-      ? "/voice/proof-trend-recommendations"
-      : options.htmlPath;
-  const markdownPath =
-    options.markdownPath === undefined
-      ? "/voice/proof-trend-recommendations.md"
-      : options.markdownPath;
-  const title = options.title ?? "Voice Provider Runtime Recommendations";
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-proof-trend-recommendations",
-  });
-  const loadReport = async () => {
-    const value =
-      options.source !== undefined
-        ? typeof options.source === "function"
-          ? await options.source()
-          : options.source
-        : options.jsonPath
-          ? await readVoiceProofTrendReportFile(options.jsonPath, {
-              maxAgeMs: options.maxAgeMs,
-            })
-          : buildEmptyVoiceProofTrendReport("", options.maxAgeMs);
-    return buildVoiceProofTrendRecommendationReport(
-      normalizeVoiceProofTrendReport(value, {
-        maxAgeMs: options.maxAgeMs,
-        source: options.jsonPath,
-      }),
-      options,
-    );
-  };
-
-  routes.get(path, async () =>
-    Response.json(await loadReport(), { headers: options.headers }),
-  );
-
-  if (htmlPath !== false) {
-    routes.get(htmlPath, async () => {
-      const report = await loadReport();
-      return new Response(
-        renderVoiceProofTrendRecommendationHTML(report, title),
-        {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            ...Object.fromEntries(new Headers(options.headers)),
-          },
-        },
-      );
-    });
-  }
-
-  if (markdownPath !== false) {
-    routes.get(markdownPath, async () => {
-      const report = await loadReport();
-      return new Response(
-        renderVoiceProofTrendRecommendationMarkdown(report, title),
-        {
-          headers: {
-            "content-type": "text/markdown; charset=utf-8",
-            ...Object.fromEntries(new Headers(options.headers)),
-          },
-        },
-      );
-    });
-  }
-
-  return routes;
-};
-
-export const createVoiceRealCallProfileHistoryRoutes = (
-  options: VoiceRealCallProfileHistoryRoutesOptions = {},
-) => {
-  const path = options.path ?? "/api/voice/real-call-profile-history";
-  const htmlPath =
-    options.htmlPath === undefined
-      ? "/voice/real-call-profile-history"
-      : options.htmlPath;
-  const markdownPath =
-    options.markdownPath === undefined
-      ? "/voice/real-call-profile-history.md"
-      : options.markdownPath;
-  const title = options.title ?? "Voice Real-Call Profile History";
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-real-call-profile-history",
-  });
-  const loadReport = async () => {
-    const { source, ...routeOptions } = options;
-    const sourceOptions =
-      source === undefined
-        ? routeOptions
-        : typeof source === "function"
-          ? await source()
-          : source;
-    return buildVoiceRealCallProfileHistoryReport({
-      ...routeOptions,
-      ...sourceOptions,
-    });
-  };
-
-  routes.get(path, async () =>
-    Response.json(await loadReport(), { headers: options.headers }),
-  );
-
-  if (htmlPath !== false) {
-    routes.get(htmlPath, async () => {
-      const report = await loadReport();
-      return new Response(
-        renderVoiceRealCallProfileHistoryHTML(report, title),
-        {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            ...Object.fromEntries(new Headers(options.headers)),
-          },
-        },
-      );
-    });
-  }
-
-  if (markdownPath !== false) {
-    routes.get(markdownPath, async () => {
-      const report = await loadReport();
-      return new Response(
-        renderVoiceRealCallProfileHistoryMarkdown(report, title),
-        {
-          headers: {
-            "content-type": "text/markdown; charset=utf-8",
-            ...Object.fromEntries(new Headers(options.headers)),
-          },
-        },
-      );
-    });
-  }
-
-  return routes;
-};
-
-export const createVoiceRealCallEvidenceRuntimeRoutes = (
-  options: VoiceRealCallEvidenceRuntimeRoutesOptions,
-) => {
-  const path = options.jsonPath ?? "/api/voice/real-call-evidence-runtime";
-  const collectPath =
-    options.collectPath === undefined ? `${path}/collect` : options.collectPath;
-  const htmlPath =
-    options.htmlPath === undefined
-      ? "/voice/real-call-evidence-runtime"
-      : options.htmlPath;
-  const markdownPath =
-    options.markdownPath === undefined
-      ? "/voice/real-call-evidence-runtime.md"
-      : options.markdownPath;
-  const title = options.title ?? "Voice Real-Call Evidence Runtime";
-  const runtime =
-    options.runtime ??
-    createVoiceRealCallEvidenceRuntime({
-      ...options,
-    });
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-real-call-evidence-runtime",
-  });
-
-  routes.get(path, async () =>
-    Response.json(await runtime.buildReport(), { headers: options.headers }),
-  );
-
-  if (collectPath !== false) {
-    routes.post(collectPath, async () =>
-      Response.json(await runtime.collect(), { headers: options.headers }),
-    );
-  }
-
-  if (htmlPath !== false) {
-    routes.get(htmlPath, async () => {
-      const report = await runtime.buildReport();
-      return new Response(
-        renderVoiceRealCallEvidenceRuntimeHTML(report, title),
-        {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            ...Object.fromEntries(new Headers(options.headers)),
-          },
-        },
-      );
-    });
-  }
-
-  if (markdownPath !== false) {
-    routes.get(markdownPath, async () => {
-      const report = await runtime.buildReport();
-      return new Response(
-        renderVoiceRealCallEvidenceRuntimeMarkdown(report, title),
-        {
-          headers: {
-            "content-type": "text/markdown; charset=utf-8",
-            ...Object.fromEntries(new Headers(options.headers)),
-          },
-        },
-      );
-    });
-  }
-
-  return routes;
-};
-
 const realCallProfileActionPaths: Record<
   VoiceRealCallProfileRecoveryActionId,
   string
 > = {
   "collect-browser-proof": "/collect-browser-proof",
   "collect-phone-proof": "/collect-phone-proof",
-  "collect-reconnect-proof": "/collect-reconnect-proof",
   "collect-provider-role-evidence": "/collect-provider-role-evidence",
+  "collect-reconnect-proof": "/collect-reconnect-proof",
   refresh: "/refresh",
 };
 
@@ -5899,12 +5941,44 @@ const loadVoiceRealCallProfileHistoryRouteReport = async (
       : typeof source === "function"
         ? await source()
         : source;
+
   return buildVoiceRealCallProfileHistoryReport({
     ...routeOptions,
     ...sourceOptions,
   });
 };
 
+export const createVoiceProofTrendRoutes = (
+  options: VoiceProofTrendRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/proof-trends";
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-proof-trends",
+  });
+
+  routes.get(path, async () => {
+    const value =
+      options.source !== undefined
+        ? typeof options.source === "function"
+          ? await options.source()
+          : options.source
+        : options.jsonPath
+          ? await readVoiceProofTrendReportFile(options.jsonPath, {
+              maxAgeMs: options.maxAgeMs,
+            })
+          : buildEmptyVoiceProofTrendReport("", options.maxAgeMs);
+
+    return Response.json(
+      normalizeVoiceProofTrendReport(value, {
+        maxAgeMs: options.maxAgeMs,
+        source: options.jsonPath,
+      }),
+      { headers: options.headers },
+    );
+  });
+
+  return routes;
+};
 export const createVoiceRealCallProfileRecoveryActionRoutes = (
   options: VoiceRealCallProfileRecoveryActionRoutesOptions = {},
 ) => {
@@ -5958,6 +6032,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
           ? "GET"
           : "POST",
     }));
+
     return { actions, generatedAt: new Date().toISOString(), report };
   };
   const runActionHandler = async (
@@ -5969,6 +6044,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
     if (!handler) {
       return undefined;
     }
+
     return await handler({ actionId, profileId, report });
   };
   const runActionAsJob = async (
@@ -6025,6 +6101,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
         }
       })();
     });
+
     return {
       actionId,
       generatedAt: new Date().toISOString(),
@@ -6058,6 +6135,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
       }
     }
     const result = await runActionHandler(actionId, report, profileId);
+
     return {
       actionId,
       generatedAt: new Date().toISOString(),
@@ -6086,6 +6164,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
     }) => {
       if (!options.jobStore?.list) {
         set.status = 501;
+
         return Response.json(
           {
             jobs: [],
@@ -6112,6 +6191,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
         limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
         status,
       });
+
       return Response.json(
         {
           generatedAt: new Date().toISOString(),
@@ -6136,6 +6216,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
       const job = await options.jobStore?.get(jobId);
       if (!job) {
         set.status = 404;
+
         return Response.json(
           {
             jobId,
@@ -6145,6 +6226,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
           { headers: options.headers },
         );
       }
+
       return Response.json(
         { job, ok: job.ok ?? job.status !== "fail" },
         {
@@ -6171,6 +6253,7 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
         if (!result.ok) {
           set.status = 501;
         }
+
         return Response.json(result, { headers: options.headers });
       },
     );
@@ -6178,39 +6261,6 @@ export const createVoiceRealCallProfileRecoveryActionRoutes = (
 
   return routes;
 };
-
-export const createVoiceProofTrendRoutes = (
-  options: VoiceProofTrendRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/proof-trends";
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-proof-trends",
-  });
-
-  routes.get(path, async () => {
-    const value =
-      options.source !== undefined
-        ? typeof options.source === "function"
-          ? await options.source()
-          : options.source
-        : options.jsonPath
-          ? await readVoiceProofTrendReportFile(options.jsonPath, {
-              maxAgeMs: options.maxAgeMs,
-            })
-          : buildEmptyVoiceProofTrendReport("", options.maxAgeMs);
-
-    return Response.json(
-      normalizeVoiceProofTrendReport(value, {
-        maxAgeMs: options.maxAgeMs,
-        source: options.jsonPath,
-      }),
-      { headers: options.headers },
-    );
-  });
-
-  return routes;
-};
-
 export const formatVoiceProofTrendAge = (ageMs: unknown) => {
   if (typeof ageMs !== "number" || !Number.isFinite(ageMs)) {
     return "unknown";
@@ -6230,5 +6280,6 @@ export const formatVoiceProofTrendAge = (ageMs: unknown) => {
   }
 
   const days = Math.floor(hours / 24);
+
   return `${days}d ${hours % 24}h`;
 };

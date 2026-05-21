@@ -12,18 +12,6 @@ export type VoiceOpsStatusSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceOpsStatus = async (
-  path = "/api/voice/ops-status",
-  options: Pick<VoiceOpsStatusClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice ops status failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceOpsStatusReport;
-};
-
 export const createVoiceOpsStatusStore = (
   path = "/api/voice/ops-status",
   options: VoiceOpsStatusClientOptions = {},
@@ -59,6 +47,7 @@ export const createVoiceOpsStatusStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -91,14 +80,27 @@ export const createVoiceOpsStatusStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceOpsStatus = async (
+  path = "/api/voice/ops-status",
+  options: Pick<VoiceOpsStatusClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice ops status failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceOpsStatusReport;
 };

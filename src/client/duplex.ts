@@ -44,6 +44,7 @@ export const bindVoiceBargeIn = <TResult = unknown>(
         reason,
         sessionId: controller.sessionId,
       });
+
       return;
     }
 
@@ -64,6 +65,7 @@ export const bindVoiceBargeIn = <TResult = unknown>(
   const unsubscribe = controller.subscribe(() => {
     if (options.interruptOnPartial === false) {
       lastPartial = controller.partial;
+
       return;
     }
 

@@ -25,6 +25,7 @@ const formatRelative = (ms: number) => {
   const seconds = Math.max(0, Math.floor(ms / 1_000));
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
+
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 };
 
@@ -44,6 +45,7 @@ export const renderVoiceLiveCallViewerHTML = (
         </li>`,
     )
     .join("");
+
   return `<section aria-label="voice-live-call-viewer" class="absolute-voice-live-call-viewer" data-agent-state="${state.agentState}" style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:center;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${escape(title)}</strong>
@@ -64,6 +66,7 @@ export const createVoiceLiveCallViewer = (
   options: CreateVoiceLiveCallViewerSvelteOptions,
 ) => {
   const viewer: LiveCallViewer = createLiveCallViewer(options);
+
   return {
     ...viewer,
     getHTML: () =>

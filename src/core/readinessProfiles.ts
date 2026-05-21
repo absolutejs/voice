@@ -163,7 +163,7 @@ const withDefined = (
 ): VoiceReadinessProfileRoutesOptions =>
   Object.fromEntries(
     Object.entries(options).filter(([, value]) => value !== undefined),
-  ) as VoiceReadinessProfileRoutesOptions;
+  );
 
 const mergeLinks = (
   defaults: NonNullable<VoiceProductionReadinessRoutesOptions["links"]>,
@@ -368,6 +368,7 @@ export const createVoiceReadinessProfile = (
       },
       options.links,
     );
+
     return withDefined({
       bargeInReports: options.bargeInReports,
       gate: options.gate,
@@ -406,6 +407,7 @@ export const createVoiceReadinessProfile = (
       },
       options.links,
     );
+
     return withDefined({
       auditDeliveries: options.auditDeliveries,
       campaignReadiness: options.campaignReadiness,

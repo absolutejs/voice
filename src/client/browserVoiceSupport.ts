@@ -43,54 +43,6 @@ const detectMediaRecorderOpus = (
   }
 };
 
-export const probeBrowserVoiceSupport = (
-  globalScope: typeof globalThis = globalThis,
-): BrowserVoiceSupportProbe => {
-  const win = globalScope as typeof globalThis & {
-    AudioContext?: typeof AudioContext;
-    MediaRecorder?: typeof MediaRecorder;
-    RTCPeerConnection?: typeof RTCPeerConnection;
-    isSecureContext?: boolean;
-    navigator?: Navigator;
-    webkitAudioContext?: typeof AudioContext;
-  };
-  const userAgent = win.navigator?.userAgent ?? "";
-  const audioContextCtor = win.AudioContext ?? win.webkitAudioContext;
-  const hasAudioContext = typeof audioContextCtor === "function";
-  const hasAudioWorklet = hasAudioContext
-    ? safeGet(() => "audioWorklet" in audioContextCtor!.prototype) === true
-    : false;
-  const hasGetUserMedia = Boolean(
-    win.navigator?.mediaDevices &&
-    typeof win.navigator.mediaDevices.getUserMedia === "function",
-  );
-  const hasMediaRecorder = typeof win.MediaRecorder === "function";
-  const hasRTCPeerConnection = typeof win.RTCPeerConnection === "function";
-  const hasWebSocket =
-    typeof (win as { WebSocket?: unknown }).WebSocket === "function";
-  const isInsecureContext =
-    typeof win.isSecureContext === "boolean" ? !win.isSecureContext : false;
-  const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
-  const isIos = /iPad|iPhone|iPod/.test(userAgent);
-  const requiresUserGestureToResumeAudio = isSafari || isIos;
-  const hasOpusEncoding = detectMediaRecorderOpus(win.MediaRecorder);
-
-  return {
-    hasAudioContext,
-    hasAudioWorklet,
-    hasGetUserMedia,
-    hasMediaRecorder,
-    hasOpusEncoding,
-    hasRTCPeerConnection,
-    hasWebSocket,
-    isInsecureContext,
-    isIos,
-    isSafari,
-    requiresUserGestureToResumeAudio,
-    userAgent,
-  };
-};
-
 export const checkBrowserVoiceSupport = (
   globalScope: typeof globalThis = globalThis,
 ): BrowserVoiceSupportReport => {
@@ -144,5 +96,52 @@ export const checkBrowserVoiceSupport = (
     capabilities,
     ok: blockers.length === 0,
     warnings,
+  };
+};
+export const probeBrowserVoiceSupport = (
+  globalScope: typeof globalThis = globalThis,
+): BrowserVoiceSupportProbe => {
+  const win = globalScope as typeof globalThis & {
+    AudioContext?: typeof AudioContext;
+    MediaRecorder?: typeof MediaRecorder;
+    RTCPeerConnection?: typeof RTCPeerConnection;
+    isSecureContext?: boolean;
+    navigator?: Navigator;
+    webkitAudioContext?: typeof AudioContext;
+  };
+  const userAgent = win.navigator?.userAgent ?? "";
+  const audioContextCtor = win.AudioContext ?? win.webkitAudioContext;
+  const hasAudioContext = typeof audioContextCtor === "function";
+  const hasAudioWorklet = hasAudioContext
+    ? safeGet(() => "audioWorklet" in audioContextCtor.prototype) === true
+    : false;
+  const hasGetUserMedia = Boolean(
+    win.navigator?.mediaDevices &&
+    typeof win.navigator.mediaDevices.getUserMedia === "function",
+  );
+  const hasMediaRecorder = typeof win.MediaRecorder === "function";
+  const hasRTCPeerConnection = typeof win.RTCPeerConnection === "function";
+  const hasWebSocket =
+    typeof (win as { WebSocket?: unknown }).WebSocket === "function";
+  const isInsecureContext =
+    typeof win.isSecureContext === "boolean" ? !win.isSecureContext : false;
+  const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
+  const isIos = /iPad|iPhone|iPod/.test(userAgent);
+  const requiresUserGestureToResumeAudio = isSafari || isIos;
+  const hasOpusEncoding = detectMediaRecorderOpus(win.MediaRecorder);
+
+  return {
+    hasAudioContext,
+    hasAudioWorklet,
+    hasGetUserMedia,
+    hasMediaRecorder,
+    hasOpusEncoding,
+    hasRTCPeerConnection,
+    hasWebSocket,
+    isInsecureContext,
+    isIos,
+    isSafari,
+    requiresUserGestureToResumeAudio,
+    userAgent,
   };
 };

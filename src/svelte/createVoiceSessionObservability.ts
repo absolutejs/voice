@@ -10,6 +10,7 @@ export const createVoiceSessionObservability = (
   options: VoiceSessionObservabilityWidgetOptions = {},
 ) => {
   const store = createSharedVoiceSessionObservabilityStore(path, options);
+
   return {
     ...store,
     getHTML: () =>

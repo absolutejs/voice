@@ -18,5 +18,6 @@ export const worstVoiceStatus = (
       worst = status;
     }
   }
+
   return worst;
 };

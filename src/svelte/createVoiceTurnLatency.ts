@@ -10,6 +10,7 @@ export const createVoiceTurnLatency = (
   options: VoiceTurnLatencyWidgetOptions = {},
 ) => {
   const store = createVoiceTurnLatencyStore(path, options);
+
   return {
     ...store,
     getHTML: () => renderVoiceTurnLatencyHTML(store.getSnapshot(), options),

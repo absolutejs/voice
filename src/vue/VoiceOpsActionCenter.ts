@@ -69,10 +69,10 @@ export const VoiceOpsActionCenter = defineComponent({
                 {
                   disabled: action.disabled,
                   key: action.id,
+                  type: "button",
                   onClick: () => {
                     void center.run(action.id).catch(() => {});
                   },
-                  type: "button",
                 },
                 action.isRunning ? "Working..." : action.label,
               ),

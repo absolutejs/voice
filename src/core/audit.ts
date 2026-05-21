@@ -181,7 +181,80 @@ export const createVoiceAuditEvent = <
   at: event.at ?? Date.now(),
   id: event.id ?? crypto.randomUUID(),
 });
+export const createVoiceAuditLogger = (
+  store: VoiceAuditEventStore,
+): VoiceAuditLogger => ({
+  handoff: (input) => recordVoiceHandoffAuditEvent({ ...input, store }),
+  operatorAction: (input) => recordVoiceOperatorAuditEvent({ ...input, store }),
+  providerCall: (input) => recordVoiceProviderAuditEvent({ ...input, store }),
+  record: (event) => recordVoiceAuditEvent(store, event),
+  retention: (input) => recordVoiceRetentionAuditEvent({ ...input, store }),
+  toolCall: (input) => recordVoiceToolAuditEvent({ ...input, store }),
+});
+export const createVoiceMemoryAuditEventStore = <
+  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+>(): VoiceAuditEventStore<TEvent> => {
+  const events = new Map<string, TEvent>();
 
+  return {
+    append: (event) => {
+      const stored = createVoiceAuditEvent(event) as TEvent;
+      events.set(stored.id, stored);
+
+      return stored;
+    },
+    get: (id) => events.get(id),
+    list: (filter) => filterVoiceAuditEvents([...events.values()], filter),
+  };
+};
+export const createVoiceScopedAuditEventStore = <
+  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+>(
+  store: VoiceAuditEventStore<TEvent>,
+  scope: VoiceScopedAuditEventStoreOptions,
+): VoiceAuditEventStore<TEvent> => {
+  const upstreamFilter = (filter: VoiceAuditEventFilter = {}) => {
+    const next = { ...filter };
+    delete next.limit;
+    if (scope.actorId !== undefined) {
+      delete next.actorId;
+    }
+    if (scope.outcome !== undefined) {
+      delete next.outcome;
+    }
+    if (scope.resourceId !== undefined) {
+      delete next.resourceId;
+    }
+    if (scope.resourceType !== undefined) {
+      delete next.resourceType;
+    }
+    if (scope.sessionId !== undefined) {
+      delete next.sessionId;
+    }
+    if (scope.traceId !== undefined) {
+      delete next.traceId;
+    }
+    if (scope.type !== undefined) {
+      delete next.type;
+    }
+
+    return next;
+  };
+  const scopedFilter = (filter: VoiceAuditEventFilter = {}) => ({
+    ...filter,
+    ...scope,
+  });
+
+  return {
+    append: (event) => store.append(event),
+    get: (id) => store.get(id),
+    list: async (filter) =>
+      filterVoiceAuditEvents(
+        await store.list(upstreamFilter(filter)),
+        scopedFilter(filter),
+      ),
+  };
+};
 export const filterVoiceAuditEvents = <
   TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
 >(
@@ -247,77 +320,46 @@ export const filterVoiceAuditEvents = <
     ? sorted.slice(0, filter.limit)
     : sorted;
 };
-
-export const createVoiceScopedAuditEventStore = <
-  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
->(
-  store: VoiceAuditEventStore<TEvent>,
-  scope: VoiceScopedAuditEventStoreOptions,
-): VoiceAuditEventStore<TEvent> => {
-  const upstreamFilter = (filter: VoiceAuditEventFilter = {}) => {
-    const next = { ...filter };
-    delete next.limit;
-    if (scope.actorId !== undefined) {
-      delete next.actorId;
-    }
-    if (scope.outcome !== undefined) {
-      delete next.outcome;
-    }
-    if (scope.resourceId !== undefined) {
-      delete next.resourceId;
-    }
-    if (scope.resourceType !== undefined) {
-      delete next.resourceType;
-    }
-    if (scope.sessionId !== undefined) {
-      delete next.sessionId;
-    }
-    if (scope.traceId !== undefined) {
-      delete next.traceId;
-    }
-    if (scope.type !== undefined) {
-      delete next.type;
-    }
-
-    return next;
-  };
-  const scopedFilter = (filter: VoiceAuditEventFilter = {}) => ({
-    ...filter,
-    ...scope,
-  });
-
-  return {
-    append: (event) => store.append(event),
-    get: (id) => store.get(id),
-    list: async (filter) =>
-      filterVoiceAuditEvents(
-        await store.list(upstreamFilter(filter)),
-        scopedFilter(filter),
-      ),
-  };
-};
-
-export const createVoiceMemoryAuditEventStore = <
-  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
->(): VoiceAuditEventStore<TEvent> => {
-  const events = new Map<string, TEvent>();
-
-  return {
-    append: (event) => {
-      const stored = createVoiceAuditEvent(event) as TEvent;
-      events.set(stored.id, stored);
-      return stored;
-    },
-    get: (id) => events.get(id),
-    list: (filter) => filterVoiceAuditEvents([...events.values()], filter),
-  };
-};
-
 export const recordVoiceAuditEvent = (
   store: VoiceAuditEventStore,
   event: VoiceAuditEvent,
 ) => store.append(createVoiceAuditEvent(event));
-
+export const recordVoiceHandoffAuditEvent = (
+  input: VoiceHandoffAuditEventInput,
+) =>
+  recordVoiceAuditEvent(input.store, {
+    action: "handoff",
+    actor: input.actor,
+    metadata: input.metadata,
+    outcome: input.outcome,
+    payload: {
+      fromAgentId: input.fromAgentId,
+      reason: input.reason,
+      target: input.target,
+      toAgentId: input.toAgentId,
+    },
+    resource: {
+      id: input.toAgentId ?? input.target,
+      type: "handoff",
+    },
+    sessionId: input.sessionId,
+    traceId: input.traceId,
+    type: "handoff",
+  });
+export const recordVoiceOperatorAuditEvent = (
+  input: VoiceOperatorAuditEventInput,
+) =>
+  recordVoiceAuditEvent(input.store, {
+    action: input.action,
+    actor: input.actor,
+    metadata: input.metadata,
+    outcome: input.outcome ?? "success",
+    payload: input.payload,
+    resource: input.resource,
+    sessionId: input.sessionId,
+    traceId: input.traceId,
+    type: "operator.action",
+  });
 export const recordVoiceProviderAuditEvent = (
   input: VoiceProviderAuditEventInput,
 ) =>
@@ -342,51 +384,6 @@ export const recordVoiceProviderAuditEvent = (
     traceId: input.traceId,
     type: "provider.call",
   });
-
-export const recordVoiceToolAuditEvent = (input: VoiceToolAuditEventInput) =>
-  recordVoiceAuditEvent(input.store, {
-    action: "tool.call",
-    actor: input.actor,
-    metadata: input.metadata,
-    outcome: input.outcome,
-    payload: {
-      elapsedMs: input.elapsedMs,
-      error: input.error,
-      toolCallId: input.toolCallId,
-      toolName: input.toolName,
-    },
-    resource: {
-      id: input.toolName,
-      type: "tool",
-    },
-    sessionId: input.sessionId,
-    traceId: input.traceId,
-    type: "tool.call",
-  });
-
-export const recordVoiceHandoffAuditEvent = (
-  input: VoiceHandoffAuditEventInput,
-) =>
-  recordVoiceAuditEvent(input.store, {
-    action: "handoff",
-    actor: input.actor,
-    metadata: input.metadata,
-    outcome: input.outcome,
-    payload: {
-      fromAgentId: input.fromAgentId,
-      reason: input.reason,
-      target: input.target,
-      toAgentId: input.toAgentId,
-    },
-    resource: {
-      id: input.toAgentId ?? input.target,
-      type: "handoff",
-    },
-    sessionId: input.sessionId,
-    traceId: input.traceId,
-    type: "handoff",
-  });
-
 export const recordVoiceRetentionAuditEvent = (
   input: VoiceRetentionAuditEventInput,
 ) =>
@@ -408,29 +405,23 @@ export const recordVoiceRetentionAuditEvent = (
     },
     type: "retention.policy",
   });
-
-export const recordVoiceOperatorAuditEvent = (
-  input: VoiceOperatorAuditEventInput,
-) =>
+export const recordVoiceToolAuditEvent = (input: VoiceToolAuditEventInput) =>
   recordVoiceAuditEvent(input.store, {
-    action: input.action,
+    action: "tool.call",
     actor: input.actor,
     metadata: input.metadata,
-    outcome: input.outcome ?? "success",
-    payload: input.payload,
-    resource: input.resource,
+    outcome: input.outcome,
+    payload: {
+      elapsedMs: input.elapsedMs,
+      error: input.error,
+      toolCallId: input.toolCallId,
+      toolName: input.toolName,
+    },
+    resource: {
+      id: input.toolName,
+      type: "tool",
+    },
     sessionId: input.sessionId,
     traceId: input.traceId,
-    type: "operator.action",
+    type: "tool.call",
   });
-
-export const createVoiceAuditLogger = (
-  store: VoiceAuditEventStore,
-): VoiceAuditLogger => ({
-  handoff: (input) => recordVoiceHandoffAuditEvent({ ...input, store }),
-  operatorAction: (input) => recordVoiceOperatorAuditEvent({ ...input, store }),
-  providerCall: (input) => recordVoiceProviderAuditEvent({ ...input, store }),
-  record: (event) => recordVoiceAuditEvent(store, event),
-  retention: (input) => recordVoiceRetentionAuditEvent({ ...input, store }),
-  toolCall: (input) => recordVoiceToolAuditEvent({ ...input, store }),
-});

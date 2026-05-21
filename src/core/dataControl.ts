@@ -275,8 +275,8 @@ const reportSkippedScope = (
   dryRun: boolean,
   skippedReason: VoiceDataRetentionScopeReport["skippedReason"],
 ): VoiceDataRetentionScopeReport => ({
-  deletedIds: [],
   deletedCount: 0,
+  deletedIds: [],
   dryRun,
   scannedCount: 0,
   scope,
@@ -379,9 +379,10 @@ const buildTraceRetentionReport = async (
 
   if (!hasRetentionSelector(options, "traces")) {
     const events = await options.traces.list(options.traceFilter);
+
     return {
-      deletedIds: [],
       deletedCount: 0,
+      deletedIds: [],
       dryRun: options.dryRun,
       scannedCount: events.length,
       scope: "traces",
@@ -485,6 +486,7 @@ export const applyVoiceDataRetentionPolicy = async (
 
       if (scope === "sessions") {
         const sessions = options.sessions ?? options.session;
+
         return sessions
           ? runRetentionScope({
               ...common,
@@ -550,6 +552,7 @@ const getNumberQuery = (value: unknown) => {
       : typeof value === "string"
         ? Number(value)
         : undefined;
+
   return typeof parsed === "number" && Number.isFinite(parsed)
     ? parsed
     : undefined;
@@ -562,6 +565,7 @@ const parseRetentionScopes = (
     return undefined;
   }
   const allowed = new Set(allRetentionScopes);
+
   return value
     .split(",")
     .map((entry) => entry.trim())
@@ -680,9 +684,67 @@ const findMissing = <Value extends string>(
     return [];
   }
   const valueSet = new Set(values);
+
   return required.filter((value) => !valueSet.has(value));
 };
 
+export const assertVoiceDataControlEvidence = (
+  report: VoiceDataControlReport,
+  input: VoiceDataControlAssertionInput = {},
+): VoiceDataControlAssertionReport => assertVoiceEvidence(
+    "Voice data-control evidence assertion failed",
+    evaluateVoiceDataControlEvidence(report, input),
+  );
+export const buildVoiceDataControlReport = async (
+  options: VoiceDataControlRoutesOptions & {
+    auditFilter?: VoiceAuditEventFilter;
+    retention?: Omit<VoiceDataRetentionPolicy, "dryRun">;
+  },
+): Promise<VoiceDataControlReport> => {
+  const redaction = resolveDataControlRedaction(options.redact);
+  const retentionPlan = await buildVoiceDataRetentionPlan({
+    ...options,
+    ...(options.retention ?? {}),
+    auditDeliveries: options.auditDeliveries,
+    traceDeliveries: options.traceDeliveries,
+  });
+  const auditExport = options.audit
+    ? await exportVoiceAuditTrail({
+        filter: options.auditFilter,
+        redact: redaction,
+        store: options.audit,
+      })
+    : undefined;
+
+  return {
+    auditExport,
+    checkedAt: Date.now(),
+    redaction: {
+      defaults: voiceComplianceRedactionDefaults,
+      enabled: Boolean(redaction),
+    },
+    retentionPlan,
+    storage: buildStorageSurfaces(options),
+    providerKeys: options.providerKeys ?? defaultProviderKeys,
+    zeroRetentionAvailable: true,
+  };
+};
+export const createVoiceZeroRetentionPolicy = (
+  options: VoiceDataRetentionStores & {
+    audit?: VoiceAuditEventStore;
+    auditActor?: VoiceAuditActor;
+    auditDeliveries?: VoiceAuditSinkDeliveryStore;
+    beforeOrAt?: number;
+    dryRun?: boolean;
+    scopes?: VoiceDataRetentionScope[];
+    traceDeliveries?: VoiceTraceSinkDeliveryStore;
+  },
+): VoiceDataRetentionPolicy => ({
+  ...options,
+  beforeOrAt: options.beforeOrAt ?? Date.now(),
+  dryRun: options.dryRun ?? true,
+  scopes: options.scopes ?? allRetentionScopes,
+});
 export const evaluateVoiceDataControlEvidence = (
   report: VoiceDataControlReport,
   input: VoiceDataControlAssertionInput = {},
@@ -710,8 +772,8 @@ export const evaluateVoiceDataControlEvidence = (
   );
   const auditExportEvents = report.auditExport?.events.length ?? 0;
   const deletionDeleted = report.deletionProof?.deletedCount ?? 0;
-  const maxRetentionDeleted = input.maxRetentionDeleted;
-  const maxDeletionDeleted = input.maxDeletionDeleted;
+  const {maxRetentionDeleted} = input;
+  const {maxDeletionDeleted} = input;
   const requireAuditExport = input.requireAuditExport ?? true;
   const requireDeletionDryRun = input.requireDeletionDryRun ?? true;
   const requireDeletionProof = input.requireDeletionProof ?? false;
@@ -863,68 +925,6 @@ export const evaluateVoiceDataControlEvidence = (
   };
 };
 
-export const assertVoiceDataControlEvidence = (
-  report: VoiceDataControlReport,
-  input: VoiceDataControlAssertionInput = {},
-): VoiceDataControlAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice data-control evidence assertion failed",
-    evaluateVoiceDataControlEvidence(report, input),
-  );
-};
-
-export const createVoiceZeroRetentionPolicy = (
-  options: VoiceDataRetentionStores & {
-    audit?: VoiceAuditEventStore;
-    auditActor?: VoiceAuditActor;
-    auditDeliveries?: VoiceAuditSinkDeliveryStore;
-    beforeOrAt?: number;
-    dryRun?: boolean;
-    scopes?: VoiceDataRetentionScope[];
-    traceDeliveries?: VoiceTraceSinkDeliveryStore;
-  },
-): VoiceDataRetentionPolicy => ({
-  ...options,
-  beforeOrAt: options.beforeOrAt ?? Date.now(),
-  dryRun: options.dryRun ?? true,
-  scopes: options.scopes ?? allRetentionScopes,
-});
-
-export const buildVoiceDataControlReport = async (
-  options: VoiceDataControlRoutesOptions & {
-    auditFilter?: VoiceAuditEventFilter;
-    retention?: Omit<VoiceDataRetentionPolicy, "dryRun">;
-  },
-): Promise<VoiceDataControlReport> => {
-  const redaction = resolveDataControlRedaction(options.redact);
-  const retentionPlan = await buildVoiceDataRetentionPlan({
-    ...options,
-    ...(options.retention ?? {}),
-    auditDeliveries: options.auditDeliveries,
-    traceDeliveries: options.traceDeliveries,
-  });
-  const auditExport = options.audit
-    ? await exportVoiceAuditTrail({
-        filter: options.auditFilter,
-        redact: redaction,
-        store: options.audit,
-      })
-    : undefined;
-
-  return {
-    auditExport,
-    checkedAt: Date.now(),
-    redaction: {
-      defaults: voiceComplianceRedactionDefaults,
-      enabled: Boolean(redaction),
-    },
-    retentionPlan,
-    storage: buildStorageSurfaces(options),
-    providerKeys: options.providerKeys ?? defaultProviderKeys,
-    zeroRetentionAvailable: true,
-  };
-};
-
 const renderDataRetentionReportRows = (report: VoiceDataRetentionReport) =>
   report.scopes
     .map(
@@ -1031,6 +1031,7 @@ const parseRetentionPolicyBody = (
 ): VoiceDataRetentionPolicy => {
   const input =
     body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+
   return {
     ...options,
     before: getNumberQuery(input.before),
@@ -1060,6 +1061,7 @@ export const createVoiceDataControlRoutes = (
       ...options,
       retention: buildRetentionPolicyFromQuery(query, options),
     });
+
     return new Response(renderVoiceDataControlHTML(report, { title }), {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
@@ -1080,6 +1082,7 @@ export const createVoiceDataControlRoutes = (
       ...options,
       retention: buildRetentionPolicyFromQuery(query, options),
     });
+
     return new Response(renderVoiceDataControlMarkdown(report, { title }), {
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
@@ -1095,11 +1098,13 @@ export const createVoiceDataControlRoutes = (
       body && typeof body === "object" ? (body as Record<string, unknown>) : {};
     if (input.confirm !== "apply-retention-policy") {
       set.status = 400;
+
       return {
         error:
           'Refusing to apply retention without confirm="apply-retention-policy". Use /retention/plan first.',
       };
     }
+
     return applyVoiceDataRetentionPolicy(
       parseRetentionPolicyBody(body, options, false),
     );
@@ -1114,6 +1119,7 @@ export const createVoiceDataControlRoutes = (
   );
   routes.get(`${path}/audit.md`, async () => {
     const events = options.audit ? await options.audit.list() : [];
+
     return new Response(
       renderVoiceAuditMarkdown(events, {
         redact: resolveDataControlRedaction(options.redact),
@@ -1129,6 +1135,7 @@ export const createVoiceDataControlRoutes = (
   });
   routes.get(`${path}/audit.html`, async () => {
     const events = options.audit ? await options.audit.list() : [];
+
     return new Response(
       renderVoiceAuditHTML(events, {
         redact: resolveDataControlRedaction(options.redact),

@@ -59,19 +59,6 @@ export const createVoiceEndCallTool = <
     description:
       options.description ??
       "End the call gracefully. Call this only when the conversation is complete or the caller asks to hang up.",
-    execute: async ({ api, args, context, session }) => {
-      const farewell =
-        typeof options.farewell === "function"
-          ? options.farewell({ args, context, session })
-          : options.farewell;
-      const result = options.resolveResult?.({ args, context, session });
-      await api.complete(result);
-      return {
-        farewell,
-        ok: true,
-        reason: args?.reason,
-      };
-    },
     name: options.name ?? "endCall",
     parameters: {
       additionalProperties: false,
@@ -82,6 +69,20 @@ export const createVoiceEndCallTool = <
         },
       },
       type: "object",
+    },
+    execute: async ({ api, args, context, session }) => {
+      const farewell =
+        typeof options.farewell === "function"
+          ? options.farewell({ args, context, session })
+          : options.farewell;
+      const result = options.resolveResult?.({ args, context, session });
+      await api.complete(result);
+
+      return {
+        farewell,
+        ok: true,
+        reason: args?.reason,
+      };
     },
     resultToMessage: (result) => result.farewell ?? "Call ended.",
   });
@@ -148,6 +149,7 @@ export const createVoiceTransferCallTool = <
         `- ${entry.id} → ${entry.target}${entry.description ? `: ${entry.description}` : ""}`,
     )
     .join("\n");
+
   return createVoiceAgentTool<
     TContext,
     TSession,
@@ -158,6 +160,24 @@ export const createVoiceTransferCallTool = <
     description:
       options.description ??
       `Transfer the caller to a human or another route. Available destinations:\n${destinationDocs}`,
+    name: options.name ?? "transferCall",
+    parameters: {
+      additionalProperties: false,
+      properties: {
+        destinationId: {
+          description: "Which configured destination to transfer the call to.",
+          enum: destinationIds,
+          type: "string",
+        },
+        reason: {
+          description:
+            "Optional one-line summary of why the transfer is happening.",
+          type: "string",
+        },
+      },
+      required: ["destinationId"],
+      type: "object",
+    },
     execute: async ({ api, args, context, session }) => {
       const destination = options.destinations.find(
         (entry) => entry.id === args?.destinationId,
@@ -180,30 +200,13 @@ export const createVoiceTransferCallTool = <
         target: destination.target,
         transferMode: destination.transferMode,
       });
+
       return {
         destinationId: destination.id,
         message: destination.message,
         ok: true,
         target: destination.target,
       };
-    },
-    name: options.name ?? "transferCall",
-    parameters: {
-      additionalProperties: false,
-      properties: {
-        destinationId: {
-          description: "Which configured destination to transfer the call to.",
-          enum: destinationIds,
-          type: "string",
-        },
-        reason: {
-          description:
-            "Optional one-line summary of why the transfer is happening.",
-          type: "string",
-        },
-      },
-      required: ["destinationId"],
-      type: "object",
     },
     resultToMessage: (result) =>
       result.message ?? `Transferring you to ${result.target}.`,
@@ -252,6 +255,7 @@ export const createVoiceDTMFTool = <
     (options.allowedDigits ?? DEFAULT_DTMF_ALLOWED).split(""),
   );
   const maxDigits = options.maxDigits ?? 32;
+
   return createVoiceAgentTool<
     TContext,
     TSession,
@@ -261,6 +265,20 @@ export const createVoiceDTMFTool = <
     description:
       options.description ??
       "Send DTMF (touch-tone) digits to the active call. Use for IVR navigation and keypad entry.",
+    name: options.name ?? "sendDTMF",
+    parameters: {
+      additionalProperties: false,
+      properties: {
+        digits: {
+          description: `Digits to send. Allowed characters: ${options.allowedDigits ?? DEFAULT_DTMF_ALLOWED}. Max length ${String(maxDigits)}.`,
+          maxLength: maxDigits,
+          minLength: 1,
+          type: "string",
+        },
+      },
+      required: ["digits"],
+      type: "object",
+    },
     execute: async ({ api, args, context, session }) => {
       const raw = typeof args?.digits === "string" ? args.digits.trim() : "";
       if (raw.length === 0) {
@@ -284,24 +302,11 @@ export const createVoiceDTMFTool = <
         context,
         session,
       });
+
       return {
         digits: raw,
         ok: true,
       };
-    },
-    name: options.name ?? "sendDTMF",
-    parameters: {
-      additionalProperties: false,
-      properties: {
-        digits: {
-          description: `Digits to send. Allowed characters: ${options.allowedDigits ?? DEFAULT_DTMF_ALLOWED}. Max length ${String(maxDigits)}.`,
-          maxLength: maxDigits,
-          minLength: 1,
-          type: "string",
-        },
-      },
-      required: ["digits"],
-      type: "object",
     },
     resultToMessage: (result) => `Sent DTMF: ${result.digits}`,
   });
@@ -348,6 +353,7 @@ export const createVoiceVoicemailDetectionTool = <
   TResult
 > => {
   const completeAfterMarking = options.completeAfterMarking ?? true;
+
   return createVoiceAgentTool<
     TContext,
     TSession,
@@ -358,25 +364,6 @@ export const createVoiceVoicemailDetectionTool = <
     description:
       options.description ??
       "Mark the call as a voicemail when you hear a beep, a 'please leave a message' prompt, or other voicemail cues. Call exactly once per detection.",
-    execute: async ({ api, args, context, session }) => {
-      const metadata: Record<string, unknown> = {};
-      if (typeof args?.confidence === "number") {
-        metadata.confidence = args.confidence;
-      }
-      if (typeof args?.reason === "string" && args.reason.length > 0) {
-        metadata.reason = args.reason;
-      }
-      const result = options.resolveResult?.({ args, context, session });
-      await api.markVoicemail({ metadata, result });
-      if (completeAfterMarking) {
-        await api.complete(result);
-      }
-      return {
-        confidence: args?.confidence,
-        ok: true,
-        reason: args?.reason,
-      };
-    },
     name: options.name ?? "markVoicemail",
     parameters: {
       additionalProperties: false,
@@ -394,6 +381,26 @@ export const createVoiceVoicemailDetectionTool = <
         },
       },
       type: "object",
+    },
+    execute: async ({ api, args, context, session }) => {
+      const metadata: Record<string, unknown> = {};
+      if (typeof args?.confidence === "number") {
+        metadata.confidence = args.confidence;
+      }
+      if (typeof args?.reason === "string" && args.reason.length > 0) {
+        metadata.reason = args.reason;
+      }
+      const result = options.resolveResult?.({ args, context, session });
+      await api.markVoicemail({ metadata, result });
+      if (completeAfterMarking) {
+        await api.complete(result);
+      }
+
+      return {
+        confidence: args?.confidence,
+        ok: true,
+        reason: args?.reason,
+      };
     },
     resultToMessage: (result) =>
       options.message ??
@@ -480,6 +487,7 @@ export const createVoiceApiRequestTool = <
   const method = options.method ?? "GET";
   const fetchImpl: VoiceApiRequestToolFetch =
     options.fetch ?? ((request) => fetch(request));
+
   return createVoiceAgentTool<
     TContext,
     TSession,
@@ -487,6 +495,14 @@ export const createVoiceApiRequestTool = <
     VoiceApiRequestToolResult<TResponse>
   >({
     description: options.description,
+    name: options.name,
+    parameters: options.parameters,
+    resultToMessage:
+      options.formatResult ??
+      ((result) =>
+        result.ok
+          ? `API request ${options.name} succeeded (${String(result.status)}).`
+          : `API request ${options.name} failed with status ${String(result.status)}.`),
     execute: async ({ args, context, session }) => {
       const url = new URL(options.url);
       appendSearchParams(url, options.buildQuery?.({ args, context, session }));
@@ -518,6 +534,7 @@ export const createVoiceApiRequestTool = <
       const parsedBody = options.parseResponse
         ? await options.parseResponse(response)
         : ((await response.json().catch(() => undefined)) as TResponse);
+
       return {
         body: parsedBody,
         ok: response.ok,
@@ -525,13 +542,5 @@ export const createVoiceApiRequestTool = <
         url: url.toString(),
       };
     },
-    name: options.name,
-    parameters: options.parameters,
-    resultToMessage:
-      options.formatResult ??
-      ((result) =>
-        result.ok
-          ? `API request ${options.name} succeeded (${String(result.status)}).`
-          : `API request ${options.name} failed with status ${String(result.status)}.`),
   });
 };

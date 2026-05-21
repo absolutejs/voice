@@ -202,7 +202,50 @@ export const createVoiceOpsWebhookEnvelope = async (input: {
     source: "absolutejs-voice",
   };
 };
+export const createVoiceOpsWebhookReceiverRoutes = (
+  options: VoiceOpsWebhookReceiverRoutesOptions = {},
+) => {
+  const path = options.path ?? "/api/voice-ops/webhook";
 
+  return new Elysia().post(
+    path,
+    async ({ body, request, set }) => {
+      const bodyText = typeof body === "string" ? body : JSON.stringify(body);
+      if (options.signingSecret) {
+        const verification = await verifyVoiceOpsWebhookSignature({
+          body: bodyText,
+          secret: options.signingSecret,
+          signature: request.headers.get("x-absolutejs-signature"),
+          timestamp: request.headers.get("x-absolutejs-timestamp"),
+          toleranceMs: options.toleranceMs,
+        });
+        if (!verification.ok) {
+          set.status = 401;
+
+          return {
+            ok: false,
+            reason: verification.reason,
+          };
+        }
+      }
+
+      const envelope = JSON.parse(bodyText) as VoiceOpsWebhookEnvelope;
+      await options.onEnvelope?.({
+        envelope,
+        request,
+      });
+
+      return {
+        eventId: envelope.event?.id,
+        ok: true,
+        type: envelope.event?.type,
+      };
+    },
+    {
+      parse: "text",
+    },
+  );
+};
 export const createVoiceOpsWebhookSink = (
   options: VoiceOpsWebhookSinkOptions,
 ): VoiceIntegrationSink =>
@@ -219,7 +262,6 @@ export const createVoiceOpsWebhookSink = (
       }),
     kind: options.kind ?? "ops-webhook",
   });
-
 export const verifyVoiceOpsWebhookSignature = async (input: {
   body: string;
   now?: number;
@@ -285,48 +327,4 @@ export const verifyVoiceOpsWebhookSignature = async (input: {
   return {
     ok: true,
   };
-};
-
-export const createVoiceOpsWebhookReceiverRoutes = (
-  options: VoiceOpsWebhookReceiverRoutesOptions = {},
-) => {
-  const path = options.path ?? "/api/voice-ops/webhook";
-
-  return new Elysia().post(
-    path,
-    async ({ body, request, set }) => {
-      const bodyText = typeof body === "string" ? body : JSON.stringify(body);
-      if (options.signingSecret) {
-        const verification = await verifyVoiceOpsWebhookSignature({
-          body: bodyText,
-          secret: options.signingSecret,
-          signature: request.headers.get("x-absolutejs-signature"),
-          timestamp: request.headers.get("x-absolutejs-timestamp"),
-          toleranceMs: options.toleranceMs,
-        });
-        if (!verification.ok) {
-          set.status = 401;
-          return {
-            ok: false,
-            reason: verification.reason,
-          };
-        }
-      }
-
-      const envelope = JSON.parse(bodyText) as VoiceOpsWebhookEnvelope;
-      await options.onEnvelope?.({
-        envelope,
-        request,
-      });
-
-      return {
-        eventId: envelope.event?.id,
-        ok: true,
-        type: envelope.event?.type,
-      };
-    },
-    {
-      parse: "text",
-    },
-  );
 };

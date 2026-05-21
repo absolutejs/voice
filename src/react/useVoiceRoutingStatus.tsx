@@ -20,6 +20,7 @@ export const useVoiceRoutingStatus = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

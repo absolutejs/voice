@@ -37,6 +37,7 @@ export const VoiceLiveAgentConsole = ({
     const unsubscribe = console.subscribe(() => {
       setState(console.getState());
     });
+
     return () => {
       unsubscribe();
     };

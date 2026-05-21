@@ -67,11 +67,13 @@ const lookupRates = (
     return priceBook[namespacedKey];
   }
   const bare = provider.toLowerCase();
+
   return priceBook[bare];
 };
 
 const round = (value: number, places = 6) => {
   const factor = 10 ** places;
+
   return Math.round(value * factor) / factor;
 };
 
@@ -170,6 +172,7 @@ export const compareVoiceCostScenarios = (input: {
     priceBook: input.priceBook,
     profile: baselineDef.profile,
   });
+
   return {
     baseline,
     scenarios: input.scenarios.map((scenario) => {
@@ -177,6 +180,7 @@ export const compareVoiceCostScenarios = (input: {
         priceBook: input.priceBook,
         profile: scenario.profile,
       });
+
       return {
         delta: {
           monthlyUsd: round(

@@ -42,6 +42,7 @@ export const createVoiceCostDashboardHTMXRoute = (
 ) => {
   const renderers = resolveVoiceDashboardRenderers(options.render);
   const path = options.path ?? "/voice/htmx/cost-dashboard";
+
   return new Elysia({ name: options.name ?? "voice-cost-dashboard-htmx" }).get(
     path,
     async () => {
@@ -63,6 +64,7 @@ export const createVoiceCostDashboardHTMXRoute = (
         renderer: renderers.costDashboard,
         title: options.title,
       });
+
       return new Response(html, { headers: HTML_HEADERS });
     },
   );
@@ -86,23 +88,26 @@ export const createVoiceReplayTimelineHTMXRoute = (
 ) => {
   const renderers = resolveVoiceDashboardRenderers(options.render);
   const basePath = options.path ?? "/voice/htmx/replay";
+
   return new Elysia({
     name: options.name ?? "voice-replay-timeline-htmx",
   }).get(`${basePath}/:artifactId`, async ({ params, set }) => {
-    const { artifactId } = params as { artifactId: string };
+    const { artifactId } = params;
     const artifact = await Promise.resolve(options.resolveArtifact(artifactId));
     if (!artifact) {
       set.status = 404;
+
       return new Response(
         `<div class="absolute-voice-replay-timeline" data-status="not-found" style="background:#0f172a;color:#f8fafc;padding:20px;border-radius:16px;">Replay artifact not found.</div>`,
         { headers: HTML_HEADERS, status: 404 },
       );
     }
     const html = renderVoiceReplayTimelineFromArtifact({
-      artifact: artifact as VoiceCallReviewArtifact,
+      artifact: artifact,
       renderer: renderers.replayTimeline,
       title: options.title,
     });
+
     return new Response(html, { headers: HTML_HEADERS });
   });
 };
@@ -123,13 +128,15 @@ export const createVoiceLiveCallViewerHTMXRoute = (
 ) => {
   const renderers = resolveVoiceDashboardRenderers(options.render);
   const basePath = options.path ?? "/voice/htmx/live";
+
   return new Elysia({
     name: options.name ?? "voice-live-call-viewer-htmx",
   }).get(`${basePath}/:sessionId`, async ({ params, set }) => {
-    const { sessionId } = params as { sessionId: string };
+    const { sessionId } = params;
     const viewer = await Promise.resolve(options.resolveViewer(sessionId));
     if (!viewer) {
       set.status = 404;
+
       return new Response(
         `<div class="absolute-voice-live-call-viewer" data-status="not-found" style="background:#0f172a;color:#f8fafc;padding:20px;border-radius:16px;">No active call for ${sessionId}.</div>`,
         { headers: HTML_HEADERS, status: 404 },
@@ -146,6 +153,7 @@ export const createVoiceLiveCallViewerHTMXRoute = (
       title: options.title,
       viewer,
     });
+
     return new Response(html, { headers: HTML_HEADERS });
   });
 };
@@ -195,6 +203,7 @@ export const createVoiceHTMXDashboardRoutes = (
       }),
     );
   }
+
   return app;
 };
 
@@ -220,6 +229,7 @@ export const createVoiceHTMXDashboardRoutesFromStores = (
             const events = await options.traceStore!.list({
               type: "cost.ready",
             });
+
             return events;
           },
         }

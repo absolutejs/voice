@@ -13,11 +13,11 @@ export const createVoiceOpsStatus = (
 
   return {
     close: store.close,
-    getHTML: () => renderVoiceOpsStatusHTML(store.getSnapshot(), options),
     getSnapshot: store.getSnapshot,
-    getViewModel: () =>
-      createVoiceOpsStatusViewModel(store.getSnapshot(), options),
     refresh: store.refresh,
     subscribe: store.subscribe,
+    getHTML: () => renderVoiceOpsStatusHTML(store.getSnapshot(), options),
+    getViewModel: () =>
+      createVoiceOpsStatusViewModel(store.getSnapshot(), options),
   };
 };

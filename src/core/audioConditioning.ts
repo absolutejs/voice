@@ -35,24 +35,6 @@ const computeRms = (samples: Int16Array) => {
   return Math.sqrt(sumSquares / samples.length);
 };
 
-export const resolveAudioConditioningConfig = (
-  config?: VoiceAudioConditioningConfig,
-): VoiceResolvedAudioConditioningConfig | undefined => {
-  if (!config || config.enabled === false) {
-    return undefined;
-  }
-
-  return {
-    enabled: true,
-    maxGain: config.maxGain ?? DEFAULT_MAX_GAIN,
-    noiseGateAttenuation:
-      config.noiseGateAttenuation ?? DEFAULT_NOISE_GATE_ATTENUATION,
-    noiseGateThreshold:
-      config.noiseGateThreshold ?? DEFAULT_NOISE_GATE_THRESHOLD,
-    targetLevel: config.targetLevel ?? DEFAULT_TARGET_LEVEL,
-  };
-};
-
 export const conditionAudioChunk = (
   audio: AudioChunk,
   config?: VoiceResolvedAudioConditioningConfig,
@@ -80,4 +62,21 @@ export const conditionAudioChunk = (
   }
 
   return new Uint8Array(output.buffer);
+};
+export const resolveAudioConditioningConfig = (
+  config?: VoiceAudioConditioningConfig,
+): VoiceResolvedAudioConditioningConfig | undefined => {
+  if (!config || config.enabled === false) {
+    return undefined;
+  }
+
+  return {
+    enabled: true,
+    maxGain: config.maxGain ?? DEFAULT_MAX_GAIN,
+    noiseGateAttenuation:
+      config.noiseGateAttenuation ?? DEFAULT_NOISE_GATE_ATTENUATION,
+    noiseGateThreshold:
+      config.noiseGateThreshold ?? DEFAULT_NOISE_GATE_THRESHOLD,
+    targetLevel: config.targetLevel ?? DEFAULT_TARGET_LEVEL,
+  };
 };

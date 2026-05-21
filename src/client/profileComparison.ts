@@ -12,18 +12,6 @@ export type VoiceProfileComparisonSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceProfileComparison = async (
-  path = "/api/voice/real-call-profile-history",
-  options: Pick<VoiceProfileComparisonClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice profile comparison failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceRealCallProfileHistoryReport;
-};
-
 export const createVoiceProfileComparisonStore = (
   path = "/api/voice/real-call-profile-history",
   options: VoiceProfileComparisonClientOptions = {},
@@ -55,6 +43,7 @@ export const createVoiceProfileComparisonStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -87,14 +76,27 @@ export const createVoiceProfileComparisonStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceProfileComparison = async (
+  path = "/api/voice/real-call-profile-history",
+  options: Pick<VoiceProfileComparisonClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice profile comparison failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceRealCallProfileHistoryReport;
 };

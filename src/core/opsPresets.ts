@@ -31,8 +31,6 @@ export type VoiceOpsPresetOverrides = {
 
 const PRESET_INPUTS: Record<VoiceOpsPresetName, VoiceOpsPresetInput> = {
   "collections-default": {
-    description:
-      "Biases toward fast callback recovery, aggressive retry routing, and supervisor escalation for overdue debt or collections follow-up.",
     assignmentRules: [
       {
         assign: "collections-priority-team",
@@ -45,6 +43,8 @@ const PRESET_INPUTS: Record<VoiceOpsPresetName, VoiceOpsPresetInput> = {
         },
       },
     ],
+    description:
+      "Biases toward fast callback recovery, aggressive retry routing, and supervisor escalation for overdue debt or collections follow-up.",
     sla: {
       followUpTask: {
         assignee: "collections-supervisors",
@@ -98,8 +98,6 @@ const PRESET_INPUTS: Record<VoiceOpsPresetName, VoiceOpsPresetInput> = {
     },
   },
   "sales-default": {
-    description:
-      "Biases toward rapid callback recovery and handoff verification for inbound or outbound sales flows.",
     assignmentRules: [
       {
         assign: "sales-priority-desk",
@@ -111,6 +109,8 @@ const PRESET_INPUTS: Record<VoiceOpsPresetName, VoiceOpsPresetInput> = {
         },
       },
     ],
+    description:
+      "Biases toward rapid callback recovery and handoff verification for inbound or outbound sales flows.",
     sla: {
       followUpTask: {
         assignee: "sales-leads",
@@ -164,8 +164,6 @@ const PRESET_INPUTS: Record<VoiceOpsPresetName, VoiceOpsPresetInput> = {
     },
   },
   "support-default": {
-    description:
-      "Balanced support-ops workflow with callback recovery, transfer verification, and urgent escalation handling.",
     assignmentRules: [
       {
         assign: "support-oncall",
@@ -188,6 +186,8 @@ const PRESET_INPUTS: Record<VoiceOpsPresetName, VoiceOpsPresetInput> = {
         },
       },
     ],
+    description:
+      "Balanced support-ops workflow with callback recovery, transfer verification, and urgent escalation handling.",
     sla: {
       followUpTask: {
         assignee: "support-supervisors",

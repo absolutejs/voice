@@ -53,6 +53,7 @@ const parseString: VoicePathwaySlotParser = (raw, slot) => {
       return { ok: false, reason: "no-match" };
     }
   }
+
   return { normalized: trimmed, ok: true, value: trimmed };
 };
 
@@ -61,7 +62,7 @@ const parseNumber: VoicePathwaySlotParser = (raw, slot) => {
   if (!trimmed) return { ok: false, reason: "empty" };
   let value: number;
   if (numberWords[trimmed] !== undefined) {
-    value = numberWords[trimmed] as number;
+    value = numberWords[trimmed];
   } else {
     const cleaned = trimmed.replace(/[$,]/gu, "");
     value = Number(cleaned);
@@ -76,6 +77,7 @@ const parseNumber: VoicePathwaySlotParser = (raw, slot) => {
       reason: "out-of-range",
     };
   }
+
   return { normalized: String(value), ok: true, value };
 };
 
@@ -90,6 +92,7 @@ const parseBoolean: VoicePathwaySlotParser = (raw) => {
   if (["no", "nope", "nah", "false", "incorrect"].includes(trimmed)) {
     return { normalized: "false", ok: true, value: false };
   }
+
   return { ok: false, reason: "type-mismatch" };
 };
 
@@ -100,6 +103,7 @@ const parseDate: VoicePathwaySlotParser = (raw) => {
   if (Number.isNaN(date.getTime()))
     return { ok: false, reason: "type-mismatch" };
   const iso = date.toISOString().slice(0, 10);
+
   return { normalized: iso, ok: true, value: iso };
 };
 
@@ -114,6 +118,7 @@ const parseTime: VoicePathwaySlotParser = (raw) => {
   if (meridiem === "am" && hour === 12) hour = 0;
   if (hour > 23 || minute > 59) return { ok: false, reason: "out-of-range" };
   const formatted = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+
   return { normalized: formatted, ok: true, value: formatted };
 };
 
@@ -125,6 +130,7 @@ const parsePhone: VoicePathwaySlotParser = (raw) => {
     return { ok: false, reason: "type-mismatch" };
   }
   const normalized = digits.length === 10 ? `+1${digits}` : `+${digits}`;
+
   return { normalized, ok: true, value: normalized };
 };
 
@@ -136,6 +142,7 @@ const parseEmail: VoicePathwaySlotParser = (raw) => {
     .replace(/\s+dot\s+/gu, ".");
   const ok = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/iu.test(collapsed);
   if (!ok) return { ok: false, reason: "type-mismatch" };
+
   return {
     normalized: collapsed.toLowerCase(),
     ok: true,
@@ -160,6 +167,7 @@ const parseCurrency: VoicePathwaySlotParser = (raw, slot) => {
       reason: "out-of-range",
     };
   }
+
   return { normalized: value.toFixed(2), ok: true, value };
 };
 
@@ -170,6 +178,7 @@ const parseChoice: VoicePathwaySlotParser = (raw, slot) => {
     (choice) => choice.toLowerCase() === trimmed,
   );
   if (!match) return { ok: false, reason: "no-match" };
+
   return { normalized: match, ok: true, value: match };
 };
 
@@ -229,6 +238,7 @@ export const createVoicePathwaySlotCollector = (
     }
     const next = (attemptCounts.get(slot.id) ?? 0) + 1;
     attemptCounts.set(slot.id, next);
+
     return {
       attempt: next,
       raw,

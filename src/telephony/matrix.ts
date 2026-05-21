@@ -165,6 +165,35 @@ const badgeStyles: Record<VoiceTelephonyCarrierMatrixStatus, string> = {
   warn: "background:#fef3c7;color:#92400e;border-color:#fde68a;",
 };
 
+export const createVoiceTelephonyCarrierMatrixRoutes = (
+  options: VoiceTelephonyCarrierMatrixRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/telephony/carriers";
+
+  return new Elysia({
+    name: options.name ?? "absolutejs-voice-telephony-carrier-matrix",
+  }).get(path, async ({ query, request }) => {
+    const providers = await options.load({ query, request });
+    const matrix = createVoiceTelephonyCarrierMatrix({
+      contract: options.contract,
+      providers,
+    });
+    if (query.format === "html") {
+      return new Response(
+        renderVoiceTelephonyCarrierMatrixHTML(matrix, {
+          title: options.title,
+        }),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+          },
+        },
+      );
+    }
+
+    return matrix;
+  });
+};
 export const renderVoiceTelephonyCarrierMatrixHTML = (
   matrix: VoiceTelephonyCarrierMatrix,
   options: {
@@ -207,32 +236,3 @@ ${
   .join("")}
 </section>
 </main>`;
-
-export const createVoiceTelephonyCarrierMatrixRoutes = (
-  options: VoiceTelephonyCarrierMatrixRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/telephony/carriers";
-  return new Elysia({
-    name: options.name ?? "absolutejs-voice-telephony-carrier-matrix",
-  }).get(path, async ({ query, request }) => {
-    const providers = await options.load({ query, request });
-    const matrix = createVoiceTelephonyCarrierMatrix({
-      contract: options.contract,
-      providers,
-    });
-    if (query.format === "html") {
-      return new Response(
-        renderVoiceTelephonyCarrierMatrixHTML(matrix, {
-          title: options.title,
-        }),
-        {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-          },
-        },
-      );
-    }
-
-    return matrix;
-  });
-};

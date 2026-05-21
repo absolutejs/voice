@@ -169,7 +169,7 @@ export const runSTTAdapterFixture = async (
   }
 
   const finalTranscripts = finalEvents.map((event) => ({
-    ...(event.transcript as Transcript),
+    ...(event.transcript),
     // For benchmark transcript assembly, receive order is more reliable than
     // provider timing metadata on late mixed-language continuations.
     endedAtMs: event.receivedAt - startedAt,
@@ -182,6 +182,7 @@ export const runSTTAdapterFixture = async (
     }
 
     const lastFinalReceivedAt = finalEvents.at(-1)?.receivedAt ?? 0;
+
     return event.receivedAt >= lastFinalReceivedAt;
   });
   const finalText =

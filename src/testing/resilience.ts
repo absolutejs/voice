@@ -39,6 +39,7 @@ export type VoiceResilienceReport = {
 
 const roundMetric = (value: number, digits = 4) => {
   const factor = 10 ** digits;
+
   return Math.round(value * factor) / factor;
 };
 
@@ -71,10 +72,10 @@ const createFakeAdapter = () => {
       }
     },
     on: (event, handler) => {
-      listeners[event].push(handler as never);
+      listeners[event].push(handler);
 
       return () => {
-        const index = listeners[event].indexOf(handler as never);
+        const index = listeners[event].indexOf(handler);
         if (index >= 0) {
           listeners[event].splice(index, 1);
         }
@@ -139,6 +140,7 @@ const runScenario = async (
   try {
     await run({
       adapter,
+      turns,
       commit: async (text, transcriptId = `${id}-${turns.length}`) => {
         await adapter.session.emit("final", {
           receivedAt: Date.now(),
@@ -180,7 +182,6 @@ const runScenario = async (
           type: "final",
         });
       },
-      turns,
     });
   } finally {
     await voice.close("resilience-complete");

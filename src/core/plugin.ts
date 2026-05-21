@@ -296,7 +296,7 @@ const resolveSessionId = (runtime: VoiceRuntime, ws: { data?: unknown }) => {
     ws.data && typeof ws.data === "object" && "query" in ws.data
       ? (ws.data.query as Record<string, unknown> | undefined)
       : undefined;
-  const existing = runtime.socketSessions.get(ws as object);
+  const existing = runtime.socketSessions.get(ws);
   const providedSessionId =
     typeof query?.sessionId === "string" && query.sessionId.trim()
       ? query.sessionId.trim()
@@ -305,11 +305,11 @@ const resolveSessionId = (runtime: VoiceRuntime, ws: { data?: unknown }) => {
     resolveQueryScenario(query) ?? existing?.scenarioId ?? null;
 
   const resolved = {
-    sessionId: providedSessionId,
     scenarioId,
+    sessionId: providedSessionId,
   };
 
-  runtime.socketSessions.set(ws as object, resolved);
+  runtime.socketSessions.set(ws, resolved);
 
   return resolved;
 };
@@ -626,7 +626,7 @@ export const voice = <
     profileSwitchGuardedSessions: new Set(),
     socketSessions: new WeakMap(),
   };
-  const monitor = config.monitor;
+  const {monitor} = config;
   const registerMonitorSession = (
     sessionId: string,
     handle: VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>,
@@ -672,6 +672,7 @@ export const voice = <
     sessionId: string,
   ) => {
     if (!monitor) return createSocketAdapter(ws);
+
     return {
       close: async (code?: number, reason?: string) => {
         ws.close(code, reason);
@@ -752,6 +753,15 @@ export const voice = <
       reconnect: sessionOptions.reconnect,
       route: {
         correctTurn: config.correctTurn,
+        onCallStart: config.onCallStart,
+        onComplete: config.onComplete,
+        onError: config.onError,
+        onEscalation: config.onEscalation,
+        onNoAnswer: config.onNoAnswer,
+        onSession: config.onSession,
+        onTransfer: config.onTransfer,
+        onTurn,
+        onVoicemail: config.onVoicemail,
         onCallEnd: async (input) => {
           let hookError: unknown;
 
@@ -778,15 +788,6 @@ export const voice = <
             }
           }
         },
-        onCallStart: config.onCallStart,
-        onComplete: config.onComplete,
-        onEscalation: config.onEscalation,
-        onError: config.onError,
-        onNoAnswer: config.onNoAnswer,
-        onSession: config.onSession,
-        onTransfer: config.onTransfer,
-        onTurn,
-        onVoicemail: config.onVoicemail,
       },
       sessionMetadata:
         profileSwitchDecision &&
@@ -822,8 +823,9 @@ export const voice = <
       return app;
     }
     const options = value === true ? {} : value;
+
     return app.use(
-      (factory as (options: unknown) => Elysia)(options) as Elysia,
+      (factory as (options: unknown) => Elysia)(options),
     );
   };
 
@@ -1106,6 +1108,7 @@ export const voice = <
     );
     app = mountSurface(app, config.turnLatency, createVoiceTurnLatencyRoutes);
     app = mountSurface(app, config.turnQuality, createVoiceTurnQualityRoutes);
+
     return app;
   };
 
@@ -1168,7 +1171,7 @@ export const voice = <
   return new Elysia({ name: "absolutejs-voice" })
     .ws(config.path, {
       close: async (ws, code, reason) => {
-        const socketState = runtime.socketSessions.get(ws as object);
+        const socketState = runtime.socketSessions.get(ws);
         if (!socketState) {
           return;
         }
@@ -1271,7 +1274,7 @@ export const voice = <
             }
 
             sessionState.sessionId = message.sessionId;
-            runtime.socketSessions.set(ws as object, {
+            runtime.socketSessions.set(ws, {
               ...sessionState,
               sessionId: message.sessionId,
               scenarioId: sessionState.scenarioId,
@@ -1280,7 +1283,7 @@ export const voice = <
 
           if (message.type === "start" && message.scenarioId) {
             sessionState.scenarioId = message.scenarioId;
-            runtime.socketSessions.set(ws as object, {
+            runtime.socketSessions.set(ws, {
               ...sessionState,
               scenarioId: message.scenarioId,
             });

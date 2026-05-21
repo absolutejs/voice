@@ -547,6 +547,7 @@ const ensureRecord = async (store: VoiceCampaignStore, campaignId: string) => {
   if (!record) {
     throw new Error(`Voice campaign ${campaignId} was not found.`);
   }
+
   return cloneRecord(record);
 };
 
@@ -556,6 +557,7 @@ const saveRecord = async (
 ) => {
   record.campaign.updatedAt = Date.now();
   await store.set(record.campaign.id, record);
+
   return record;
 };
 
@@ -579,11 +581,13 @@ const normalizeHour = (hour: number) => {
   if (!Number.isFinite(hour)) {
     return 0;
   }
+
   return Math.min(24, Math.max(0, hour));
 };
 
 const getCampaignWindowMinute = (at: number, offsetMinutes = 0) => {
   const date = new Date(at + offsetMinutes * 60_000);
+
   return {
     dayOfWeek: date.getUTCDay(),
     minuteOfDay: date.getUTCHours() * 60 + date.getUTCMinutes(),
@@ -609,6 +613,7 @@ const isWithinCampaignTimeWindow = (
   if (start < end) {
     return minuteOfDay >= start && minuteOfDay < end;
   }
+
   return minuteOfDay >= start || minuteOfDay < end;
 };
 
@@ -627,6 +632,7 @@ const getCampaignRetryBackoffMs = (
   if (policy?.maxBackoffMs === undefined) {
     return value;
   }
+
   return Math.min(value, Math.max(0, policy.maxBackoffMs));
 };
 
@@ -663,6 +669,7 @@ const parseCsvLine = (line: string) => {
     current += character;
   }
   values.push(current.trim());
+
   return values;
 };
 
@@ -677,12 +684,14 @@ const parseVoiceCampaignCSVRows = (
     return [];
   }
   const headers = parseCsvLine(lines[0] ?? "");
+
   return lines.slice(1).map((line) => {
     const values = parseCsvLine(line);
     const row: VoiceCampaignRecipientImportRow = {};
     headers.forEach((header, index) => {
       row[header] = values[index] ?? "";
     });
+
     return row;
   });
 };
@@ -700,6 +709,7 @@ const normalizeCampaignPhone = (value: unknown) => {
   if (digits.length < 8 || digits.length > 15) {
     return undefined;
   }
+
   return hasPlus ? `+${digits}` : `+${digits}`;
 };
 
@@ -711,6 +721,7 @@ const toCampaignScalar = (value: unknown) => {
   ) {
     return value;
   }
+
   return undefined;
 };
 
@@ -724,165 +735,10 @@ const truthyConsent = (value: unknown) => {
   if (typeof value !== "string") {
     return false;
   }
+
   return ["1", "true", "yes", "y", "consented", "opt-in", "opted-in"].includes(
     value.trim().toLowerCase(),
   );
-};
-
-export const importVoiceCampaignRecipients = (
-  options: VoiceCampaignRecipientImportOptions,
-): VoiceCampaignRecipientImportResult => {
-  const rows =
-    options.rows ?? (options.csv ? parseVoiceCampaignCSVRows(options.csv) : []);
-  const phoneColumn = options.phoneColumn ?? "phone";
-  const nameColumn = options.nameColumn ?? "name";
-  const idColumn = options.idColumn ?? "id";
-  const consentColumn = options.consentColumn ?? "consent";
-  const dedupe = options.dedupe ?? true;
-  const seenPhones = new Set<string>();
-  const accepted: VoiceCampaignRecipientInput[] = [];
-  const rejected: VoiceCampaignRecipientImportIssue[] = [];
-  let duplicates = 0;
-
-  rows.forEach((row, index) => {
-    const rowNumber = index + 1;
-    const phoneValue = row[phoneColumn];
-    if (phoneValue === undefined || phoneValue === null || phoneValue === "") {
-      rejected.push({
-        code: "missing-phone",
-        message: `Campaign recipient row ${rowNumber} is missing a phone number.`,
-        row: rowNumber,
-        value: phoneValue,
-      });
-      return;
-    }
-    const phone = normalizeCampaignPhone(phoneValue);
-    if (!phone) {
-      rejected.push({
-        code: "invalid-phone",
-        message: `Campaign recipient row ${rowNumber} has an invalid phone number.`,
-        row: rowNumber,
-        value: phoneValue,
-      });
-      return;
-    }
-    if (options.requireConsent && !truthyConsent(row[consentColumn])) {
-      rejected.push({
-        code: "missing-consent",
-        message: `Campaign recipient row ${rowNumber} is missing required consent.`,
-        row: rowNumber,
-        value: row[consentColumn],
-      });
-      return;
-    }
-    if (dedupe && seenPhones.has(phone)) {
-      duplicates += 1;
-      rejected.push({
-        code: "duplicate",
-        message: `Campaign recipient row ${rowNumber} duplicates ${phone}.`,
-        row: rowNumber,
-        value: phone,
-      });
-      return;
-    }
-    seenPhones.add(phone);
-
-    const variables = Object.fromEntries(
-      (options.variableColumns ?? [])
-        .map((column) => [column, toCampaignScalar(row[column])] as const)
-        .filter(([, value]) => value !== undefined),
-    );
-    const metadata = Object.fromEntries(
-      (options.metadataColumns ?? [])
-        .map((column) => [column, row[column]] as const)
-        .filter(([, value]) => value !== undefined),
-    );
-    const id = toCampaignScalar(row[idColumn]);
-    const name = toCampaignScalar(row[nameColumn]);
-
-    accepted.push({
-      id: typeof id === "string" ? id : undefined,
-      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-      name: typeof name === "string" ? name : undefined,
-      phone,
-      variables:
-        Object.keys(variables).length > 0
-          ? (variables as VoiceCampaignRecipient["variables"])
-          : undefined,
-    });
-  });
-
-  return {
-    accepted,
-    duplicates,
-    rejected,
-    total: rows.length,
-  };
-};
-
-export const createVoiceMemoryCampaignStore = (): VoiceCampaignStore => {
-  const campaigns = new Map<string, VoiceCampaignRecord>();
-  return {
-    get: (id) => {
-      const record = campaigns.get(id);
-      return record ? cloneRecord(record) : undefined;
-    },
-    list: () =>
-      [...campaigns.values()]
-        .map(cloneRecord)
-        .sort(
-          (left, right) => right.campaign.createdAt - left.campaign.createdAt,
-        ),
-    remove: (id) => {
-      campaigns.delete(id);
-    },
-    set: (id, record) => {
-      campaigns.set(id, cloneRecord(record));
-    },
-  };
-};
-
-export const summarizeVoiceCampaigns = (
-  records: VoiceCampaignRecord[],
-): VoiceCampaignSummary => {
-  const summary: VoiceCampaignSummary = {
-    attempts: { failed: 0, queued: 0, running: 0, succeeded: 0, total: 0 },
-    campaigns: {
-      canceled: 0,
-      completed: 0,
-      draft: 0,
-      paused: 0,
-      running: 0,
-      total: records.length,
-    },
-    recipients: {
-      canceled: 0,
-      completed: 0,
-      failed: 0,
-      pending: 0,
-      queued: 0,
-      total: 0,
-    },
-  };
-
-  for (const record of records) {
-    summary.campaigns[record.campaign.status] += 1;
-    for (const recipient of record.recipients) {
-      summary.recipients.total += 1;
-      summary.recipients[recipient.status] += 1;
-    }
-    for (const attempt of record.attempts) {
-      summary.attempts.total += 1;
-      if (attempt.status === "queued" || attempt.status === "running") {
-        summary.attempts[attempt.status] += 1;
-      }
-      if (attempt.status === "failed" || attempt.status === "succeeded") {
-        summary.attempts[attempt.status] += 1;
-      }
-    }
-  }
-
-  return summary;
 };
 
 export const buildVoiceCampaignObservabilityReport = async (
@@ -1032,6 +888,165 @@ export const buildVoiceCampaignObservabilityReport = async (
 
   return report;
 };
+export const createVoiceMemoryCampaignStore = (): VoiceCampaignStore => {
+  const campaigns = new Map<string, VoiceCampaignRecord>();
+
+  return {
+    get: (id) => {
+      const record = campaigns.get(id);
+
+      return record ? cloneRecord(record) : undefined;
+    },
+    list: () =>
+      [...campaigns.values()]
+        .map(cloneRecord)
+        .sort(
+          (left, right) => right.campaign.createdAt - left.campaign.createdAt,
+        ),
+    remove: (id) => {
+      campaigns.delete(id);
+    },
+    set: (id, record) => {
+      campaigns.set(id, cloneRecord(record));
+    },
+  };
+};
+export const importVoiceCampaignRecipients = (
+  options: VoiceCampaignRecipientImportOptions,
+): VoiceCampaignRecipientImportResult => {
+  const rows =
+    options.rows ?? (options.csv ? parseVoiceCampaignCSVRows(options.csv) : []);
+  const phoneColumn = options.phoneColumn ?? "phone";
+  const nameColumn = options.nameColumn ?? "name";
+  const idColumn = options.idColumn ?? "id";
+  const consentColumn = options.consentColumn ?? "consent";
+  const dedupe = options.dedupe ?? true;
+  const seenPhones = new Set<string>();
+  const accepted: VoiceCampaignRecipientInput[] = [];
+  const rejected: VoiceCampaignRecipientImportIssue[] = [];
+  let duplicates = 0;
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 1;
+    const phoneValue = row[phoneColumn];
+    if (phoneValue === undefined || phoneValue === null || phoneValue === "") {
+      rejected.push({
+        code: "missing-phone",
+        message: `Campaign recipient row ${rowNumber} is missing a phone number.`,
+        row: rowNumber,
+        value: phoneValue,
+      });
+
+      return;
+    }
+    const phone = normalizeCampaignPhone(phoneValue);
+    if (!phone) {
+      rejected.push({
+        code: "invalid-phone",
+        message: `Campaign recipient row ${rowNumber} has an invalid phone number.`,
+        row: rowNumber,
+        value: phoneValue,
+      });
+
+      return;
+    }
+    if (options.requireConsent && !truthyConsent(row[consentColumn])) {
+      rejected.push({
+        code: "missing-consent",
+        message: `Campaign recipient row ${rowNumber} is missing required consent.`,
+        row: rowNumber,
+        value: row[consentColumn],
+      });
+
+      return;
+    }
+    if (dedupe && seenPhones.has(phone)) {
+      duplicates += 1;
+      rejected.push({
+        code: "duplicate",
+        message: `Campaign recipient row ${rowNumber} duplicates ${phone}.`,
+        row: rowNumber,
+        value: phone,
+      });
+
+      return;
+    }
+    seenPhones.add(phone);
+
+    const variables = Object.fromEntries(
+      (options.variableColumns ?? [])
+        .map((column) => [column, toCampaignScalar(row[column])] as const)
+        .filter(([, value]) => value !== undefined),
+    );
+    const metadata = Object.fromEntries(
+      (options.metadataColumns ?? [])
+        .map((column) => [column, row[column]] as const)
+        .filter(([, value]) => value !== undefined),
+    );
+    const id = toCampaignScalar(row[idColumn]);
+    const name = toCampaignScalar(row[nameColumn]);
+
+    accepted.push({
+      id: typeof id === "string" ? id : undefined,
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      name: typeof name === "string" ? name : undefined,
+      phone,
+      variables:
+        Object.keys(variables).length > 0
+          ? (variables)
+          : undefined,
+    });
+  });
+
+  return {
+    accepted,
+    duplicates,
+    rejected,
+    total: rows.length,
+  };
+};
+export const summarizeVoiceCampaigns = (
+  records: VoiceCampaignRecord[],
+): VoiceCampaignSummary => {
+  const summary: VoiceCampaignSummary = {
+    attempts: { failed: 0, queued: 0, running: 0, succeeded: 0, total: 0 },
+    campaigns: {
+      canceled: 0,
+      completed: 0,
+      draft: 0,
+      paused: 0,
+      running: 0,
+      total: records.length,
+    },
+    recipients: {
+      canceled: 0,
+      completed: 0,
+      failed: 0,
+      pending: 0,
+      queued: 0,
+      total: 0,
+    },
+  };
+
+  for (const record of records) {
+    summary.campaigns[record.campaign.status] += 1;
+    for (const recipient of record.recipients) {
+      summary.recipients.total += 1;
+      summary.recipients[recipient.status] += 1;
+    }
+    for (const attempt of record.attempts) {
+      summary.attempts.total += 1;
+      if (attempt.status === "queued" || attempt.status === "running") {
+        summary.attempts[attempt.status] += 1;
+      }
+      if (attempt.status === "failed" || attempt.status === "succeeded") {
+        summary.attempts[attempt.status] += 1;
+      }
+    }
+  }
+
+  return summary;
+};
 
 const runtimeAddRecipients = async (
   store: VoiceCampaignStore,
@@ -1052,6 +1067,7 @@ const runtimeAddRecipients = async (
       variables: recipient.variables,
     })),
   );
+
   return saveRecord(store, record);
 };
 
@@ -1064,6 +1080,7 @@ export const createVoiceCampaign = (
   return {
     addRecipients: async (campaignId, recipients) => {
       const record = await ensureRecord(store, campaignId);
+
       return runtimeAddRecipients(store, record, recipients);
     },
     cancel: async (campaignId) => {
@@ -1083,6 +1100,7 @@ export const createVoiceCampaign = (
           attempt.updatedAt = at;
         }
       }
+
       return saveRecord(store, record);
     },
     completeAttempt: async (campaignId, attemptId, result) => {
@@ -1113,6 +1131,7 @@ export const createVoiceCampaign = (
         recipient.updatedAt = at;
       }
       maybeCompleteCampaign(record);
+
       return saveRecord(store, record);
     },
     create: async (input) => {
@@ -1131,6 +1150,7 @@ export const createVoiceCampaign = (
       };
       const record = { attempts: [], campaign, recipients: [] };
       await store.set(campaign.id, record);
+
       return record;
     },
     enqueue: async (campaignId) => {
@@ -1143,6 +1163,7 @@ export const createVoiceCampaign = (
           recipient.updatedAt = at;
         }
       }
+
       return saveRecord(store, record);
     },
     get: async (campaignId) => await store.get(campaignId),
@@ -1153,6 +1174,7 @@ export const createVoiceCampaign = (
         result.accepted.length > 0
           ? await runtimeAddRecipients(store, record, result.accepted)
           : record;
+
       return {
         ...updated,
         import: result,
@@ -1162,6 +1184,7 @@ export const createVoiceCampaign = (
     pause: async (campaignId) => {
       const record = await ensureRecord(store, campaignId);
       record.campaign.status = "paused";
+
       return saveRecord(store, record);
     },
     remove: async (campaignId) => {
@@ -1170,6 +1193,7 @@ export const createVoiceCampaign = (
     resume: async (campaignId) => {
       const record = await ensureRecord(store, campaignId);
       record.campaign.status = "running";
+
       return saveRecord(store, record);
     },
     summarize: async () => summarizeVoiceCampaigns(await store.list()),
@@ -1186,7 +1210,7 @@ export const createVoiceCampaign = (
         return result;
       }
       const at = now();
-      const schedule = record.campaign.schedule;
+      const {schedule} = record.campaign;
       if (
         schedule?.attemptWindow &&
         !isWithinCampaignTimeWindow(schedule.attemptWindow, at)
@@ -1194,6 +1218,7 @@ export const createVoiceCampaign = (
         result.blocked.push({
           reason: "outside-attempt-window",
         });
+
         return result;
       }
       if (
@@ -1203,6 +1228,7 @@ export const createVoiceCampaign = (
         result.blocked.push({
           reason: "quiet-hours",
         });
+
         return result;
       }
       const capacity = Math.max(
@@ -1304,6 +1330,7 @@ export const createVoiceCampaign = (
       }
       maybeCompleteCampaign(record);
       await saveRecord(store, record);
+
       return result;
     },
   };
@@ -1400,6 +1427,7 @@ export const createVoiceCampaignWorkerLoop = (
   const tick = async () => options.worker.drain();
 
   return {
+    tick,
     isRunning: () => running,
     start: () => {
       if (timer) {
@@ -1420,7 +1448,6 @@ export const createVoiceCampaignWorkerLoop = (
       }
       running = false;
     },
-    tick,
   };
 };
 
@@ -1444,6 +1471,7 @@ const resolveDefaultCampaignOutcomeIds = <TResult = unknown>(
     typeof input.routeResult === "object" && input.routeResult !== null
       ? (input.routeResult as Record<string, unknown>)
       : {};
+
   return {
     campaignId:
       input.campaignId ??
@@ -1556,10 +1584,10 @@ export const applyVoiceCampaignTelephonyOutcome = async <TResult = unknown>(
   if (status === "ignore") {
     return {
       applied: false,
+      attemptId,
       campaignId,
       externalCallId,
       reason: "ignored",
-      attemptId,
     };
   }
 
@@ -1572,10 +1600,10 @@ export const applyVoiceCampaignTelephonyOutcome = async <TResult = unknown>(
   if (!match) {
     return {
       applied: false,
+      attemptId,
       campaignId,
       externalCallId,
       reason: campaignId ? "missing-attempt" : "missing-campaign",
-      attemptId,
     };
   }
   if (
@@ -1584,11 +1612,11 @@ export const applyVoiceCampaignTelephonyOutcome = async <TResult = unknown>(
   ) {
     return {
       applied: false,
+      attemptId: match.attempt.id,
       campaignId: match.record.campaign.id,
       externalCallId: match.attempt.externalCallId ?? externalCallId,
       reason: "terminal-attempt",
       status: match.attempt.status,
-      attemptId: match.attempt.id,
     };
   }
 
@@ -1615,10 +1643,10 @@ export const applyVoiceCampaignTelephonyOutcome = async <TResult = unknown>(
 
   return {
     applied: true,
+    attemptId: match.attempt.id,
     campaignId: match.record.campaign.id,
     externalCallId: externalCallId ?? match.attempt.externalCallId,
     status,
-    attemptId: match.attempt.id,
   };
 };
 
@@ -1671,10 +1699,12 @@ export const createVoiceCampaignTelephonyOutcomeRecorder = <TResult = unknown>(
       snapshots.unshift(snapshot);
       snapshots.splice(maxSnapshots);
     }
+
     return snapshot;
   };
 
   return {
+    record,
     clear: () => {
       snapshots.splice(0);
     },
@@ -1685,7 +1715,6 @@ export const createVoiceCampaignTelephonyOutcomeRecorder = <TResult = unknown>(
       });
     },
     list: () => snapshots.map((snapshot) => ({ ...snapshot })),
-    record,
   };
 };
 
@@ -1784,6 +1813,88 @@ const pushCampaignReadinessCheck = (
   });
 };
 
+export const assertVoiceCampaignReadinessEvidence = (
+  report: VoiceCampaignReadinessProofReport,
+  input: VoiceCampaignReadinessAssertionInput = {},
+): VoiceCampaignReadinessAssertionReport => assertVoiceEvidence(
+    "Voice campaign readiness evidence assertion failed",
+    evaluateVoiceCampaignReadinessEvidence(report, input),
+  );
+export const evaluateVoiceCampaignReadinessEvidence = (
+  report: VoiceCampaignReadinessProofReport,
+  input: VoiceCampaignReadinessAssertionInput = {},
+): VoiceCampaignReadinessAssertionReport => {
+  const issues: string[] = [];
+  const maxFailedChecks = input.maxFailedChecks ?? 0;
+  const requireOk = input.requireOk ?? true;
+  const failed = report.checks.filter(
+    (check) => check.status === "fail",
+  ).length;
+  const passed = report.checks.length - failed;
+  const checkNames = new Set(report.checks.map((check) => check.name));
+  const blockedReasons = [
+    ...new Set(
+      Object.values(report.ticks).flatMap((tick) =>
+        tick.blocked.map((block) => block.reason),
+      ),
+    ),
+  ].sort();
+
+  if (requireOk && !report.ok) {
+    issues.push("Expected campaign readiness proof to pass.");
+  }
+  if (failed > maxFailedChecks) {
+    issues.push(
+      `Expected at most ${String(maxFailedChecks)} failing campaign readiness check(s), found ${String(failed)}.`,
+    );
+  }
+  if (
+    input.minTotalImports !== undefined &&
+    report.import.total < input.minTotalImports
+  ) {
+    issues.push(
+      `Expected at least ${String(input.minTotalImports)} campaign import row(s), found ${String(report.import.total)}.`,
+    );
+  }
+  if (
+    input.minAcceptedImports !== undefined &&
+    report.import.accepted.length < input.minAcceptedImports
+  ) {
+    issues.push(
+      `Expected at least ${String(input.minAcceptedImports)} accepted campaign import(s), found ${String(report.import.accepted.length)}.`,
+    );
+  }
+  if (
+    input.minRejectedImports !== undefined &&
+    report.import.rejected.length < input.minRejectedImports
+  ) {
+    issues.push(
+      `Expected at least ${String(input.minRejectedImports)} rejected campaign import(s), found ${String(report.import.rejected.length)}.`,
+    );
+  }
+  for (const check of input.requiredChecks ?? []) {
+    if (!checkNames.has(check)) {
+      issues.push(`Missing campaign readiness check: ${check}.`);
+    }
+  }
+  for (const reason of input.requiredBlockedReasons ?? []) {
+    if (!blockedReasons.includes(reason)) {
+      issues.push(`Missing campaign readiness blocked reason: ${reason}.`);
+    }
+  }
+
+  return {
+    acceptedImports: report.import.accepted.length,
+    blockedReasons,
+    failed,
+    issues,
+    ok: issues.length === 0,
+    passed,
+    rejectedImports: report.import.rejected.length,
+    total: report.checks.length,
+    totalImports: report.import.total,
+  };
+};
 export const runVoiceCampaignReadinessProof = async (
   options: VoiceCampaignReadinessProofOptions = {},
 ): Promise<VoiceCampaignReadinessProofReport> => {
@@ -1791,6 +1902,7 @@ export const runVoiceCampaignReadinessProof = async (
   const store = options.store ?? createVoiceMemoryCampaignStore();
   let now = Date.UTC(2026, 0, 5, 8, 0, 0);
   const runtime = createVoiceCampaign({
+    store,
     dialer: ({ attempt }) => ({
       externalCallId: `campaign-readiness-${attempt.id}`,
       metadata: {
@@ -1799,7 +1911,6 @@ export const runVoiceCampaignReadinessProof = async (
       status: "running",
     }),
     now: () => now,
-    store,
   });
   const scheduled = await runtime.create({
     id: `campaign-readiness-schedule-${crypto.randomUUID()}`,
@@ -1839,11 +1950,11 @@ recipient-no-consent,Barbara,+15550001004,no,delta`,
 
   let retryNow = 1_000;
   const retryRuntime = createVoiceCampaign({
+    store,
     dialer: () => {
       throw new Error("carrier busy");
     },
     now: () => retryNow,
-    store,
   });
   const retry = await retryRuntime.create({
     id: `campaign-readiness-retry-${crypto.randomUUID()}`,
@@ -1962,92 +2073,6 @@ recipient-no-consent,Barbara,+15550001004,no,delta`,
   };
 };
 
-export const evaluateVoiceCampaignReadinessEvidence = (
-  report: VoiceCampaignReadinessProofReport,
-  input: VoiceCampaignReadinessAssertionInput = {},
-): VoiceCampaignReadinessAssertionReport => {
-  const issues: string[] = [];
-  const maxFailedChecks = input.maxFailedChecks ?? 0;
-  const requireOk = input.requireOk ?? true;
-  const failed = report.checks.filter(
-    (check) => check.status === "fail",
-  ).length;
-  const passed = report.checks.length - failed;
-  const checkNames = new Set(report.checks.map((check) => check.name));
-  const blockedReasons = [
-    ...new Set(
-      Object.values(report.ticks).flatMap((tick) =>
-        tick.blocked.map((block) => block.reason),
-      ),
-    ),
-  ].sort();
-
-  if (requireOk && !report.ok) {
-    issues.push("Expected campaign readiness proof to pass.");
-  }
-  if (failed > maxFailedChecks) {
-    issues.push(
-      `Expected at most ${String(maxFailedChecks)} failing campaign readiness check(s), found ${String(failed)}.`,
-    );
-  }
-  if (
-    input.minTotalImports !== undefined &&
-    report.import.total < input.minTotalImports
-  ) {
-    issues.push(
-      `Expected at least ${String(input.minTotalImports)} campaign import row(s), found ${String(report.import.total)}.`,
-    );
-  }
-  if (
-    input.minAcceptedImports !== undefined &&
-    report.import.accepted.length < input.minAcceptedImports
-  ) {
-    issues.push(
-      `Expected at least ${String(input.minAcceptedImports)} accepted campaign import(s), found ${String(report.import.accepted.length)}.`,
-    );
-  }
-  if (
-    input.minRejectedImports !== undefined &&
-    report.import.rejected.length < input.minRejectedImports
-  ) {
-    issues.push(
-      `Expected at least ${String(input.minRejectedImports)} rejected campaign import(s), found ${String(report.import.rejected.length)}.`,
-    );
-  }
-  for (const check of input.requiredChecks ?? []) {
-    if (!checkNames.has(check)) {
-      issues.push(`Missing campaign readiness check: ${check}.`);
-    }
-  }
-  for (const reason of input.requiredBlockedReasons ?? []) {
-    if (!blockedReasons.includes(reason)) {
-      issues.push(`Missing campaign readiness blocked reason: ${reason}.`);
-    }
-  }
-
-  return {
-    acceptedImports: report.import.accepted.length,
-    blockedReasons,
-    failed,
-    issues,
-    ok: issues.length === 0,
-    passed,
-    rejectedImports: report.import.rejected.length,
-    total: report.checks.length,
-    totalImports: report.import.total,
-  };
-};
-
-export const assertVoiceCampaignReadinessEvidence = (
-  report: VoiceCampaignReadinessProofReport,
-  input: VoiceCampaignReadinessAssertionInput = {},
-): VoiceCampaignReadinessAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice campaign readiness evidence assertion failed",
-    evaluateVoiceCampaignReadinessEvidence(report, input),
-  );
-};
-
 const getString = (value: unknown) =>
   typeof value === "string" && value.length > 0 ? value : undefined;
 
@@ -2073,13 +2098,35 @@ const resolveCampaignOperationsRecordHref = (
   }
   if (typeof value === "string") {
     const encoded = encodeURIComponent(input.sessionId);
+
     return value.includes(":sessionId")
       ? value.replace(":sessionId", encoded)
       : `${value.replace(/\/$/, "")}/${encoded}`;
   }
+
   return undefined;
 };
 
+export const renderVoiceCampaignObservabilityHTML = (
+  report: VoiceCampaignObservabilityReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Voice Campaign Observability";
+  const campaignRows = report.campaigns
+    .map(
+      (campaign) =>
+        `<tr><td>${escapeHtml(campaign.name)}</td><td>${escapeHtml(campaign.status)}</td><td>${String(campaign.queueDepth)}</td><td>${String(campaign.activeAttempts)}</td><td>${String(campaign.stuckRecipients + campaign.stuckAttempts)}</td><td>${campaign.lease ? escapeHtml(campaign.lease.workerId) : "none"}</td></tr>`,
+    )
+    .join("");
+  const failureRows = report.failureReasons
+    .map(
+      (failure) =>
+        `<tr><td>${escapeHtml(failure.reason)}</td><td>${String(failure.count)}</td></tr>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0b1220;color:#e5edf7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.2),rgba(251,146,60,.14));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,5vw,4.6rem);line-height:.95;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:18px 0}.card,table{background:#111c2f;border:1px solid #334155;border-radius:18px}.card{padding:16px}.card span{color:#9fb0c5}.card strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;margin-top:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}.warn{color:#fde68a}.bad{color:#fecaca}</style></head><body><main><section class="hero"><p class="eyebrow">Campaign ops</p><h1>${escapeHtml(title)}</h1><p>Queue depth, active leases, attempt rates, failure reasons, and stuck work for self-hosted outbound voice.</p><section class="grid"><article class="card"><span>Queued recipients</span><strong>${String(report.queue.queuedRecipients)}</strong></article><article class="card"><span>Active attempts</span><strong>${String(report.queue.activeAttempts)}</strong></article><article class="card"><span>Running campaigns</span><strong>${String(report.queue.runningCampaigns)}</strong></article><article class="card"><span>Active leases</span><strong>${report.leases.known ? String(report.leases.active) : "n/a"}</strong></article><article class="card"><span>Attempts/window</span><strong>${String(report.attemptRate.started)}</strong></article><article class="card"><span>Stuck work</span><strong class="${report.stuck.attempts.length + report.stuck.recipients.length > 0 ? "bad" : ""}">${String(report.stuck.attempts.length + report.stuck.recipients.length)}</strong></article></section></section><h2>Campaigns</h2><table><thead><tr><th>Name</th><th>Status</th><th>Queued</th><th>Active</th><th>Stuck</th><th>Lease</th></tr></thead><tbody>${campaignRows || '<tr><td colspan="6">No campaigns yet.</td></tr>'}</tbody></table><h2>Failure Reasons</h2><table><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${failureRows || '<tr><td colspan="2">No failures recorded.</td></tr>'}</tbody></table></main></body></html>`;
+};
 export const renderVoiceCampaignsHTML = (
   records: VoiceCampaignRecord[],
   options: Pick<
@@ -2114,36 +2161,19 @@ export const renderVoiceCampaignsHTML = (
               sessionId,
             },
           );
+
           return `<tr><td>${escapeHtml(record.campaign.name)}</td><td>${escapeHtml(attempt.status)}</td><td>${escapeHtml(recipient?.phone ?? attempt.recipientId)}</td><td>${escapeHtml(sessionId ?? "")}</td><td>${href ? `<a href="${escapeHtml(href)}">Open operations record</a>` : ""}</td></tr>`;
         }),
     )
     .slice(0, 20)
     .join("");
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#f9fafb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero{background:linear-gradient(135deg,rgba(251,146,60,.18),rgba(45,212,191,.12));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#fdba74;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:18px 0}.grid article,table{background:#172033;border:1px solid #334155;border-radius:18px}.grid article{padding:16px}.grid span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;margin-top:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}a{color:#fdba74}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted outbound</p><h1>${escapeHtml(title)}</h1><p>Campaign orchestration, recipients, attempts, retries, and outcomes without a hosted dialer dashboard.</p><section class="grid"><article><span>Campaigns</span><strong>${String(summary.campaigns.total)}</strong></article><article><span>Recipients</span><strong>${String(summary.recipients.total)}</strong></article><article><span>Attempts</span><strong>${String(summary.attempts.total)}</strong></article><article><span>Running</span><strong>${String(summary.campaigns.running)}</strong></article></section></section><table><thead><tr><th>Name</th><th>Status</th><th>Recipients</th><th>Attempts</th><th>Updated</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No campaigns yet.</td></tr>'}</tbody></table><h2>Recent attempts</h2><table><thead><tr><th>Campaign</th><th>Status</th><th>Recipient</th><th>Session</th><th>Debug</th></tr></thead><tbody>${attemptRows || '<tr><td colspan="5">No attempts yet.</td></tr>'}</tbody></table></main></body></html>`;
-};
 
-export const renderVoiceCampaignObservabilityHTML = (
-  report: VoiceCampaignObservabilityReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Voice Campaign Observability";
-  const campaignRows = report.campaigns
-    .map(
-      (campaign) =>
-        `<tr><td>${escapeHtml(campaign.name)}</td><td>${escapeHtml(campaign.status)}</td><td>${String(campaign.queueDepth)}</td><td>${String(campaign.activeAttempts)}</td><td>${String(campaign.stuckRecipients + campaign.stuckAttempts)}</td><td>${campaign.lease ? escapeHtml(campaign.lease.workerId) : "none"}</td></tr>`,
-    )
-    .join("");
-  const failureRows = report.failureReasons
-    .map(
-      (failure) =>
-        `<tr><td>${escapeHtml(failure.reason)}</td><td>${String(failure.count)}</td></tr>`,
-    )
-    .join("");
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0b1220;color:#e5edf7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.2),rgba(251,146,60,.14));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,5vw,4.6rem);line-height:.95;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:18px 0}.card,table{background:#111c2f;border:1px solid #334155;border-radius:18px}.card{padding:16px}.card span{color:#9fb0c5}.card strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;margin-top:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}.warn{color:#fde68a}.bad{color:#fecaca}</style></head><body><main><section class="hero"><p class="eyebrow">Campaign ops</p><h1>${escapeHtml(title)}</h1><p>Queue depth, active leases, attempt rates, failure reasons, and stuck work for self-hosted outbound voice.</p><section class="grid"><article class="card"><span>Queued recipients</span><strong>${String(report.queue.queuedRecipients)}</strong></article><article class="card"><span>Active attempts</span><strong>${String(report.queue.activeAttempts)}</strong></article><article class="card"><span>Running campaigns</span><strong>${String(report.queue.runningCampaigns)}</strong></article><article class="card"><span>Active leases</span><strong>${report.leases.known ? String(report.leases.active) : "n/a"}</strong></article><article class="card"><span>Attempts/window</span><strong>${String(report.attemptRate.started)}</strong></article><article class="card"><span>Stuck work</span><strong class="${report.stuck.attempts.length + report.stuck.recipients.length > 0 ? "bad" : ""}">${String(report.stuck.attempts.length + report.stuck.recipients.length)}</strong></article></section></section><h2>Campaigns</h2><table><thead><tr><th>Name</th><th>Status</th><th>Queued</th><th>Active</th><th>Stuck</th><th>Lease</th></tr></thead><tbody>${campaignRows || '<tr><td colspan="6">No campaigns yet.</td></tr>'}</tbody></table><h2>Failure Reasons</h2><table><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${failureRows || '<tr><td colspan="2">No failures recorded.</td></tr>'}</tbody></table></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#f9fafb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}.hero{background:linear-gradient(135deg,rgba(251,146,60,.18),rgba(45,212,191,.12));border:1px solid #334155;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#fdba74;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:18px 0}.grid article,table{background:#172033;border:1px solid #334155;border-radius:18px}.grid article{padding:16px}.grid span{color:#aab5c0}.grid strong{display:block;font-size:2rem;margin:.25rem 0}table{border-collapse:collapse;margin-top:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:12px;text-align:left}a{color:#fdba74}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted outbound</p><h1>${escapeHtml(title)}</h1><p>Campaign orchestration, recipients, attempts, retries, and outcomes without a hosted dialer dashboard.</p><section class="grid"><article><span>Campaigns</span><strong>${String(summary.campaigns.total)}</strong></article><article><span>Recipients</span><strong>${String(summary.recipients.total)}</strong></article><article><span>Attempts</span><strong>${String(summary.attempts.total)}</strong></article><article><span>Running</span><strong>${String(summary.campaigns.running)}</strong></article></section></section><table><thead><tr><th>Name</th><th>Status</th><th>Recipients</th><th>Attempts</th><th>Updated</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No campaigns yet.</td></tr>'}</tbody></table><h2>Recent attempts</h2><table><thead><tr><th>Campaign</th><th>Status</th><th>Recipient</th><th>Session</th><th>Debug</th></tr></thead><tbody>${attemptRows || '<tr><td colspan="5">No attempts yet.</td></tr>'}</tbody></table></main></body></html>`;
 };
 
 const readJsonBody = async <T>(request: Request) => {
   const text = await request.text();
+
   return text.trim() ? (JSON.parse(text) as T) : ({} as T);
 };
 
@@ -2172,12 +2202,14 @@ export const createVoiceCampaignRoutes = (
     .get(`${path}/:campaignId`, ({ params }) => runtime.get(params.campaignId))
     .delete(`${path}/:campaignId`, async ({ params }) => {
       await runtime.remove(params.campaignId);
+
       return { ok: true };
     })
     .post(`${path}/:campaignId/recipients`, async ({ params, request }) => {
       const body = await readJsonBody<{
         recipients: VoiceCampaignRecipientInput[];
       }>(request);
+
       return runtime.addRecipients(params.campaignId, body.recipients ?? []);
     })
     .post(
@@ -2217,6 +2249,7 @@ export const createVoiceCampaignRoutes = (
     app
       .get(htmlPath, async () => {
         const records = await runtime.list();
+
         return new Response(renderVoiceCampaignsHTML(records, options), {
           headers: {
             "content-type": "text/html; charset=utf-8",
@@ -2229,6 +2262,7 @@ export const createVoiceCampaignRoutes = (
           await runtime.list(),
           options.observability,
         );
+
         return new Response(
           renderVoiceCampaignObservabilityHTML(report, options),
           {

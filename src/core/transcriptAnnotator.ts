@@ -77,6 +77,7 @@ export const createVoiceTranscriptAnnotator = (
       ...(input.turnId !== undefined ? { turnId: input.turnId } : {}),
     };
     annotations.push(annotation);
+
     return annotation;
   };
 
@@ -84,6 +85,7 @@ export const createVoiceTranscriptAnnotator = (
     const idx = annotations.findIndex((a) => a.id === id);
     if (idx === -1) return false;
     annotations.splice(idx, 1);
+
     return true;
   };
 
@@ -106,6 +108,7 @@ export const createVoiceTranscriptAnnotator = (
       if (filter?.toMs !== undefined && a.rangeStartMs > filter.toMs) {
         return false;
       }
+
       return true;
     });
 
@@ -120,6 +123,7 @@ export const createVoiceTranscriptAnnotator = (
       byKind[a.kind] = (byKind[a.kind] ?? 0) + 1;
       bySeverity[a.severity] += 1;
     }
+
     return { byKind, bySeverity, total: annotations.length };
   };
 

@@ -70,8 +70,8 @@ export const VoiceSessionSnapshot = defineComponent({
                 "button",
                 {
                   class: "absolute-voice-session-snapshot__download",
-                  onClick: () => state.download(),
                   type: "button",
+                  onClick: () => state.download(),
                 },
                 props.downloadLabel ?? "Download snapshot",
               )

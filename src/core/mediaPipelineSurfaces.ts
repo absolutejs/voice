@@ -100,6 +100,7 @@ const transportIssues = (
       surface: report.surface,
     });
   }
+
   return entries;
 };
 
@@ -107,6 +108,7 @@ const processorGraphIssues = (
   report: VoiceMediaPipelineReport,
 ): VoiceMediaPipelineIssueEntry[] => {
   if (!report.processorGraph) return [];
+
   return report.processorGraph.errors.map((event) => ({
     code: `media.graph_${event.kind}`,
     message:
@@ -138,6 +140,7 @@ const readinessStatusFromIssues = (
 ): VoiceProductionReadinessStatus => {
   if (issues.some((issue) => issue.severity === "error")) return "fail";
   if (issues.length > 0) return "warn";
+
   return "pass";
 };
 
@@ -192,6 +195,7 @@ export const buildVoiceMediaPipelineReadinessChecks = (
     status: readinessStatusFromIssues(report.interruption.issues),
     value: report.interruption.interruptionFrames,
   });
+
   return checks;
 };
 
@@ -225,6 +229,7 @@ export const buildVoiceMediaPipelineIncidentEvents = (
   const now = options.now ?? (() => Date.now());
   const at = now();
   const entries = extractVoiceMediaPipelineIssueEntries(report);
+
   return entries.map((entry, index) => ({
     at,
     category,
@@ -277,6 +282,7 @@ const buildHref = (
 ): string | undefined => {
   if (!base) return undefined;
   const filename = jsonPath.split("/").pop() ?? `${fallbackSlug}.json`;
+
   return `${base.replace(/\/$/, "")}/${filename}`;
 };
 

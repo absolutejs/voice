@@ -20,6 +20,7 @@ export const useVoiceTraceTimeline = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

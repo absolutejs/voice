@@ -19,6 +19,7 @@ export class VoiceCallPlayerService {
     const unsubscribe = player.subscribe(() => {
       stateSignal.set(player.getState());
     });
+
     return {
       formatTimestamp: formatVoiceCallPlayerTimestamp,
       pause: () => player.pause(),

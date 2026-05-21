@@ -20,6 +20,7 @@ export const useVoiceTurnLatency = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

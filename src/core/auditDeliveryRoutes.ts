@@ -58,6 +58,7 @@ const getNumber = (value: unknown) => {
 
   if (typeof value === "string" && value.trim()) {
     const parsed = Number(value);
+
     return Number.isFinite(parsed) ? parsed : undefined;
   }
 
@@ -68,6 +69,7 @@ const parseStatus = (
   value: unknown,
 ): VoiceAuditDeliveryFilter["status"] | undefined => {
   const text = getString(value);
+
   return text === "pending" ||
     text === "delivered" ||
     text === "failed" ||
@@ -197,36 +199,6 @@ const renderEventList = (delivery: VoiceAuditSinkDeliveryRecord) =>
         )
         .join("")}</ul>`;
 
-export const renderVoiceAuditDeliveryHTML = (
-  report: VoiceAuditDeliveryReport,
-  options: {
-    title?: string;
-    workerPath?: false | string;
-  } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Audit Deliveries";
-  const drainAction =
-    options.workerPath === false
-      ? ""
-      : `<form method="post" action="${escapeHtml(options.workerPath ?? "/api/voice-audit-deliveries/drain")}"><button type="submit">Drain audit deliveries</button></form>`;
-  const rows = report.deliveries
-    .map(
-      (delivery) =>
-        `<article class="delivery ${escapeHtml(delivery.deliveryStatus)}"><div class="head"><div><span>${escapeHtml(delivery.deliveryStatus)}</span><h2>${escapeHtml(delivery.id)}</h2><p>${escapeHtml(new Date(delivery.createdAt).toLocaleString())}${delivery.deliveredAt ? ` · delivered ${escapeHtml(new Date(delivery.deliveredAt).toLocaleString())}` : ""}</p></div><strong>${String(delivery.deliveryAttempts ?? 0)} attempt(s)</strong></div>${delivery.deliveryError ? `<p class="error">${escapeHtml(delivery.deliveryError)}</p>` : ""}<h3>Sinks</h3>${renderSinkResults(delivery)}<h3>Events</h3>${renderEventList(delivery)}</article>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f4efe1;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero{background:linear-gradient(135deg,rgba(14,165,233,.17),rgba(245,158,11,.13));border:1px solid #26313d;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#38bdf8;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,5vw,4.8rem);line-height:.92;margin:.2rem 0 1rem}.grid{display:grid;gap:12px;grid-template-columns:repeat(4,1fr);margin-bottom:16px}.grid article,.delivery{background:#151b22;border:1px solid #26313d;border-radius:22px;padding:18px}.grid span,.delivery span{color:#93c5fd;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.grid strong{display:block;font-size:2rem}.deliveries{display:grid;gap:14px}.delivery.failed{border-color:rgba(239,68,68,.75)}.delivery.pending{border-color:rgba(245,158,11,.7)}.delivery.delivered{border-color:rgba(34,197,94,.55)}.delivery.skipped{border-color:rgba(148,163,184,.6)}.head{align-items:start;display:flex;gap:14px;justify-content:space-between}.delivery h2{font-size:1.05rem;margin:.3rem 0;overflow-wrap:anywhere}.delivery h3{margin:1rem 0 .3rem}.delivery p,.delivery li{color:#c8d0d8}.error{color:#fecaca!important}button{background:#38bdf8;border:0;border-radius:999px;color:#07111f;cursor:pointer;font-weight:900;margin-top:12px;padding:10px 14px}@media(max-width:760px){main{padding:20px}.grid{grid-template-columns:1fr 1fr}.head{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Compliance export health</p><h1>${escapeHtml(title)}</h1><p>Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}. Showing ${String(report.deliveries.length)} delivery item(s).</p>${drainAction}</section>${renderMetricGrid(report)}<section class="deliveries">${rows || "<p>No audit deliveries match this filter.</p>"}</section></main></body></html>`;
-};
-
-export const createVoiceAuditDeliveryJSONHandler =
-  (options: VoiceAuditDeliveryRoutesOptions) =>
-  async ({ query }: { query?: Record<string, string | undefined> }) =>
-    buildVoiceAuditDeliveryReport(
-      options,
-      resolveVoiceAuditDeliveryFilter(query, options.filter),
-    );
-
 export const createVoiceAuditDeliveryHTMLHandler =
   (options: VoiceAuditDeliveryRoutesOptions) =>
   async ({ query }: { query?: Record<string, string | undefined> }) => {
@@ -247,7 +219,13 @@ export const createVoiceAuditDeliveryHTMLHandler =
       },
     });
   };
-
+export const createVoiceAuditDeliveryJSONHandler =
+  (options: VoiceAuditDeliveryRoutesOptions) =>
+  async ({ query }: { query?: Record<string, string | undefined> }) =>
+    buildVoiceAuditDeliveryReport(
+      options,
+      resolveVoiceAuditDeliveryFilter(query, options.filter),
+    );
 export const createVoiceAuditDeliveryRoutes = (
   options: VoiceAuditDeliveryRoutesOptions,
 ) => {
@@ -276,4 +254,25 @@ export const createVoiceAuditDeliveryRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceAuditDeliveryHTML = (
+  report: VoiceAuditDeliveryReport,
+  options: {
+    title?: string;
+    workerPath?: false | string;
+  } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Audit Deliveries";
+  const drainAction =
+    options.workerPath === false
+      ? ""
+      : `<form method="post" action="${escapeHtml(options.workerPath ?? "/api/voice-audit-deliveries/drain")}"><button type="submit">Drain audit deliveries</button></form>`;
+  const rows = report.deliveries
+    .map(
+      (delivery) =>
+        `<article class="delivery ${escapeHtml(delivery.deliveryStatus)}"><div class="head"><div><span>${escapeHtml(delivery.deliveryStatus)}</span><h2>${escapeHtml(delivery.id)}</h2><p>${escapeHtml(new Date(delivery.createdAt).toLocaleString())}${delivery.deliveredAt ? ` · delivered ${escapeHtml(new Date(delivery.deliveredAt).toLocaleString())}` : ""}</p></div><strong>${String(delivery.deliveryAttempts ?? 0)} attempt(s)</strong></div>${delivery.deliveryError ? `<p class="error">${escapeHtml(delivery.deliveryError)}</p>` : ""}<h3>Sinks</h3>${renderSinkResults(delivery)}<h3>Events</h3>${renderEventList(delivery)}</article>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f4efe1;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero{background:linear-gradient(135deg,rgba(14,165,233,.17),rgba(245,158,11,.13));border:1px solid #26313d;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#38bdf8;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,5vw,4.8rem);line-height:.92;margin:.2rem 0 1rem}.grid{display:grid;gap:12px;grid-template-columns:repeat(4,1fr);margin-bottom:16px}.grid article,.delivery{background:#151b22;border:1px solid #26313d;border-radius:22px;padding:18px}.grid span,.delivery span{color:#93c5fd;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.grid strong{display:block;font-size:2rem}.deliveries{display:grid;gap:14px}.delivery.failed{border-color:rgba(239,68,68,.75)}.delivery.pending{border-color:rgba(245,158,11,.7)}.delivery.delivered{border-color:rgba(34,197,94,.55)}.delivery.skipped{border-color:rgba(148,163,184,.6)}.head{align-items:start;display:flex;gap:14px;justify-content:space-between}.delivery h2{font-size:1.05rem;margin:.3rem 0;overflow-wrap:anywhere}.delivery h3{margin:1rem 0 .3rem}.delivery p,.delivery li{color:#c8d0d8}.error{color:#fecaca!important}button{background:#38bdf8;border:0;border-radius:999px;color:#07111f;cursor:pointer;font-weight:900;margin-top:12px;padding:10px 14px}@media(max-width:760px){main{padding:20px}.grid{grid-template-columns:1fr 1fr}.head{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Compliance export health</p><h1>${escapeHtml(title)}</h1><p>Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}. Showing ${String(report.deliveries.length)} delivery item(s).</p>${drainAction}</section>${renderMetricGrid(report)}<section class="deliveries">${rows || "<p>No audit deliveries match this filter.</p>"}</section></main></body></html>`;
 };

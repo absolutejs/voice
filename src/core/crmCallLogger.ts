@@ -69,6 +69,7 @@ export const createVoiceCRMCallLogger = (
 
     try {
       const result = await options.contract.logCall(payload);
+
       return {
         activityId: result.activityId,
         loggedAt: now(),
@@ -80,9 +81,11 @@ export const createVoiceCRMCallLogger = (
       await options.onError?.(error, input);
       if (errorPolicy === "queue") {
         await options.enqueueOnFailure?.(input);
+
         return null;
       }
       if (errorPolicy === "throw") throw error;
+
       return null;
     }
   };
@@ -102,6 +105,7 @@ export const createVoiceCRMCallLogger = (
         ...input,
       });
       if (errorPolicy === "throw") throw error;
+
       return null;
     }
   };

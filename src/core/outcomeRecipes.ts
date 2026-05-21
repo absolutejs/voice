@@ -75,6 +75,21 @@ const RECIPE_DEFAULTS: Record<VoiceOutcomeRecipeName, RecipeDefaults> = {
       "Creates appointment confirmation work for completed calls and callback/retry work for missed booking attempts.",
     escalationQueue: "appointments-escalations",
   },
+  "cold-transfer": {
+    completedAction:
+      "Verify the SIP REFER landed and the caller reached the destination without re-introduction.",
+    completedDescription:
+      "The call was cold-transferred (SIP REFER) — confirm the destination picked up.",
+    completedKind: "transfer-check",
+    completedTitle: "Verify cold transfer",
+    defaultCompletedCreatesTask: false,
+    defaultDueInMs: 5 * 60_000,
+    defaultPriority: "normal",
+    defaultQueue: "transfer-verification",
+    description:
+      "Creates verification work for cold-transferred (REFER) calls and escalation work when the handoff fails.",
+    escalationQueue: "transfer-escalations",
+  },
   "lead-qualification": {
     completedAction:
       "Review qualification signals, update CRM fields, and route the lead to the right owner.",
@@ -132,21 +147,6 @@ const RECIPE_DEFAULTS: Record<VoiceOutcomeRecipeName, RecipeDefaults> = {
     defaultQueue: "transfer-verification",
     description:
       "Creates transfer verification work for transferred calls and escalation work when the handoff fails.",
-    escalationQueue: "transfer-escalations",
-  },
-  "cold-transfer": {
-    completedAction:
-      "Verify the SIP REFER landed and the caller reached the destination without re-introduction.",
-    completedDescription:
-      "The call was cold-transferred (SIP REFER) — confirm the destination picked up.",
-    completedKind: "transfer-check",
-    completedTitle: "Verify cold transfer",
-    defaultCompletedCreatesTask: false,
-    defaultDueInMs: 5 * 60_000,
-    defaultPriority: "normal",
-    defaultQueue: "transfer-verification",
-    description:
-      "Creates verification work for cold-transferred (REFER) calls and escalation work when the handoff fails.",
     escalationQueue: "transfer-escalations",
   },
 };
@@ -354,6 +354,10 @@ export const resolveVoiceOutcomeRecipe = <
   ) satisfies VoiceOpsTaskAssignmentRules;
 
   return {
+    description: defaults.description,
+    name,
+    taskAssignmentRules,
+    taskPolicies,
     createTaskFromReview: ({ disposition, review }) =>
       buildRecipeTask({
         defaults,
@@ -361,9 +365,5 @@ export const resolveVoiceOutcomeRecipe = <
         options,
         review,
       }),
-    description: defaults.description,
-    name,
-    taskAssignmentRules,
-    taskPolicies,
   };
 };

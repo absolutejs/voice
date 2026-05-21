@@ -94,6 +94,7 @@ const statusRank = (status: VoiceSessionSnapshotStatus): number => {
   if (status === "warn") {
     return 1;
   }
+
   return 0;
 };
 
@@ -106,6 +107,40 @@ const maxStatus = (
     "pass",
   );
 
+export const buildVoiceSessionSnapshot = (
+  input: VoiceSessionSnapshotInput,
+): VoiceSessionSnapshot => {
+  const artifacts = [...(input.artifacts ?? [])];
+  const proofAssertions = [...(input.proofAssertions ?? [])];
+  const proofSummary = summarizeVoiceProofAssertions(proofAssertions);
+  const media = [...(input.media ?? [])];
+  const providerRoutingEvents = [...(input.providerRoutingEvents ?? [])];
+  const quality = [...(input.quality ?? [])];
+  const telephonyOutcomes = [...(input.telephonyOutcomes ?? [])];
+
+  return {
+    artifacts,
+    capturedAt: Date.now(),
+    media,
+    name: input.name,
+    proofAssertions,
+    proofSummary,
+    providerRoutingEvents,
+    quality,
+    scenarioId: input.scenarioId,
+    schema: "absolute.voice.session.snapshot.v1",
+    sessionId: input.sessionId,
+    status: buildVoiceSessionSnapshotStatus({
+      artifacts,
+      media,
+      proofSummary,
+      quality,
+      telephonyOutcomes,
+    }),
+    telephonyOutcomes,
+    turnId: input.turnId,
+  };
+};
 export const buildVoiceSessionSnapshotStatus = (input: {
   artifacts?: readonly Pick<VoiceSessionSnapshotArtifact, "status">[];
   media?: readonly Pick<MediaProcessorGraphSnapshot, "report">[];
@@ -144,48 +179,13 @@ export const buildVoiceSessionSnapshotStatus = (input: {
 
   return maxStatus(statuses);
 };
-
-export const buildVoiceSessionSnapshot = (
-  input: VoiceSessionSnapshotInput,
-): VoiceSessionSnapshot => {
-  const artifacts = [...(input.artifacts ?? [])];
-  const proofAssertions = [...(input.proofAssertions ?? [])];
-  const proofSummary = summarizeVoiceProofAssertions(proofAssertions);
-  const media = [...(input.media ?? [])];
-  const providerRoutingEvents = [...(input.providerRoutingEvents ?? [])];
-  const quality = [...(input.quality ?? [])];
-  const telephonyOutcomes = [...(input.telephonyOutcomes ?? [])];
-
-  return {
-    artifacts,
-    capturedAt: Date.now(),
-    media,
-    name: input.name,
-    proofAssertions,
-    proofSummary,
-    providerRoutingEvents,
-    quality,
-    scenarioId: input.scenarioId,
-    schema: "absolute.voice.session.snapshot.v1",
-    sessionId: input.sessionId,
-    status: buildVoiceSessionSnapshotStatus({
-      artifacts,
-      media,
-      proofSummary,
-      quality,
-      telephonyOutcomes,
-    }),
-    telephonyOutcomes,
-    turnId: input.turnId,
-  };
-};
-
 export const parseVoiceSessionSnapshot = (
   snapshot: VoiceSessionSnapshot,
 ): VoiceSessionSnapshot => {
   if (snapshot.schema !== "absolute.voice.session.snapshot.v1") {
     throw new Error("Unsupported voice session snapshot schema.");
   }
+
   return snapshot;
 };
 
@@ -220,8 +220,8 @@ const resolveVoiceSessionSnapshot = async (
     typeof options.source === "function"
       ? await options.source(input)
       : (options.source ?? {
-          media: options.media,
           artifacts: options.artifacts,
+          media: options.media,
           name: options.name,
           proofAssertions: options.proofAssertions,
           providerRoutingEvents: options.providerRoutingEvents,
@@ -244,7 +244,8 @@ const resolveVoiceSessionSnapshot = async (
 };
 
 const readRouteSessionId = (params: Record<string, unknown>) => {
-  const sessionId = params.sessionId;
+  const {sessionId} = params;
+
   return typeof sessionId === "string" ? sessionId : "";
 };
 
@@ -275,6 +276,7 @@ export const createVoiceSessionSnapshotRoutes = (
         sessionId: readRouteSessionId(params),
         turnId: typeof query.turnId === "string" ? query.turnId : undefined,
       });
+
       return sessionSnapshotJsonResponse(
         snapshot,
         headers,

@@ -152,120 +152,6 @@ const uniqueSorted = (values: Array<string | undefined>) =>
     ),
   ].sort();
 
-export const createVoiceProviderDecisionTraceEvent = (
-  input: VoiceProviderDecisionTraceInput,
-): VoiceTraceEvent => {
-  const surface = input.surface ?? surfaceForKind(input.kind);
-  const reason =
-    input.reason ??
-    (input.status === "degraded"
-      ? `Provider ${input.provider} degraded to ${input.fallbackProvider ?? input.selectedProvider ?? "lower-fidelity fallback"}.`
-      : input.status === "fallback"
-        ? `Fallback from ${input.provider} to ${input.fallbackProvider ?? input.selectedProvider ?? "next provider"}.`
-        : input.status === "error"
-          ? `Provider ${input.provider} errored before recovery.`
-          : input.status === "skipped"
-            ? `Provider ${input.provider} was skipped by policy.`
-            : `Provider ${input.selectedProvider ?? input.provider} selected by policy.`);
-
-  return {
-    at: input.at ?? Date.now(),
-    payload: {
-      ...input,
-      providerDecision: true,
-      reason,
-      surface,
-    },
-    scenarioId: input.scenarioId,
-    sessionId: input.sessionId ?? `${surface}-provider-decision`,
-    turnId: input.turnId,
-    type: "provider.decision",
-  };
-};
-
-export const listVoiceProviderDecisionTraces = (
-  events: StoredVoiceTraceEvent[] | VoiceProviderDecisionTrace[],
-): VoiceProviderDecisionTrace[] => {
-  if (events.every(isDecisionTrace)) {
-    return [...events].sort((left, right) => right.at - left.at);
-  }
-
-  const traceEvents = events as StoredVoiceTraceEvent[];
-  const explicit = traceEvents
-    .filter((event) => event.type === "provider.decision")
-    .map((event): VoiceProviderDecisionTrace | undefined => {
-      const provider = getString(event.payload.provider);
-      const status = getString(event.payload.status);
-      const surface = getString(event.payload.surface);
-      if (
-        !provider ||
-        !surface ||
-        (status !== "error" &&
-          status !== "fallback" &&
-          status !== "degraded" &&
-          status !== "selected" &&
-          status !== "skipped" &&
-          status !== "success")
-      ) {
-        return undefined;
-      }
-      return {
-        at: event.at,
-        elapsedMs: getNumber(event.payload.elapsedMs),
-        error: getString(event.payload.error),
-        fallbackProvider: getString(event.payload.fallbackProvider),
-        kind:
-          event.payload.kind === "llm" ||
-          event.payload.kind === "stt" ||
-          event.payload.kind === "tts"
-            ? event.payload.kind
-            : undefined,
-        latencyBudgetMs: getNumber(event.payload.latencyBudgetMs),
-        provider,
-        reason:
-          getString(event.payload.reason) ??
-          `Provider ${provider} emitted ${status}.`,
-        scenarioId: event.scenarioId,
-        selectedProvider: getString(event.payload.selectedProvider),
-        sessionId: event.sessionId,
-        status,
-        surface,
-        turnId: event.turnId,
-      };
-    })
-    .filter((event): event is VoiceProviderDecisionTrace => Boolean(event));
-  const routing = listVoiceRoutingEvents(traceEvents).map(
-    (event): VoiceProviderDecisionTrace => ({
-      at: event.at,
-      elapsedMs: event.elapsedMs,
-      error: event.error,
-      fallbackProvider: event.fallbackProvider,
-      kind: event.kind,
-      latencyBudgetMs: event.latencyBudgetMs,
-      provider: event.provider ?? event.selectedProvider ?? "unknown",
-      reason:
-        event.status === "fallback"
-          ? `Fallback selected ${event.selectedProvider ?? event.fallbackProvider ?? "next provider"} after ${event.provider ?? "provider"} failed.`
-          : event.status === "error"
-            ? `Provider ${event.provider ?? "unknown"} errored before fallback recovery.`
-            : `Provider ${event.selectedProvider ?? event.provider ?? "unknown"} completed successfully.`,
-      scenarioId: event.scenarioId,
-      selectedProvider: event.selectedProvider,
-      sessionId: event.sessionId,
-      status:
-        event.status === "fallback" || event.status === "error"
-          ? event.status
-          : "success",
-      surface:
-        getString((event as unknown as Record<string, unknown>).surface) ??
-        surfaceForKind(event.kind),
-      turnId: event.turnId,
-    }),
-  );
-
-  return [...explicit, ...routing].sort((left, right) => right.at - left.at);
-};
-
 export const buildVoiceProviderDecisionTraceReport = async (
   options: VoiceProviderDecisionTraceReportOptions,
 ): Promise<VoiceProviderDecisionTraceReport> => {
@@ -282,6 +168,7 @@ export const buildVoiceProviderDecisionTraceReport = async (
       ) {
         return false;
       }
+
       return true;
     },
   );
@@ -405,6 +292,7 @@ export const buildVoiceProviderDecisionTraceReport = async (
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([surface, surfaceDecisions]) => {
       const surfaceIssues = issues.filter((issue) => issue.surface === surface);
+
       return {
         degraded: surfaceDecisions.filter(
           (decision) => decision.status === "degraded",
@@ -458,30 +346,171 @@ export const buildVoiceProviderDecisionTraceReport = async (
     surfaces: surfaceReports,
   };
 };
+export const createVoiceProviderDecisionTraceEvent = (
+  input: VoiceProviderDecisionTraceInput,
+): VoiceTraceEvent => {
+  const surface = input.surface ?? surfaceForKind(input.kind);
+  const reason =
+    input.reason ??
+    (input.status === "degraded"
+      ? `Provider ${input.provider} degraded to ${input.fallbackProvider ?? input.selectedProvider ?? "lower-fidelity fallback"}.`
+      : input.status === "fallback"
+        ? `Fallback from ${input.provider} to ${input.fallbackProvider ?? input.selectedProvider ?? "next provider"}.`
+        : input.status === "error"
+          ? `Provider ${input.provider} errored before recovery.`
+          : input.status === "skipped"
+            ? `Provider ${input.provider} was skipped by policy.`
+            : `Provider ${input.selectedProvider ?? input.provider} selected by policy.`);
 
-export const renderVoiceProviderDecisionTraceMarkdown = (
-  report: VoiceProviderDecisionTraceReport,
-) =>
-  [
-    "# Voice Provider Decision Traces",
-    "",
-    `Status: **${report.status}**`,
-    `Decisions: ${String(report.summary.decisions)}`,
-    `Providers: ${String(report.summary.providers)}`,
-    `Fallbacks: ${String(report.summary.fallbacks)}`,
-    `Degraded: ${String(report.summary.degraded)}`,
-    `Errors: ${String(report.summary.errors)}`,
-    "",
-    "| Surface | Status | Decisions | Selected | Fallbacks | Degraded | Errors | Providers |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
-    ...report.surfaces.map(
-      (surface) =>
-        `| ${surface.surface} | ${surface.status} | ${String(surface.decisions)} | ${String(surface.selected)} | ${String(surface.fallbacks)} | ${String(surface.degraded)} | ${String(surface.errors)} | ${surface.providers.join(", ")} |`,
-    ),
-    "",
-    ...report.issues.map((issue) => `- ${issue.status}: ${issue.message}`),
-  ].join("\n");
+  return {
+    at: input.at ?? Date.now(),
+    payload: {
+      ...input,
+      providerDecision: true,
+      reason,
+      surface,
+    },
+    scenarioId: input.scenarioId,
+    sessionId: input.sessionId ?? `${surface}-provider-decision`,
+    turnId: input.turnId,
+    type: "provider.decision",
+  };
+};
+export const createVoiceProviderDecisionTraceRoutes = (
+  options: VoiceProviderDecisionTraceRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/provider-decisions";
+  const htmlPath = options.htmlPath ?? "/voice/provider-decisions";
+  const markdownPath = options.markdownPath ?? "/voice/provider-decisions.md";
+  const headers = options.headers ?? {};
+  const title = options.title ?? "Provider Decision Traces";
+  const report = () => buildVoiceProviderDecisionTraceReport(options);
+  const app = new Elysia({
+    name: options.name ?? "voice-provider-decisions",
+  }).get(
+    path,
+    async () =>
+      new Response(JSON.stringify(await report(), null, 2), {
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          ...headers,
+        },
+      }),
+  );
 
+  if (htmlPath !== false) {
+    app.get(htmlPath, async () => {
+      const body = options.render
+        ? await options.render(await report())
+        : renderVoiceProviderDecisionTraceHTML(await report(), title);
+
+      return new Response(body, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          ...headers,
+        },
+      });
+    });
+  }
+
+  if (markdownPath !== false) {
+    app.get(
+      markdownPath,
+      async () =>
+        new Response(renderVoiceProviderDecisionTraceMarkdown(await report()), {
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            ...headers,
+          },
+        }),
+    );
+  }
+
+  return app;
+};
+export const listVoiceProviderDecisionTraces = (
+  events: StoredVoiceTraceEvent[] | VoiceProviderDecisionTrace[],
+): VoiceProviderDecisionTrace[] => {
+  if (events.every(isDecisionTrace)) {
+    return [...events].sort((left, right) => right.at - left.at);
+  }
+
+  const traceEvents = events;
+  const explicit = traceEvents
+    .filter((event) => event.type === "provider.decision")
+    .map((event): VoiceProviderDecisionTrace | undefined => {
+      const provider = getString(event.payload.provider);
+      const status = getString(event.payload.status);
+      const surface = getString(event.payload.surface);
+      if (
+        !provider ||
+        !surface ||
+        (status !== "error" &&
+          status !== "fallback" &&
+          status !== "degraded" &&
+          status !== "selected" &&
+          status !== "skipped" &&
+          status !== "success")
+      ) {
+        return undefined;
+      }
+
+      return {
+        at: event.at,
+        elapsedMs: getNumber(event.payload.elapsedMs),
+        error: getString(event.payload.error),
+        fallbackProvider: getString(event.payload.fallbackProvider),
+        kind:
+          event.payload.kind === "llm" ||
+          event.payload.kind === "stt" ||
+          event.payload.kind === "tts"
+            ? event.payload.kind
+            : undefined,
+        latencyBudgetMs: getNumber(event.payload.latencyBudgetMs),
+        provider,
+        reason:
+          getString(event.payload.reason) ??
+          `Provider ${provider} emitted ${status}.`,
+        scenarioId: event.scenarioId,
+        selectedProvider: getString(event.payload.selectedProvider),
+        sessionId: event.sessionId,
+        status,
+        surface,
+        turnId: event.turnId,
+      };
+    })
+    .filter((event): event is VoiceProviderDecisionTrace => Boolean(event));
+  const routing = listVoiceRoutingEvents(traceEvents).map(
+    (event): VoiceProviderDecisionTrace => ({
+      at: event.at,
+      elapsedMs: event.elapsedMs,
+      error: event.error,
+      fallbackProvider: event.fallbackProvider,
+      kind: event.kind,
+      latencyBudgetMs: event.latencyBudgetMs,
+      provider: event.provider ?? event.selectedProvider ?? "unknown",
+      reason:
+        event.status === "fallback"
+          ? `Fallback selected ${event.selectedProvider ?? event.fallbackProvider ?? "next provider"} after ${event.provider ?? "provider"} failed.`
+          : event.status === "error"
+            ? `Provider ${event.provider ?? "unknown"} errored before fallback recovery.`
+            : `Provider ${event.selectedProvider ?? event.provider ?? "unknown"} completed successfully.`,
+      scenarioId: event.scenarioId,
+      selectedProvider: event.selectedProvider,
+      sessionId: event.sessionId,
+      status:
+        event.status === "fallback" || event.status === "error"
+          ? event.status
+          : "success",
+      surface:
+        getString((event as unknown as Record<string, unknown>).surface) ??
+        surfaceForKind(event.kind),
+      turnId: event.turnId,
+    }),
+  );
+
+  return [...explicit, ...routing].sort((left, right) => right.at - left.at);
+};
 export const renderVoiceProviderDecisionTraceHTML = (
   report: VoiceProviderDecisionTraceReport,
   title = "Provider Decision Traces",
@@ -529,55 +558,25 @@ ${report.surfaces
 </main>
 </body>
 </html>`;
-
-export const createVoiceProviderDecisionTraceRoutes = (
-  options: VoiceProviderDecisionTraceRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/provider-decisions";
-  const htmlPath = options.htmlPath ?? "/voice/provider-decisions";
-  const markdownPath = options.markdownPath ?? "/voice/provider-decisions.md";
-  const headers = options.headers ?? {};
-  const title = options.title ?? "Provider Decision Traces";
-  const report = () => buildVoiceProviderDecisionTraceReport(options);
-  const app = new Elysia({
-    name: options.name ?? "voice-provider-decisions",
-  }).get(
-    path,
-    async () =>
-      new Response(JSON.stringify(await report(), null, 2), {
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          ...headers,
-        },
-      }),
-  );
-
-  if (htmlPath !== false) {
-    app.get(htmlPath, async () => {
-      const body = options.render
-        ? await options.render(await report())
-        : renderVoiceProviderDecisionTraceHTML(await report(), title);
-      return new Response(body, {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          ...headers,
-        },
-      });
-    });
-  }
-
-  if (markdownPath !== false) {
-    app.get(
-      markdownPath,
-      async () =>
-        new Response(renderVoiceProviderDecisionTraceMarkdown(await report()), {
-          headers: {
-            "content-type": "text/markdown; charset=utf-8",
-            ...headers,
-          },
-        }),
-    );
-  }
-
-  return app;
-};
+export const renderVoiceProviderDecisionTraceMarkdown = (
+  report: VoiceProviderDecisionTraceReport,
+) =>
+  [
+    "# Voice Provider Decision Traces",
+    "",
+    `Status: **${report.status}**`,
+    `Decisions: ${String(report.summary.decisions)}`,
+    `Providers: ${String(report.summary.providers)}`,
+    `Fallbacks: ${String(report.summary.fallbacks)}`,
+    `Degraded: ${String(report.summary.degraded)}`,
+    `Errors: ${String(report.summary.errors)}`,
+    "",
+    "| Surface | Status | Decisions | Selected | Fallbacks | Degraded | Errors | Providers |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...report.surfaces.map(
+      (surface) =>
+        `| ${surface.surface} | ${surface.status} | ${String(surface.decisions)} | ${String(surface.selected)} | ${String(surface.fallbacks)} | ${String(surface.degraded)} | ${String(surface.errors)} | ${surface.providers.join(", ")} |`,
+    ),
+    "",
+    ...report.issues.map((issue) => `- ${issue.status}: ${issue.message}`),
+  ].join("\n");

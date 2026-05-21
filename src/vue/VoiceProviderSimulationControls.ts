@@ -27,10 +27,10 @@ export const VoiceProviderSimulationControls = defineComponent({
   },
   setup(props) {
     const options = {
-      fallbackRequiredMessage: props.fallbackRequiredMessage,
-      fallbackRequiredProvider: props.fallbackRequiredProvider,
       failureMessage: props.failureMessage,
       failureProviders: props.failureProviders,
+      fallbackRequiredMessage: props.fallbackRequiredMessage,
+      fallbackRequiredProvider: props.fallbackRequiredProvider,
       kind: props.kind,
       pathPrefix: props.pathPrefix,
       providers: props.providers,
@@ -98,8 +98,8 @@ export const VoiceProviderSimulationControls = defineComponent({
                   disabled:
                     !model.value.canSimulateFailure || controls.isRunning.value,
                   key: `fail-${provider.provider}`,
-                  onClick: () => run(provider.provider, "failure"),
                   type: "button",
+                  onClick: () => run(provider.provider, "failure"),
                 },
                 `Simulate ${provider.provider} ${props.kind.toUpperCase()} failure`,
               ),
@@ -110,8 +110,8 @@ export const VoiceProviderSimulationControls = defineComponent({
                 {
                   disabled: controls.isRunning.value,
                   key: `recover-${provider.provider}`,
-                  onClick: () => run(provider.provider, "recovery"),
                   type: "button",
+                  onClick: () => run(provider.provider, "recovery"),
                 },
                 `Mark ${provider.provider} recovered`,
               ),

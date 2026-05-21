@@ -12,18 +12,6 @@ export type VoiceCallDebuggerClientState = {
   updatedAt?: number;
 };
 
-export const fetchVoiceCallDebugger = async (
-  path: string,
-  options: Pick<VoiceCallDebuggerClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice call debugger failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceCallDebuggerReport;
-};
-
 export const createVoiceCallDebuggerStore = (
   path: string,
   options: VoiceCallDebuggerClientOptions = {},
@@ -55,6 +43,7 @@ export const createVoiceCallDebuggerStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -83,14 +72,27 @@ export const createVoiceCallDebuggerStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceCallDebugger = async (
+  path: string,
+  options: Pick<VoiceCallDebuggerClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice call debugger failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceCallDebuggerReport;
 };

@@ -66,6 +66,7 @@ const resolveRecoveryElapsedMs = <TProvider extends string>(
   if (typeof value === "number") {
     return value;
   }
+
   return value?.[provider] ?? 25;
 };
 
@@ -90,6 +91,7 @@ const resolveFallback = async <TProvider extends string>(
     typeof options.fallback === "function"
       ? await options.fallback(provider)
       : options.fallback;
+
   return (configured ?? options.providers).find(
     (candidate) => candidate !== provider,
   );

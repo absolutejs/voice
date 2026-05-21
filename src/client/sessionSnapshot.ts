@@ -19,19 +19,8 @@ const withTurnId = (path: string, turnId?: string) => {
   }
   const url = new URL(path, "http://absolutejs.local");
   url.searchParams.set("turnId", turnId);
-  return `${url.pathname}${url.search}`;
-};
 
-export const fetchVoiceSessionSnapshot = async (
-  path: string,
-  options: Pick<VoiceSessionSnapshotClientOptions, "fetch" | "turnId"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(withTurnId(path, options.turnId));
-  if (!response.ok) {
-    throw new Error(`Voice session snapshot failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceSessionSnapshot;
+  return `${url.pathname}${url.search}`;
 };
 
 export const createVoiceSessionSnapshotStore = (
@@ -65,6 +54,7 @@ export const createVoiceSessionSnapshotStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return next;
     } catch (error) {
       snapshot = {
@@ -81,6 +71,7 @@ export const createVoiceSessionSnapshotStore = (
     if (current === undefined) {
       throw new Error("Voice session snapshot has not been loaded.");
     }
+
     return new Blob([JSON.stringify(current, null, 2)], {
       type: "application/json",
     });
@@ -103,14 +94,27 @@ export const createVoiceSessionSnapshotStore = (
   return {
     close,
     download,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceSessionSnapshot = async (
+  path: string,
+  options: Pick<VoiceSessionSnapshotClientOptions, "fetch" | "turnId"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(withTurnId(path, options.turnId));
+  if (!response.ok) {
+    throw new Error(`Voice session snapshot failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceSessionSnapshot;
 };

@@ -55,6 +55,7 @@ const formatExplanationValue = (
     return "n/a";
   }
   const suffix = unit && unit !== "status" ? ` ${unit}` : "";
+
   return `${String(value)}${suffix}`;
 };
 
@@ -85,7 +86,7 @@ export const createVoiceReadinessFailuresViewModel = (
   const failures =
     snapshot.report?.checks
       .map(toFailureView)
-      .filter((value): value is VoiceReadinessFailureView => !!value) ?? [];
+      .filter((value): value is VoiceReadinessFailureView => Boolean(value)) ?? [];
   const hasOpenIssues = failures.length > 0;
 
   return {
@@ -116,7 +117,68 @@ export const createVoiceReadinessFailuresViewModel = (
     updatedAt: snapshot.updatedAt,
   };
 };
+export const defineVoiceReadinessFailuresElement = (
+  tagName = "absolute-voice-readiness-failures",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceReadinessFailuresElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceReadinessFailures>;
+
+      connectedCallback() {
+        this.mounted = mountVoiceReadinessFailures(
+          this,
+          this.getAttribute("path") ?? "/api/production-readiness",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            intervalMs:
+              Number(this.getAttribute("interval-ms") ?? 0) || undefined,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const getVoiceReadinessFailuresCSS = () =>
+  `.absolute-voice-readiness-failures{border:1px solid #fed7aa;border-radius:20px;background:#fff7ed;color:#1c1917;padding:18px;box-shadow:0 18px 40px rgba(234,88,12,.12);font-family:inherit}.absolute-voice-readiness-failures--ready{border-color:#86efac;background:#f0fdf4}.absolute-voice-readiness-failures--error{border-color:#fda4af;background:#fff1f2}.absolute-voice-readiness-failures__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-readiness-failures__eyebrow{color:#9a3412;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-readiness-failures__label{font-size:24px;line-height:1}.absolute-voice-readiness-failures__description,.absolute-voice-readiness-failures__empty{color:#57534e}.absolute-voice-readiness-failures__items{display:grid;gap:10px;margin-top:14px}.absolute-voice-readiness-failures__item{background:white;border:1px solid #fed7aa;border-radius:16px;padding:12px}.absolute-voice-readiness-failures__item--fail{border-color:#fb7185}.absolute-voice-readiness-failures__item span{color:#9a3412;display:block;font-size:12px;font-weight:900;text-transform:uppercase}.absolute-voice-readiness-failures__item strong{display:block;font-size:18px;margin-top:4px}.absolute-voice-readiness-failures__item p{margin:.45rem 0 0}.absolute-voice-readiness-failures__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-readiness-failures__links a{border:1px solid #fdba74;border-radius:999px;color:#9a3412;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-readiness-failures__error{color:#9f1239;font-weight:700}`;
+export const mountVoiceReadinessFailures = (
+  element: Element,
+  path = "/api/production-readiness",
+  options: VoiceReadinessFailuresWidgetOptions = {},
+) => {
+  const store = createVoiceReadinessFailuresStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceReadinessFailuresHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceReadinessFailuresHTML = (
   snapshot: VoiceReadinessFailuresSnapshot,
   options: VoiceReadinessFailuresWidgetOptions = {},
@@ -160,69 +222,4 @@ export const renderVoiceReadinessFailuresHTML = (
   ${links}
   ${model.error ? `<p class="absolute-voice-readiness-failures__error">${escapeHtml(model.error)}</p>` : ""}
 </section>`;
-};
-
-export const getVoiceReadinessFailuresCSS = () =>
-  `.absolute-voice-readiness-failures{border:1px solid #fed7aa;border-radius:20px;background:#fff7ed;color:#1c1917;padding:18px;box-shadow:0 18px 40px rgba(234,88,12,.12);font-family:inherit}.absolute-voice-readiness-failures--ready{border-color:#86efac;background:#f0fdf4}.absolute-voice-readiness-failures--error{border-color:#fda4af;background:#fff1f2}.absolute-voice-readiness-failures__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-readiness-failures__eyebrow{color:#9a3412;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-readiness-failures__label{font-size:24px;line-height:1}.absolute-voice-readiness-failures__description,.absolute-voice-readiness-failures__empty{color:#57534e}.absolute-voice-readiness-failures__items{display:grid;gap:10px;margin-top:14px}.absolute-voice-readiness-failures__item{background:white;border:1px solid #fed7aa;border-radius:16px;padding:12px}.absolute-voice-readiness-failures__item--fail{border-color:#fb7185}.absolute-voice-readiness-failures__item span{color:#9a3412;display:block;font-size:12px;font-weight:900;text-transform:uppercase}.absolute-voice-readiness-failures__item strong{display:block;font-size:18px;margin-top:4px}.absolute-voice-readiness-failures__item p{margin:.45rem 0 0}.absolute-voice-readiness-failures__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-readiness-failures__links a{border:1px solid #fdba74;border-radius:999px;color:#9a3412;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-readiness-failures__error{color:#9f1239;font-weight:700}`;
-
-export const mountVoiceReadinessFailures = (
-  element: Element,
-  path = "/api/production-readiness",
-  options: VoiceReadinessFailuresWidgetOptions = {},
-) => {
-  const store = createVoiceReadinessFailuresStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceReadinessFailuresHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceReadinessFailuresElement = (
-  tagName = "absolute-voice-readiness-failures",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceReadinessFailuresElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceReadinessFailures>;
-
-      connectedCallback() {
-        this.mounted = mountVoiceReadinessFailures(
-          this,
-          this.getAttribute("path") ?? "/api/production-readiness",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            intervalMs:
-              Number(this.getAttribute("interval-ms") ?? 0) || undefined,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

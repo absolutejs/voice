@@ -20,6 +20,7 @@ export const useVoiceWorkflowStatus = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

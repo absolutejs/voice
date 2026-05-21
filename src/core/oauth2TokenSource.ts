@@ -73,6 +73,7 @@ export const createVoiceOAuth2TokenSource = (
       expiresAt: Date.now() + ttlMs,
       value: json.access_token,
     };
+
     return json.access_token;
   };
 
@@ -92,6 +93,7 @@ export const createVoiceOAuth2TokenSource = (
       pending = fetchToken().finally(() => {
         pending = undefined;
       });
+
       return pending;
     },
   };

@@ -53,6 +53,7 @@ const statusLabel = (report: VoiceProofTrendReport | undefined) => {
   if (report.status === "pass") {
     return `${report.summary.cycles ?? report.cycles.length} cycles passing`;
   }
+
   return report.status;
 };
 
@@ -60,7 +61,7 @@ export const createVoiceProofTrendsViewModel = (
   snapshot: VoiceProofTrendsSnapshot,
   options: VoiceProofTrendsWidgetOptions = {},
 ): VoiceProofTrendsViewModel => {
-  const report = snapshot.report;
+  const {report} = snapshot;
   const metrics: VoiceProofTrendsMetricView[] = report
     ? [
         { label: "Status", value: report.status.toUpperCase() },
@@ -112,7 +113,68 @@ export const createVoiceProofTrendsViewModel = (
     updatedAt: snapshot.updatedAt,
   };
 };
+export const defineVoiceProofTrendsElement = (
+  tagName = "absolute-voice-proof-trends",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceProofTrendsElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceProofTrends>;
+
+      connectedCallback() {
+        this.mounted = mountVoiceProofTrends(
+          this,
+          this.getAttribute("path") ?? "/api/voice/proof-trends",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            intervalMs:
+              Number(this.getAttribute("interval-ms") ?? 0) || undefined,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const getVoiceProofTrendsCSS = () =>
+  `.absolute-voice-proof-trends{border:1px solid #99f6e4;border-radius:20px;background:#f0fdfa;color:#0f172a;padding:18px;box-shadow:0 18px 40px rgba(13,148,136,.12);font-family:inherit}.absolute-voice-proof-trends--warning,.absolute-voice-proof-trends--error{border-color:#f2a7a7;background:#fff7f4}.absolute-voice-proof-trends__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-proof-trends__eyebrow{color:#0f766e;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-proof-trends__label{font-size:24px;line-height:1}.absolute-voice-proof-trends__description,.absolute-voice-proof-trends__empty{color:#475569}.absolute-voice-proof-trends__metrics{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-top:14px}.absolute-voice-proof-trends__metrics article{background:#fff;border:1px solid #ccfbf1;border-radius:16px;padding:12px}.absolute-voice-proof-trends__metrics span{color:#64748b;display:block;font-size:12px;font-weight:800;text-transform:uppercase}.absolute-voice-proof-trends__metrics strong{display:block;font-size:20px;margin-top:4px}.absolute-voice-proof-trends__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-proof-trends__links a{border:1px solid #99f6e4;border-radius:999px;color:#0f766e;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-proof-trends__error{color:#9f1239;font-weight:700}`;
+export const mountVoiceProofTrends = (
+  element: Element,
+  path = "/api/voice/proof-trends",
+  options: VoiceProofTrendsWidgetOptions = {},
+) => {
+  const store = createVoiceProofTrendsStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceProofTrendsHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceProofTrendsHTML = (
   snapshot: VoiceProofTrendsSnapshot,
   options: VoiceProofTrendsWidgetOptions = {},
@@ -151,69 +213,4 @@ export const renderVoiceProofTrendsHTML = (
   ${links}
   ${model.error ? `<p class="absolute-voice-proof-trends__error">${escapeHtml(model.error)}</p>` : ""}
 </section>`;
-};
-
-export const getVoiceProofTrendsCSS = () =>
-  `.absolute-voice-proof-trends{border:1px solid #99f6e4;border-radius:20px;background:#f0fdfa;color:#0f172a;padding:18px;box-shadow:0 18px 40px rgba(13,148,136,.12);font-family:inherit}.absolute-voice-proof-trends--warning,.absolute-voice-proof-trends--error{border-color:#f2a7a7;background:#fff7f4}.absolute-voice-proof-trends__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-proof-trends__eyebrow{color:#0f766e;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-proof-trends__label{font-size:24px;line-height:1}.absolute-voice-proof-trends__description,.absolute-voice-proof-trends__empty{color:#475569}.absolute-voice-proof-trends__metrics{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-top:14px}.absolute-voice-proof-trends__metrics article{background:#fff;border:1px solid #ccfbf1;border-radius:16px;padding:12px}.absolute-voice-proof-trends__metrics span{color:#64748b;display:block;font-size:12px;font-weight:800;text-transform:uppercase}.absolute-voice-proof-trends__metrics strong{display:block;font-size:20px;margin-top:4px}.absolute-voice-proof-trends__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-proof-trends__links a{border:1px solid #99f6e4;border-radius:999px;color:#0f766e;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-proof-trends__error{color:#9f1239;font-weight:700}`;
-
-export const mountVoiceProofTrends = (
-  element: Element,
-  path = "/api/voice/proof-trends",
-  options: VoiceProofTrendsWidgetOptions = {},
-) => {
-  const store = createVoiceProofTrendsStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceProofTrendsHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceProofTrendsElement = (
-  tagName = "absolute-voice-proof-trends",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceProofTrendsElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceProofTrends>;
-
-      connectedCallback() {
-        this.mounted = mountVoiceProofTrends(
-          this,
-          this.getAttribute("path") ?? "/api/voice/proof-trends",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            intervalMs:
-              Number(this.getAttribute("interval-ms") ?? 0) || undefined,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

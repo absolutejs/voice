@@ -79,7 +79,9 @@ export const createVoicePromptInjectionGuard = (
 ): VoicePromptInjectionGuard => {
   const rules = options.rules ?? DEFAULT_VOICE_PROMPT_INJECTION_RULES;
   const replacement = options.sanitizedReplacement ?? "[REDACTED:INJECTION]";
+
   return {
+    rules,
     evaluate: (input) => {
       const text = extractText(input);
       const matches: VoicePromptInjectionVerdict["matches"] = [];
@@ -94,14 +96,15 @@ export const createVoicePromptInjectionGuard = (
           });
         }
       }
+
       return { matches, ok: matches.length === 0 };
     },
-    rules,
     sanitize: (text) => {
       let result = text;
       for (const rule of rules) {
         result = result.replace(new RegExp(rule.pattern, "gi"), replacement);
       }
+
       return result;
     },
   };

@@ -230,6 +230,7 @@ const resolveVoiceProviderRoutingPolicy = <
           strategy: policy,
         };
   }
+
   return policy;
 };
 
@@ -381,6 +382,7 @@ const mergeDefinedProviderPolicyFields = <
       ...surface.weights,
     };
   }
+
   return next;
 };
 
@@ -411,6 +413,7 @@ export const createVoiceProviderOrchestrationProfile = <
   return {
     defaultSurface,
     id: options.id,
+    surfaces: options.surfaces,
     resolve: (surface = defaultSurface) => {
       const config = options.surfaces[surface];
       if (!config) {
@@ -422,6 +425,7 @@ export const createVoiceProviderOrchestrationProfile = <
         resolveVoiceProviderRoutingPolicy(config.policy),
         config,
       );
+
       return {
         allowProviders: config.allowProviders,
         fallback: config.fallback,
@@ -432,7 +436,6 @@ export const createVoiceProviderOrchestrationProfile = <
         timeoutMs: config.timeoutMs,
       };
     },
-    surfaces: options.surfaces,
   };
 };
 
@@ -554,12 +557,14 @@ const ROUTE_RESULT_INSTRUCTION =
 const stripJSONCodeFence = (value: string) => {
   const trimmed = value.trim();
   const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+
   return match?.[1]?.trim() ?? value;
 };
 
 const parseJSON = (value: string): Record<string, unknown> => {
   try {
     const parsed = JSON.parse(stripJSONCodeFence(value));
+
     return parsed && typeof parsed === "object"
       ? (parsed as Record<string, unknown>)
       : {};
@@ -594,6 +599,7 @@ const getMessageToolCalls = (
   message: VoiceAgentMessage,
 ): VoiceAgentToolCall[] => {
   const toolCalls = message.metadata?.toolCalls;
+
   return Array.isArray(toolCalls)
     ? (toolCalls.filter(
         (toolCall) =>
@@ -698,7 +704,7 @@ export const createJSONVoiceAssistantModel = <
       "transfer" in output ||
       "escalate" in output
     ) {
-      return output as VoiceAgentModelOutput<TResult>;
+      return output;
     }
 
     return options.mapOutput?.(output) ?? normalizeRouteOutput<TResult>(output);
@@ -755,6 +761,7 @@ export const createVoiceProviderRouter = <
       providerProfiles[provider]?.timeoutMs ??
       options.timeoutMs ??
       orchestrationSurface?.timeoutMs;
+
     return typeof timeoutMs === "number" &&
       Number.isFinite(timeoutMs) &&
       timeoutMs > 0
@@ -773,6 +780,7 @@ export const createVoiceProviderRouter = <
       status: "healthy",
     };
     healthState.set(provider, next);
+
     return next;
   };
 
@@ -780,6 +788,7 @@ export const createVoiceProviderRouter = <
     if (!healthOptions) {
       return undefined;
     }
+
     return {
       ...getHealth(provider),
     };
@@ -789,7 +798,8 @@ export const createVoiceProviderRouter = <
     if (!healthOptions) {
       return undefined;
     }
-    const suppressedUntil = getHealth(provider).suppressedUntil;
+    const {suppressedUntil} = getHealth(provider);
+
     return typeof suppressedUntil === "number"
       ? Math.max(0, suppressedUntil - now())
       : undefined;
@@ -800,6 +810,7 @@ export const createVoiceProviderRouter = <
       return false;
     }
     const health = getHealth(provider);
+
     return (
       typeof health.suppressedUntil === "number" &&
       health.suppressedUntil > now()
@@ -814,6 +825,7 @@ export const createVoiceProviderRouter = <
     health.consecutiveFailures = 0;
     health.status = "healthy";
     health.suppressedUntil = undefined;
+
     return cloneHealth(provider);
   };
 
@@ -837,6 +849,7 @@ export const createVoiceProviderRouter = <
       health.suppressedUntil =
         currentTime + (rateLimited ? rateLimitCooldownMs : cooldownMs);
     }
+
     return cloneHealth(provider);
   };
 
@@ -851,6 +864,7 @@ export const createVoiceProviderRouter = <
       typeof allowProviders === "function"
         ? await allowProviders(input)
         : allowProviders;
+
     return new Set(allowed ?? providerIds);
   };
 
@@ -877,6 +891,7 @@ export const createVoiceProviderRouter = <
     ) {
       return false;
     }
+
     return true;
   };
 
@@ -886,6 +901,7 @@ export const createVoiceProviderRouter = <
       return policy.scoreProvider(provider, profile);
     }
     const weights = policy?.weights ?? {};
+
     return (
       (profile?.cost ?? Number.MAX_SAFE_INTEGER) * (weights.cost ?? 1) +
       (profile?.latencyMs ?? Number.MAX_SAFE_INTEGER) *
@@ -1067,6 +1083,7 @@ export const createVoiceProviderRouter = <
             },
             input,
           );
+
           return output;
         } catch (error) {
           lastError = error;
@@ -1239,6 +1256,7 @@ const toGeminiSchema = (
     }
     next[key] = value;
   }
+
   return next;
 };
 
@@ -1430,6 +1448,7 @@ export const createOpenAIVoiceAssistantModel = <
 
 const extractAnthropicText = (response: Record<string, unknown>) => {
   const content = Array.isArray(response.content) ? response.content : [];
+
   return content
     .map((item) =>
       item &&
@@ -1547,11 +1566,12 @@ const extractGeminiCandidateParts = (response: Record<string, unknown>) => {
   if (!first || typeof first !== "object") {
     return [];
   }
-  const content = (first as Record<string, unknown>).content;
+  const {content} = (first as Record<string, unknown>);
   if (!content || typeof content !== "object") {
     return [];
   }
-  const parts = (content as Record<string, unknown>).parts;
+  const {parts} = (content as Record<string, unknown>);
+
   return Array.isArray(parts) ? parts : [];
 };
 
@@ -1573,7 +1593,7 @@ const extractGeminiToolCalls = (response: Record<string, unknown>) => {
     if (!part || typeof part !== "object") {
       continue;
     }
-    const functionCall = (part as Record<string, unknown>).functionCall;
+    const {functionCall} = (part as Record<string, unknown>);
     if (!functionCall || typeof functionCall !== "object") {
       continue;
     }

@@ -189,6 +189,7 @@ export const summarizeVoiceRoutingDecision = (
     if (options.sessionId && event.sessionId !== options.sessionId) {
       return false;
     }
+
     return true;
   });
   const limited =
@@ -207,6 +208,16 @@ const createEmptyKindSummary = (): VoiceRoutingKindSummary => ({
   timeoutCount: 0,
 });
 
+export const createVoiceRoutingDecisionSummary = async (
+  options: VoiceRoutingDecisionSummaryOptions,
+): Promise<VoiceRoutingDecisionSummary | null> => {
+  const events = await options.store.list({
+    sessionId: options.sessionId,
+    type: "session.error",
+  });
+
+  return summarizeVoiceRoutingDecision(events, options);
+};
 export const summarizeVoiceRoutingSessions = (
   events: StoredVoiceTraceEvent[] | VoiceRoutingEvent[],
   options: VoiceRoutingSessionSummaryOptions = {},
@@ -287,17 +298,6 @@ export const summarizeVoiceRoutingSessions = (
   return typeof options.limit === "number" && options.limit >= 0
     ? sorted.slice(0, options.limit)
     : sorted;
-};
-
-export const createVoiceRoutingDecisionSummary = async (
-  options: VoiceRoutingDecisionSummaryOptions,
-): Promise<VoiceRoutingDecisionSummary | null> => {
-  const events = await options.store.list({
-    sessionId: options.sessionId,
-    type: "session.error",
-  });
-
-  return summarizeVoiceRoutingDecision(events, options);
 };
 
 const summarizeRoutingEvents = (events: VoiceRoutingEvent[]) => {
@@ -399,7 +399,7 @@ const renderSessionKind = (
   kind: VoiceRoutingEventKind,
   summary: VoiceRoutingKindSummary,
 ) => {
-  const latest = summary.latest;
+  const {latest} = summary;
   const provider = latest?.provider ?? summary.providers[0] ?? "none";
   const status = latest?.status ?? "idle";
   const fallback =
@@ -691,6 +691,7 @@ const registerSimulationRoutes = <TProvider extends string>(
     const provider = providerFromQuery(query.provider, simulation.providers);
     if (!provider) {
       set.status = 400;
+
       return {
         error: "Provider is not configured for simulation.",
       };
@@ -700,6 +701,7 @@ const registerSimulationRoutes = <TProvider extends string>(
       !simulation.failureProviders.includes(provider)
     ) {
       set.status = 400;
+
       return {
         error: `${provider} is not configured for failure simulation.`,
       };
@@ -713,6 +715,7 @@ const registerSimulationRoutes = <TProvider extends string>(
       )
     ) {
       set.status = 400;
+
       return {
         error:
           simulation.fallbackRequiredMessage ??
@@ -726,6 +729,7 @@ const registerSimulationRoutes = <TProvider extends string>(
     const provider = providerFromQuery(query.provider, simulation.providers);
     if (!provider) {
       set.status = 400;
+
       return {
         error: "Provider is not configured for simulation.",
       };

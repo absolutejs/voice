@@ -114,7 +114,7 @@ const isReconnectPayload = (
 
   return (
     typeof payload.at === "number" &&
-    !!payload.reconnect &&
+    Boolean(payload.reconnect) &&
     typeof payload.reconnect === "object" &&
     typeof payload.reconnect.attempts === "number" &&
     typeof payload.reconnect.maxAttempts === "number" &&
@@ -156,7 +156,7 @@ export const summarizeVoiceReconnectProofSessions = (
 ): VoiceReconnectContractSnapshot[] =>
   sessions
     .map((session) => {
-      const attempts = session.reconnect.attempts;
+      const {attempts} = session.reconnect;
       const at =
         session.lastActivityAt ??
         session.reconnect.lastDisconnectAt ??
@@ -218,6 +218,7 @@ const percentile = (values: number[], rank: number) => {
     sorted.length - 1,
     Math.max(0, Math.ceil((rank / 100) * sorted.length) - 1),
   );
+
   return sorted[index];
 };
 
@@ -249,6 +250,57 @@ const getResumeLatencies = (
       (value): value is number => typeof value === "number" && value >= 0,
     );
 
+export const buildVoiceReconnectProofReport = (
+  options: VoiceReconnectProofOptions = {},
+): VoiceReconnectProofReport => {
+  const sessionSnapshots = options.sessions
+    ? summarizeVoiceReconnectProofSessions(options.sessions, {
+        maxAttempts: options.maxAttempts,
+      })
+    : [];
+  const snapshots = [...sessionSnapshots, ...(options.snapshots ?? [])].sort(
+    (left, right) => left.at - right.at,
+  );
+  const requireObservedReconnect = options.requireObservedReconnect ?? false;
+  const contract = runVoiceReconnectContract({
+    allowNoSnapshots: true,
+    requireReconnect: requireObservedReconnect,
+    requireReplayProtection: options.requireReplayProtection ?? true,
+    requireResume:
+      options.requireResumeAfterReconnect ?? requireObservedReconnect,
+    snapshots,
+  });
+  const errorCount = contract.issues.filter(
+    (issue) => issue.severity === "error",
+  ).length;
+  const warningCount = contract.issues.filter(
+    (issue) => issue.severity === "warning",
+  ).length;
+  const status: VoiceReconnectProofStatus =
+    errorCount > 0 ? "fail" : warningCount > 0 ? "warn" : "pass";
+  const sessionCount =
+    options.completedSessionCount ?? options.sessions?.length ?? 0;
+  const summary =
+    snapshots.length === 0
+      ? `Checked ${sessionCount} completed session(s). Reconnect proof is enabled; no reconnect cycle was observed.`
+      : contract.summary.resumed
+        ? `Checked ${sessionCount} completed session(s) and ${snapshots.length} reconnect snapshot(s). Resume was observed without replay duplicates.`
+        : contract.summary.reconnected
+          ? `Checked ${sessionCount} completed session(s) and ${snapshots.length} reconnect snapshot(s). Reconnect was observed.`
+          : `Checked ${sessionCount} completed session(s) and ${snapshots.length} reconnect snapshot(s). No reconnect was required.`;
+
+  return {
+    checkedAt: contract.checkedAt,
+    contract,
+    generatedAt: new Date(contract.checkedAt).toISOString(),
+    ok: status !== "fail",
+    reconnectAware: true,
+    sessionCount,
+    snapshotCount: snapshots.length,
+    status,
+    summary,
+  };
+};
 export const runVoiceReconnectContract = (
   options: VoiceReconnectContractOptions,
 ): VoiceReconnectContractReport => {
@@ -357,58 +409,6 @@ export const runVoiceReconnectContract = (
   };
 };
 
-export const buildVoiceReconnectProofReport = (
-  options: VoiceReconnectProofOptions = {},
-): VoiceReconnectProofReport => {
-  const sessionSnapshots = options.sessions
-    ? summarizeVoiceReconnectProofSessions(options.sessions, {
-        maxAttempts: options.maxAttempts,
-      })
-    : [];
-  const snapshots = [...sessionSnapshots, ...(options.snapshots ?? [])].sort(
-    (left, right) => left.at - right.at,
-  );
-  const requireObservedReconnect = options.requireObservedReconnect ?? false;
-  const contract = runVoiceReconnectContract({
-    allowNoSnapshots: true,
-    requireReconnect: requireObservedReconnect,
-    requireReplayProtection: options.requireReplayProtection ?? true,
-    requireResume:
-      options.requireResumeAfterReconnect ?? requireObservedReconnect,
-    snapshots,
-  });
-  const errorCount = contract.issues.filter(
-    (issue) => issue.severity === "error",
-  ).length;
-  const warningCount = contract.issues.filter(
-    (issue) => issue.severity === "warning",
-  ).length;
-  const status: VoiceReconnectProofStatus =
-    errorCount > 0 ? "fail" : warningCount > 0 ? "warn" : "pass";
-  const sessionCount =
-    options.completedSessionCount ?? options.sessions?.length ?? 0;
-  const summary =
-    snapshots.length === 0
-      ? `Checked ${sessionCount} completed session(s). Reconnect proof is enabled; no reconnect cycle was observed.`
-      : contract.summary.resumed
-        ? `Checked ${sessionCount} completed session(s) and ${snapshots.length} reconnect snapshot(s). Resume was observed without replay duplicates.`
-        : contract.summary.reconnected
-          ? `Checked ${sessionCount} completed session(s) and ${snapshots.length} reconnect snapshot(s). Reconnect was observed.`
-          : `Checked ${sessionCount} completed session(s) and ${snapshots.length} reconnect snapshot(s). No reconnect was required.`;
-
-  return {
-    checkedAt: contract.checkedAt,
-    contract,
-    generatedAt: new Date(contract.checkedAt).toISOString(),
-    ok: status !== "fail",
-    reconnectAware: true,
-    sessionCount,
-    snapshotCount: snapshots.length,
-    status,
-    summary,
-  };
-};
-
 const getSessionsFromStore = async (store: VoiceSessionStore) => {
   const summaries = await store.list();
   const sessions = await Promise.all(
@@ -420,6 +420,49 @@ const getSessionsFromStore = async (store: VoiceSessionStore) => {
   );
 };
 
+export const createVoiceReconnectContractRoutes = (
+  options: VoiceReconnectContractRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/reconnect-contract";
+  const htmlPath = options.htmlPath ?? "/voice/reconnect-contract";
+  const buildReport = async () =>
+    runVoiceReconnectContract({
+      requireReconnect: options.requireReconnect,
+      requireReplayProtection: options.requireReplayProtection,
+      requireResume: options.requireResume,
+      snapshots: await options.getSnapshots(),
+    });
+  const app = new Elysia({
+    name: options.name ?? "absolutejs-voice-reconnect-contract",
+  }).get(
+    path,
+    async () =>
+      new Response(JSON.stringify(await buildReport()), {
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          ...options.headers,
+        },
+      }),
+  );
+
+  if (htmlPath !== false) {
+    app.get(htmlPath, async () => {
+      const report = await buildReport();
+      const html = options.render
+        ? await options.render(report)
+        : renderVoiceReconnectContractHTML(report);
+
+      return new Response(html, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      });
+    });
+  }
+
+  return app;
+};
 export const createVoiceReconnectProofRoutes = (
   options: VoiceReconnectProofRoutesOptions = {},
 ) => {
@@ -480,10 +523,10 @@ export const createVoiceReconnectProofRoutes = (
     .get(path, respond)
     .post(path, async ({ body }) => {
       collectSnapshot(body);
+
       return respond();
     });
 };
-
 export const renderVoiceReconnectContractHTML = (
   report: VoiceReconnectContractReport,
 ) => {
@@ -495,48 +538,4 @@ export const renderVoiceReconnectContractHTML = (
     .join("");
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Voice Reconnect Contract</title><style>body{background:#0d1117;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,.card{background:#151b23;border:1px solid #30363d;border-radius:18px;margin-bottom:16px;padding:20px}.eyebrow{color:#7dd3fc;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.25rem,7vw,4.5rem);letter-spacing:-.06em;line-height:.92;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0d1117;border:1px solid #30363d;border-radius:999px;padding:7px 10px}.pass{color:#86efac}.fail,.error{color:#fca5a5}.warning{color:#fde68a}li{margin:8px 0}</style></head><body><main><section class="hero"><p class="eyebrow">Reconnect Resume Proof</p><h1>Voice reconnect contract</h1><div class="summary"><span class="pill ${report.pass ? "pass" : "fail"}">${report.pass ? "pass" : "fail"}</span><span class="pill">${String(report.snapshotCount)} snapshots</span><span class="pill">${String(report.summary.attempts)} attempts</span><span class="pill">statuses ${escapeHtml(report.statuses.join(", ") || "none")}</span></div></section><section class="card"><h2>Summary</h2><p>reconnected ${String(report.summary.reconnected)} · resumed ${String(report.summary.resumed)} · exhausted ${String(report.summary.exhausted)} · duplicate turns ${String(report.summary.duplicateTurnIds.length)}</p></section><section class="card"><h2>Issues</h2>${issues ? `<ul>${issues}</ul>` : '<p class="pass">No contract issues.</p>'}</section></main></body></html>`;
-};
-
-export const createVoiceReconnectContractRoutes = (
-  options: VoiceReconnectContractRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/reconnect-contract";
-  const htmlPath = options.htmlPath ?? "/voice/reconnect-contract";
-  const buildReport = async () =>
-    runVoiceReconnectContract({
-      requireReconnect: options.requireReconnect,
-      requireReplayProtection: options.requireReplayProtection,
-      requireResume: options.requireResume,
-      snapshots: await options.getSnapshots(),
-    });
-  const app = new Elysia({
-    name: options.name ?? "absolutejs-voice-reconnect-contract",
-  }).get(
-    path,
-    async () =>
-      new Response(JSON.stringify(await buildReport()), {
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          ...options.headers,
-        },
-      }),
-  );
-
-  if (htmlPath !== false) {
-    app.get(htmlPath, async () => {
-      const report = await buildReport();
-      const html = options.render
-        ? await options.render(report)
-        : renderVoiceReconnectContractHTML(report);
-
-      return new Response(html, {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      });
-    });
-  }
-
-  return app;
 };

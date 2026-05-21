@@ -80,6 +80,7 @@ export const VoiceWidget = defineComponent({
       const lastAssistantAt =
         controller.assistantAudio.value.at(-1)?.receivedAt;
       const lastTranscriptAt = controller.turns.value.at(-1)?.committedAt;
+
       return deriveVoiceAgentUIState({
         hasActivePartial: controller.partial.value.length > 0,
         isConnected: controller.isConnected.value,
@@ -188,9 +189,6 @@ export const VoiceWidget = defineComponent({
               ? h(
                   "button",
                   {
-                    onClick: () => {
-                      void controller.startRecording();
-                    },
                     style: {
                       background: t.accent,
                       border: "none",
@@ -202,6 +200,9 @@ export const VoiceWidget = defineComponent({
                       padding: "10px 14px",
                     },
                     type: "button",
+                    onClick: () => {
+                      void controller.startRecording();
+                    },
                   },
                   l.startCall,
                 )
@@ -210,7 +211,6 @@ export const VoiceWidget = defineComponent({
               ? h(
                   "button",
                   {
-                    onClick: () => controller.stopRecording(),
                     style: {
                       background: "transparent",
                       border: "1px solid rgba(255,255,255,0.18)",
@@ -222,6 +222,7 @@ export const VoiceWidget = defineComponent({
                       padding: "10px 14px",
                     },
                     type: "button",
+                    onClick: () => controller.stopRecording(),
                   },
                   l.mute,
                 )
@@ -230,9 +231,6 @@ export const VoiceWidget = defineComponent({
               ? h(
                   "button",
                   {
-                    onClick: () => {
-                      void controller.close();
-                    },
                     style: {
                       background: t.errorAccent,
                       border: "none",
@@ -244,6 +242,9 @@ export const VoiceWidget = defineComponent({
                       padding: "10px 14px",
                     },
                     type: "button",
+                    onClick: () => {
+                      void controller.close();
+                    },
                   },
                   l.endCall,
                 )

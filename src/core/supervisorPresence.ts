@@ -44,6 +44,7 @@ export const createVoiceSupervisorPresence = (
       map = new Map();
       bySession.set(sessionId, map);
     }
+
     return map;
   };
 
@@ -81,6 +82,7 @@ export const createVoiceSupervisorPresence = (
     };
     sessionWatchers.set(input.supervisorId, watcher);
     emit({ type: "join", watcher });
+
     return watcher;
   };
 
@@ -89,6 +91,7 @@ export const createVoiceSupervisorPresence = (
     if (!sessionWatchers?.delete(supervisorId)) return false;
     if (sessionWatchers.size === 0) bySession.delete(sessionId);
     emit({ at: now(), sessionId, supervisorId, type: "leave" });
+
     return true;
   };
 
@@ -98,6 +101,7 @@ export const createVoiceSupervisorPresence = (
     const at = now();
     watcher.lastSeenAt = at;
     emit({ at, sessionId, supervisorId, type: "heartbeat" });
+
     return true;
   };
 
@@ -119,6 +123,7 @@ export const createVoiceSupervisorPresence = (
       to: role,
       type: "role-change",
     });
+
     return true;
   };
 
@@ -126,6 +131,7 @@ export const createVoiceSupervisorPresence = (
     const sessionWatchers = bySession.get(sessionId);
     if (!sessionWatchers) return [];
     pruneStaleFromSession(sessionId, sessionWatchers);
+
     return Array.from(sessionWatchers.values());
   };
 
@@ -140,10 +146,12 @@ export const createVoiceSupervisorPresence = (
       for (const [sessionId, map] of bySession) {
         if (map.has(supervisorId)) out.push(sessionId);
       }
+
       return out;
     },
     subscribe(listener: (event: VoiceSupervisorPresenceEvent) => void) {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

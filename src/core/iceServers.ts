@@ -29,6 +29,7 @@ const toBase64 = (bytes: Uint8Array): string => {
   }
   let bin = "";
   for (const byte of bytes) bin += String.fromCharCode(byte);
+
   return btoa(bin);
 };
 
@@ -49,6 +50,7 @@ const defaultHmacSha1Base64 = async (
     cryptoKey,
     encoder.encode(message),
   );
+
   return toBase64(new Uint8Array(signature));
 };
 
@@ -68,6 +70,7 @@ export const createCoturnIceServers = async (
     ephemeralUsername,
   );
   const stun = input.stunUrls ?? ["stun:stun.l.google.com:19302"];
+
   return [
     { urls: stun },
     {
@@ -129,6 +132,7 @@ export const createTwilioNTSIceServers = async (
   }
   const payload = (await response.json()) as TwilioNTSResponse;
   const entries = payload.ice_servers ?? [];
+
   return entries.map((entry) => ({
     credential: entry.credential,
     urls: entry.urls ?? entry.url ?? [],

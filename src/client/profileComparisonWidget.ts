@@ -70,7 +70,7 @@ export const createVoiceProfileComparisonViewModel = (
   snapshot: VoiceProfileComparisonSnapshot,
   options: VoiceProfileComparisonWidgetOptions = {},
 ): VoiceProfileComparisonViewModel => {
-  const report = snapshot.report;
+  const {report} = snapshot;
   const profiles = report?.defaults.profiles.map(createProfileView) ?? [];
 
   return {
@@ -98,7 +98,68 @@ export const createVoiceProfileComparisonViewModel = (
     title: options.title ?? DEFAULT_TITLE,
   };
 };
+export const defineVoiceProfileComparisonElement = (
+  tagName = "absolute-voice-profile-comparison",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceProfileComparisonElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceProfileComparison>;
+
+      connectedCallback() {
+        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        this.mounted = mountVoiceProfileComparison(
+          this,
+          this.getAttribute("path") ?? "/api/voice/real-call-profile-history",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const getVoiceProfileComparisonCSS = () =>
+  `.absolute-voice-profile-comparison{border:1px solid #c7d2fe;border-radius:20px;background:#eef2ff;color:#111827;padding:18px;box-shadow:0 18px 40px rgba(79,70,229,.12);font-family:inherit}.absolute-voice-profile-comparison--warning,.absolute-voice-profile-comparison--error{border-color:#fbbf24;background:#fffbeb}.absolute-voice-profile-comparison__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-profile-comparison__eyebrow{color:#4338ca;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-profile-comparison__label{font-size:24px;line-height:1}.absolute-voice-profile-comparison__description,.absolute-voice-profile-comparison__empty{color:#4b5563}.absolute-voice-profile-comparison__profiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:14px}.absolute-voice-profile-comparison__profile{background:#fff;border:1px solid #c7d2fe;border-radius:16px;padding:14px}.absolute-voice-profile-comparison__profile--warn{border-color:#fbbf24}.absolute-voice-profile-comparison__profile--fail{border-color:#f87171}.absolute-voice-profile-comparison__profile header{align-items:center;display:flex;gap:8px;justify-content:space-between}.absolute-voice-profile-comparison__profile header span{border:1px solid currentColor;border-radius:999px;color:#4338ca;font-size:11px;font-weight:900;padding:3px 7px;text-transform:uppercase}.absolute-voice-profile-comparison__profile p{color:#1f2937;font-weight:800;overflow-wrap:anywhere}.absolute-voice-profile-comparison__profile div{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}.absolute-voice-profile-comparison__profile small{color:#6b7280;display:block;font-size:11px}.absolute-voice-profile-comparison__profile b{display:block}.absolute-voice-profile-comparison__profile em{color:#4b5563;display:block;font-size:13px;margin-top:12px}.absolute-voice-profile-comparison__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-profile-comparison__links a{border:1px solid #a5b4fc;border-radius:999px;color:#4338ca;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-profile-comparison__error{color:#9f1239;font-weight:700}`;
+export const mountVoiceProfileComparison = (
+  element: Element,
+  path = "/api/voice/real-call-profile-history",
+  options: VoiceProfileComparisonWidgetOptions = {},
+) => {
+  const store = createVoiceProfileComparisonStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceProfileComparisonHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceProfileComparisonHTML = (
   snapshot: VoiceProfileComparisonSnapshot,
   options: VoiceProfileComparisonWidgetOptions = {},
@@ -149,69 +210,4 @@ export const renderVoiceProfileComparisonHTML = (
   ${links}
   ${model.error ? `<p class="absolute-voice-profile-comparison__error">${escapeHtml(model.error)}</p>` : ""}
 </section>`;
-};
-
-export const getVoiceProfileComparisonCSS = () =>
-  `.absolute-voice-profile-comparison{border:1px solid #c7d2fe;border-radius:20px;background:#eef2ff;color:#111827;padding:18px;box-shadow:0 18px 40px rgba(79,70,229,.12);font-family:inherit}.absolute-voice-profile-comparison--warning,.absolute-voice-profile-comparison--error{border-color:#fbbf24;background:#fffbeb}.absolute-voice-profile-comparison__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-profile-comparison__eyebrow{color:#4338ca;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-profile-comparison__label{font-size:24px;line-height:1}.absolute-voice-profile-comparison__description,.absolute-voice-profile-comparison__empty{color:#4b5563}.absolute-voice-profile-comparison__profiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:14px}.absolute-voice-profile-comparison__profile{background:#fff;border:1px solid #c7d2fe;border-radius:16px;padding:14px}.absolute-voice-profile-comparison__profile--warn{border-color:#fbbf24}.absolute-voice-profile-comparison__profile--fail{border-color:#f87171}.absolute-voice-profile-comparison__profile header{align-items:center;display:flex;gap:8px;justify-content:space-between}.absolute-voice-profile-comparison__profile header span{border:1px solid currentColor;border-radius:999px;color:#4338ca;font-size:11px;font-weight:900;padding:3px 7px;text-transform:uppercase}.absolute-voice-profile-comparison__profile p{color:#1f2937;font-weight:800;overflow-wrap:anywhere}.absolute-voice-profile-comparison__profile div{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}.absolute-voice-profile-comparison__profile small{color:#6b7280;display:block;font-size:11px}.absolute-voice-profile-comparison__profile b{display:block}.absolute-voice-profile-comparison__profile em{color:#4b5563;display:block;font-size:13px;margin-top:12px}.absolute-voice-profile-comparison__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-profile-comparison__links a{border:1px solid #a5b4fc;border-radius:999px;color:#4338ca;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-profile-comparison__error{color:#9f1239;font-weight:700}`;
-
-export const mountVoiceProfileComparison = (
-  element: Element,
-  path = "/api/voice/real-call-profile-history",
-  options: VoiceProfileComparisonWidgetOptions = {},
-) => {
-  const store = createVoiceProfileComparisonStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceProfileComparisonHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceProfileComparisonElement = (
-  tagName = "absolute-voice-profile-comparison",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceProfileComparisonElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceProfileComparison>;
-
-      connectedCallback() {
-        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
-        this.mounted = mountVoiceProfileComparison(
-          this,
-          this.getAttribute("path") ?? "/api/voice/real-call-profile-history",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

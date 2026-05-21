@@ -12,20 +12,6 @@ export type VoiceProviderStatusSnapshot<TProvider extends string = string> = {
   updatedAt?: number;
 };
 
-export const fetchVoiceProviderStatus = async <
-  TProvider extends string = string,
->(
-  path = "/api/provider-status",
-  options: Pick<VoiceProviderStatusClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice provider status failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceProviderHealthSummary<TProvider>[];
-};
-
 export const createVoiceProviderStatusStore = <
   TProvider extends string = string,
 >(
@@ -67,6 +53,7 @@ export const createVoiceProviderStatusStore = <
         updatedAt: Date.now(),
       };
       emit();
+
       return providers;
     } catch (error) {
       snapshot = {
@@ -95,14 +82,29 @@ export const createVoiceProviderStatusStore = <
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceProviderStatus = async <
+  TProvider extends string = string,
+>(
+  path = "/api/provider-status",
+  options: Pick<VoiceProviderStatusClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice provider status failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceProviderHealthSummary<TProvider>[];
 };

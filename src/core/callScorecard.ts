@@ -54,6 +54,46 @@ export type BuildVoiceCallScorecardInput = {
 const clampScore = (raw: number, max: number) =>
   Math.max(0, Math.min(max, raw));
 
+export const DEFAULT_VOICE_SALES_RUBRIC: VoiceScorecardRubric = {
+  criteria: [
+    {
+      id: "greeting",
+      label: "Professional greeting",
+      section: "opening",
+      weight: 1,
+    },
+    {
+      id: "needs-discovery",
+      label: "Discovers customer needs",
+      required: true,
+      section: "discovery",
+      weight: 2,
+    },
+    {
+      id: "objection-handling",
+      label: "Handles objections clearly",
+      section: "objections",
+      weight: 2,
+    },
+    {
+      id: "compliance-disclosure",
+      label: "Made required compliance disclosure",
+      required: true,
+      section: "compliance",
+      weight: 3,
+    },
+    {
+      id: "close-or-next-step",
+      label: "Closes or sets a next step",
+      section: "close",
+      weight: 2,
+    },
+  ],
+  id: "default-sales",
+  label: "Default sales QA rubric",
+  passingGrade: 0.75,
+  scaleMax: 5,
+};
 export const buildVoiceCallScorecard = (
   input: BuildVoiceCallScorecardInput,
 ): VoiceScorecard => {
@@ -129,45 +169,4 @@ export const buildVoiceCallScorecard = (
     ...(input.reviewerId !== undefined ? { reviewerId: input.reviewerId } : {}),
     ...(input.comments !== undefined ? { comments: input.comments } : {}),
   };
-};
-
-export const DEFAULT_VOICE_SALES_RUBRIC: VoiceScorecardRubric = {
-  criteria: [
-    {
-      id: "greeting",
-      label: "Professional greeting",
-      section: "opening",
-      weight: 1,
-    },
-    {
-      id: "needs-discovery",
-      label: "Discovers customer needs",
-      required: true,
-      section: "discovery",
-      weight: 2,
-    },
-    {
-      id: "objection-handling",
-      label: "Handles objections clearly",
-      section: "objections",
-      weight: 2,
-    },
-    {
-      id: "compliance-disclosure",
-      label: "Made required compliance disclosure",
-      required: true,
-      section: "compliance",
-      weight: 3,
-    },
-    {
-      id: "close-or-next-step",
-      label: "Closes or sets a next step",
-      section: "close",
-      weight: 2,
-    },
-  ],
-  id: "default-sales",
-  label: "Default sales QA rubric",
-  passingGrade: 0.75,
-  scaleMax: 5,
 };

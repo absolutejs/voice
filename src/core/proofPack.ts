@@ -235,8 +235,9 @@ const toGeneratedAt = (value: number | string | undefined) =>
 
 const getProofPackMetadata = (proofPack: VoiceProofPackSourceValue) => {
   const built = buildVoiceProofPack(proofPack);
-  const generatedAt = built.generatedAt;
+  const {generatedAt} = built;
   const generatedAtMs = Date.parse(generatedAt);
+
   return {
     generatedAt,
     generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : 0,
@@ -298,20 +299,22 @@ export const createVoiceProofPackBuildContext = (
 
     const value = Promise.resolve(loader());
     cachedValues.set(key, value);
-    return value as Promise<Awaited<ReturnType<typeof loader>>>;
+
+    return value;
   };
 
   return {
     cache,
+    time,
     clear: (key) => {
       if (key === undefined) {
         cachedValues.clear();
+
         return;
       }
       cachedValues.delete(key);
     },
     getTimings: () => [...timings],
-    time,
   };
 };
 
@@ -354,33 +357,6 @@ const createSnapshotTraceDeliveryStore = (
     );
   },
 });
-
-export const createVoiceProofRefreshSnapshot = async (
-  options: VoiceProofRefreshSnapshotOptions = {},
-): Promise<VoiceProofRefreshSnapshot> => {
-  const [traceEvents, auditEvents, traceDeliveries, auditSinkDeliveries] =
-    await Promise.all([
-      options.events ??
-        (await options.traceStore?.list(options.traceFilter)) ??
-        [],
-      options.audit ? await options.audit.list(options.auditFilter) : [],
-      options.traceDeliveries ? await options.traceDeliveries.list() : [],
-      options.auditSinkDeliveries
-        ? await options.auditSinkDeliveries.list()
-        : [],
-    ]);
-
-  return {
-    auditEvents,
-    auditSinkDeliveries,
-    auditStore: createSnapshotAuditStore(auditEvents),
-    capturedAt: Date.now(),
-    traceDeliveries,
-    traceDeliveryStore: createSnapshotTraceDeliveryStore(traceDeliveries),
-    traceEvents,
-    traceStore: createSnapshotTraceStore(traceEvents),
-  };
-};
 
 export const buildVoiceProofPackInput = async (
   options: VoiceProofPackInputBuilderOptions,
@@ -438,6 +414,32 @@ export const buildVoiceProofPackInput = async (
       supportBundle?.sessionSnapshots ?? options.sessionSnapshots,
   };
 };
+export const createVoiceProofRefreshSnapshot = async (
+  options: VoiceProofRefreshSnapshotOptions = {},
+): Promise<VoiceProofRefreshSnapshot> => {
+  const [traceEvents, auditEvents, traceDeliveries, auditSinkDeliveries] =
+    await Promise.all([
+      options.events ??
+        (await options.traceStore?.list(options.traceFilter)) ??
+        [],
+      options.audit ? await options.audit.list(options.auditFilter) : [],
+      options.traceDeliveries ? await options.traceDeliveries.list() : [],
+      options.auditSinkDeliveries
+        ? await options.auditSinkDeliveries.list()
+        : [],
+    ]);
+
+  return {
+    auditEvents,
+    auditSinkDeliveries,
+    auditStore: createSnapshotAuditStore(auditEvents),
+    capturedAt: Date.now(),
+    traceDeliveries,
+    traceDeliveryStore: createSnapshotTraceDeliveryStore(traceDeliveries),
+    traceEvents,
+    traceStore: createSnapshotTraceStore(traceEvents),
+  };
+};
 
 const toProofPackStatus = (
   status: string | undefined,
@@ -453,6 +455,7 @@ const toProofPackStatus = (
   ) {
     return "warn";
   }
+
   return "pass";
 };
 
@@ -479,94 +482,6 @@ const numberEvidence = (
     label,
     status,
     value: safeValue,
-  };
-};
-
-export const createVoiceProofPackProviderSloSection = (
-  report: VoiceProviderSloReport,
-  options: {
-    href?: string;
-    title?: string;
-  } = {},
-): VoiceProofPackSection => ({
-  evidence: [
-    {
-      href: options.href,
-      label: "Provider SLO status",
-      status: toProofPackStatus(report.status),
-      value: report.status,
-    },
-    numberEvidence("Provider routing events", report.events, {
-      passWhenPositive: true,
-    }),
-    numberEvidence("Latency samples", report.eventsWithLatency, {
-      passWhenPositive: true,
-    }),
-    numberEvidence("Provider SLO issues", report.issues.length, {
-      failWhenPositive: true,
-    }),
-  ],
-  status: toProofPackStatus(report.status),
-  summary:
-    "Provider latency, timeout, fallback, and unresolved error evidence.",
-  title: options.title ?? "Provider SLO",
-});
-
-export const createVoiceProofPackProductionReadinessSection = (
-  report: VoiceProductionReadinessReport,
-  options: {
-    title?: string;
-  } = {},
-): VoiceProofPackSection => {
-  const checkFailures = report.checks.filter(
-    (check) => check.status === "fail",
-  ).length;
-  const checkWarnings = report.checks.filter(
-    (check) => check.status === "warn",
-  ).length;
-
-  return {
-    evidence: [
-      {
-        label: "Production readiness status",
-        status: toProofPackStatus(report.status),
-        value: report.status,
-      },
-      numberEvidence("Readiness checks", report.checks.length, {
-        passWhenPositive: true,
-      }),
-      numberEvidence("Failed readiness checks", checkFailures, {
-        failWhenPositive: true,
-      }),
-      {
-        label: "Warning readiness checks",
-        status: checkWarnings > 0 ? "warn" : "pass",
-        value: checkWarnings,
-      },
-      ...(report.summary.providerSlo
-        ? [
-            {
-              href: report.links.providerSlo,
-              label: "Provider SLO samples",
-              status: toProofPackStatus(report.summary.providerSlo.status),
-              value: report.summary.providerSlo.eventsWithLatency,
-            },
-          ]
-        : []),
-      ...(report.summary.traceDeliveries
-        ? [
-            {
-              href: report.links.traceDeliveries,
-              label: "Trace delivery status",
-              status: toProofPackStatus(report.summary.traceDeliveries.status),
-              value: report.summary.traceDeliveries.pending,
-            },
-          ]
-        : []),
-    ],
-    status: toProofPackStatus(report.status),
-    summary: "Production readiness gates and linked proof surfaces.",
-    title: options.title ?? "Production readiness",
   };
 };
 
@@ -627,7 +542,92 @@ export const createVoiceProofPackOperationsRecordSection = (
     title: options.title ?? "Operations records",
   };
 };
+export const createVoiceProofPackProductionReadinessSection = (
+  report: VoiceProductionReadinessReport,
+  options: {
+    title?: string;
+  } = {},
+): VoiceProofPackSection => {
+  const checkFailures = report.checks.filter(
+    (check) => check.status === "fail",
+  ).length;
+  const checkWarnings = report.checks.filter(
+    (check) => check.status === "warn",
+  ).length;
 
+  return {
+    evidence: [
+      {
+        label: "Production readiness status",
+        status: toProofPackStatus(report.status),
+        value: report.status,
+      },
+      numberEvidence("Readiness checks", report.checks.length, {
+        passWhenPositive: true,
+      }),
+      numberEvidence("Failed readiness checks", checkFailures, {
+        failWhenPositive: true,
+      }),
+      {
+        label: "Warning readiness checks",
+        status: checkWarnings > 0 ? "warn" : "pass",
+        value: checkWarnings,
+      },
+      ...(report.summary.providerSlo
+        ? [
+            {
+              href: report.links.providerSlo,
+              label: "Provider SLO samples",
+              status: toProofPackStatus(report.summary.providerSlo.status),
+              value: report.summary.providerSlo.eventsWithLatency,
+            },
+          ]
+        : []),
+      ...(report.summary.traceDeliveries
+        ? [
+            {
+              href: report.links.traceDeliveries,
+              label: "Trace delivery status",
+              status: toProofPackStatus(report.summary.traceDeliveries.status),
+              value: report.summary.traceDeliveries.pending,
+            },
+          ]
+        : []),
+    ],
+    status: toProofPackStatus(report.status),
+    summary: "Production readiness gates and linked proof surfaces.",
+    title: options.title ?? "Production readiness",
+  };
+};
+export const createVoiceProofPackProviderSloSection = (
+  report: VoiceProviderSloReport,
+  options: {
+    href?: string;
+    title?: string;
+  } = {},
+): VoiceProofPackSection => ({
+  evidence: [
+    {
+      href: options.href,
+      label: "Provider SLO status",
+      status: toProofPackStatus(report.status),
+      value: report.status,
+    },
+    numberEvidence("Provider routing events", report.events, {
+      passWhenPositive: true,
+    }),
+    numberEvidence("Latency samples", report.eventsWithLatency, {
+      passWhenPositive: true,
+    }),
+    numberEvidence("Provider SLO issues", report.issues.length, {
+      failWhenPositive: true,
+    }),
+  ],
+  status: toProofPackStatus(report.status),
+  summary:
+    "Provider latency, timeout, fallback, and unresolved error evidence.",
+  title: options.title ?? "Provider SLO",
+});
 export const createVoiceProofPackSupportBundleSection = (input: {
   callDebuggerReports?: readonly VoiceCallDebuggerReport[];
   sessionObservabilityReports?: readonly VoiceSessionObservabilityReport[];
@@ -763,6 +763,7 @@ const resolveProofPack = async (
   source: VoiceProofPackRoutesOptions["source"],
 ): Promise<VoiceProofPack> => {
   const input = typeof source === "function" ? await source() : source;
+
   return buildVoiceProofPack(input);
 };
 
@@ -797,116 +798,6 @@ export const buildVoiceProofPack = (
     summary,
   };
 };
-
-export const createVoiceProofPackStaleWhileRefreshSource = (
-  options: VoiceProofPackStaleWhileRefreshSourceOptions,
-): VoiceProofPackStaleWhileRefreshSource => {
-  const maxAgeMs = options.maxAgeMs ?? 5 * 60_000;
-  const now = options.now ?? Date.now;
-  let refreshPromise: Promise<VoiceProofPackSourceValue> | undefined;
-  let status: VoiceProofPackRefreshStatus = {
-    maxAgeMs,
-    refreshing: false,
-    state: "missing",
-  };
-
-  const updateStatusFromProofPack = (
-    proofPack: VoiceProofPackSourceValue,
-    refreshing = Boolean(refreshPromise),
-  ) => {
-    const metadata = getProofPackMetadata(proofPack);
-    const ageMs = Math.max(0, now() - metadata.generatedAtMs);
-    status = {
-      ageMs,
-      generatedAt: metadata.generatedAt,
-      lastRefreshCompletedAt: status.lastRefreshCompletedAt,
-      lastRefreshStartedAt: status.lastRefreshStartedAt,
-      maxAgeMs,
-      refreshing,
-      runId: metadata.runId,
-      state: refreshing ? "refreshing" : ageMs <= maxAgeMs ? "fresh" : "stale",
-    };
-    return { ageMs, metadata };
-  };
-
-  const refresh = async () => {
-    const refreshed = await options.refresh();
-    const proofPack = refreshed ?? (await options.read());
-    updateStatusFromProofPack(proofPack, false);
-    status = {
-      ...status,
-      lastRefreshCompletedAt: now(),
-      lastRefreshStartedAt: status.lastRefreshStartedAt,
-      refreshing: false,
-      state: "fresh",
-    };
-    return proofPack;
-  };
-
-  const startRefresh = () => {
-    if (!refreshPromise) {
-      status = {
-        ...status,
-        lastRefreshStartedAt: now(),
-        refreshing: true,
-        state: "refreshing",
-      };
-    }
-    refreshPromise ??= refresh().finally(() => {
-      refreshPromise = undefined;
-    });
-    return refreshPromise;
-  };
-
-  const source = async () => {
-    let current: VoiceProofPackSourceValue | undefined;
-    try {
-      current = await options.read();
-    } catch (error) {
-      status = {
-        ...status,
-        error: error instanceof Error ? error.message : String(error),
-        refreshing: Boolean(refreshPromise),
-        state: refreshPromise ? "refreshing" : "missing",
-      };
-      return startRefresh().catch((refreshError) => {
-        status = {
-          ...status,
-          error:
-            refreshError instanceof Error
-              ? refreshError.message
-              : String(refreshError),
-          lastRefreshCompletedAt: now(),
-          refreshing: false,
-          state: "failed",
-        };
-        throw refreshError;
-      });
-    }
-
-    const { ageMs } = updateStatusFromProofPack(current);
-    if (ageMs <= maxAgeMs) {
-      return current;
-    }
-
-    void startRefresh().catch((error) => {
-      status = {
-        ...status,
-        error: error instanceof Error ? error.message : String(error),
-        lastRefreshCompletedAt: now(),
-        refreshing: false,
-        state: "failed",
-      };
-      options.onRefreshError?.(error);
-    });
-    return current;
-  };
-
-  source.getStatus = () => status;
-
-  return source;
-};
-
 export const buildVoiceProofPackFromObservabilityExport = (
   report: VoiceObservabilityExportReport,
   input: Omit<VoiceProofPackInput, "artifacts" | "sections"> = {},
@@ -960,84 +851,6 @@ export const buildVoiceProofPackFromObservabilityExport = (
       },
     ],
   });
-
-export const renderVoiceProofPackMarkdown = (proofPack: VoiceProofPack) => {
-  const sections = proofPack.sections
-    .map((section) => {
-      const evidence = (section.evidence ?? [])
-        .map((item) => {
-          const value =
-            item.value === undefined ? "" : `: ${String(item.value)}`;
-          const href = item.href ? ` (${item.href})` : "";
-          const detail = item.detail ? ` - ${item.detail}` : "";
-          return `- ${item.label}${value}${href} - ${item.status ?? "pass"}${detail}`;
-        })
-        .join("\n");
-
-      return [`## ${section.title}`, "", section.summary ?? "", "", evidence]
-        .filter(Boolean)
-        .join("\n");
-    })
-    .join("\n\n");
-
-  return [
-    "# AbsoluteJS Voice Proof Pack",
-    "",
-    `Run: ${proofPack.runId}`,
-    `Generated: ${proofPack.generatedAt}`,
-    `Status: ${proofPack.status}`,
-    "",
-    `Sections: ${proofPack.summary.sections}`,
-    `Passing sections: ${proofPack.summary.pass}`,
-    `Warning sections: ${proofPack.summary.warn}`,
-    `Failing sections: ${proofPack.summary.fail}`,
-    "",
-    sections,
-  ]
-    .filter(Boolean)
-    .join("\n");
-};
-
-export const writeVoiceProofPack = async (
-  input: VoiceProofPackInput | VoiceProofPack,
-  options: {
-    jsonFileName?: string;
-    markdownFileName?: string;
-    outputDir: string;
-  } = { outputDir: ".voice-runtime/proof-pack" },
-): Promise<VoiceProofPackWriteResult> => {
-  const proofPack = buildVoiceProofPack({
-    ...input,
-    outputDir: options.outputDir,
-  });
-  const jsonPath = join(
-    options.outputDir,
-    options.jsonFileName ?? "latest.json",
-  );
-  const markdownPath = join(
-    options.outputDir,
-    options.markdownFileName ?? "latest.md",
-  );
-
-  await mkdir(dirname(jsonPath), { recursive: true });
-  await mkdir(dirname(markdownPath), { recursive: true });
-  await Promise.all([
-    Bun.write(jsonPath, JSON.stringify(proofPack, null, 2)),
-    Bun.write(markdownPath, renderVoiceProofPackMarkdown(proofPack)),
-  ]);
-
-  return {
-    artifacts: createVoiceProofPackArtifacts({
-      jsonPath,
-      markdownPath,
-      proofPack,
-    }),
-    jsonPath,
-    markdownPath,
-    proofPack,
-  };
-};
-
 export const createVoiceProofPackArtifacts = (input: {
   jsonPath?: string;
   markdownPath?: string;
@@ -1079,7 +892,6 @@ export const createVoiceProofPackArtifacts = (input: {
       ]
     : []),
 ];
-
 export const createVoiceProofPackRoutes = (
   options: VoiceProofPackRoutesOptions,
 ) => {
@@ -1120,4 +932,193 @@ export const createVoiceProofPackRoutes = (
   }
 
   return app;
+};
+export const createVoiceProofPackStaleWhileRefreshSource = (
+  options: VoiceProofPackStaleWhileRefreshSourceOptions,
+): VoiceProofPackStaleWhileRefreshSource => {
+  const maxAgeMs = options.maxAgeMs ?? 5 * 60_000;
+  const now = options.now ?? Date.now;
+  let refreshPromise: Promise<VoiceProofPackSourceValue> | undefined;
+  let status: VoiceProofPackRefreshStatus = {
+    maxAgeMs,
+    refreshing: false,
+    state: "missing",
+  };
+
+  const updateStatusFromProofPack = (
+    proofPack: VoiceProofPackSourceValue,
+    refreshing = Boolean(refreshPromise),
+  ) => {
+    const metadata = getProofPackMetadata(proofPack);
+    const ageMs = Math.max(0, now() - metadata.generatedAtMs);
+    status = {
+      ageMs,
+      generatedAt: metadata.generatedAt,
+      lastRefreshCompletedAt: status.lastRefreshCompletedAt,
+      lastRefreshStartedAt: status.lastRefreshStartedAt,
+      maxAgeMs,
+      refreshing,
+      runId: metadata.runId,
+      state: refreshing ? "refreshing" : ageMs <= maxAgeMs ? "fresh" : "stale",
+    };
+
+    return { ageMs, metadata };
+  };
+
+  const refresh = async () => {
+    const refreshed = await options.refresh();
+    const proofPack = refreshed ?? (await options.read());
+    updateStatusFromProofPack(proofPack, false);
+    status = {
+      ...status,
+      lastRefreshCompletedAt: now(),
+      lastRefreshStartedAt: status.lastRefreshStartedAt,
+      refreshing: false,
+      state: "fresh",
+    };
+
+    return proofPack;
+  };
+
+  const startRefresh = () => {
+    if (!refreshPromise) {
+      status = {
+        ...status,
+        lastRefreshStartedAt: now(),
+        refreshing: true,
+        state: "refreshing",
+      };
+    }
+    refreshPromise ??= refresh().finally(() => {
+      refreshPromise = undefined;
+    });
+
+    return refreshPromise;
+  };
+
+  const source = async () => {
+    let current: VoiceProofPackSourceValue | undefined;
+    try {
+      current = await options.read();
+    } catch (error) {
+      status = {
+        ...status,
+        error: error instanceof Error ? error.message : String(error),
+        refreshing: Boolean(refreshPromise),
+        state: refreshPromise ? "refreshing" : "missing",
+      };
+
+      return startRefresh().catch((refreshError) => {
+        status = {
+          ...status,
+          error:
+            refreshError instanceof Error
+              ? refreshError.message
+              : String(refreshError),
+          lastRefreshCompletedAt: now(),
+          refreshing: false,
+          state: "failed",
+        };
+        throw refreshError;
+      });
+    }
+
+    const { ageMs } = updateStatusFromProofPack(current);
+    if (ageMs <= maxAgeMs) {
+      return current;
+    }
+
+    void startRefresh().catch((error) => {
+      status = {
+        ...status,
+        error: error instanceof Error ? error.message : String(error),
+        lastRefreshCompletedAt: now(),
+        refreshing: false,
+        state: "failed",
+      };
+      options.onRefreshError?.(error);
+    });
+
+    return current;
+  };
+
+  source.getStatus = () => status;
+
+  return source;
+};
+export const renderVoiceProofPackMarkdown = (proofPack: VoiceProofPack) => {
+  const sections = proofPack.sections
+    .map((section) => {
+      const evidence = (section.evidence ?? [])
+        .map((item) => {
+          const value =
+            item.value === undefined ? "" : `: ${String(item.value)}`;
+          const href = item.href ? ` (${item.href})` : "";
+          const detail = item.detail ? ` - ${item.detail}` : "";
+
+          return `- ${item.label}${value}${href} - ${item.status ?? "pass"}${detail}`;
+        })
+        .join("\n");
+
+      return [`## ${section.title}`, "", section.summary ?? "", "", evidence]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+
+  return [
+    "# AbsoluteJS Voice Proof Pack",
+    "",
+    `Run: ${proofPack.runId}`,
+    `Generated: ${proofPack.generatedAt}`,
+    `Status: ${proofPack.status}`,
+    "",
+    `Sections: ${proofPack.summary.sections}`,
+    `Passing sections: ${proofPack.summary.pass}`,
+    `Warning sections: ${proofPack.summary.warn}`,
+    `Failing sections: ${proofPack.summary.fail}`,
+    "",
+    sections,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+export const writeVoiceProofPack = async (
+  input: VoiceProofPackInput | VoiceProofPack,
+  options: {
+    jsonFileName?: string;
+    markdownFileName?: string;
+    outputDir: string;
+  } = { outputDir: ".voice-runtime/proof-pack" },
+): Promise<VoiceProofPackWriteResult> => {
+  const proofPack = buildVoiceProofPack({
+    ...input,
+    outputDir: options.outputDir,
+  });
+  const jsonPath = join(
+    options.outputDir,
+    options.jsonFileName ?? "latest.json",
+  );
+  const markdownPath = join(
+    options.outputDir,
+    options.markdownFileName ?? "latest.md",
+  );
+
+  await mkdir(dirname(jsonPath), { recursive: true });
+  await mkdir(dirname(markdownPath), { recursive: true });
+  await Promise.all([
+    Bun.write(jsonPath, JSON.stringify(proofPack, null, 2)),
+    Bun.write(markdownPath, renderVoiceProofPackMarkdown(proofPack)),
+  ]);
+
+  return {
+    artifacts: createVoiceProofPackArtifacts({
+      jsonPath,
+      markdownPath,
+      proofPack,
+    }),
+    jsonPath,
+    markdownPath,
+    proofPack,
+  };
 };

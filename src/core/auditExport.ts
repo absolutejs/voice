@@ -76,6 +76,7 @@ const redactAuditValue = (
         path.length === 0 ||
         path[0] === "payload" ||
         path[0] === "metadata");
+
     return shouldRedactText
       ? redactVoiceTraceText(value, config, {
           key,
@@ -102,37 +103,6 @@ const redactAuditValue = (
   return value;
 };
 
-export const redactVoiceAuditEvent = <
-  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
->(
-  event: TEvent,
-  options: VoiceTraceRedactionConfig = {},
-): TEvent => {
-  const resolved = resolveVoiceTraceRedactionOptions(options);
-  return {
-    ...event,
-    actor: redactAuditValue(event.actor, options, resolved, [
-      "actor",
-    ]) as TEvent["actor"],
-    metadata: redactAuditValue(event.metadata, options, resolved, [
-      "metadata",
-    ]) as TEvent["metadata"],
-    payload: redactAuditValue(event.payload, options, resolved, [
-      "payload",
-    ]) as TEvent["payload"],
-    resource: redactAuditValue(event.resource, options, resolved, [
-      "resource",
-    ]) as TEvent["resource"],
-  };
-};
-
-export const redactVoiceAuditEvents = <
-  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
->(
-  events: TEvent[],
-  options: VoiceTraceRedactionConfig = {},
-) => events.map((event) => redactVoiceAuditEvent(event, options));
-
 export const exportVoiceAuditTrail = async (input: {
   filter?: VoiceAuditEventFilter;
   redact?: VoiceTraceRedactionConfig;
@@ -151,6 +121,36 @@ export const exportVoiceAuditTrail = async (input: {
     summary: summarizeVoiceAuditTrail(exportedEvents),
   };
 };
+export const redactVoiceAuditEvent = <
+  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+>(
+  event: TEvent,
+  options: VoiceTraceRedactionConfig = {},
+): TEvent => {
+  const resolved = resolveVoiceTraceRedactionOptions(options);
+
+  return {
+    ...event,
+    actor: redactAuditValue(event.actor, options, resolved, [
+      "actor",
+    ]) as TEvent["actor"],
+    metadata: redactAuditValue(event.metadata, options, resolved, [
+      "metadata",
+    ]) as TEvent["metadata"],
+    payload: redactAuditValue(event.payload, options, resolved, [
+      "payload",
+    ]) as TEvent["payload"],
+    resource: redactAuditValue(event.resource, options, resolved, [
+      "resource",
+    ]) as TEvent["resource"],
+  };
+};
+export const redactVoiceAuditEvents = <
+  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+>(
+  events: TEvent[],
+  options: VoiceTraceRedactionConfig = {},
+) => events.map((event) => redactVoiceAuditEvent(event, options));
 
 const formatAuditValue = (value: unknown) => {
   if (value === undefined || value === null || value === "") {
@@ -187,6 +187,46 @@ const renderAuditEventMarkdown = (event: StoredVoiceAuditEvent) => {
   return `- ${new Date(event.at).toISOString()} [${event.type}] ${event.action} ${event.outcome ?? "recorded"} ${detail} ${formatAuditValue(event.payload)}`.trim();
 };
 
+export const buildVoiceAuditExport = (
+  events: StoredVoiceAuditEvent[],
+  options: {
+    redact?: VoiceTraceRedactionConfig;
+    title?: string;
+  } = {},
+) => {
+  const exportEvents = options.redact
+    ? redactVoiceAuditEvents(events, options.redact)
+    : events;
+
+  return {
+    events: exportEvents,
+    html: renderVoiceAuditHTML(events, options),
+    markdown: renderVoiceAuditMarkdown(events, options),
+    summary: summarizeVoiceAuditTrail(exportEvents),
+  };
+};
+export const renderVoiceAuditHTML = (
+  events: StoredVoiceAuditEvent[],
+  options: {
+    redact?: VoiceTraceRedactionConfig;
+    title?: string;
+  } = {},
+) => {
+  const title = options.title ?? "Voice Audit Trail";
+  const markdown = renderVoiceAuditMarkdown(events, options);
+  const renderEvents = options.redact
+    ? redactVoiceAuditEvents(events, options.redact)
+    : events;
+  const summary = summarizeVoiceAuditTrail(renderEvents);
+  const rows = renderEvents
+    .map(
+      (event) =>
+        `<tr><td>${escapeHtml(new Date(event.at).toISOString())}</td><td>${escapeHtml(event.type)}</td><td>${escapeHtml(event.action)}</td><td>${escapeHtml(event.outcome ?? "")}</td><td><code>${escapeHtml(JSON.stringify(event.payload ?? {}))}</code></td></tr>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;line-height:1.45;background:#f8f7f2;color:#181713}main{max-width:1100px;margin:auto}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;margin:1rem 0}.card{background:white;border:1px solid #ded9cc;border-radius:12px;padding:1rem}table{border-collapse:collapse;width:100%;background:white;border:1px solid #ded9cc}th,td{border-bottom:1px solid #eee8dc;padding:.65rem;text-align:left;vertical-align:top}code{white-space:pre-wrap;word-break:break-word}pre{background:#181713;color:#f8f7f2;padding:1rem;border-radius:12px;overflow:auto}</style></head><body><main><h1>${escapeHtml(title)}</h1><section class="summary"><div class="card"><strong>Events</strong><br>${summary.total}</div><div class="card"><strong>Errors</strong><br>${summary.errors}</div><div class="card"><strong>Latest</strong><br>${summary.latestAt ? escapeHtml(new Date(summary.latestAt).toLocaleString()) : "never"}</div></section><table><thead><tr><th>At</th><th>Type</th><th>Action</th><th>Outcome</th><th>Payload</th></tr></thead><tbody>${rows}</tbody></table><h2>Markdown Export</h2><pre>${escapeHtml(markdown)}</pre></main></body></html>`;
+};
 export const renderVoiceAuditMarkdown = (
   events: StoredVoiceAuditEvent[],
   options: {
@@ -215,46 +255,4 @@ export const renderVoiceAuditMarkdown = (
   ];
 
   return lines.join("\n");
-};
-
-export const renderVoiceAuditHTML = (
-  events: StoredVoiceAuditEvent[],
-  options: {
-    redact?: VoiceTraceRedactionConfig;
-    title?: string;
-  } = {},
-) => {
-  const title = options.title ?? "Voice Audit Trail";
-  const markdown = renderVoiceAuditMarkdown(events, options);
-  const renderEvents = options.redact
-    ? redactVoiceAuditEvents(events, options.redact)
-    : events;
-  const summary = summarizeVoiceAuditTrail(renderEvents);
-  const rows = renderEvents
-    .map(
-      (event) =>
-        `<tr><td>${escapeHtml(new Date(event.at).toISOString())}</td><td>${escapeHtml(event.type)}</td><td>${escapeHtml(event.action)}</td><td>${escapeHtml(event.outcome ?? "")}</td><td><code>${escapeHtml(JSON.stringify(event.payload ?? {}))}</code></td></tr>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;line-height:1.45;background:#f8f7f2;color:#181713}main{max-width:1100px;margin:auto}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;margin:1rem 0}.card{background:white;border:1px solid #ded9cc;border-radius:12px;padding:1rem}table{border-collapse:collapse;width:100%;background:white;border:1px solid #ded9cc}th,td{border-bottom:1px solid #eee8dc;padding:.65rem;text-align:left;vertical-align:top}code{white-space:pre-wrap;word-break:break-word}pre{background:#181713;color:#f8f7f2;padding:1rem;border-radius:12px;overflow:auto}</style></head><body><main><h1>${escapeHtml(title)}</h1><section class="summary"><div class="card"><strong>Events</strong><br>${summary.total}</div><div class="card"><strong>Errors</strong><br>${summary.errors}</div><div class="card"><strong>Latest</strong><br>${summary.latestAt ? escapeHtml(new Date(summary.latestAt).toLocaleString()) : "never"}</div></section><table><thead><tr><th>At</th><th>Type</th><th>Action</th><th>Outcome</th><th>Payload</th></tr></thead><tbody>${rows}</tbody></table><h2>Markdown Export</h2><pre>${escapeHtml(markdown)}</pre></main></body></html>`;
-};
-
-export const buildVoiceAuditExport = (
-  events: StoredVoiceAuditEvent[],
-  options: {
-    redact?: VoiceTraceRedactionConfig;
-    title?: string;
-  } = {},
-) => {
-  const exportEvents = options.redact
-    ? redactVoiceAuditEvents(events, options.redact)
-    : events;
-
-  return {
-    events: exportEvents,
-    html: renderVoiceAuditHTML(events, options),
-    markdown: renderVoiceAuditMarkdown(events, options),
-    summary: summarizeVoiceAuditTrail(exportEvents),
-  };
 };

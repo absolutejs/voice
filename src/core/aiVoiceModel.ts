@@ -80,6 +80,7 @@ const toProviderMessages = (
     }
     out.push({ content: message.content, role: message.role });
   }
+
   return out;
 };
 
@@ -89,12 +90,13 @@ const toProviderTools = (
   if (tools.length === 0) {
     return undefined;
   }
+
   return tools.map((tool) => ({
     description: tool.description ?? "",
     input_schema: (tool.parameters ?? {
       properties: {},
       type: "object",
-    }) as Record<string, unknown>,
+    }),
     name: tool.name,
   }));
 };
@@ -143,6 +145,7 @@ export const createAIVoiceModel = <
     if (toolCalls.length > 0) {
       output.toolCalls = toolCalls;
     }
+
     return output;
   },
 });

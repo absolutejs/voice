@@ -42,10 +42,10 @@ const buildDefaultPostCallSummary = (input: {
     case "transferred":
       return {
         label: "Transferred",
+        reason: input.reason,
         recommendedAction: input.target
           ? `Confirm the handoff to ${input.target} completed successfully.`
           : "Confirm the transfer completed successfully.",
-        reason: input.reason,
         summary: input.target
           ? `The call was transferred to ${input.target}.`
           : "The call was transferred.",
@@ -54,9 +54,9 @@ const buildDefaultPostCallSummary = (input: {
     case "escalated":
       return {
         label: "Escalated",
+        reason: input.reason,
         recommendedAction:
           "Review the escalated call and route it to a human operator.",
-        reason: input.reason,
         summary: input.reason
           ? `The call escalated because ${input.reason}.`
           : "The call escalated for operator review.",
@@ -64,22 +64,22 @@ const buildDefaultPostCallSummary = (input: {
     case "voicemail":
       return {
         label: "Voicemail",
-        recommendedAction: "Queue a callback follow-up for this caller.",
         reason: input.reason,
+        recommendedAction: "Queue a callback follow-up for this caller.",
         summary: "The call reached voicemail and needs a callback.",
       };
     case "no-answer":
       return {
         label: "No Answer",
-        recommendedAction: "Retry the call or create a callback task.",
         reason: input.reason,
+        recommendedAction: "Retry the call or create a callback task.",
         summary: "The call did not reach a live respondent.",
       };
     case "failed":
       return {
         label: "Failed",
-        recommendedAction: "Inspect the call review before retrying this flow.",
         reason: input.reason,
+        recommendedAction: "Inspect the call review before retrying this flow.",
         summary: input.reason
           ? `The call failed because ${input.reason}.`
           : "The call failed before a successful completion.",
@@ -87,17 +87,17 @@ const buildDefaultPostCallSummary = (input: {
     case "closed":
       return {
         label: "Closed",
+        reason: input.reason,
         recommendedAction:
           "Inspect the review if this early closure was unexpected.",
-        reason: input.reason,
         summary: "The call closed before an explicit completion.",
       };
     case "completed":
     default:
       return {
         label: "Completed",
-        recommendedAction: "No follow-up action is required.",
         reason: input.reason,
+        recommendedAction: "No follow-up action is required.",
         summary: "The call completed successfully.",
       };
   }
@@ -177,7 +177,7 @@ const asStoredTask = (
   task: Omit<VoiceOpsTask, "id"> | VoiceOpsTask | StoredVoiceOpsTask,
 ): StoredVoiceOpsTask => {
   if ("id" in task && typeof task.id === "string" && task.id.length > 0) {
-    return task as StoredVoiceOpsTask;
+    return task;
   }
 
   return withVoiceOpsTaskId(`${review.id}:ops`, task);

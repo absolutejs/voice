@@ -39,6 +39,7 @@ const categorize = (
   )
     return "agent";
   if (event.startsWith("tool.") || event.includes("tool")) return "tool";
+
   return "lifecycle";
 };
 
@@ -65,6 +66,7 @@ export const buildReplayTimelineReport = (
   events.sort((a, b) => a.at - b.at);
   const first = events[0]?.at ?? 0;
   const last = events.at(-1)?.at ?? first;
+
   return {
     duration: last - first,
     events,

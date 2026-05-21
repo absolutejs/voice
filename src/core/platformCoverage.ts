@@ -75,6 +75,19 @@ export type VoicePlatformCoverageAssertionReport = {
   total: number;
 };
 
+export const assertVoicePlatformCoverage = (
+  summary: VoicePlatformCoverageSummary,
+  input: VoicePlatformCoverageAssertionInput = {},
+): VoicePlatformCoverageAssertionReport => {
+  const report = evaluateVoicePlatformCoverage(summary, input);
+  if (!report.ok) {
+    throw new Error(
+      `Voice platform coverage assertion failed: ${report.issues.join(" ")}`,
+    );
+  }
+
+  return report;
+};
 export const buildVoicePlatformCoverageSummary = (
   input: VoicePlatformCoverageSummaryInput,
 ): VoicePlatformCoverageSummary => {
@@ -97,7 +110,6 @@ export const buildVoicePlatformCoverageSummary = (
     total: coverage.length,
   };
 };
-
 export const evaluateVoicePlatformCoverage = (
   summary: VoicePlatformCoverageSummary,
   input: VoicePlatformCoverageAssertionInput = {},
@@ -153,19 +165,6 @@ export const evaluateVoicePlatformCoverage = (
     surfaces,
     total: summary.total,
   };
-};
-
-export const assertVoicePlatformCoverage = (
-  summary: VoicePlatformCoverageSummary,
-  input: VoicePlatformCoverageAssertionInput = {},
-): VoicePlatformCoverageAssertionReport => {
-  const report = evaluateVoicePlatformCoverage(summary, input);
-  if (!report.ok) {
-    throw new Error(
-      `Voice platform coverage assertion failed: ${report.issues.join(" ")}`,
-    );
-  }
-  return report;
 };
 
 const normalizeCoverageSummary = (

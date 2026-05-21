@@ -178,17 +178,263 @@ const findMissing = <Value extends string>(
     return [];
   }
   const valueSet = new Set(values);
+
   return required.filter((value) => !valueSet.has(value));
 };
 
+export const assertVoiceLiveOpsControlEvidence = (
+  input: VoiceLiveOpsControlEvidenceInput = {},
+): VoiceLiveOpsControlEvidenceReport => assertVoiceEvidence(
+    "Voice live-ops control evidence assertion failed",
+    evaluateVoiceLiveOpsControlEvidence(input),
+  );
+export const assertVoiceLiveOpsEvidence = (
+  input: VoiceLiveOpsEvidenceInput = {},
+): VoiceLiveOpsEvidenceReport => assertVoiceEvidence(
+    "Voice live-ops evidence assertion failed",
+    evaluateVoiceLiveOpsEvidence(input),
+  );
+export const buildVoiceLiveOpsControlState = (
+  input: VoiceLiveOpsActionInput & {
+    at?: number;
+    previous?: VoiceLiveOpsControlState;
+  },
+): VoiceLiveOpsControlState => ({
+  assistantPaused:
+    input.action === "pause-assistant" ||
+    input.action === "operator-takeover" ||
+    input.action === "force-handoff"
+      ? true
+      : input.action === "resume-assistant"
+        ? false
+        : (input.previous?.assistantPaused ?? false),
+  handoffTarget:
+    input.action === "force-handoff"
+      ? input.tag
+      : input.previous?.handoffTarget,
+  injectedInstruction:
+    input.action === "inject-instruction"
+      ? input.detail
+      : input.previous?.injectedInstruction,
+  lastAction: input.action,
+  lastUpdatedAt: input.at ?? Date.now(),
+  operator: input.assignee,
+  operatorTakeover:
+    input.action === "operator-takeover"
+      ? true
+      : input.action === "resume-assistant"
+        ? false
+        : (input.previous?.operatorTakeover ?? false),
+  status: getVoiceLiveOpsControlStatus(input.action),
+  tag: input.tag,
+});
+export const createVoiceLiveOpsController = (
+  options: VoiceLiveOpsControllerOptions = {},
+) => {
+  const store = options.store ?? createVoiceMemoryLiveOpsControlStore();
+  const perform = async (
+    input: VoiceLiveOpsActionInput,
+  ): Promise<VoiceLiveOpsActionResult> => {
+    if (!input.sessionId) {
+      throw new Error("Voice live ops action requires sessionId.");
+    }
+    if (!isVoiceLiveOpsAction(input.action)) {
+      throw new Error("Voice live ops action is not supported.");
+    }
+
+    const at = Date.now();
+    const assignee = input.assignee ?? options.defaultAssignee ?? "operator";
+    const tag = input.tag ?? options.defaultTag ?? "live-ops";
+    const detail = input.detail ?? options.defaultDetail ?? input.action;
+    const previous = await store.get(input.sessionId);
+    const control = buildVoiceLiveOpsControlState({
+      ...input,
+      assignee,
+      at,
+      detail,
+      previous,
+      tag,
+    });
+    await store.set(input.sessionId, control);
+    const traceId = `voice-live-ops:${input.sessionId}:${input.action}:${at}`;
+
+    await Promise.all([
+      options.audit?.append(
+        createVoiceAuditEvent({
+          action: `voice.live_ops.${input.action}`,
+          actor: {
+            id: assignee,
+            kind: "operator",
+            name: assignee,
+          },
+          at,
+          metadata: {
+            source: "voice-live-ops",
+            tag,
+          },
+          outcome: "success",
+          payload: {
+            action: input.action,
+            assignee,
+            control,
+            detail,
+            tag,
+          },
+          resource: {
+            id: input.sessionId,
+            type: "voice.session",
+          },
+          sessionId: input.sessionId,
+          traceId,
+          type: "operator.action",
+        }),
+      ),
+      options.trace?.append(
+        createVoiceTraceEvent({
+          at,
+          metadata: {
+            source: "voice-live-ops",
+            tag,
+          },
+          payload: {
+            action: input.action,
+            assignee,
+            control,
+            detail,
+            status: "success",
+            tag,
+          },
+          sessionId: input.sessionId,
+          traceId,
+          type: "operator.action",
+        }),
+      ),
+    ]);
+
+    const result = {
+      action: input.action,
+      control,
+      ok: true,
+      sessionId: input.sessionId,
+    } satisfies VoiceLiveOpsActionResult;
+    await options.onAction?.({
+      ...result,
+      assignee,
+      detail,
+      tag,
+    });
+
+    return result;
+  };
+
+  return {
+    perform,
+    store,
+    get: (sessionId: string) => store.get(sessionId),
+  };
+};
+export const createVoiceMemoryLiveOpsControlStore =
+  (): VoiceLiveOpsControlStore => {
+    const states = new Map<string, VoiceLiveOpsControlState>();
+
+    return {
+      get: (sessionId) => states.get(sessionId),
+      set: (sessionId, state) => {
+        states.set(sessionId, state);
+      },
+    };
+  };
+export const evaluateVoiceLiveOpsControlEvidence = (
+  input: VoiceLiveOpsControlEvidenceInput = {},
+): VoiceLiveOpsControlEvidenceReport => {
+  const issues: string[] = [];
+  const results = (input.results ?? []).filter(
+    (
+      result,
+    ): result is Partial<Omit<VoiceLiveOpsActionResult, "ok">> & {
+      ok?: boolean;
+    } => Boolean(result),
+  );
+  const controls = results
+    .map((result) => result.control)
+    .filter((control): control is VoiceLiveOpsControlState => Boolean(control));
+  const finalControl = input.finalControl ?? controls.at(-1);
+  const actions = uniqueSorted(
+    results
+      .map((result) => result.action)
+      .filter((action): action is VoiceLiveOpsAction =>
+        isVoiceLiveOpsAction(action),
+      ),
+  );
+  const statuses = uniqueSorted(controls.map((control) => control.status));
+  const failedActions = results.filter((result) => result.ok === false).length;
+
+  if (results.length === 0) {
+    issues.push("Expected live-ops control action result(s) to be present.");
+  }
+  if (
+    input.minSnapshots !== undefined &&
+    controls.length < input.minSnapshots
+  ) {
+    issues.push(
+      `Expected at least ${String(input.minSnapshots)} live-ops control snapshot(s), found ${String(controls.length)}.`,
+    );
+  }
+  if (
+    input.maxFailedActions !== undefined &&
+    failedActions > input.maxFailedActions
+  ) {
+    issues.push(
+      `Expected at most ${String(input.maxFailedActions)} failed live-ops control action(s), found ${String(failedActions)}.`,
+    );
+  }
+  for (const action of findMissing(actions, input.requiredActions)) {
+    issues.push(`Missing live-ops control action: ${action}.`);
+  }
+  for (const status of findMissing(statuses, input.requiredStatuses)) {
+    issues.push(`Missing live-ops control status: ${status}.`);
+  }
+  if (!finalControl) {
+    issues.push("Expected final live-ops control state to be present.");
+  } else {
+    if (
+      input.requireFinalAssistantPaused !== undefined &&
+      finalControl.assistantPaused !== input.requireFinalAssistantPaused
+    ) {
+      issues.push(
+        `Expected final live-ops assistantPaused ${String(input.requireFinalAssistantPaused)}, found ${String(finalControl.assistantPaused)}.`,
+      );
+    }
+    if (
+      input.requireFinalOperatorTakeover !== undefined &&
+      finalControl.operatorTakeover !== input.requireFinalOperatorTakeover
+    ) {
+      issues.push(
+        `Expected final live-ops operatorTakeover ${String(input.requireFinalOperatorTakeover)}, found ${String(finalControl.operatorTakeover)}.`,
+      );
+    }
+  }
+
+  return {
+    actionCount: results.length,
+    actions,
+    failedActions,
+    finalControl: finalControl ?? undefined,
+    finalStatus: finalControl?.status,
+    issues,
+    ok: issues.length === 0,
+    snapshots: controls.length,
+    statuses,
+  };
+};
 export const evaluateVoiceLiveOpsEvidence = (
   input: VoiceLiveOpsEvidenceInput = {},
 ): VoiceLiveOpsEvidenceReport => {
   const issues: string[] = [];
-  const actionHistory = input.actionHistory;
-  const opsRecovery = input.opsRecovery;
-  const opsStatus = input.opsStatus;
-  const operationsRecord = input.operationsRecord;
+  const {actionHistory} = input;
+  const {opsRecovery} = input;
+  const {opsStatus} = input;
+  const {operationsRecord} = input;
   const historyActions = uniqueSorted(
     actionHistory?.entries.map((entry) => entry.actionId) ?? [],
   );
@@ -321,121 +567,6 @@ export const evaluateVoiceLiveOpsEvidence = (
     opsStatus: opsStatus?.status,
   };
 };
-
-export const assertVoiceLiveOpsEvidence = (
-  input: VoiceLiveOpsEvidenceInput = {},
-): VoiceLiveOpsEvidenceReport => {
-  return assertVoiceEvidence(
-    "Voice live-ops evidence assertion failed",
-    evaluateVoiceLiveOpsEvidence(input),
-  );
-};
-
-export const evaluateVoiceLiveOpsControlEvidence = (
-  input: VoiceLiveOpsControlEvidenceInput = {},
-): VoiceLiveOpsControlEvidenceReport => {
-  const issues: string[] = [];
-  const results = (input.results ?? []).filter(
-    (
-      result,
-    ): result is Partial<Omit<VoiceLiveOpsActionResult, "ok">> & {
-      ok?: boolean;
-    } => Boolean(result),
-  );
-  const controls = results
-    .map((result) => result.control)
-    .filter((control): control is VoiceLiveOpsControlState => Boolean(control));
-  const finalControl = input.finalControl ?? controls.at(-1);
-  const actions = uniqueSorted(
-    results
-      .map((result) => result.action)
-      .filter((action): action is VoiceLiveOpsAction =>
-        isVoiceLiveOpsAction(action),
-      ),
-  );
-  const statuses = uniqueSorted(controls.map((control) => control.status));
-  const failedActions = results.filter((result) => result.ok === false).length;
-
-  if (results.length === 0) {
-    issues.push("Expected live-ops control action result(s) to be present.");
-  }
-  if (
-    input.minSnapshots !== undefined &&
-    controls.length < input.minSnapshots
-  ) {
-    issues.push(
-      `Expected at least ${String(input.minSnapshots)} live-ops control snapshot(s), found ${String(controls.length)}.`,
-    );
-  }
-  if (
-    input.maxFailedActions !== undefined &&
-    failedActions > input.maxFailedActions
-  ) {
-    issues.push(
-      `Expected at most ${String(input.maxFailedActions)} failed live-ops control action(s), found ${String(failedActions)}.`,
-    );
-  }
-  for (const action of findMissing(actions, input.requiredActions)) {
-    issues.push(`Missing live-ops control action: ${action}.`);
-  }
-  for (const status of findMissing(statuses, input.requiredStatuses)) {
-    issues.push(`Missing live-ops control status: ${status}.`);
-  }
-  if (!finalControl) {
-    issues.push("Expected final live-ops control state to be present.");
-  } else {
-    if (
-      input.requireFinalAssistantPaused !== undefined &&
-      finalControl.assistantPaused !== input.requireFinalAssistantPaused
-    ) {
-      issues.push(
-        `Expected final live-ops assistantPaused ${String(input.requireFinalAssistantPaused)}, found ${String(finalControl.assistantPaused)}.`,
-      );
-    }
-    if (
-      input.requireFinalOperatorTakeover !== undefined &&
-      finalControl.operatorTakeover !== input.requireFinalOperatorTakeover
-    ) {
-      issues.push(
-        `Expected final live-ops operatorTakeover ${String(input.requireFinalOperatorTakeover)}, found ${String(finalControl.operatorTakeover)}.`,
-      );
-    }
-  }
-
-  return {
-    actionCount: results.length,
-    actions,
-    failedActions,
-    finalControl: finalControl ?? undefined,
-    finalStatus: finalControl?.status,
-    issues,
-    ok: issues.length === 0,
-    snapshots: controls.length,
-    statuses,
-  };
-};
-
-export const assertVoiceLiveOpsControlEvidence = (
-  input: VoiceLiveOpsControlEvidenceInput = {},
-): VoiceLiveOpsControlEvidenceReport => {
-  return assertVoiceEvidence(
-    "Voice live-ops control evidence assertion failed",
-    evaluateVoiceLiveOpsControlEvidence(input),
-  );
-};
-
-export const createVoiceMemoryLiveOpsControlStore =
-  (): VoiceLiveOpsControlStore => {
-    const states = new Map<string, VoiceLiveOpsControlState>();
-
-    return {
-      get: (sessionId) => states.get(sessionId),
-      set: (sessionId, state) => {
-        states.set(sessionId, state);
-      },
-    };
-  };
-
 export const getVoiceLiveOpsControlStatus = (
   action: VoiceLiveOpsAction,
 ): VoiceLiveOpsControlStatus => {
@@ -455,147 +586,6 @@ export const getVoiceLiveOpsControlStatus = (
   }
 };
 
-export const buildVoiceLiveOpsControlState = (
-  input: VoiceLiveOpsActionInput & {
-    at?: number;
-    previous?: VoiceLiveOpsControlState;
-  },
-): VoiceLiveOpsControlState => ({
-  assistantPaused:
-    input.action === "pause-assistant" ||
-    input.action === "operator-takeover" ||
-    input.action === "force-handoff"
-      ? true
-      : input.action === "resume-assistant"
-        ? false
-        : (input.previous?.assistantPaused ?? false),
-  handoffTarget:
-    input.action === "force-handoff"
-      ? input.tag
-      : input.previous?.handoffTarget,
-  injectedInstruction:
-    input.action === "inject-instruction"
-      ? input.detail
-      : input.previous?.injectedInstruction,
-  lastAction: input.action,
-  lastUpdatedAt: input.at ?? Date.now(),
-  operator: input.assignee,
-  operatorTakeover:
-    input.action === "operator-takeover"
-      ? true
-      : input.action === "resume-assistant"
-        ? false
-        : (input.previous?.operatorTakeover ?? false),
-  status: getVoiceLiveOpsControlStatus(input.action),
-  tag: input.tag,
-});
-
-export const createVoiceLiveOpsController = (
-  options: VoiceLiveOpsControllerOptions = {},
-) => {
-  const store = options.store ?? createVoiceMemoryLiveOpsControlStore();
-  const perform = async (
-    input: VoiceLiveOpsActionInput,
-  ): Promise<VoiceLiveOpsActionResult> => {
-    if (!input.sessionId) {
-      throw new Error("Voice live ops action requires sessionId.");
-    }
-    if (!isVoiceLiveOpsAction(input.action)) {
-      throw new Error("Voice live ops action is not supported.");
-    }
-
-    const at = Date.now();
-    const assignee = input.assignee ?? options.defaultAssignee ?? "operator";
-    const tag = input.tag ?? options.defaultTag ?? "live-ops";
-    const detail = input.detail ?? options.defaultDetail ?? input.action;
-    const previous = await store.get(input.sessionId);
-    const control = buildVoiceLiveOpsControlState({
-      ...input,
-      assignee,
-      at,
-      detail,
-      previous,
-      tag,
-    });
-    await store.set(input.sessionId, control);
-    const traceId = `voice-live-ops:${input.sessionId}:${input.action}:${at}`;
-
-    await Promise.all([
-      options.audit?.append(
-        createVoiceAuditEvent({
-          action: `voice.live_ops.${input.action}`,
-          actor: {
-            id: assignee,
-            kind: "operator",
-            name: assignee,
-          },
-          at,
-          metadata: {
-            source: "voice-live-ops",
-            tag,
-          },
-          outcome: "success",
-          payload: {
-            action: input.action,
-            assignee,
-            control,
-            detail,
-            tag,
-          },
-          resource: {
-            id: input.sessionId,
-            type: "voice.session",
-          },
-          sessionId: input.sessionId,
-          traceId,
-          type: "operator.action",
-        }),
-      ),
-      options.trace?.append(
-        createVoiceTraceEvent({
-          at,
-          metadata: {
-            source: "voice-live-ops",
-            tag,
-          },
-          payload: {
-            action: input.action,
-            assignee,
-            control,
-            detail,
-            status: "success",
-            tag,
-          },
-          sessionId: input.sessionId,
-          traceId,
-          type: "operator.action",
-        }),
-      ),
-    ]);
-
-    const result = {
-      action: input.action,
-      control,
-      ok: true,
-      sessionId: input.sessionId,
-    } satisfies VoiceLiveOpsActionResult;
-    await options.onAction?.({
-      ...result,
-      assignee,
-      detail,
-      tag,
-    });
-
-    return result;
-  };
-
-  return {
-    get: (sessionId: string) => store.get(sessionId),
-    perform,
-    store,
-  };
-};
-
 const readVoiceLiveOpsActionInput = async (
   request: Request,
 ): Promise<VoiceLiveOpsActionInput> => {
@@ -604,7 +594,7 @@ const readVoiceLiveOpsActionInput = async (
     throw new Error("Voice live ops action requires a JSON body.");
   }
   const record = body as Record<string, unknown>;
-  const action = record.action;
+  const {action} = record;
   const sessionId = toStringValue(record.sessionId);
   if (!sessionId || !isVoiceLiveOpsAction(action)) {
     throw new Error(
@@ -639,6 +629,7 @@ export const createVoiceLiveOpsRoutes = (
         );
       } catch (error) {
         set.status = 400;
+
         return {
           error: error instanceof Error ? error.message : String(error),
           ok: false,
@@ -646,7 +637,8 @@ export const createVoiceLiveOpsRoutes = (
       }
     })
     .get(controlPath, async ({ params }) => {
-      const sessionId = (params as { sessionId: string }).sessionId;
+      const {sessionId} = (params as { sessionId: string });
+
       return {
         control: await controller.get(sessionId),
         ok: true,

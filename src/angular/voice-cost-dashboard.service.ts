@@ -22,6 +22,7 @@ export class VoiceCostDashboardService {
     });
     const report = computed<VoiceCostDashboardReport>(() => {
       const f = filters();
+
       return buildVoiceCostDashboardReport({
         bucketBy: f.bucketBy,
         events: events(),
@@ -29,9 +30,11 @@ export class VoiceCostDashboardService {
         toMs: f.toMs,
       });
     });
+
     return {
       currency: options.currency ?? "USD",
       report,
+      title: options.title ?? "Voice cost dashboard",
       setEvents: (next: ReadonlyArray<StoredVoiceTraceEvent>) =>
         events.set(next),
       setFilters: (next: Partial<typeof options>) =>
@@ -41,7 +44,6 @@ export class VoiceCostDashboardService {
           fromMs: next.fromMs ?? current.fromMs,
           toMs: next.toMs ?? current.toMs,
         })),
-      title: options.title ?? "Voice cost dashboard",
     };
   }
 }

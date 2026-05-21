@@ -41,47 +41,6 @@ const getDefaultActionPath = (
   );
 };
 
-export const fetchVoiceDeliveryRuntime = async (
-  path = "/api/voice-delivery-runtime",
-  options: Pick<VoiceDeliveryRuntimeClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice delivery runtime failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceDeliveryRuntimeReport;
-};
-
-export const runVoiceDeliveryRuntimeAction = async (
-  action: VoiceDeliveryRuntimeAction,
-  path = "/api/voice-delivery-runtime",
-  options: VoiceDeliveryRuntimeClientOptions = {},
-): Promise<VoiceDeliveryRuntimeActionResult> => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(
-    getDefaultActionPath(path, action, options),
-    {
-      method: "POST",
-    },
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Voice delivery runtime ${action} failed: HTTP ${response.status}`,
-    );
-  }
-  const body = (await response.json()) as {
-    result?: unknown;
-    summary?: VoiceDeliveryRuntimeReport["summary"];
-  };
-  return {
-    action,
-    result: body.result,
-    summary: body.summary,
-    updatedAt: Date.now(),
-  };
-};
-
 export const createVoiceDeliveryRuntimeStore = (
   path = "/api/voice-delivery-runtime",
   options: VoiceDeliveryRuntimeClientOptions = {},
@@ -120,6 +79,7 @@ export const createVoiceDeliveryRuntimeStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -151,6 +111,7 @@ export const createVoiceDeliveryRuntimeStore = (
       };
       emit();
       await refresh();
+
       return result;
     } catch (error) {
       snapshot = {
@@ -183,16 +144,58 @@ export const createVoiceDeliveryRuntimeStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
     requeueDeadLetters: () => runAction("requeue-dead-letters"),
-    refresh,
-    tick: () => runAction("tick"),
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
+    tick: () => runAction("tick"),
+  };
+};
+export const fetchVoiceDeliveryRuntime = async (
+  path = "/api/voice-delivery-runtime",
+  options: Pick<VoiceDeliveryRuntimeClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice delivery runtime failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceDeliveryRuntimeReport;
+};
+export const runVoiceDeliveryRuntimeAction = async (
+  action: VoiceDeliveryRuntimeAction,
+  path = "/api/voice-delivery-runtime",
+  options: VoiceDeliveryRuntimeClientOptions = {},
+): Promise<VoiceDeliveryRuntimeActionResult> => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(
+    getDefaultActionPath(path, action, options),
+    {
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Voice delivery runtime ${action} failed: HTTP ${response.status}`,
+    );
+  }
+  const body = (await response.json()) as {
+    result?: unknown;
+    summary?: VoiceDeliveryRuntimeReport["summary"];
+  };
+
+  return {
+    action,
+    result: body.result,
+    summary: body.summary,
+    updatedAt: Date.now(),
   };
 };

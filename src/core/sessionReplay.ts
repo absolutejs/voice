@@ -155,10 +155,12 @@ const resolveSessionHref = (
   }
   if (typeof value === "string") {
     const encoded = encodeURIComponent(session.sessionId);
+
     return value.includes(":sessionId")
       ? value.replace(":sessionId", encoded)
       : `${value.replace(/\/$/, "")}/${encoded}`;
   }
+
   return undefined;
 };
 
@@ -224,6 +226,7 @@ const buildReplayTurns = (
       transcripts: [],
     };
     turns.set(turnId, turn);
+
     return turn;
   };
 
@@ -263,6 +266,135 @@ const buildReplayTurns = (
   return [...turns.values()];
 };
 
+export const createVoiceSessionListRoutes = (
+  options: VoiceSessionListRoutesOptions = {},
+) => {
+  const path = options.path ?? "/api/voice-sessions";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-session-list",
+  }).get(path, createVoiceSessionsJSONHandler(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceSessionsHTMLHandler(options));
+  }
+
+  return routes;
+};
+export const createVoiceSessionReplayHTMLHandler =
+  (options: VoiceSessionReplayHTMLHandlerOptions) =>
+  async ({ params }: { params: Record<string, string | undefined> }) => {
+    const replay = await summarizeVoiceSessionReplay({
+      ...options,
+      sessionId: params.sessionId ?? "",
+    });
+    const body = await (options.render?.(replay) ?? replay.html);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceSessionReplayJSONHandler =
+  (options: Omit<VoiceSessionReplayOptions, "sessionId">) =>
+  async ({ params }: { params: Record<string, string | undefined> }) =>
+    summarizeVoiceSessionReplay({
+      ...options,
+      sessionId: params.sessionId ?? "",
+    });
+export const createVoiceSessionReplayRoutes = (
+  options: VoiceSessionReplayRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice-sessions/:sessionId/replay";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-session-replay",
+  }).get(path, createVoiceSessionReplayJSONHandler(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceSessionReplayHTMLHandler(options));
+  }
+
+  return routes;
+};
+export const createVoiceSessionsHTMLHandler =
+  (options: VoiceSessionListHTMLHandlerOptions = {}) =>
+  async ({ query }: { query?: Record<string, string | undefined> }) => {
+    const sessions = await summarizeVoiceSessions({
+      ...options,
+      limit:
+        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
+      provider: query?.provider ?? options.provider,
+      q: query?.q ?? options.q,
+      status:
+        query?.status === "failed" ||
+        query?.status === "healthy" ||
+        query?.status === "all"
+          ? query.status
+          : options.status,
+    });
+    const body = await (options.render?.(sessions) ??
+      renderVoiceSessionsHTML(sessions));
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceSessionsJSONHandler =
+  (options: VoiceSessionListOptions = {}) =>
+  async ({ query }: { query?: Record<string, string | undefined> }) =>
+    summarizeVoiceSessions({
+      ...options,
+      limit:
+        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
+      provider: query?.provider ?? options.provider,
+      q: query?.q ?? options.q,
+      status:
+        query?.status === "failed" ||
+        query?.status === "healthy" ||
+        query?.status === "all"
+          ? query.status
+          : options.status,
+    });
+export const renderVoiceSessionsHTML = (sessions: VoiceSessionListItem[]) =>
+  sessions.length === 0
+    ? '<p class="voice-sessions-empty">No voice sessions found.</p>'
+    : [
+        '<div class="voice-sessions-list">',
+        ...sessions.map((session) =>
+          [
+            `<article class="voice-session-card ${escapeHtml(session.status)}">`,
+            '<div class="voice-session-card-header">',
+            `<strong>${escapeHtml(session.sessionId)}</strong>`,
+            `<span>${escapeHtml(session.status)}</span>`,
+            "</div>",
+            "<dl>",
+            `<div><dt>Events</dt><dd>${String(session.eventCount)}</dd></div>`,
+            `<div><dt>Turns</dt><dd>${String(session.turnCount)}</dd></div>`,
+            `<div><dt>Transcripts</dt><dd>${String(session.transcriptCount)}</dd></div>`,
+            `<div><dt>Errors</dt><dd>${String(session.errorCount)}</dd></div>`,
+            "</dl>",
+            session.latestOutcome
+              ? `<p>Outcome: ${escapeHtml(session.latestOutcome)}</p>`
+              : "",
+            session.providers.length
+              ? `<p>Providers: ${session.providers.map(escapeHtml).join(", ")}</p>`
+              : "",
+            session.replayHref
+              ? `<p>${session.operationsRecordHref ? `<a href="${escapeHtml(session.operationsRecordHref)}">Open operations record</a> · ` : ""}<a href="${escapeHtml(session.replayHref)}">Open replay</a></p>`
+              : "",
+            "</article>",
+          ].join(""),
+        ),
+        "</div>",
+      ].join("");
 export const summarizeVoiceSessionReplay = async (
   options: VoiceSessionReplayOptions,
 ): Promise<VoiceSessionReplay> => {
@@ -278,7 +410,7 @@ export const summarizeVoiceSessionReplay = async (
     redact: options.redact,
     title: options.title ?? `Voice Session ${options.sessionId}`,
   });
-  const startedAt = replay.summary.startedAt;
+  const {startedAt} = replay.summary;
 
   return {
     evaluation: replay.evaluation,
@@ -298,7 +430,6 @@ export const summarizeVoiceSessionReplay = async (
     turns: buildReplayTurns(events),
   };
 };
-
 export const summarizeVoiceSessions = async (
   options: VoiceSessionListOptions = {},
 ): Promise<VoiceSessionListItem[]> => {
@@ -314,14 +445,14 @@ export const summarizeVoiceSessions = async (
 
   const sessions = [...grouped.entries()].map(([sessionId, sessionEvents]) => {
     const sorted = filterVoiceTraceEvents(sessionEvents);
-    const summary = buildVoiceTraceReplay(sorted, {
+    const {summary} = buildVoiceTraceReplay(sorted, {
       evaluation: {
         requireAssistantReply: false,
         requireCompletedCall: false,
         requireTranscript: false,
         requireTurn: false,
       },
-    }).summary;
+    });
     const providerErrors: Record<string, number> = {};
     const providers = new Set<string>();
     let latestOutcome: string | undefined;
@@ -413,140 +544,4 @@ export const summarizeVoiceSessions = async (
         (left.endedAt ?? left.startedAt ?? 0),
     )
     .slice(0, options.limit ?? 50);
-};
-
-export const renderVoiceSessionsHTML = (sessions: VoiceSessionListItem[]) =>
-  sessions.length === 0
-    ? '<p class="voice-sessions-empty">No voice sessions found.</p>'
-    : [
-        '<div class="voice-sessions-list">',
-        ...sessions.map((session) =>
-          [
-            `<article class="voice-session-card ${escapeHtml(session.status)}">`,
-            '<div class="voice-session-card-header">',
-            `<strong>${escapeHtml(session.sessionId)}</strong>`,
-            `<span>${escapeHtml(session.status)}</span>`,
-            "</div>",
-            "<dl>",
-            `<div><dt>Events</dt><dd>${String(session.eventCount)}</dd></div>`,
-            `<div><dt>Turns</dt><dd>${String(session.turnCount)}</dd></div>`,
-            `<div><dt>Transcripts</dt><dd>${String(session.transcriptCount)}</dd></div>`,
-            `<div><dt>Errors</dt><dd>${String(session.errorCount)}</dd></div>`,
-            "</dl>",
-            session.latestOutcome
-              ? `<p>Outcome: ${escapeHtml(session.latestOutcome)}</p>`
-              : "",
-            session.providers.length
-              ? `<p>Providers: ${session.providers.map(escapeHtml).join(", ")}</p>`
-              : "",
-            session.replayHref
-              ? `<p>${session.operationsRecordHref ? `<a href="${escapeHtml(session.operationsRecordHref)}">Open operations record</a> · ` : ""}<a href="${escapeHtml(session.replayHref)}">Open replay</a></p>`
-              : "",
-            "</article>",
-          ].join(""),
-        ),
-        "</div>",
-      ].join("");
-
-export const createVoiceSessionsJSONHandler =
-  (options: VoiceSessionListOptions = {}) =>
-  async ({ query }: { query?: Record<string, string | undefined> }) =>
-    summarizeVoiceSessions({
-      ...options,
-      limit:
-        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
-      provider: query?.provider ?? options.provider,
-      q: query?.q ?? options.q,
-      status:
-        query?.status === "failed" ||
-        query?.status === "healthy" ||
-        query?.status === "all"
-          ? query.status
-          : options.status,
-    });
-
-export const createVoiceSessionsHTMLHandler =
-  (options: VoiceSessionListHTMLHandlerOptions = {}) =>
-  async ({ query }: { query?: Record<string, string | undefined> }) => {
-    const sessions = await summarizeVoiceSessions({
-      ...options,
-      limit:
-        typeof query?.limit === "string" ? Number(query.limit) : options.limit,
-      provider: query?.provider ?? options.provider,
-      q: query?.q ?? options.q,
-      status:
-        query?.status === "failed" ||
-        query?.status === "healthy" ||
-        query?.status === "all"
-          ? query.status
-          : options.status,
-    });
-    const body = await (options.render?.(sessions) ??
-      renderVoiceSessionsHTML(sessions));
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceSessionListRoutes = (
-  options: VoiceSessionListRoutesOptions = {},
-) => {
-  const path = options.path ?? "/api/voice-sessions";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-session-list",
-  }).get(path, createVoiceSessionsJSONHandler(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceSessionsHTMLHandler(options));
-  }
-
-  return routes;
-};
-
-export const createVoiceSessionReplayJSONHandler =
-  (options: Omit<VoiceSessionReplayOptions, "sessionId">) =>
-  async ({ params }: { params: Record<string, string | undefined> }) =>
-    summarizeVoiceSessionReplay({
-      ...options,
-      sessionId: params.sessionId ?? "",
-    });
-
-export const createVoiceSessionReplayHTMLHandler =
-  (options: VoiceSessionReplayHTMLHandlerOptions) =>
-  async ({ params }: { params: Record<string, string | undefined> }) => {
-    const replay = await summarizeVoiceSessionReplay({
-      ...options,
-      sessionId: params.sessionId ?? "",
-    });
-    const body = await (options.render?.(replay) ?? replay.html);
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceSessionReplayRoutes = (
-  options: VoiceSessionReplayRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice-sessions/:sessionId/replay";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-session-replay",
-  }).get(path, createVoiceSessionReplayJSONHandler(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceSessionReplayHTMLHandler(options));
-  }
-
-  return routes;
 };

@@ -54,6 +54,7 @@ export const renderVoicePathwayMermaid = (pathway: VoicePathway): string => {
       lines.push(`    ${state.id} -- "${label}" --> ${transition.to}`);
     }
   }
+
   return lines.join("\n");
 };
 
@@ -79,12 +80,14 @@ export const renderVoicePathwayText = (pathway: VoicePathway): string => {
   const walk = (stateId: string, depth: number) => {
     if (visited.has(stateId)) {
       lines.push(`${"  ".repeat(depth)}→ ${stateId} (already shown)`);
+
       return;
     }
     visited.add(stateId);
     const state = stateById.get(stateId);
     if (!state) {
       lines.push(`${"  ".repeat(depth)}→ ${stateId} (missing)`);
+
       return;
     }
     const indent = "  ".repeat(depth);
@@ -105,6 +108,7 @@ export const renderVoicePathwayText = (pathway: VoicePathway): string => {
 
   lines.push("States:");
   walk(pathway.entryStateId, 1);
+
   return lines.join("\n");
 };
 

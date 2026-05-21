@@ -175,6 +175,7 @@ const matchesRule = async (
     return rule.match(input);
   }
   const content = stringifyContent(input.content);
+
   return typeof rule.match === "string"
     ? content.toLowerCase().includes(rule.match.toLowerCase())
     : rule.match.test(content);
@@ -200,10 +201,49 @@ const applyRedactions = (
     if (rule.match instanceof RegExp) {
       return value.replace(rule.match, rule.redactWith);
     }
+
     return value;
   }, content);
 };
 
+export const buildVoiceGuardrailReport = (
+  input: {
+    decisions: VoiceGuardrailDecision[];
+    policies?: VoiceGuardrailPolicy[];
+  } = { decisions: [] },
+): VoiceGuardrailReport => {
+  const blocked = input.decisions.filter(
+    (decision) => decision.status === "blocked",
+  ).length;
+  const warned = input.decisions.filter(
+    (decision) => decision.status === "warn",
+  ).length;
+  const passed = input.decisions.filter(
+    (decision) => decision.status === "pass",
+  ).length;
+  const status = blocked > 0 ? "fail" : warned > 0 ? "warn" : "pass";
+
+  return {
+    checkedAt: Date.now(),
+    decisions: input.decisions,
+    failed: blocked,
+    policies: (input.policies ?? []).map((policy) => ({
+      id: policy.id,
+      label: policy.label,
+      rules: policy.rules.length,
+    })),
+    status,
+    summary: {
+      blocked,
+      passed,
+      warned,
+    },
+    total: input.decisions.length,
+  };
+};
+export const createVoiceGuardrailPolicy = (
+  policy: VoiceGuardrailPolicy,
+): VoiceGuardrailPolicy => policy;
 export const evaluateVoiceGuardrailPolicy = async (
   policy: VoiceGuardrailPolicy,
   input: VoiceGuardrailEvaluationInput,
@@ -243,46 +283,6 @@ export const evaluateVoiceGuardrailPolicy = async (
   };
 };
 
-export const buildVoiceGuardrailReport = (
-  input: {
-    decisions: VoiceGuardrailDecision[];
-    policies?: VoiceGuardrailPolicy[];
-  } = { decisions: [] },
-): VoiceGuardrailReport => {
-  const blocked = input.decisions.filter(
-    (decision) => decision.status === "blocked",
-  ).length;
-  const warned = input.decisions.filter(
-    (decision) => decision.status === "warn",
-  ).length;
-  const passed = input.decisions.filter(
-    (decision) => decision.status === "pass",
-  ).length;
-  const status = blocked > 0 ? "fail" : warned > 0 ? "warn" : "pass";
-
-  return {
-    checkedAt: Date.now(),
-    decisions: input.decisions,
-    failed: blocked,
-    policies: (input.policies ?? []).map((policy) => ({
-      id: policy.id,
-      label: policy.label,
-      rules: policy.rules.length,
-    })),
-    status,
-    summary: {
-      blocked,
-      passed,
-      warned,
-    },
-    total: input.decisions.length,
-  };
-};
-
-export const createVoiceGuardrailPolicy = (
-  policy: VoiceGuardrailPolicy,
-): VoiceGuardrailPolicy => policy;
-
 const appendGuardrailTrace = async (
   trace: VoiceTraceEventStore | undefined,
   decision: VoiceGuardrailDecision,
@@ -318,6 +318,33 @@ const defaultGuardrailBlockResult = <TResult>(
   },
 });
 
+export const voiceGuardrailPolicyPresets = {
+  supportSafeDefaults: createVoiceGuardrailPolicy({
+    id: "support-safe-defaults",
+    label: "Support safe defaults",
+    rules: [
+      {
+        description:
+          "Blocks final legal, medical, or financial advice claims that should route to a human or qualified professional.",
+        id: "regulated-advice",
+        label: "Regulated advice",
+        match:
+          /\b(legal advice|medical advice|financial advice|diagnose|prescribe|guaranteed refund|guaranteed approval)\b/i,
+        stages: ["assistant-output"],
+      },
+      {
+        action: "warn",
+        description:
+          "Warns when payment-card-like data appears in transcripts or tool payloads.",
+        id: "payment-card-like-data",
+        label: "Payment card-like data",
+        match: /\b(?:\d[ -]*?){13,19}\b/,
+        redactWith: "[redacted-card]",
+        stages: ["transcript", "tool-input", "tool-output"],
+      },
+    ],
+  }),
+};
 export const createVoiceGuardrailRuntime = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -336,6 +363,7 @@ export const createVoiceGuardrailRuntime = <
         appendGuardrailTrace(options.trace, decision, input.metadata),
       ),
     );
+
     return decisions.find((decision) => !decision.allowed) ?? decisions[0]!;
   };
   const blockResult = async (
@@ -349,6 +377,40 @@ export const createVoiceGuardrailRuntime = <
     TSession,
     TResult
   > = {
+    afterTurn: async (input) => {
+      if (!input.result.assistantText) {
+        return undefined;
+      }
+
+      const decision = await evaluate({
+        content: input.result.assistantText,
+        metadata: {
+          runtime: options.name,
+          surface: "live-assistant-output",
+        },
+        sessionId: input.session.id,
+        stage: "assistant-output",
+        turnId: input.turn.id,
+      });
+      if (!decision.allowed) {
+        return blockResult({
+          ...input,
+          decision,
+          stage: "assistant-output",
+        });
+      }
+      if (
+        typeof decision.redactedContent === "string" &&
+        decision.redactedContent !== input.result.assistantText
+      ) {
+        return {
+          ...input.result,
+          assistantText: decision.redactedContent,
+        };
+      }
+
+      return undefined;
+    },
     beforeTurn: async (input) => {
       const transcriptDecision = await evaluate({
         content: input.turn.text,
@@ -387,40 +449,6 @@ export const createVoiceGuardrailRuntime = <
           decision: modelInputDecision,
           stage: "model-input",
         });
-      }
-
-      return undefined;
-    },
-    afterTurn: async (input) => {
-      if (!input.result.assistantText) {
-        return undefined;
-      }
-
-      const decision = await evaluate({
-        content: input.result.assistantText,
-        metadata: {
-          runtime: options.name,
-          surface: "live-assistant-output",
-        },
-        sessionId: input.session.id,
-        stage: "assistant-output",
-        turnId: input.turn.id,
-      });
-      if (!decision.allowed) {
-        return blockResult({
-          ...input,
-          decision,
-          stage: "assistant-output",
-        });
-      }
-      if (
-        typeof decision.redactedContent === "string" &&
-        decision.redactedContent !== input.result.assistantText
-      ) {
-        return {
-          ...input.result,
-          assistantText: decision.redactedContent,
-        };
       }
 
       return undefined;
@@ -480,35 +508,6 @@ export const createVoiceGuardrailRuntime = <
     wrapTools: (tools) => tools.map((tool) => wrapTool(tool)),
   };
 };
-
-export const voiceGuardrailPolicyPresets = {
-  supportSafeDefaults: createVoiceGuardrailPolicy({
-    id: "support-safe-defaults",
-    label: "Support safe defaults",
-    rules: [
-      {
-        description:
-          "Blocks final legal, medical, or financial advice claims that should route to a human or qualified professional.",
-        id: "regulated-advice",
-        label: "Regulated advice",
-        match:
-          /\b(legal advice|medical advice|financial advice|diagnose|prescribe|guaranteed refund|guaranteed approval)\b/i,
-        stages: ["assistant-output"],
-      },
-      {
-        description:
-          "Warns when payment-card-like data appears in transcripts or tool payloads.",
-        action: "warn",
-        id: "payment-card-like-data",
-        label: "Payment card-like data",
-        match: /\b(?:\d[ -]*?){13,19}\b/,
-        redactWith: "[redacted-card]",
-        stages: ["transcript", "tool-input", "tool-output"],
-      },
-    ],
-  }),
-};
-
 export const renderVoiceGuardrailMarkdown = (report: VoiceGuardrailReport) => {
   const lines = [
     "# Voice Guardrail Report",
@@ -542,6 +541,7 @@ const normalizeGuardrailRouteInput = async (request: Request) => {
       .catch(() => ({}))) as VoiceGuardrailEvaluationInput;
   }
   const url = new URL(request.url);
+
   return {
     content: url.searchParams.get("content") ?? "",
     sessionId: url.searchParams.get("sessionId") ?? undefined,
@@ -561,6 +561,7 @@ const resolveGuardrailReport = async (
       typeof options.source === "function"
         ? await options.source(input)
         : options.source;
+
     return isGuardrailReport(value)
       ? value
       : buildVoiceGuardrailReport({ decisions: [value] });
@@ -571,6 +572,7 @@ const resolveGuardrailReport = async (
       evaluateVoiceGuardrailPolicy(policy, input),
     ),
   );
+
   return buildVoiceGuardrailReport({
     decisions,
     policies: options.policies,
@@ -614,6 +616,7 @@ export const createVoiceGuardrailRoutes = (
   routes.all(`${path}.md`, async ({ request }) => {
     const input = await normalizeGuardrailRouteInput(request);
     const report = await resolveGuardrailReport(options, input);
+
     return new Response(renderVoiceGuardrailMarkdown(report), {
       headers: {
         "content-type": "text/markdown; charset=utf-8",

@@ -20,6 +20,7 @@ export const useVoiceReadinessFailures = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

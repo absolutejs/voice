@@ -28,22 +28,21 @@ export type VoiceDNCList = {
   contains: (phone: string) => boolean | Promise<boolean>;
 };
 
-export const normalizePhoneNumber = (phone: string) =>
-  phone.replace(/[\s()-]/g, "").trim();
-
 export const createInMemoryDNCList = (
   phones: ReadonlyArray<string>,
 ): VoiceDNCList => {
   const set = new Set(phones.map(normalizePhoneNumber));
+
   return {
     contains: (phone) => set.has(normalizePhoneNumber(phone)),
   };
 };
-
 export const isPhoneOnDNC = async (
   phone: string,
   list: VoiceDNCList,
 ): Promise<boolean> => Promise.resolve(list.contains(phone));
+export const normalizePhoneNumber = (phone: string) =>
+  phone.replace(/[\s()-]/g, "").trim();
 
 export type VoiceCampaignWindowCheckInput = {
   now?: Date;
@@ -64,6 +63,7 @@ export const isWithinCampaignWindow = (
   if (input.window.startHour <= input.window.endHour) {
     return hour >= input.window.startHour && hour < input.window.endHour;
   }
+
   // wraps midnight
   return hour >= input.window.startHour || hour < input.window.endHour;
 };
@@ -86,6 +86,7 @@ export const shouldRetryCampaignAttempt = (input: {
   if (rule?.maxAttempts !== undefined && input.attempts >= rule.maxAttempts) {
     return { retry: false };
   }
+
   return { backoffMs: rule?.backoffMs, retry: true };
 };
 
@@ -101,7 +102,7 @@ export type VoiceCampaignDispositionSummary = {
 const dispositionFromAttempt = (
   attempt: VoiceCampaignAttempt,
 ): VoiceCampaignDisposition | undefined => {
-  const metadata = attempt.metadata;
+  const {metadata} = attempt;
   if (metadata && typeof metadata.disposition === "string") {
     return metadata.disposition as VoiceCampaignDisposition;
   }
@@ -111,6 +112,7 @@ const dispositionFromAttempt = (
   if (attempt.status === "succeeded") {
     return "answered";
   }
+
   return undefined;
 };
 
@@ -143,6 +145,7 @@ export const summarizeVoiceCampaignDispositions = (
     recipientsByStatus[recipient.status] =
       (recipientsByStatus[recipient.status] ?? 0) + 1;
   }
+
   return {
     attempts: record.attempts.length,
     byDisposition,

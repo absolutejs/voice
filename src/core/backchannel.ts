@@ -68,19 +68,19 @@ export const createVoiceBackchannelDriver = (
   };
 
   return {
-    noteSpeech: (timestampMs?: number) => {
-      const now = timestampMs ?? Date.now();
-      if (speechStartedAt === undefined) {
-        speechStartedAt = now;
-      }
-      void tryFire(now);
-    },
     noteSilence: (timestampMs?: number) => {
       const now = timestampMs ?? Date.now();
       // If silence has held longer than cueIntervalMs, reset speech window
       if (lastCueAt !== undefined && now - lastCueAt > cueIntervalMs * 2) {
         speechStartedAt = undefined;
       }
+    },
+    noteSpeech: (timestampMs?: number) => {
+      const now = timestampMs ?? Date.now();
+      if (speechStartedAt === undefined) {
+        speechStartedAt = now;
+      }
+      void tryFire(now);
     },
     reset: () => {
       speechStartedAt = undefined;

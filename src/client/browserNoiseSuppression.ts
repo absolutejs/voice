@@ -56,8 +56,10 @@ export const applyBrowserNoiseSuppression = async (
   const destination = audioContext.createMediaStreamDestination();
   source.connect(node);
   node.connect(destination);
+
   return {
     node,
+    stream: destination.stream,
     stop: async () => {
       try {
         node.disconnect();
@@ -72,7 +74,6 @@ export const applyBrowserNoiseSuppression = async (
         await audioContext.close();
       }
     },
-    stream: destination.stream,
   };
 };
 

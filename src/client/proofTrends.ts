@@ -12,18 +12,6 @@ export type VoiceProofTrendsSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceProofTrends = async (
-  path = "/api/voice/proof-trends",
-  options: Pick<VoiceProofTrendsClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice proof trends failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceProofTrendReport;
-};
-
 export const createVoiceProofTrendsStore = (
   path = "/api/voice/proof-trends",
   options: VoiceProofTrendsClientOptions = {},
@@ -59,6 +47,7 @@ export const createVoiceProofTrendsStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -91,14 +80,27 @@ export const createVoiceProofTrendsStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceProofTrends = async (
+  path = "/api/voice/proof-trends",
+  options: Pick<VoiceProofTrendsClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice proof trends failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceProofTrendReport;
 };

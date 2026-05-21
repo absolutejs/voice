@@ -70,10 +70,10 @@ export const VoiceTurnLatency = defineComponent({
                 "button",
                 {
                   class: "absolute-voice-turn-latency__proof",
+                  type: "button",
                   onClick: () => {
                     void latency.runProof().catch(() => {});
                   },
-                  type: "button",
                 },
                 model.value.proofLabel,
               )

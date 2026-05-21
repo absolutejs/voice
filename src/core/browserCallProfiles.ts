@@ -122,7 +122,7 @@ const toTime = (
 };
 
 const uniqueStrings = (values: Array<string | undefined>) =>
-  Array.from(new Set(values.filter((value): value is string => !!value)));
+  Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 
 const normalizeNumber = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -177,6 +177,20 @@ const summarizeResults = (
   };
 };
 
+export const assertVoiceBrowserCallProfileEvidence = (
+  report: VoiceBrowserCallProfileReport | VoiceBrowserCallProfileReportInput,
+  input: VoiceBrowserCallProfileAssertionInput = {},
+) => {
+  const assertion = evaluateVoiceBrowserCallProfileEvidence(report, input);
+
+  if (!assertion.ok) {
+    throw new Error(
+      assertion.issues.join("\n") || "Browser call profile failed.",
+    );
+  }
+
+  return assertion;
+};
 export const buildVoiceBrowserCallProfileReport = (
   input: VoiceBrowserCallProfileReportInput = {},
 ): VoiceBrowserCallProfileReport => {
@@ -230,7 +244,6 @@ export const buildVoiceBrowserCallProfileReport = (
     summary,
   };
 };
-
 export const evaluateVoiceBrowserCallProfileEvidence = (
   report: VoiceBrowserCallProfileReport | VoiceBrowserCallProfileReportInput,
   input: VoiceBrowserCallProfileAssertionInput = {},
@@ -304,22 +317,21 @@ export const evaluateVoiceBrowserCallProfileEvidence = (
     summary: normalized.summary,
   };
 };
-
-export const assertVoiceBrowserCallProfileEvidence = (
+export const renderVoiceBrowserCallProfileHTML = (
   report: VoiceBrowserCallProfileReport | VoiceBrowserCallProfileReportInput,
-  input: VoiceBrowserCallProfileAssertionInput = {},
+  options: { title?: string } = {},
 ) => {
-  const assertion = evaluateVoiceBrowserCallProfileEvidence(report, input);
+  const normalized = buildVoiceBrowserCallProfileReport(report);
+  const title = options.title ?? "Voice Browser Call Profiles";
+  const rows = normalized.results
+    .map(
+      (result) =>
+        `<tr><td>${escapeHtml(result.framework)}</td><td class="${result.ok ? "pass" : "fail"}">${result.ok ? "pass" : "fail"}</td><td>${String(result.summary?.openSockets ?? 0)}</td><td>${String(result.summary?.sentBytes ?? 0)}</td><td>${String(result.summary?.receivedBytes ?? 0)}</td><td>${String(result.summary?.messageCount ?? 0)}</td><td>${escapeHtml(result.error ?? "")}</td></tr>`,
+    )
+    .join("");
 
-  if (!assertion.ok) {
-    throw new Error(
-      assertion.issues.join("\n") || "Browser call profile failed.",
-    );
-  }
-
-  return assertion;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#11140f;color:#f4f0df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,.primitive,table{background:#191d15;border:1px solid #323a27;border-radius:22px;margin-bottom:16px}.hero,.primitive{padding:22px}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{color:#bef264}.warn,.empty,.stale{color:#fde68a}.fail{color:#fecaca}.metrics{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:18px}.metric{background:#10130d;border:1px solid #303827;border-radius:16px;padding:14px}.metric span{color:#b8c3a3}.metric strong{display:block;font-size:1.7rem;margin-top:4px}.primitive code{color:#d9f99d}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #323a27;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real browser microphone proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(normalized.status)}">Status: ${escapeHtml(normalized.status)}</p><p>Framework parity proof from real browser pages opening the voice WebSocket and sending microphone audio bytes.</p><section class="metrics"><div class="metric"><span>Frameworks</span><strong>${String(normalized.summary.totalFrameworks)}</strong></div><div class="metric"><span>Passing</span><strong>${String(normalized.summary.passedFrameworks.length)}</strong></div><div class="metric"><span>Open sockets</span><strong>${String(normalized.summary.openSockets)}</strong></div><div class="metric"><span>Sent bytes</span><strong>${String(normalized.summary.sentBytes)}</strong></div><div class="metric"><span>Received bytes</span><strong>${String(normalized.summary.receivedBytes)}</strong></div><div class="metric"><span>Messages</span><strong>${String(normalized.summary.totalMessages)}</strong></div></section></section><section class="primitive"><p class="eyebrow">Copy into your app</p><p><code>buildVoiceBrowserCallProfileReport(...)</code> normalizes browser-call evidence. <code>evaluateVoiceBrowserCallProfileEvidence(...)</code> gates required frameworks, WebSocket opens, sent bytes, and freshness. <code>createVoiceBrowserCallProfileRoutes(...)</code> serves JSON, HTML, and Markdown.</p></section><table><thead><tr><th>Framework</th><th>Status</th><th>WebSockets</th><th>Sent bytes</th><th>Received bytes</th><th>Messages</th><th>Error</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No browser call profile evidence yet.</td></tr>'}</tbody></table></main></body></html>`;
 };
-
 export const renderVoiceBrowserCallProfileMarkdown = (
   report: VoiceBrowserCallProfileReport | VoiceBrowserCallProfileReportInput,
   options: { title?: string } = {},
@@ -347,22 +359,6 @@ export const renderVoiceBrowserCallProfileMarkdown = (
     "| --- | --- | ---: | ---: | ---: | ---: | --- |",
     rows || "| none | empty | 0 | 0 | 0 | 0 |  |",
   ].join("\n");
-};
-
-export const renderVoiceBrowserCallProfileHTML = (
-  report: VoiceBrowserCallProfileReport | VoiceBrowserCallProfileReportInput,
-  options: { title?: string } = {},
-) => {
-  const normalized = buildVoiceBrowserCallProfileReport(report);
-  const title = options.title ?? "Voice Browser Call Profiles";
-  const rows = normalized.results
-    .map(
-      (result) =>
-        `<tr><td>${escapeHtml(result.framework)}</td><td class="${result.ok ? "pass" : "fail"}">${result.ok ? "pass" : "fail"}</td><td>${String(result.summary?.openSockets ?? 0)}</td><td>${String(result.summary?.sentBytes ?? 0)}</td><td>${String(result.summary?.receivedBytes ?? 0)}</td><td>${String(result.summary?.messageCount ?? 0)}</td><td>${escapeHtml(result.error ?? "")}</td></tr>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#11140f;color:#f4f0df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,.primitive,table{background:#191d15;border:1px solid #323a27;border-radius:22px;margin-bottom:16px}.hero,.primitive{padding:22px}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{color:#bef264}.warn,.empty,.stale{color:#fde68a}.fail{color:#fecaca}.metrics{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:18px}.metric{background:#10130d;border:1px solid #303827;border-radius:16px;padding:14px}.metric span{color:#b8c3a3}.metric strong{display:block;font-size:1.7rem;margin-top:4px}.primitive code{color:#d9f99d}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #323a27;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Real browser microphone proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(normalized.status)}">Status: ${escapeHtml(normalized.status)}</p><p>Framework parity proof from real browser pages opening the voice WebSocket and sending microphone audio bytes.</p><section class="metrics"><div class="metric"><span>Frameworks</span><strong>${String(normalized.summary.totalFrameworks)}</strong></div><div class="metric"><span>Passing</span><strong>${String(normalized.summary.passedFrameworks.length)}</strong></div><div class="metric"><span>Open sockets</span><strong>${String(normalized.summary.openSockets)}</strong></div><div class="metric"><span>Sent bytes</span><strong>${String(normalized.summary.sentBytes)}</strong></div><div class="metric"><span>Received bytes</span><strong>${String(normalized.summary.receivedBytes)}</strong></div><div class="metric"><span>Messages</span><strong>${String(normalized.summary.totalMessages)}</strong></div></section></section><section class="primitive"><p class="eyebrow">Copy into your app</p><p><code>buildVoiceBrowserCallProfileReport(...)</code> normalizes browser-call evidence. <code>evaluateVoiceBrowserCallProfileEvidence(...)</code> gates required frameworks, WebSocket opens, sent bytes, and freshness. <code>createVoiceBrowserCallProfileRoutes(...)</code> serves JSON, HTML, and Markdown.</p></section><table><thead><tr><th>Framework</th><th>Status</th><th>WebSockets</th><th>Sent bytes</th><th>Received bytes</th><th>Messages</th><th>Error</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No browser call profile evidence yet.</td></tr>'}</tbody></table></main></body></html>`;
 };
 
 const resolveSource = async (

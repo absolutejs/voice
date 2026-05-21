@@ -292,22 +292,6 @@ export type VoiceResolvedTraceRedactionOptions = Required<
   textKeys: string[];
 };
 
-export const createVoiceTraceEventId = (event: {
-  at?: number;
-  sessionId: string;
-  turnId?: string;
-  type: VoiceTraceEventType;
-}) =>
-  [
-    event.sessionId,
-    event.turnId ?? "session",
-    event.type,
-    String(event.at ?? Date.now()),
-    crypto.randomUUID(),
-  ]
-    .map(encodeURIComponent)
-    .join(":");
-
 export const createVoiceTraceEvent = <
   TEvent extends VoiceTraceEvent = VoiceTraceEvent,
 >(
@@ -324,11 +308,26 @@ export const createVoiceTraceEvent = <
       type: event.type,
     }),
 });
-
+export const createVoiceTraceEventId = (event: {
+  at?: number;
+  sessionId: string;
+  turnId?: string;
+  type: VoiceTraceEventType;
+}) =>
+  [
+    event.sessionId,
+    event.turnId ?? "session",
+    event.type,
+    String(event.at ?? Date.now()),
+    crypto.randomUUID(),
+  ]
+    .map(encodeURIComponent)
+    .join(":");
 export const createVoiceTraceSinkDeliveryId = (
   events: StoredVoiceTraceEvent[],
 ) => {
   const firstEvent = events[0];
+
   return [
     firstEvent?.sessionId ?? "trace",
     firstEvent?.traceId ?? "sink",
@@ -338,7 +337,6 @@ export const createVoiceTraceSinkDeliveryId = (
     .map(encodeURIComponent)
     .join(":");
 };
-
 export const createVoiceTraceSinkDeliveryRecord = (
   input: {
     createdAt?: number;
@@ -349,6 +347,7 @@ export const createVoiceTraceSinkDeliveryRecord = (
   >,
 ): VoiceTraceSinkDeliveryRecord => {
   const createdAt = input.createdAt ?? Date.now();
+
   return {
     createdAt,
     deliveredAt: input.deliveredAt,
@@ -395,23 +394,35 @@ const matchesTraceFilter = (
   return true;
 };
 
-export const filterVoiceTraceEvents = <
+export const createVoiceProofTraceStore = <
   TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
 >(
-  events: TEvent[],
-  filter: VoiceTraceEventFilter = {},
-) => {
-  const sorted = events
-    .filter((event) => matchesTraceFilter(event, filter))
-    .sort(
-      (left, right) => left.at - right.at || left.id.localeCompare(right.id),
-    );
+  options: VoiceProofTraceStoreOptions<TEvent> = {},
+): VoiceTraceEventStore<TEvent> => {
+  const proofStore =
+    options.proofStore ?? createVoiceMemoryTraceEventStore<TEvent>();
+  const scopedProofStore = options.scope
+    ? createVoiceScopedTraceEventStore(proofStore, options.scope)
+    : proofStore;
 
-  return typeof filter.limit === "number" && filter.limit >= 0
-    ? sorted.slice(0, filter.limit)
-    : sorted;
+  return {
+    append: async (event) => {
+      const stored = await proofStore.append(event);
+      await options.mirrorStore?.append(stored);
+
+      return stored;
+    },
+    get: async (id) =>
+      (await proofStore.get(id)) ?? (await options.mirrorStore?.get(id)),
+    list: (filter) => scopedProofStore.list(filter),
+    remove: async (id) => {
+      await Promise.all([
+        proofStore.remove(id),
+        options.mirrorStore?.remove(id) ?? Promise.resolve(),
+      ]);
+    },
+  };
 };
-
 export const createVoiceScopedTraceEventStore = <
   TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
 >(
@@ -455,34 +466,21 @@ export const createVoiceScopedTraceEventStore = <
     remove: (id) => store.remove(id),
   };
 };
-
-export const createVoiceProofTraceStore = <
+export const filterVoiceTraceEvents = <
   TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
 >(
-  options: VoiceProofTraceStoreOptions<TEvent> = {},
-): VoiceTraceEventStore<TEvent> => {
-  const proofStore =
-    options.proofStore ?? createVoiceMemoryTraceEventStore<TEvent>();
-  const scopedProofStore = options.scope
-    ? createVoiceScopedTraceEventStore(proofStore, options.scope)
-    : proofStore;
+  events: TEvent[],
+  filter: VoiceTraceEventFilter = {},
+) => {
+  const sorted = events
+    .filter((event) => matchesTraceFilter(event, filter))
+    .sort(
+      (left, right) => left.at - right.at || left.id.localeCompare(right.id),
+    );
 
-  return {
-    append: async (event) => {
-      const stored = await proofStore.append(event);
-      await options.mirrorStore?.append(stored);
-      return stored;
-    },
-    get: async (id) =>
-      (await proofStore.get(id)) ?? (await options.mirrorStore?.get(id)),
-    list: (filter) => scopedProofStore.list(filter),
-    remove: async (id) => {
-      await Promise.all([
-        proofStore.remove(id),
-        options.mirrorStore?.remove(id) ?? Promise.resolve(),
-      ]);
-    },
-  };
+  return typeof filter.limit === "number" && filter.limit >= 0
+    ? sorted.slice(0, filter.limit)
+    : sorted;
 };
 
 const isPruneTimeMatch = (
@@ -500,6 +498,23 @@ const isPruneTimeMatch = (
   return true;
 };
 
+export const pruneVoiceTraceEvents = async (
+  options: VoiceTracePruneOptions,
+): Promise<VoiceTracePruneResult> => {
+  const events = await options.store.list(options.filter);
+  const deleted = selectVoiceTraceEventsForPrune(events, options);
+
+  if (!options.dryRun) {
+    await Promise.all(deleted.map((event) => options.store.remove(event.id)));
+  }
+
+  return {
+    deleted,
+    deletedCount: deleted.length,
+    dryRun: Boolean(options.dryRun),
+    scannedCount: events.length,
+  };
+};
 export const selectVoiceTraceEventsForPrune = <
   TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
 >(
@@ -526,24 +541,6 @@ export const selectVoiceTraceEventsForPrune = <
   return typeof options.limit === "number" && options.limit >= 0
     ? candidates.slice(0, options.limit)
     : candidates;
-};
-
-export const pruneVoiceTraceEvents = async (
-  options: VoiceTracePruneOptions,
-): Promise<VoiceTracePruneResult> => {
-  const events = await options.store.list(options.filter);
-  const deleted = selectVoiceTraceEventsForPrune(events, options);
-
-  if (!options.dryRun) {
-    await Promise.all(deleted.map((event) => options.store.remove(event.id)));
-  }
-
-  return {
-    deleted,
-    deletedCount: deleted.length,
-    dryRun: Boolean(options.dryRun),
-    scannedCount: events.length,
-  };
 };
 
 const sleep = async (delayMs: number) => {
@@ -586,6 +583,7 @@ const createVoiceTraceSinkDeliveryError = (input: {
 }) => {
   if (input.response) {
     const statusText = input.response.statusText?.trim();
+
     return `Attempt ${input.attempt} failed with trace sink response ${input.response.status}${statusText ? ` ${statusText}` : ""}.`;
   }
 
@@ -606,11 +604,13 @@ const createVoiceTraceS3ObjectKey = (
   const firstEvent = events[0];
   const safeSessionId = encodeURIComponent(firstEvent?.sessionId ?? "trace");
   const safeEventId = encodeURIComponent(firstEvent?.id ?? crypto.randomUUID());
+
   return `${prefix}/${safeSessionId}/${Date.now()}-${safeEventId}.json`;
 };
 
 const resolveVoiceS3DeliveredTo = (options: S3Options, key: string) => {
-  const bucket = (options as { bucket?: string }).bucket;
+  const {bucket} = (options as { bucket?: string });
+
   return bucket ? `s3://${bucket}/${key}` : `s3://${key}`;
 };
 
@@ -637,6 +637,9 @@ export const createVoiceTraceHTTPSink = <
 >(
   options: VoiceTraceHTTPSinkOptions<TBody>,
 ): VoiceTraceSink => ({
+  eventTypes: options.eventTypes,
+  id: options.id,
+  kind: options.kind ?? "http",
   deliver: async ({ events }) => {
     const fetchImpl = options.fetch ?? globalThis.fetch;
     if (typeof fetchImpl !== "function") {
@@ -740,11 +743,7 @@ export const createVoiceTraceHTTPSink = <
       status: "failed",
     };
   },
-  eventTypes: options.eventTypes,
-  id: options.id,
-  kind: options.kind ?? "http",
 });
-
 export const createVoiceTraceS3Sink = <
   TBody extends Record<string, unknown> = Record<string, unknown>,
 >(
@@ -754,6 +753,9 @@ export const createVoiceTraceS3Sink = <
   const keyPrefix = normalizeVoiceTraceS3KeyPrefix(options.keyPrefix);
 
   return {
+    eventTypes: options.eventTypes,
+    id: options.id,
+    kind: options.kind ?? "s3",
     deliver: async ({ events }) => {
       const key = createVoiceTraceS3ObjectKey(keyPrefix, events);
       const payload = options.body
@@ -789,12 +791,52 @@ export const createVoiceTraceS3Sink = <
         };
       }
     },
-    eventTypes: options.eventTypes,
-    id: options.id,
-    kind: options.kind ?? "s3",
   };
 };
+export const createVoiceTraceSinkStore = <
+  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+>(
+  options: VoiceTraceSinkStoreOptions<TEvent>,
+): VoiceTraceEventStore<TEvent> => {
+  const deliver = async (event: TEvent) => {
+    const result = await deliverVoiceTraceEventsToSinks({
+      events: [event],
+      redact: options.redact,
+      sinks: options.sinks,
+    });
+    await options.onDelivery?.(result);
+  };
 
+  return {
+    append: async (event) => {
+      const stored = await options.store.append(event);
+
+      if (options.deliveryQueue) {
+        const delivery = createVoiceTraceSinkDeliveryRecord({
+          events: [stored],
+        });
+        await options.deliveryQueue.set(delivery.id, delivery);
+
+        return stored;
+      }
+
+      const delivery = deliver(stored);
+
+      if (options.awaitDelivery) {
+        await delivery;
+      } else {
+        delivery.catch((error) => {
+          void options.onError?.(error);
+        });
+      }
+
+      return stored;
+    },
+    get: (id) => options.store.get(id),
+    list: (filter) => options.store.list(filter),
+    remove: (id) => options.store.remove(id),
+  };
+};
 export const deliverVoiceTraceEventsToSinks = async (input: {
   events: StoredVoiceTraceEvent[];
   redact?: VoiceTraceRedactionConfig;
@@ -841,50 +883,6 @@ export const deliverVoiceTraceEventsToSinks = async (input: {
   };
 };
 
-export const createVoiceTraceSinkStore = <
-  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
->(
-  options: VoiceTraceSinkStoreOptions<TEvent>,
-): VoiceTraceEventStore<TEvent> => {
-  const deliver = async (event: TEvent) => {
-    const result = await deliverVoiceTraceEventsToSinks({
-      events: [event],
-      redact: options.redact,
-      sinks: options.sinks,
-    });
-    await options.onDelivery?.(result);
-  };
-
-  return {
-    append: async (event) => {
-      const stored = await options.store.append(event);
-
-      if (options.deliveryQueue) {
-        const delivery = createVoiceTraceSinkDeliveryRecord({
-          events: [stored],
-        });
-        await options.deliveryQueue.set(delivery.id, delivery);
-        return stored;
-      }
-
-      const delivery = deliver(stored);
-
-      if (options.awaitDelivery) {
-        await delivery;
-      } else {
-        delivery.catch((error) => {
-          void options.onError?.(error);
-        });
-      }
-
-      return stored;
-    },
-    get: (id) => options.store.get(id),
-    list: (filter) => options.store.list(filter),
-    remove: (id) => options.store.remove(id),
-  };
-};
-
 const normalizeVoiceProfileTraceTaggerProfile = (
   profile: VoiceProfileTraceTaggerProfile | string | undefined,
 ) =>
@@ -894,6 +892,49 @@ const normalizeVoiceProfileTraceTaggerProfile = (
       ? profile
       : undefined;
 
+export const createVoiceMemoryTraceEventStore = <
+  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+>(): VoiceTraceEventStore<TEvent> => {
+  const events = new Map<string, TEvent>();
+
+  const append: VoiceTraceEventStore<TEvent>["append"] = async (event) => {
+    const stored = createVoiceTraceEvent(event) as TEvent;
+    events.set(stored.id, stored);
+
+    return stored;
+  };
+
+  const get = async (id: string) => events.get(id);
+
+  const list = async (filter?: VoiceTraceEventFilter) =>
+    filterVoiceTraceEvents([...events.values()], filter);
+
+  const remove = async (id: string) => {
+    events.delete(id);
+  };
+
+  return { append, get, list, remove };
+};
+export const createVoiceMemoryTraceSinkDeliveryStore = <
+  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+>(): VoiceTraceSinkDeliveryStore<TDelivery> => {
+  const deliveries = new Map<string, TDelivery>();
+
+  return {
+    get: async (id) => deliveries.get(id),
+    list: async () =>
+      [...deliveries.values()].sort(
+        (left, right) =>
+          left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+      ),
+    remove: async (id) => {
+      deliveries.delete(id);
+    },
+    set: async (id, delivery) => {
+      deliveries.set(id, delivery);
+    },
+  };
+};
 export const createVoiceProfileTraceTagger = <
   TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
 >(
@@ -911,6 +952,7 @@ export const createVoiceProfileTraceTagger = <
       await options.resolveProfile?.(event),
     );
     const profile = resolved ?? defaultProfile;
+
     return profile ? (profiles.get(profile.id) ?? profile) : undefined;
   };
 
@@ -932,18 +974,18 @@ export const createVoiceProfileTraceTagger = <
       const payload =
         event.payload && typeof event.payload === "object"
           ? {
-              ...(event.payload as Record<string, unknown>),
+              ...(event.payload),
               benchmarkProfileId:
-                (event.payload as Record<string, unknown>).benchmarkProfileId ??
+                (event.payload).benchmarkProfileId ??
                 profile.id,
               profileDescription:
-                (event.payload as Record<string, unknown>).profileDescription ??
+                (event.payload).profileDescription ??
                 profile.description,
               profileId:
-                (event.payload as Record<string, unknown>).profileId ??
+                (event.payload).profileId ??
                 profile.id,
               profileLabel:
-                (event.payload as Record<string, unknown>).profileLabel ??
+                (event.payload).profileLabel ??
                 profile.label,
             }
           : event.payload;
@@ -959,57 +1001,13 @@ export const createVoiceProfileTraceTagger = <
     remove: (id) => options.store.remove(id),
   };
 };
-
-export const createVoiceMemoryTraceSinkDeliveryStore = <
-  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
->(): VoiceTraceSinkDeliveryStore<TDelivery> => {
-  const deliveries = new Map<string, TDelivery>();
-
-  return {
-    get: async (id) => deliveries.get(id),
-    list: async () =>
-      [...deliveries.values()].sort(
-        (left, right) =>
-          left.createdAt - right.createdAt || left.id.localeCompare(right.id),
-      ),
-    remove: async (id) => {
-      deliveries.delete(id);
-    },
-    set: async (id, delivery) => {
-      deliveries.set(id, delivery);
-    },
-  };
-};
-
-export const createVoiceMemoryTraceEventStore = <
-  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
->(): VoiceTraceEventStore<TEvent> => {
-  const events = new Map<string, TEvent>();
-
-  const append: VoiceTraceEventStore<TEvent>["append"] = async (event) => {
-    const stored = createVoiceTraceEvent(event) as TEvent;
-    events.set(stored.id, stored);
-    return stored;
-  };
-
-  const get = async (id: string) => events.get(id);
-
-  const list = async (filter?: VoiceTraceEventFilter) =>
-    filterVoiceTraceEvents([...events.values()], filter);
-
-  const remove = async (id: string) => {
-    events.delete(id);
-  };
-
-  return { append, get, list, remove };
-};
-
 export const exportVoiceTrace = async (input: {
   filter?: VoiceTraceEventFilter;
   redact?: VoiceTraceRedactionConfig;
   store: VoiceTraceEventStore;
 }) => {
   const events = await input.store.list(input.filter);
+
   return {
     exportedAt: Date.now(),
     events: input.redact
@@ -1171,6 +1169,7 @@ const redactTraceValue = (
     const shouldRedactText =
       options.redactText &&
       (!normalizedKey || textKeys.has(normalizedKey) || path.length === 0);
+
     return shouldRedactText
       ? redactVoiceTraceText(value, options, {
           key,
@@ -1195,94 +1194,6 @@ const redactTraceValue = (
   }
 
   return value;
-};
-
-export const redactVoiceTraceEvent = <
-  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
->(
-  event: TEvent,
-  options: VoiceTraceRedactionConfig = {},
-): TEvent => {
-  const resolved = resolveVoiceTraceRedactionOptions(options);
-  return {
-    ...event,
-    metadata: redactTraceValue(event.metadata, resolved, [
-      "metadata",
-    ]) as TEvent["metadata"],
-    payload: redactTraceValue(event.payload, resolved, [
-      "payload",
-    ]) as TEvent["payload"],
-  };
-};
-
-export const redactVoiceTraceEvents = <
-  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
->(
-  events: TEvent[],
-  options: VoiceTraceRedactionConfig = {},
-) => events.map((event) => redactVoiceTraceEvent(event, options));
-
-export const summarizeVoiceTrace = (
-  events: StoredVoiceTraceEvent[],
-): VoiceTraceSummary => {
-  const sorted = filterVoiceTraceEvents(events);
-  const firstEvent = sorted[0];
-  const lastEvent = sorted.at(-1);
-  const lifecycleEvents = sorted.filter(
-    (event) => event.type === "call.lifecycle",
-  );
-  const startEvent = lifecycleEvents.find(
-    (event) => event.payload.type === "start",
-  );
-  const endEvent = lifecycleEvents
-    .toReversed()
-    .find((event) => event.payload.type === "end");
-  const costEvents = sorted.filter((event) => event.type === "turn.cost");
-  const toolEvents = sorted.filter((event) => event.type === "agent.tool");
-  const startedAt = startEvent?.at ?? firstEvent?.at;
-  const endedAt = endEvent?.at ?? lastEvent?.at;
-  const failed =
-    sorted.some((event) => event.type === "session.error") ||
-    endEvent?.payload.disposition === "failed";
-
-  return {
-    assistantReplyCount: sorted.filter(
-      (event) => event.type === "turn.assistant",
-    ).length,
-    callDurationMs:
-      startedAt !== undefined && endedAt !== undefined
-        ? Math.max(0, endedAt - startedAt)
-        : undefined,
-    cost: {
-      estimatedRelativeCostUnits: costEvents.reduce(
-        (total, event) =>
-          total + toNumber(event.payload.estimatedRelativeCostUnits),
-        0,
-      ),
-      totalBillableAudioMs: costEvents.reduce(
-        (total, event) => total + toNumber(event.payload.totalBillableAudioMs),
-        0,
-      ),
-    },
-    endedAt,
-    errorCount: sorted.filter((event) => event.type === "session.error").length,
-    eventCount: sorted.length,
-    failed,
-    handoffCount: sorted.filter((event) => event.type === "agent.handoff")
-      .length,
-    modelCallCount: sorted.filter((event) => event.type === "agent.model")
-      .length,
-    sessionId: firstEvent?.sessionId,
-    startedAt,
-    toolCallCount: toolEvents.length,
-    toolErrorCount: toolEvents.filter(
-      (event) => event.payload.status === "error",
-    ).length,
-    traceId: firstEvent?.traceId,
-    transcriptCount: sorted.filter((event) => event.type === "turn.transcript")
-      .length,
-    turnCount: sorted.filter((event) => event.type === "turn.committed").length,
-  };
 };
 
 export const evaluateVoiceTrace = (
@@ -1370,6 +1281,92 @@ export const evaluateVoiceTrace = (
     summary,
   };
 };
+export const redactVoiceTraceEvent = <
+  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+>(
+  event: TEvent,
+  options: VoiceTraceRedactionConfig = {},
+): TEvent => {
+  const resolved = resolveVoiceTraceRedactionOptions(options);
+
+  return {
+    ...event,
+    metadata: redactTraceValue(event.metadata, resolved, [
+      "metadata",
+    ]) as TEvent["metadata"],
+    payload: redactTraceValue(event.payload, resolved, [
+      "payload",
+    ]) as TEvent["payload"],
+  };
+};
+export const redactVoiceTraceEvents = <
+  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+>(
+  events: TEvent[],
+  options: VoiceTraceRedactionConfig = {},
+) => events.map((event) => redactVoiceTraceEvent(event, options));
+export const summarizeVoiceTrace = (
+  events: StoredVoiceTraceEvent[],
+): VoiceTraceSummary => {
+  const sorted = filterVoiceTraceEvents(events);
+  const firstEvent = sorted[0];
+  const lastEvent = sorted.at(-1);
+  const lifecycleEvents = sorted.filter(
+    (event) => event.type === "call.lifecycle",
+  );
+  const startEvent = lifecycleEvents.find(
+    (event) => event.payload.type === "start",
+  );
+  const endEvent = lifecycleEvents
+    .toReversed()
+    .find((event) => event.payload.type === "end");
+  const costEvents = sorted.filter((event) => event.type === "turn.cost");
+  const toolEvents = sorted.filter((event) => event.type === "agent.tool");
+  const startedAt = startEvent?.at ?? firstEvent?.at;
+  const endedAt = endEvent?.at ?? lastEvent?.at;
+  const failed =
+    sorted.some((event) => event.type === "session.error") ||
+    endEvent?.payload.disposition === "failed";
+
+  return {
+    assistantReplyCount: sorted.filter(
+      (event) => event.type === "turn.assistant",
+    ).length,
+    callDurationMs:
+      startedAt !== undefined && endedAt !== undefined
+        ? Math.max(0, endedAt - startedAt)
+        : undefined,
+    cost: {
+      estimatedRelativeCostUnits: costEvents.reduce(
+        (total, event) =>
+          total + toNumber(event.payload.estimatedRelativeCostUnits),
+        0,
+      ),
+      totalBillableAudioMs: costEvents.reduce(
+        (total, event) => total + toNumber(event.payload.totalBillableAudioMs),
+        0,
+      ),
+    },
+    endedAt,
+    errorCount: sorted.filter((event) => event.type === "session.error").length,
+    eventCount: sorted.length,
+    failed,
+    handoffCount: sorted.filter((event) => event.type === "agent.handoff")
+      .length,
+    modelCallCount: sorted.filter((event) => event.type === "agent.model")
+      .length,
+    sessionId: firstEvent?.sessionId,
+    startedAt,
+    toolCallCount: toolEvents.length,
+    toolErrorCount: toolEvents.filter(
+      (event) => event.payload.status === "error",
+    ).length,
+    traceId: firstEvent?.traceId,
+    transcriptCount: sorted.filter((event) => event.type === "turn.transcript")
+      .length,
+    turnCount: sorted.filter((event) => event.type === "turn.committed").length,
+  };
+};
 
 const renderTraceEventMarkdown = (
   event: StoredVoiceTraceEvent,
@@ -1404,52 +1401,24 @@ const renderTraceEventMarkdown = (
   }
 };
 
-export const renderVoiceTraceMarkdown = (
+export const buildVoiceTraceReplay = (
   events: StoredVoiceTraceEvent[],
   options: {
-    title?: string;
     evaluation?: VoiceTraceEvaluationOptions;
     redact?: VoiceTraceRedactionConfig;
+    title?: string;
   } = {},
-) => {
-  const sorted = filterVoiceTraceEvents(
+) => ({
+  evaluation: evaluateVoiceTrace(
     options.redact ? redactVoiceTraceEvents(events, options.redact) : events,
-  );
-  const summary = summarizeVoiceTrace(sorted);
-  const evaluation = evaluateVoiceTrace(sorted, options.evaluation);
-  const lines = [
-    `# ${options.title ?? `Voice Trace ${summary.sessionId ?? ""}`.trim()}`,
-    "",
-    `Pass: ${evaluation.pass ? "yes" : "no"}`,
-    `Session: ${summary.sessionId ?? "unknown"}`,
-    `Events: ${summary.eventCount}`,
-    `Turns: ${summary.turnCount}`,
-    `Transcripts: ${summary.transcriptCount}`,
-    `Assistant replies: ${summary.assistantReplyCount}`,
-    `Model calls: ${summary.modelCallCount}`,
-    `Tool calls: ${summary.toolCallCount}`,
-    `Handoffs: ${summary.handoffCount}`,
-    `Errors: ${summary.errorCount}`,
-    `Estimated cost units: ${summary.cost.estimatedRelativeCostUnits}`,
-    "",
-  ];
-
-  if (evaluation.issues.length > 0) {
-    lines.push("## Issues", "");
-    for (const issue of evaluation.issues) {
-      lines.push(`- [${issue.severity}] ${issue.code}: ${issue.message}`);
-    }
-    lines.push("");
-  }
-
-  lines.push("## Timeline", "");
-  for (const event of sorted) {
-    lines.push(renderTraceEventMarkdown(event, summary.startedAt));
-  }
-
-  return lines.join("\n");
-};
-
+    options.evaluation,
+  ),
+  html: renderVoiceTraceHTML(events, options),
+  markdown: renderVoiceTraceMarkdown(events, options),
+  summary: summarizeVoiceTrace(
+    options.redact ? redactVoiceTraceEvents(events, options.redact) : events,
+  ),
+});
 export const renderVoiceTraceHTML = (
   events: StoredVoiceTraceEvent[],
   options: {
@@ -1470,6 +1439,7 @@ export const renderVoiceTraceHTML = (
         summary.startedAt === undefined
           ? event.at
           : Math.max(0, event.at - summary.startedAt);
+
       return [
         "<tr>",
         `<td>${escapeHtml(String(offset))}</td>`,
@@ -1519,22 +1489,48 @@ export const renderVoiceTraceHTML = (
     "</main></body></html>",
   ].join("\n");
 };
-
-export const buildVoiceTraceReplay = (
+export const renderVoiceTraceMarkdown = (
   events: StoredVoiceTraceEvent[],
   options: {
+    title?: string;
     evaluation?: VoiceTraceEvaluationOptions;
     redact?: VoiceTraceRedactionConfig;
-    title?: string;
   } = {},
-) => ({
-  evaluation: evaluateVoiceTrace(
+) => {
+  const sorted = filterVoiceTraceEvents(
     options.redact ? redactVoiceTraceEvents(events, options.redact) : events,
-    options.evaluation,
-  ),
-  html: renderVoiceTraceHTML(events, options),
-  markdown: renderVoiceTraceMarkdown(events, options),
-  summary: summarizeVoiceTrace(
-    options.redact ? redactVoiceTraceEvents(events, options.redact) : events,
-  ),
-});
+  );
+  const summary = summarizeVoiceTrace(sorted);
+  const evaluation = evaluateVoiceTrace(sorted, options.evaluation);
+  const lines = [
+    `# ${options.title ?? `Voice Trace ${summary.sessionId ?? ""}`.trim()}`,
+    "",
+    `Pass: ${evaluation.pass ? "yes" : "no"}`,
+    `Session: ${summary.sessionId ?? "unknown"}`,
+    `Events: ${summary.eventCount}`,
+    `Turns: ${summary.turnCount}`,
+    `Transcripts: ${summary.transcriptCount}`,
+    `Assistant replies: ${summary.assistantReplyCount}`,
+    `Model calls: ${summary.modelCallCount}`,
+    `Tool calls: ${summary.toolCallCount}`,
+    `Handoffs: ${summary.handoffCount}`,
+    `Errors: ${summary.errorCount}`,
+    `Estimated cost units: ${summary.cost.estimatedRelativeCostUnits}`,
+    "",
+  ];
+
+  if (evaluation.issues.length > 0) {
+    lines.push("## Issues", "");
+    for (const issue of evaluation.issues) {
+      lines.push(`- [${issue.severity}] ${issue.code}: ${issue.message}`);
+    }
+    lines.push("");
+  }
+
+  lines.push("## Timeline", "");
+  for (const event of sorted) {
+    lines.push(renderTraceEventMarkdown(event, summary.startedAt));
+  }
+
+  return lines.join("\n");
+};

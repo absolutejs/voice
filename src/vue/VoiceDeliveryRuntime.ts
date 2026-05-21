@@ -31,9 +31,9 @@ export const VoiceDeliveryRuntime = defineComponent({
     return () => {
       const model = createVoiceDeliveryRuntimeViewModel(
         {
-          error: runtime.error.value,
           actionError: runtime.actionError.value,
           actionStatus: runtime.actionStatus.value,
+          error: runtime.error.value,
           isLoading: runtime.isLoading.value,
           report: runtime.report.value,
           updatedAt: runtime.updatedAt.value,
@@ -100,10 +100,10 @@ export const VoiceDeliveryRuntime = defineComponent({
                   "button",
                   {
                     disabled: model.actionStatus === "running",
+                    type: "button",
                     onClick: () => {
                       void runtime.tick().catch(() => {});
                     },
-                    type: "button",
                   },
                   model.actionStatus === "running"
                     ? "Working..."
@@ -114,10 +114,10 @@ export const VoiceDeliveryRuntime = defineComponent({
                   {
                     disabled:
                       model.actionStatus === "running" || !hasDeadLetters,
+                    type: "button",
                     onClick: () => {
                       void runtime.requeueDeadLetters().catch(() => {});
                     },
-                    type: "button",
                   },
                   "Requeue dead letters",
                 ),

@@ -201,6 +201,7 @@ const resolveSessionHref = (
     return href(sessionId);
   }
   const encoded = encodeURIComponent(sessionId);
+
   return href.includes(":sessionId")
     ? href.replace(":sessionId", encoded)
     : `${href.replace(/\/$/, "")}/${encoded}`;
@@ -220,11 +221,13 @@ const getPathValue = (value: unknown, path: string): unknown => {
     }
     current = record[part];
   }
+
   return current;
 };
 
 const includesAll = (haystack: string, needles: string[]) => {
   const normalized = normalizeSearchText(haystack);
+
   return needles.filter(
     (needle) => !normalized.includes(normalizeSearchText(needle)),
   );
@@ -232,6 +235,7 @@ const includesAll = (haystack: string, needles: string[]) => {
 
 const sessionTime = (events: StoredVoiceTraceEvent[]) => {
   const sorted = filterVoiceTraceEvents(events);
+
   return {
     endedAt: sorted.at(-1)?.at,
     startedAt: sorted[0]?.at,
@@ -640,8 +644,8 @@ export const compareVoiceEvalBaseline = (
   );
   const deltas = {
     failed: current.failed - baseline.failed,
-    passRate: current.passRate - baseline.passRate,
     passed: current.passed - baseline.passed,
+    passRate: current.passRate - baseline.passRate,
     total: current.total - baseline.total,
   };
   const reasons: string[] = [];
@@ -683,6 +687,7 @@ export const createVoiceFileEvalBaselineStore = (
       return undefined;
     }
     const text = await file.text();
+
     return text.trim() ? (JSON.parse(text) as VoiceEvalReport) : undefined;
   },
   set: async (report) => {
@@ -706,6 +711,7 @@ export const createVoiceFileScenarioFixtureStore = (
     const parsed = JSON.parse(text) as
       | VoiceScenarioFixture[]
       | { fixtures?: VoiceScenarioFixture[] };
+
     return Array.isArray(parsed) ? parsed : (parsed.fixtures ?? []);
   },
 });
@@ -737,45 +743,181 @@ const renderVoiceEvalPrimitiveCopy = () => {
   return `<section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceEvalRoutes(...)</code> replays real sessions before regressions ship</h2><p>Mount one route group for session quality evals, workflow scenario checks, fixture-backed simulations, and baseline comparison against known-good runs.</p><pre><code>${snippet}</code></pre></section>`;
 };
 
-export const renderVoiceEvalHTML = (
-  report: VoiceEvalReport,
-  options: { links?: VoiceEvalLink[]; title?: string } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Evals";
-  const links = options.links?.length
-    ? `<nav>${options.links
-        .map(
-          (link) =>
-            `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`,
-        )
-        .join("")}</nav>`
-    : "";
-  const trend = report.trend.length
-    ? report.trend
-        .map(
-          (bucket) =>
-            `<tr><td>${escapeHtml(bucket.key)}</td><td>${bucket.total}</td><td>${bucket.passed}</td><td>${bucket.failed}</td></tr>`,
-        )
-        .join("")
-    : '<tr><td colspan="4">No eval buckets yet.</td></tr>';
-  const sessions = report.sessions.length
-    ? report.sessions
-        .map((session) => {
-          const failedMetrics = Object.entries(session.quality.metrics)
-            .filter(([, metric]) => !metric.pass)
-            .map(([, metric]) => metric.label)
-            .join(", ");
-          const sessionLabel = session.operationsRecordHref
-            ? `<a href="${escapeHtml(session.operationsRecordHref)}">${escapeHtml(session.sessionId)}</a>`
-            : escapeHtml(session.sessionId);
-          return `<tr class="${session.status}"><td>${sessionLabel}</td><td>${escapeHtml(session.status)}</td><td>${session.eventCount}</td><td>${session.summary.turnCount}</td><td>${session.summary.errorCount}</td><td>${escapeHtml(formatTime(session.endedAt))}</td><td>${escapeHtml(failedMetrics || "none")}</td></tr>`;
-        })
-        .join("")
-    : '<tr><td colspan="7">No sessions found.</td></tr>';
+export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
+  const path = options.path ?? "/evals";
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-evals",
+  });
+  const getReport = () =>
+    runVoiceSessionEvals({
+      events: options.events,
+      limit: options.limit,
+      operationsRecordHref: options.operationsRecordHref,
+      store: options.store,
+      thresholds: options.thresholds,
+    });
+  const getBaseline = async () =>
+    typeof options.baseline === "function"
+      ? options.baseline()
+      : (options.baseline ?? (await options.baselineStore?.get()));
+  const getBaselineComparison = async () => {
+    const [current, baseline] = await Promise.all([getReport(), getBaseline()]);
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.pass{color:#166534}.fail{color:#991b1b}.status.pass{background:#dcfce7}.status.fail{background:#fee2e2}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,.primitive{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.primitive{background:#fffdf7;border-color:#d6c7a3;margin:1rem 0}.primitive p{line-height:1.55}.primitive pre{background:#181713;border-radius:.85rem;color:#fef3c7;overflow:auto;padding:1rem}.primitive code{color:#fef3c7}.card strong{display:block;font-size:2rem}table{border-collapse:collapse;background:white;width:100%;margin:1rem 0 2rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${renderVoiceEvalPrimitiveCopy()}<h2>Trend</h2><table><thead><tr><th>Day</th><th>Total</th><th>Passed</th><th>Failed</th></tr></thead><tbody>${trend}</tbody></table><h2>Session Eval Results</h2><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Last event</th><th>Failed metrics</th></tr></thead><tbody>${sessions}</tbody></table></main></body></html>`;
+    return baseline
+      ? compareVoiceEvalBaseline(current, baseline, options.baselineComparison)
+      : undefined;
+  };
+  const getScenarioReport = () =>
+    runVoiceScenarioEvals({
+      events: options.events,
+      operationsRecordHref: options.operationsRecordHref,
+      scenarios: options.scenarios,
+      store: options.store,
+    });
+  const getFixtureReport = () =>
+    runVoiceScenarioFixtureEvals({
+      fixtures: options.fixtures,
+      fixtureStore: options.fixtureStore,
+      operationsRecordHref: options.operationsRecordHref,
+      scenarios: options.scenarios,
+    });
+
+  routes.get(path, async () => {
+    const report = await getReport();
+
+    return new Response(
+      renderVoiceEvalHTML(report, {
+        links: options.links,
+        title: options.title,
+      }),
+      {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      },
+    );
+  });
+  routes.get(`${path}/json`, async () => getReport());
+  routes.get(`${path}/status`, async ({ set }) => {
+    const report = await getReport();
+    if (report.status === "fail") {
+      set.status = 503;
+    }
+
+    return report;
+  });
+  routes.get(`${path}/baseline`, async ({ set }) => {
+    const comparison = await getBaselineComparison();
+    if (!comparison) {
+      set.status = 404;
+
+      return Response.json({ error: "No voice eval baseline found." });
+    }
+
+    return new Response(
+      renderVoiceEvalBaselineHTML(comparison, {
+        links: options.links,
+        title: `${options.title ?? "AbsoluteJS Voice Evals"} Baseline`,
+      }),
+      {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      },
+    );
+  });
+  routes.get(`${path}/baseline/json`, async ({ set }) => {
+    const comparison = await getBaselineComparison();
+    if (!comparison) {
+      set.status = 404;
+
+      return { error: "No voice eval baseline found." };
+    }
+
+    return comparison;
+  });
+  routes.get(`${path}/baseline/status`, async ({ set }) => {
+    const comparison = await getBaselineComparison();
+    if (!comparison) {
+      set.status = 404;
+
+      return { error: "No voice eval baseline found." };
+    }
+    if (comparison.status === "fail") {
+      set.status = 503;
+    }
+
+    return comparison;
+  });
+  routes.post(`${path}/baseline`, async ({ set }) => {
+    if (!options.baselineStore) {
+      set.status = 501;
+
+      return { error: "No voice eval baseline store configured." };
+    }
+    const report = await getReport();
+    await options.baselineStore.set(report);
+
+    return {
+      baseline: report,
+      status: "saved",
+    };
+  });
+  routes.get(`${path}/scenarios`, async () => {
+    const report = await getScenarioReport();
+
+    return new Response(
+      renderVoiceScenarioEvalHTML(report, {
+        links: options.links,
+        title: `${options.title ?? "AbsoluteJS Voice Evals"} Scenarios`,
+      }),
+      {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      },
+    );
+  });
+  routes.get(`${path}/scenarios/json`, async () => getScenarioReport());
+  routes.get(`${path}/scenarios/status`, async ({ set }) => {
+    const report = await getScenarioReport();
+    if (report.status === "fail") {
+      set.status = 503;
+    }
+
+    return report;
+  });
+  routes.get(`${path}/fixtures`, async () => {
+    const report = await getFixtureReport();
+
+    return new Response(
+      renderVoiceScenarioFixtureEvalHTML(report, {
+        links: options.links,
+        title: `${options.title ?? "AbsoluteJS Voice Evals"} Fixtures`,
+      }),
+      {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      },
+    );
+  });
+  routes.get(`${path}/fixtures/json`, async () => getFixtureReport());
+  routes.get(`${path}/fixtures/status`, async ({ set }) => {
+    const report = await getFixtureReport();
+    if (report.status === "fail") {
+      set.status = 503;
+    }
+
+    return report;
+  });
+
+  return routes;
 };
-
 export const renderVoiceEvalBaselineHTML = (
   comparison: VoiceEvalBaselineComparison,
   options: { links?: VoiceEvalLink[]; title?: string } = {},
@@ -807,7 +949,45 @@ export const renderVoiceEvalBaselineHTML = (
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1000px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.pass{background:#dcfce7;color:#166534}.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:1rem 0}.card{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.card strong{display:block;font-size:2rem}section{background:white;border:1px solid #e7e5e4;border-radius:1rem;margin:1rem 0;padding:1rem}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${comparison.status}">${comparison.status}</p><div class="grid"><article class="card"><span>Baseline pass rate</span><strong>${escapeHtml(formatPercent(comparison.baseline.passRate))}</strong></article><article class="card"><span>Current pass rate</span><strong>${escapeHtml(formatPercent(comparison.current.passRate))}</strong></article><article class="card"><span>Failed delta</span><strong>${comparison.deltas.failed}</strong></article><article class="card"><span>Pass rate delta</span><strong>${escapeHtml(formatPercent(comparison.deltas.passRate))}</strong></article></div><section><h2>Regression Reasons</h2><ul>${reasons}</ul></section><section><h2>New Failed Sessions</h2><ul>${newFailures}</ul></section><section><h2>Recovered Sessions</h2><ul>${recovered}</ul></section></main></body></html>`;
 };
+export const renderVoiceEvalHTML = (
+  report: VoiceEvalReport,
+  options: { links?: VoiceEvalLink[]; title?: string } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Evals";
+  const links = options.links?.length
+    ? `<nav>${options.links
+        .map(
+          (link) =>
+            `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`,
+        )
+        .join("")}</nav>`
+    : "";
+  const trend = report.trend.length
+    ? report.trend
+        .map(
+          (bucket) =>
+            `<tr><td>${escapeHtml(bucket.key)}</td><td>${bucket.total}</td><td>${bucket.passed}</td><td>${bucket.failed}</td></tr>`,
+        )
+        .join("")
+    : '<tr><td colspan="4">No eval buckets yet.</td></tr>';
+  const sessions = report.sessions.length
+    ? report.sessions
+        .map((session) => {
+          const failedMetrics = Object.entries(session.quality.metrics)
+            .filter(([, metric]) => !metric.pass)
+            .map(([, metric]) => metric.label)
+            .join(", ");
+          const sessionLabel = session.operationsRecordHref
+            ? `<a href="${escapeHtml(session.operationsRecordHref)}">${escapeHtml(session.sessionId)}</a>`
+            : escapeHtml(session.sessionId);
 
+          return `<tr class="${session.status}"><td>${sessionLabel}</td><td>${escapeHtml(session.status)}</td><td>${session.eventCount}</td><td>${session.summary.turnCount}</td><td>${session.summary.errorCount}</td><td>${escapeHtml(formatTime(session.endedAt))}</td><td>${escapeHtml(failedMetrics || "none")}</td></tr>`;
+        })
+        .join("")
+    : '<tr><td colspan="7">No sessions found.</td></tr>';
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.pass{color:#166534}.fail{color:#991b1b}.status.pass{background:#dcfce7}.status.fail{background:#fee2e2}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,.primitive{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.primitive{background:#fffdf7;border-color:#d6c7a3;margin:1rem 0}.primitive p{line-height:1.55}.primitive pre{background:#181713;border-radius:.85rem;color:#fef3c7;overflow:auto;padding:1rem}.primitive code{color:#fef3c7}.card strong{display:block;font-size:2rem}table{border-collapse:collapse;background:white;width:100%;margin:1rem 0 2rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${renderVoiceEvalPrimitiveCopy()}<h2>Trend</h2><table><thead><tr><th>Day</th><th>Total</th><th>Passed</th><th>Failed</th></tr></thead><tbody>${trend}</tbody></table><h2>Session Eval Results</h2><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Last event</th><th>Failed metrics</th></tr></thead><tbody>${sessions}</tbody></table></main></body></html>`;
+};
 export const renderVoiceScenarioEvalHTML = (
   report: VoiceScenarioEvalReport,
   options: { links?: VoiceEvalLink[]; title?: string } = {},
@@ -833,10 +1013,12 @@ export const renderVoiceScenarioEvalHTML = (
                   const sessionLabel = session.operationsRecordHref
                     ? `<a href="${escapeHtml(session.operationsRecordHref)}">${escapeHtml(session.sessionId)}</a>`
                     : escapeHtml(session.sessionId);
+
                   return `<tr class="${session.status}"><td>${sessionLabel}</td><td>${escapeHtml(session.status)}</td><td>${session.eventCount}</td><td>${escapeHtml(session.issues.join(", ") || "none")}</td></tr>`;
                 })
                 .join("")
             : '<tr><td colspan="4">No matching sessions.</td></tr>';
+
           return `<section class="scenario ${scenario.status}"><h2>${escapeHtml(scenario.label)}</h2>${scenario.description ? `<p>${escapeHtml(scenario.description)}</p>` : ""}<p class="status ${scenario.status}">${scenario.status}</p><p>${scenario.passed} passed, ${scenario.failed} failed, ${scenario.matchedSessions} matched.</p>${scenarioIssues}<table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Issues</th></tr></thead><tbody>${sessions}</tbody></table></section>`;
         })
         .join("")
@@ -844,7 +1026,6 @@ export const renderVoiceScenarioEvalHTML = (
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.primitive{background:#fffdf7;border-color:#d6c7a3}.primitive p{line-height:1.55}.primitive pre{background:#181713;border-radius:.85rem;color:#fef3c7;overflow:auto;padding:1rem}.primitive code{color:#fef3c7}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${renderVoiceEvalPrimitiveCopy()}${scenarios}</main></body></html>`;
 };
-
 export const renderVoiceScenarioFixtureEvalHTML = (
   report: VoiceScenarioFixtureEvalReport,
   options: { links?: VoiceEvalLink[]; title?: string } = {},
@@ -867,171 +1048,11 @@ export const renderVoiceScenarioFixtureEvalHTML = (
                 `<tr class="${scenario.status}"><td>${escapeHtml(scenario.label)}</td><td>${escapeHtml(scenario.status)}</td><td>${scenario.matchedSessions}</td><td>${escapeHtml([...scenario.issues, ...scenario.sessions.flatMap((session) => session.issues)].join(", ") || "none")}</td></tr>`,
             )
             .join("");
+
           return `<section class="${fixture.status}"><h2>${escapeHtml(fixture.label)}</h2>${fixture.description ? `<p>${escapeHtml(fixture.description)}</p>` : ""}<p class="status ${fixture.status}">${fixture.status}</p><table><thead><tr><th>Scenario</th><th>Status</th><th>Sessions</th><th>Issues</th></tr></thead><tbody>${scenarios}</tbody></table></section>`;
         })
         .join("")
     : "<section><p>No scenario fixtures configured.</p></section>";
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1180px;margin:auto}nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}nav a{background:#181713;border-radius:999px;color:white;padding:.35rem .7rem;text-decoration:none}.eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.status{border-radius:999px;display:inline-flex;font-weight:800;padding:.35rem .75rem}.status.pass{background:#dcfce7;color:#166534}.status.fail{background:#fee2e2;color:#991b1b}.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:1rem 0}.card,section{background:white;border:1px solid #e7e5e4;border-radius:1rem;padding:1rem}.primitive{background:#fffdf7;border-color:#d6c7a3}.primitive p{line-height:1.55}.primitive pre{background:#181713;border-radius:.85rem;color:#fef3c7;overflow:auto;padding:1rem}.primitive code{color:#fef3c7}.card strong{display:block;font-size:2rem}section{margin:1rem 0}table{border-collapse:collapse;width:100%;margin-top:1rem}td,th{border-bottom:1px solid #eee;padding:.75rem;text-align:left}tr.fail td{border-left:4px solid #dc2626}tr.pass td{border-left:4px solid #16a34a}</style></head><body><main>${links}<h1>${escapeHtml(title)}</h1><p class="status ${report.status}">${report.status}</p><div class="grid"><article class="card"><span>Total</span><strong>${report.total}</strong></article><article class="card"><span>Passed</span><strong>${report.passed}</strong></article><article class="card"><span>Failed</span><strong>${report.failed}</strong></article></div>${renderVoiceEvalPrimitiveCopy()}${fixtures}</main></body></html>`;
-};
-
-export const createVoiceEvalRoutes = (options: VoiceEvalRoutesOptions) => {
-  const path = options.path ?? "/evals";
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-evals",
-  });
-  const getReport = () =>
-    runVoiceSessionEvals({
-      events: options.events,
-      limit: options.limit,
-      operationsRecordHref: options.operationsRecordHref,
-      store: options.store,
-      thresholds: options.thresholds,
-    });
-  const getBaseline = async () =>
-    typeof options.baseline === "function"
-      ? options.baseline()
-      : (options.baseline ?? (await options.baselineStore?.get()));
-  const getBaselineComparison = async () => {
-    const [current, baseline] = await Promise.all([getReport(), getBaseline()]);
-    return baseline
-      ? compareVoiceEvalBaseline(current, baseline, options.baselineComparison)
-      : undefined;
-  };
-  const getScenarioReport = () =>
-    runVoiceScenarioEvals({
-      events: options.events,
-      operationsRecordHref: options.operationsRecordHref,
-      scenarios: options.scenarios,
-      store: options.store,
-    });
-  const getFixtureReport = () =>
-    runVoiceScenarioFixtureEvals({
-      fixtures: options.fixtures,
-      fixtureStore: options.fixtureStore,
-      operationsRecordHref: options.operationsRecordHref,
-      scenarios: options.scenarios,
-    });
-
-  routes.get(path, async () => {
-    const report = await getReport();
-    return new Response(
-      renderVoiceEvalHTML(report, {
-        links: options.links,
-        title: options.title,
-      }),
-      {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      },
-    );
-  });
-  routes.get(`${path}/json`, async () => getReport());
-  routes.get(`${path}/status`, async ({ set }) => {
-    const report = await getReport();
-    if (report.status === "fail") {
-      set.status = 503;
-    }
-    return report;
-  });
-  routes.get(`${path}/baseline`, async ({ set }) => {
-    const comparison = await getBaselineComparison();
-    if (!comparison) {
-      set.status = 404;
-      return Response.json({ error: "No voice eval baseline found." });
-    }
-    return new Response(
-      renderVoiceEvalBaselineHTML(comparison, {
-        links: options.links,
-        title: `${options.title ?? "AbsoluteJS Voice Evals"} Baseline`,
-      }),
-      {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      },
-    );
-  });
-  routes.get(`${path}/baseline/json`, async ({ set }) => {
-    const comparison = await getBaselineComparison();
-    if (!comparison) {
-      set.status = 404;
-      return { error: "No voice eval baseline found." };
-    }
-    return comparison;
-  });
-  routes.get(`${path}/baseline/status`, async ({ set }) => {
-    const comparison = await getBaselineComparison();
-    if (!comparison) {
-      set.status = 404;
-      return { error: "No voice eval baseline found." };
-    }
-    if (comparison.status === "fail") {
-      set.status = 503;
-    }
-    return comparison;
-  });
-  routes.post(`${path}/baseline`, async ({ set }) => {
-    if (!options.baselineStore) {
-      set.status = 501;
-      return { error: "No voice eval baseline store configured." };
-    }
-    const report = await getReport();
-    await options.baselineStore.set(report);
-    return {
-      baseline: report,
-      status: "saved",
-    };
-  });
-  routes.get(`${path}/scenarios`, async () => {
-    const report = await getScenarioReport();
-    return new Response(
-      renderVoiceScenarioEvalHTML(report, {
-        links: options.links,
-        title: `${options.title ?? "AbsoluteJS Voice Evals"} Scenarios`,
-      }),
-      {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      },
-    );
-  });
-  routes.get(`${path}/scenarios/json`, async () => getScenarioReport());
-  routes.get(`${path}/scenarios/status`, async ({ set }) => {
-    const report = await getScenarioReport();
-    if (report.status === "fail") {
-      set.status = 503;
-    }
-    return report;
-  });
-  routes.get(`${path}/fixtures`, async () => {
-    const report = await getFixtureReport();
-    return new Response(
-      renderVoiceScenarioFixtureEvalHTML(report, {
-        links: options.links,
-        title: `${options.title ?? "AbsoluteJS Voice Evals"} Fixtures`,
-      }),
-      {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      },
-    );
-  });
-  routes.get(`${path}/fixtures/json`, async () => getFixtureReport());
-  routes.get(`${path}/fixtures/status`, async ({ set }) => {
-    const report = await getFixtureReport();
-    if (report.status === "fail") {
-      set.status = 503;
-    }
-    return report;
-  });
-
-  return routes;
 };

@@ -46,6 +46,7 @@ const bucketKeyFor = (
   if (bucket === "month") return `${year}-${month}`;
   const firstJan = Date.UTC(year, 0, 1);
   const week = Math.floor((ms - firstJan) / (7 * 24 * 60 * 60 * 1000)) + 1;
+
   return `${year}-W${String(week).padStart(2, "0")}`;
 };
 
@@ -143,6 +144,7 @@ export const buildVoiceAgentPerformanceReport = (
         .map((r) => r.score / c.scaleMax),
     );
     if (matches.length === 0) return null;
+
     return matches.reduce((a, b) => a + b, 0) / matches.length;
   };
 

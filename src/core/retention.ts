@@ -21,6 +21,7 @@ export type VoicePurgeReport = {
 const defaultResolveAt = (event: unknown): number | undefined => {
   if (!event || typeof event !== "object") return undefined;
   const value = (event as Record<string, unknown>).at;
+
   return typeof value === "number" ? value : undefined;
 };
 
@@ -48,6 +49,7 @@ export const purgeVoiceRetentionStore = async <TRecord extends { id: string }>(
       failed += 1;
     }
   }
+
   return { attempted, failed, purgedIds, reason: "expired", removed };
 };
 
@@ -77,6 +79,7 @@ export const createVoiceRetentionScheduler = <TRecord extends { id: string }>(
     );
     options.onReport?.(report);
   };
+
   return {
     start: () => {
       if (timer) return;

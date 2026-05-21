@@ -122,6 +122,7 @@ const resolveProviderKey = (provider?: string, model?: string) => {
   if (provider) {
     return provider.toLowerCase();
   }
+
   return undefined;
 };
 
@@ -138,6 +139,7 @@ const lookupRates = (
   if (providerKey && priceBook[providerKey]) {
     return priceBook[providerKey];
   }
+
   return undefined;
 };
 
@@ -190,6 +192,14 @@ export const createVoiceCostAccountant = (
       }
       sttUsd += (Math.max(0, input.audioMs) / 1_000) * rates.perSecondUsd;
     },
+    recordTelephony: (input) => {
+      telephonyMinutes += Math.max(0, input.minutes);
+      const rates = lookupRates(priceBook, input.provider)?.telephony;
+      if (!rates) {
+        return;
+      }
+      telephonyUsd += Math.max(0, input.minutes) * rates.perMinuteUsd;
+    },
     recordTTS: (input) => {
       const chars = input.characters ?? 0;
       const audioMs = input.audioMs ?? 0;
@@ -204,14 +214,6 @@ export const createVoiceCostAccountant = (
       } else if (rates.perSecondUsd !== undefined && audioMs > 0) {
         ttsUsd += (audioMs / 1_000) * rates.perSecondUsd;
       }
-    },
-    recordTelephony: (input) => {
-      telephonyMinutes += Math.max(0, input.minutes);
-      const rates = lookupRates(priceBook, input.provider)?.telephony;
-      if (!rates) {
-        return;
-      }
-      telephonyUsd += Math.max(0, input.minutes) * rates.perMinuteUsd;
     },
     snapshot: () => ({
       llm: {

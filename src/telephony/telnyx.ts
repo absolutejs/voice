@@ -327,6 +327,7 @@ const resolveTelnyxStreamUrl = async <
 
   const origin = resolveRequestOrigin(input.request);
   const wsOrigin = origin.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+
   return `${wsOrigin}${input.streamPath}`;
 };
 
@@ -373,6 +374,7 @@ const telnyxToTwilioMessage = (
       };
     case "start": {
       const streamSid = message.stream_id ?? "telnyx-stream";
+
       return {
         event: "start",
         start: {
@@ -398,6 +400,7 @@ const telnyxToTwilioMessage = (
     }
     case "media": {
       const streamSid = message.stream_id ?? "telnyx-stream";
+
       return {
         event: "media",
         media: {
@@ -471,11 +474,7 @@ export const createTelnyxMediaStreamBridge = <
   const bridge = createTwilioMediaStreamBridge(
     createTelnyxTwilioSocketAdapter(socket),
     {
-      ...(options as TwilioMediaStreamBridgeOptions<
-        TContext,
-        TSession,
-        TResult
-      >),
+      ...(options),
       telephonyMediaCarrier: "telnyx",
       onVoiceMessage: options.onVoiceMessage
         ? (input) =>
@@ -505,6 +504,25 @@ export const createTelnyxMediaStreamBridge = <
 const decodeBase64 = (value: string) =>
   Uint8Array.from(Buffer.from(value, "base64"));
 
+export const createMemoryVoiceTelnyxWebhookEventStore =
+  (): VoiceTelnyxWebhookEventStore => {
+    const eventIds = new Set<string>();
+
+    return {
+      claim: (eventId) => {
+        if (eventIds.has(eventId)) {
+          return false;
+        }
+        eventIds.add(eventId);
+
+        return true;
+      },
+      has: (eventId) => eventIds.has(eventId),
+      set: (eventId) => {
+        eventIds.add(eventId);
+      },
+    };
+  };
 export const verifyVoiceTelnyxWebhookSignature = async (input: {
   body: string;
   headers: Headers;
@@ -544,30 +562,12 @@ export const verifyVoiceTelnyxWebhookSignature = async (input: {
       decodeBase64(signature),
       new TextEncoder().encode(`${timestamp}|${input.body}`),
     );
+
     return ok ? { ok: true } : { ok: false, reason: "invalid-signature" };
   } catch {
     return { ok: false, reason: "invalid-signature" };
   }
 };
-
-export const createMemoryVoiceTelnyxWebhookEventStore =
-  (): VoiceTelnyxWebhookEventStore => {
-    const eventIds = new Set<string>();
-
-    return {
-      claim: (eventId) => {
-        if (eventIds.has(eventId)) {
-          return false;
-        }
-        eventIds.add(eventId);
-        return true;
-      },
-      has: (eventId) => eventIds.has(eventId),
-      set: (eventId) => {
-        eventIds.add(eventId);
-      },
-    };
-  };
 
 const normalizeTelnyxStoreIdentifierSegment = (value: string) =>
   value
@@ -639,6 +639,7 @@ export const createVoiceSQLiteTelnyxWebhookEventStore = (
         now,
         getTelnyxEventExpiresAt(options.ttlSeconds),
       );
+
       return result.changes > 0;
     },
     has: (eventId) => Boolean(select.get(eventId, Date.now())),
@@ -666,6 +667,7 @@ const createVoiceTelnyxPostgresClient = async (
   }
 
   const sql = new Bun.SQL(options.connectionString);
+
   return {
     unsafe: sql.unsafe.bind(sql),
   };
@@ -682,6 +684,7 @@ const resolveTelnyxEventQualifiedTableName = (
     tableName: options.tableName,
     tablePrefix: options.tablePrefix,
   });
+
   return `${quoteTelnyxStoreIdentifier(schema)}.${quoteTelnyxStoreIdentifier(table)}`;
 };
 
@@ -727,6 +730,7 @@ export const createVoicePostgresTelnyxWebhookEventStore = (
 				 RETURNING event_id`,
         [eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)],
       );
+
       return rows.length > 0;
     },
     has: async (eventId) => {
@@ -738,6 +742,7 @@ export const createVoicePostgresTelnyxWebhookEventStore = (
 				 LIMIT 1`,
         [eventId, Date.now()],
       );
+
       return rows.length > 0;
     },
     set: async (eventId) => {
@@ -761,7 +766,7 @@ export const createVoiceRedisTelnyxWebhookEventStore = (
 ): VoiceTelnyxWebhookEventStore => {
   const client = options.client ?? new Bun.RedisClient(options.url);
   const keyPrefix = options.keyPrefix?.trim() || "voice:telnyx-webhook-event";
-  const ttlSeconds = options.ttlSeconds;
+  const {ttlSeconds} = options;
 
   const setEvent = async (eventId: string, nx: boolean) => {
     const key = getTelnyxRedisEventKey(keyPrefix, eventId);
@@ -795,7 +800,7 @@ const readTelnyxWebhookEventId = (rawBody: string) => {
       return undefined;
     }
     const record = body as Record<string, unknown>;
-    const data = record.data;
+    const {data} = record;
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const eventId = (data as Record<string, unknown>).id;
       if (typeof eventId === "string" && eventId.trim()) {
@@ -803,6 +808,7 @@ const readTelnyxWebhookEventId = (rawBody: string) => {
       }
     }
     const eventId = record.id ?? record.event_id;
+
     return typeof eventId === "string" && eventId.trim() ? eventId : undefined;
   } catch {
     return undefined;
@@ -825,7 +831,7 @@ export const createVoiceTelnyxWebhookVerifier =
       return verification;
     }
 
-    const eventStore = options.eventStore;
+    const {eventStore} = options;
     if (!eventStore) {
       return verification;
     }
@@ -845,6 +851,7 @@ export const createVoiceTelnyxWebhookVerifier =
     }
 
     await eventStore.set(eventId);
+
     return verification;
   };
 
@@ -1098,6 +1105,7 @@ export const createTelnyxVoiceRoutes = <
         request,
         streamPath,
       });
+
       return new Response(
         createTelnyxVoiceResponse({
           ...options.texml?.response,
@@ -1116,6 +1124,7 @@ export const createTelnyxVoiceRoutes = <
         request,
         streamPath,
       });
+
       return new Response(
         createTelnyxVoiceResponse({
           ...options.texml?.response,
@@ -1130,17 +1139,18 @@ export const createTelnyxVoiceRoutes = <
     })
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
-        const bridge = bridges.get(ws as object);
-        bridges.delete(ws as object);
+        const bridge = bridges.get(ws);
+        bridges.delete(ws);
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
         if (!options.bridge) {
           ws.close(1011, "Telnyx media bridge is not configured.");
+
           return;
         }
 
-        let bridge = bridges.get(ws as object);
+        let bridge = bridges.get(ws);
         if (!bridge) {
           bridge = createTelnyxMediaStreamBridge(
             {
@@ -1153,7 +1163,7 @@ export const createTelnyxVoiceRoutes = <
             },
             options.bridge,
           );
-          bridges.set(ws as object, bridge);
+          bridges.set(ws, bridge);
         }
 
         await bridge.handleMessage(raw as string);
@@ -1170,7 +1180,8 @@ export const createTelnyxVoiceRoutes = <
         resolveSessionId:
           options.webhook?.resolveSessionId ??
           (({ event }) => {
-            const metadata = event.metadata;
+            const {metadata} = event;
+
             return typeof metadata?.call_session_id === "string"
               ? metadata.call_session_id
               : typeof metadata?.callSessionId === "string"
@@ -1205,6 +1216,7 @@ export const createTelnyxVoiceRoutes = <
             },
           );
         }
+
         return status;
       })
     : app;
@@ -1236,6 +1248,7 @@ export const createTelnyxVoiceRoutes = <
         },
       );
     }
+
     return report;
   });
 };

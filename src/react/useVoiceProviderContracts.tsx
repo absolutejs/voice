@@ -23,6 +23,7 @@ export const useVoiceProviderContracts = <TProvider extends string = string>(
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

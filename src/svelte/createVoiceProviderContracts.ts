@@ -13,6 +13,7 @@ export const createVoiceProviderContracts = <TProvider extends string = string>(
     path,
     options,
   );
+
   return {
     ...store,
     getHTML: () =>

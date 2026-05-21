@@ -52,12 +52,14 @@ const parseTime = (value: string): { hour: number; minute: number } => {
   if (minute < 0 || minute > 59) {
     throw new RangeError(`Minute out of range: ${value}`);
   }
+
   return { hour, minute };
 };
 
 const minutesOf = (range: VoiceCallingTimeRange) => {
   const start = parseTime(range.start);
   const end = parseTime(range.end);
+
   return {
     end: end.hour * 60 + end.minute,
     start: start.hour * 60 + start.minute,
@@ -98,6 +100,7 @@ const parts = (
     Wed: 3,
   };
   const hourValue = map.hour === "24" ? "00" : (map.hour ?? "0");
+
   return {
     day: map.day ?? "00",
     minutes: Number(hourValue) * 60 + Number(map.minute ?? "0"),
@@ -163,6 +166,7 @@ export const createVoiceCallingWindow = (
         return { allowed: true };
       }
     }
+
     return { allowed: false, reason: "outside-hours" };
   };
 
@@ -173,6 +177,7 @@ export const createVoiceCallingWindow = (
       if (verdict.allowed) return cursor.getTime();
       cursor.setTime(cursor.getTime() + 60_000);
     }
+
     return cursor.getTime();
   };
 
@@ -184,12 +189,14 @@ export const createVoiceCallingWindow = (
       const date = at ?? now();
       const verdict = isAllowedAt(date);
       if (verdict.allowed) return verdict;
+
       return { ...verdict, nextWindowAt: findNextOpening(date) };
     },
     nextWindowOpensAt(at?: Date): number {
       const date = at ?? now();
       const verdict = isAllowedAt(date);
       if (verdict.allowed) return date.getTime();
+
       return findNextOpening(date);
     },
     timezone: options.timezone,

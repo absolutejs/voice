@@ -236,6 +236,7 @@ const createVoiceSinkDeliveryError = (input: {
 }) => {
   if (input.response) {
     const statusText = input.response.statusText?.trim();
+
     return `Attempt ${input.attempt} failed with sink response ${input.response.status}${statusText ? ` ${statusText}` : ""}.`;
   }
 
@@ -416,7 +417,8 @@ const buildHelpdeskTicketBody = (
   event: StoredVoiceIntegrationEvent,
   project?: string,
 ) => {
-  const payload = event.payload;
+  const {payload} = event;
+
   return {
     event: {
       createdAt: event.createdAt,
@@ -477,7 +479,7 @@ const buildCRMActivityBody = (
   event: StoredVoiceIntegrationEvent,
   pipeline?: string,
 ) => {
-  const payload = event.payload;
+  const {payload} = event;
   const entityType =
     event.type === "call.completed"
       ? "call"
@@ -546,7 +548,7 @@ const resolveVoiceSinkText = (
   event: StoredVoiceIntegrationEvent,
   fallback: string,
 ) => {
-  const payload = event.payload;
+  const {payload} = event;
   if (typeof payload.recommendedAction === "string") {
     return payload.recommendedAction;
   }
@@ -760,7 +762,8 @@ const resolveZendeskExternalId = (responseBody: unknown) => {
     responseBody.ticket &&
     "id" in responseBody.ticket
   ) {
-    const id = responseBody.ticket.id;
+    const {id} = responseBody.ticket;
+
     return typeof id === "string" || typeof id === "number"
       ? String(id)
       : undefined;
@@ -775,7 +778,8 @@ const resolveHubSpotExternalId = (responseBody: unknown) => {
     responseBody &&
     "id" in responseBody
   ) {
-    const id = responseBody.id;
+    const {id} = responseBody;
+
     return typeof id === "string" || typeof id === "number"
       ? String(id)
       : undefined;
@@ -799,7 +803,8 @@ const resolveLinearExternalId = (responseBody: unknown) => {
     responseBody.data.issueCreate.issue &&
     "id" in responseBody.data.issueCreate.issue
   ) {
-    const id = responseBody.data.issueCreate.issue.id;
+    const {id} = responseBody.data.issueCreate.issue;
+
     return typeof id === "string" || typeof id === "number"
       ? String(id)
       : undefined;
@@ -812,48 +817,6 @@ const createSkippedSinkDelivery = (): VoiceIntegrationSinkDeliveryResult => ({
   attempts: 0,
   status: "skipped",
 });
-
-export const createVoiceIntegrationHTTPSink = <
-  TBody extends Record<string, unknown> = Record<string, unknown>,
->(
-  options: VoiceIntegrationHTTPSinkOptions<TBody>,
-): VoiceIntegrationSink => ({
-  deliver: async ({ event }) => {
-    const body = JSON.stringify(
-      (await options.body?.({
-        event,
-      })) ?? {
-        createdAt: event.createdAt,
-        id: event.id,
-        payload: event.payload,
-        type: event.type,
-      },
-    );
-
-    return deliverVoiceHTTPSinkPayload({
-      body,
-      config: options,
-    });
-  },
-  eventTypes: options.eventTypes,
-  id: options.id,
-  kind: options.kind ?? "http",
-});
-
-export const createVoiceHelpdeskTicketSink = (
-  options: VoiceHelpdeskTicketSinkOptions,
-): VoiceIntegrationSink =>
-  createVoiceIntegrationHTTPSink({
-    ...options,
-    body: ({ event }) => buildHelpdeskTicketBody(event, options.project),
-    eventTypes: options.eventTypes ?? [
-      "review.saved",
-      "task.created",
-      "task.updated",
-      "task.sla_breached",
-    ],
-    kind: options.kind ?? "helpdesk-ticket",
-  });
 
 export const createVoiceCRMActivitySink = (
   options: VoiceCRMActivitySinkOptions,
@@ -870,165 +833,20 @@ export const createVoiceCRMActivitySink = (
     ],
     kind: options.kind ?? "crm-activity",
   });
-
-export const createVoiceZendeskTicketSink = (
-  options: VoiceZendeskTicketSinkOptions,
-): VoiceIntegrationSink => {
-  const baseUrl =
-    options.baseUrl ??
-    (options.subdomain
-      ? `https://${options.subdomain}.zendesk.com`
-      : undefined);
-  if (!baseUrl) {
-    throw new Error(
-      "createVoiceZendeskTicketSink requires either baseUrl or subdomain.",
-    );
-  }
-
-  const sink = createVoiceIntegrationHTTPSink({
+export const createVoiceHelpdeskTicketSink = (
+  options: VoiceHelpdeskTicketSinkOptions,
+): VoiceIntegrationSink =>
+  createVoiceIntegrationHTTPSink({
     ...options,
-    body: async ({ event }) => ({
-      ticket: {
-        ...(await options.buildTicket?.({
-          event,
-        })),
-        comment: {
-          body: resolveVoiceSinkText(
-            event,
-            `Voice ops event ${event.type} requires attention.`,
-          ),
-        },
-        priority: resolveVoiceSinkPriority(event),
-        requester: options.requester,
-        subject: resolveVoiceLinearIssueTitle(event),
-      },
-    }),
+    body: ({ event }) => buildHelpdeskTicketBody(event, options.project),
     eventTypes: options.eventTypes ?? [
       "review.saved",
       "task.created",
       "task.updated",
       "task.sla_breached",
     ],
-    headers: {
-      Authorization: `Bearer ${options.accessToken}`,
-      ...options.headers,
-    },
-    id: options.id,
-    kind: options.kind ?? "zendesk-ticket",
-    url: `${baseUrl.replace(/\/$/, "")}/api/v2/tickets`,
+    kind: options.kind ?? "helpdesk-ticket",
   });
-
-  return {
-    ...sink,
-    deliver: async ({ event }) => {
-      const result = await sink.deliver({
-        event,
-      });
-      if (result.status === "delivered") {
-        await storeVoiceExternalObjectMapping({
-          event,
-          externalId:
-            (await options.resolveExternalId?.({
-              event,
-              responseBody: result.responseBody,
-            })) ?? resolveZendeskExternalId(result.responseBody),
-          provider: "zendesk",
-          sinkId: options.id,
-          store: options.externalObjects,
-        });
-      }
-
-      return result;
-    },
-  };
-};
-
-export const createVoiceZendeskTicketUpdateSink = (
-  options: VoiceZendeskTicketUpdateSinkOptions,
-): VoiceIntegrationSink => {
-  const baseUrl =
-    options.baseUrl ??
-    (options.subdomain
-      ? `https://${options.subdomain}.zendesk.com`
-      : undefined);
-  if (!baseUrl) {
-    throw new Error(
-      "createVoiceZendeskTicketUpdateSink requires either baseUrl or subdomain.",
-    );
-  }
-
-  return {
-    deliver: async ({ event }) => {
-      const ticketId =
-        (await resolveVoiceSinkValue(options.ticketId, event, [
-          "zendeskTicketId",
-          "ticketId",
-          "externalTicketId",
-        ])) ??
-        (await findVoiceExternalObjectId({
-          event,
-          provider: "zendesk",
-          sinkId: options.id,
-          store: options.externalObjects,
-        }));
-      if (!ticketId) {
-        return createSkippedSinkDelivery();
-      }
-
-      return deliverVoiceHTTPSinkPayload({
-        body: JSON.stringify({
-          ticket: {
-            ...(await options.buildTicket?.({
-              event,
-            })),
-            comment: {
-              body: resolveVoiceSinkText(
-                event,
-                `Voice ops event ${event.type} updated this ticket.`,
-              ),
-            },
-            priority: resolveVoiceSinkPriority(event),
-            status: options.status,
-          },
-        }),
-        config: {
-          ...options,
-          headers: {
-            Authorization: `Bearer ${options.accessToken}`,
-            ...options.headers,
-          },
-          method: options.method ?? "PUT",
-          url: `${baseUrl.replace(/\/$/, "")}/api/v2/tickets/${encodeURIComponent(ticketId)}`,
-        },
-      });
-    },
-    eventTypes: options.eventTypes ?? ["task.updated", "task.sla_breached"],
-    id: options.id,
-    kind: options.kind ?? "zendesk-ticket-update",
-  };
-};
-
-export const createVoiceZendeskTicketSyncSinks = (
-  options: VoiceZendeskTicketSyncSinkOptions,
-): VoiceIntegrationSink[] => {
-  const { create, createId, update, updateId, ...baseOptions } = options;
-
-  return [
-    createVoiceZendeskTicketSink({
-      ...baseOptions,
-      ...create,
-      eventTypes: create?.eventTypes ?? ["review.saved", "task.created"],
-      id: createId ?? create?.id ?? options.id,
-    }),
-    createVoiceZendeskTicketUpdateSink({
-      ...baseOptions,
-      ...update,
-      eventTypes: update?.eventTypes ?? ["task.updated", "task.sla_breached"],
-      id: updateId ?? update?.id ?? `${options.id}:update`,
-    }),
-  ];
-};
-
 export const createVoiceHubSpotTaskSink = (
   options: VoiceHubSpotTaskSinkOptions,
 ): VoiceIntegrationSink => {
@@ -1105,13 +923,35 @@ export const createVoiceHubSpotTaskSink = (
     },
   };
 };
+export const createVoiceHubSpotTaskSyncSinks = (
+  options: VoiceHubSpotTaskSyncSinkOptions,
+): VoiceIntegrationSink[] => {
+  const { create, createId, update, updateId, ...baseOptions } = options;
 
+  return [
+    createVoiceHubSpotTaskSink({
+      ...baseOptions,
+      ...create,
+      eventTypes: create?.eventTypes ?? ["task.created"],
+      id: createId ?? create?.id ?? options.id,
+    }),
+    createVoiceHubSpotTaskUpdateSink({
+      ...baseOptions,
+      ...update,
+      eventTypes: update?.eventTypes ?? ["task.updated", "task.sla_breached"],
+      id: updateId ?? update?.id ?? `${options.id}:update`,
+    }),
+  ];
+};
 export const createVoiceHubSpotTaskUpdateSink = (
   options: VoiceHubSpotTaskUpdateSinkOptions,
 ): VoiceIntegrationSink => {
   const baseUrl = options.baseUrl ?? "https://api.hubapi.com";
 
   return {
+    eventTypes: options.eventTypes ?? ["task.updated", "task.sla_breached"],
+    id: options.id,
+    kind: options.kind ?? "hubspot-task-update",
     deliver: async ({ event }) => {
       const taskId =
         (await resolveVoiceSinkValue(options.taskId, event, [
@@ -1164,33 +1004,34 @@ export const createVoiceHubSpotTaskUpdateSink = (
         },
       });
     },
-    eventTypes: options.eventTypes ?? ["task.updated", "task.sla_breached"],
-    id: options.id,
-    kind: options.kind ?? "hubspot-task-update",
   };
 };
+export const createVoiceIntegrationHTTPSink = <
+  TBody extends Record<string, unknown> = Record<string, unknown>,
+>(
+  options: VoiceIntegrationHTTPSinkOptions<TBody>,
+): VoiceIntegrationSink => ({
+  eventTypes: options.eventTypes,
+  id: options.id,
+  kind: options.kind ?? "http",
+  deliver: async ({ event }) => {
+    const body = JSON.stringify(
+      (await options.body?.({
+        event,
+      })) ?? {
+        createdAt: event.createdAt,
+        id: event.id,
+        payload: event.payload,
+        type: event.type,
+      },
+    );
 
-export const createVoiceHubSpotTaskSyncSinks = (
-  options: VoiceHubSpotTaskSyncSinkOptions,
-): VoiceIntegrationSink[] => {
-  const { create, createId, update, updateId, ...baseOptions } = options;
-
-  return [
-    createVoiceHubSpotTaskSink({
-      ...baseOptions,
-      ...create,
-      eventTypes: create?.eventTypes ?? ["task.created"],
-      id: createId ?? create?.id ?? options.id,
-    }),
-    createVoiceHubSpotTaskUpdateSink({
-      ...baseOptions,
-      ...update,
-      eventTypes: update?.eventTypes ?? ["task.updated", "task.sla_breached"],
-      id: updateId ?? update?.id ?? `${options.id}:update`,
-    }),
-  ];
-};
-
+    return deliverVoiceHTTPSinkPayload({
+      body,
+      config: options,
+    });
+  },
+});
 export const createVoiceLinearIssueSink = (
   options: VoiceLinearIssueSinkOptions,
 ): VoiceIntegrationSink => {
@@ -1268,7 +1109,6 @@ export const createVoiceLinearIssueSink = (
     },
   };
 };
-
 export const createVoiceLinearIssueSyncSinks = (
   options: VoiceLinearIssueSyncSinkOptions,
 ): VoiceIntegrationSink[] => {
@@ -1289,7 +1129,6 @@ export const createVoiceLinearIssueSyncSinks = (
     }),
   ];
 };
-
 export const createVoiceLinearIssueUpdateSink = (
   options: VoiceLinearIssueUpdateSinkOptions,
 ): VoiceIntegrationSink => {
@@ -1303,6 +1142,9 @@ export const createVoiceLinearIssueUpdateSink = (
   const authHeader = options.authMode === "api-key" ? token : `Bearer ${token}`;
 
   return {
+    eventTypes: options.eventTypes ?? ["task.updated", "task.sla_breached"],
+    id: options.id,
+    kind: options.kind ?? "linear-issue-update",
     deliver: async ({ event }) => {
       const issueId =
         (await resolveVoiceSinkValue(options.issueId, event, [
@@ -1361,17 +1203,168 @@ export const createVoiceLinearIssueUpdateSink = (
         },
       });
     },
-    eventTypes: options.eventTypes ?? ["task.updated", "task.sla_breached"],
-    id: options.id,
-    kind: options.kind ?? "linear-issue-update",
   };
 };
+export const createVoiceZendeskTicketSink = (
+  options: VoiceZendeskTicketSinkOptions,
+): VoiceIntegrationSink => {
+  const baseUrl =
+    options.baseUrl ??
+    (options.subdomain
+      ? `https://${options.subdomain}.zendesk.com`
+      : undefined);
+  if (!baseUrl) {
+    throw new Error(
+      "createVoiceZendeskTicketSink requires either baseUrl or subdomain.",
+    );
+  }
 
+  const sink = createVoiceIntegrationHTTPSink({
+    ...options,
+    body: async ({ event }) => ({
+      ticket: {
+        ...(await options.buildTicket?.({
+          event,
+        })),
+        comment: {
+          body: resolveVoiceSinkText(
+            event,
+            `Voice ops event ${event.type} requires attention.`,
+          ),
+        },
+        priority: resolveVoiceSinkPriority(event),
+        requester: options.requester,
+        subject: resolveVoiceLinearIssueTitle(event),
+      },
+    }),
+    eventTypes: options.eventTypes ?? [
+      "review.saved",
+      "task.created",
+      "task.updated",
+      "task.sla_breached",
+    ],
+    headers: {
+      Authorization: `Bearer ${options.accessToken}`,
+      ...options.headers,
+    },
+    id: options.id,
+    kind: options.kind ?? "zendesk-ticket",
+    url: `${baseUrl.replace(/\/$/, "")}/api/v2/tickets`,
+  });
+
+  return {
+    ...sink,
+    deliver: async ({ event }) => {
+      const result = await sink.deliver({
+        event,
+      });
+      if (result.status === "delivered") {
+        await storeVoiceExternalObjectMapping({
+          event,
+          externalId:
+            (await options.resolveExternalId?.({
+              event,
+              responseBody: result.responseBody,
+            })) ?? resolveZendeskExternalId(result.responseBody),
+          provider: "zendesk",
+          sinkId: options.id,
+          store: options.externalObjects,
+        });
+      }
+
+      return result;
+    },
+  };
+};
+export const createVoiceZendeskTicketSyncSinks = (
+  options: VoiceZendeskTicketSyncSinkOptions,
+): VoiceIntegrationSink[] => {
+  const { create, createId, update, updateId, ...baseOptions } = options;
+
+  return [
+    createVoiceZendeskTicketSink({
+      ...baseOptions,
+      ...create,
+      eventTypes: create?.eventTypes ?? ["review.saved", "task.created"],
+      id: createId ?? create?.id ?? options.id,
+    }),
+    createVoiceZendeskTicketUpdateSink({
+      ...baseOptions,
+      ...update,
+      eventTypes: update?.eventTypes ?? ["task.updated", "task.sla_breached"],
+      id: updateId ?? update?.id ?? `${options.id}:update`,
+    }),
+  ];
+};
+export const createVoiceZendeskTicketUpdateSink = (
+  options: VoiceZendeskTicketUpdateSinkOptions,
+): VoiceIntegrationSink => {
+  const baseUrl =
+    options.baseUrl ??
+    (options.subdomain
+      ? `https://${options.subdomain}.zendesk.com`
+      : undefined);
+  if (!baseUrl) {
+    throw new Error(
+      "createVoiceZendeskTicketUpdateSink requires either baseUrl or subdomain.",
+    );
+  }
+
+  return {
+    eventTypes: options.eventTypes ?? ["task.updated", "task.sla_breached"],
+    id: options.id,
+    kind: options.kind ?? "zendesk-ticket-update",
+    deliver: async ({ event }) => {
+      const ticketId =
+        (await resolveVoiceSinkValue(options.ticketId, event, [
+          "zendeskTicketId",
+          "ticketId",
+          "externalTicketId",
+        ])) ??
+        (await findVoiceExternalObjectId({
+          event,
+          provider: "zendesk",
+          sinkId: options.id,
+          store: options.externalObjects,
+        }));
+      if (!ticketId) {
+        return createSkippedSinkDelivery();
+      }
+
+      return deliverVoiceHTTPSinkPayload({
+        body: JSON.stringify({
+          ticket: {
+            ...(await options.buildTicket?.({
+              event,
+            })),
+            comment: {
+              body: resolveVoiceSinkText(
+                event,
+                `Voice ops event ${event.type} updated this ticket.`,
+              ),
+            },
+            priority: resolveVoiceSinkPriority(event),
+            status: options.status,
+          },
+        }),
+        config: {
+          ...options,
+          headers: {
+            Authorization: `Bearer ${options.accessToken}`,
+            ...options.headers,
+          },
+          method: options.method ?? "PUT",
+          url: `${baseUrl.replace(/\/$/, "")}/api/v2/tickets/${encodeURIComponent(ticketId)}`,
+        },
+      });
+    },
+  };
+};
 export const deliverVoiceIntegrationEventToSinks = async (input: {
   event: StoredVoiceIntegrationEvent;
   sinks: VoiceIntegrationSink[];
 }): Promise<StoredVoiceIntegrationEvent> => {
-  let event = input.event;
+  let {event} = input;
   for (const sink of input.sinks) {
     const previous = event.sinkDeliveries?.[sink.id];
     const result =

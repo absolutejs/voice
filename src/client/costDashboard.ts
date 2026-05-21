@@ -42,6 +42,7 @@ const formatBucketKey = (
   const h = padTwo(date.getUTCHours());
   if (bucketBy === "month") return `${y}-${m}`;
   if (bucketBy === "day") return `${y}-${m}-${d}`;
+
   return `${y}-${m}-${d}T${h}`;
 };
 
@@ -112,6 +113,7 @@ export const buildVoiceCostDashboardReport = (
     roundCurrency(bucket);
   }
   roundCurrency(grandTotal);
+
   return {
     buckets: Array.from(buckets.values()).sort((a, b) =>
       a.bucketKey.localeCompare(b.bucketKey),

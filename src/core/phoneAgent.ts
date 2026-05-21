@@ -304,7 +304,7 @@ const loadCarrierMatrixInputs = async <
   carriers: readonly VoicePhoneAgentCarrier<TContext, TSession, TResult>[];
   request: Request;
 }) => {
-  const origin = new URL(input.request.url).origin;
+  const {origin} = new URL(input.request.url);
   const entries: VoiceTelephonyCarrierMatrixInput[] = [];
 
   for (const carrier of input.carriers) {
@@ -376,9 +376,23 @@ const findMissing = <Value extends string>(
     return [];
   }
   const valueSet = new Set(values);
+
   return required.filter((value) => !valueSet.has(value));
 };
 
+export const assertVoicePhoneAssistantEvidence = (
+  report: VoicePhoneAgentSetupReport,
+  input: VoicePhoneAssistantEvidenceInput = {},
+): VoicePhoneAssistantEvidenceReport => assertVoiceEvidence(
+    "Voice phone assistant evidence assertion failed",
+    evaluateVoicePhoneAssistantEvidence(report, input),
+  );
+export const assertVoicePhoneCallControlEvidence = (
+  input: VoicePhoneCallControlEvidenceInput = {},
+): VoicePhoneCallControlEvidenceReport => assertVoiceEvidence(
+    "Voice phone call-control evidence assertion failed",
+    evaluateVoicePhoneCallControlEvidence(input),
+  );
 export const evaluateVoicePhoneAssistantEvidence = (
   report: VoicePhoneAgentSetupReport,
   input: VoicePhoneAssistantEvidenceInput = {},
@@ -501,22 +515,11 @@ export const evaluateVoicePhoneAssistantEvidence = (
     smokePassing,
   };
 };
-
-export const assertVoicePhoneAssistantEvidence = (
-  report: VoicePhoneAgentSetupReport,
-  input: VoicePhoneAssistantEvidenceInput = {},
-): VoicePhoneAssistantEvidenceReport => {
-  return assertVoiceEvidence(
-    "Voice phone assistant evidence assertion failed",
-    evaluateVoicePhoneAssistantEvidence(report, input),
-  );
-};
-
 export const evaluateVoicePhoneCallControlEvidence = (
   input: VoicePhoneCallControlEvidenceInput = {},
 ): VoicePhoneCallControlEvidenceReport => {
   const issues: string[] = [];
-  const setup = input.setup;
+  const {setup} = input;
   const productionSmokes = input.productionSmokes ?? [];
   const lifecycleStages = uniqueSorted(setup?.lifecycleStages ?? []);
   const providers = uniqueSorted(
@@ -581,15 +584,6 @@ export const evaluateVoicePhoneCallControlEvidence = (
     providers,
     smokeReports: productionSmokes.length,
   };
-};
-
-export const assertVoicePhoneCallControlEvidence = (
-  input: VoicePhoneCallControlEvidenceInput = {},
-): VoicePhoneCallControlEvidenceReport => {
-  return assertVoiceEvidence(
-    "Voice phone call-control evidence assertion failed",
-    evaluateVoicePhoneCallControlEvidence(input),
-  );
 };
 
 const buildVoicePhoneAgentSetupInstructions = (input: {
@@ -809,7 +803,7 @@ export const createVoicePhoneAgent = <
     options.productionSmoke !== false &&
     options.productionSmoke !== undefined
   ) {
-    const productionSmoke = options.productionSmoke;
+    const {productionSmoke} = options;
     app.use(
       createVoicePhoneAgentProductionSmokeRoutes({
         ...productionSmoke,

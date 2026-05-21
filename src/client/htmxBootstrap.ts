@@ -204,6 +204,7 @@ const parseOptionalNumber = (value: string | undefined) => {
   }
 
   const parsed = Number(value);
+
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
@@ -428,6 +429,7 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
       onAudio: (audio, sendAudio) => {
         if (guidedBargeInBinding) {
           guidedBargeInBinding.sendAudio(audio);
+
           return;
         }
 
@@ -449,6 +451,7 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
       onAudio: (audio, sendAudio) => {
         if (generalBargeInBinding) {
           generalBargeInBinding.sendAudio(audio);
+
           return;
         }
 
@@ -499,7 +502,7 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
     const hasStarted =
       (activeMode ? hasStartedModes[activeMode] : false) ||
       voice.turns.length > 0;
-    const status = voice.status;
+    const {status} = voice;
     connectionMetric.textContent = voice.isConnected ? "Connected" : "Waiting";
     errorStatus.textContent = micError || voice.error || "None";
     if (reconnectStatus) {

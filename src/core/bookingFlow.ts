@@ -59,6 +59,7 @@ export const createVoiceBookingFlow = (
     const service = services.find((s) => s.id === serviceId);
     if (!service) {
       setState({ error: `Unknown service: ${serviceId}`, step: "failed" });
+
       return;
     }
     setState({
@@ -87,6 +88,7 @@ export const createVoiceBookingFlow = (
       proposedSlots: slots,
       step: slots.length > 0 ? "ask-time" : "ask-date",
     });
+
     return slots;
   };
 
@@ -94,6 +96,7 @@ export const createVoiceBookingFlow = (
     const slot = state.proposedSlots[slotIndex];
     if (!slot) {
       setState({ error: "Invalid slot selection", step: "failed" });
+
       return;
     }
     setState({ selectedSlot: slot, step: "confirm" });
@@ -104,6 +107,7 @@ export const createVoiceBookingFlow = (
   ): Promise<VoiceCalendarAppointment | null> => {
     if (state.step !== "confirm" || !state.selectedSlot) {
       setState({ error: "Nothing to confirm", step: "failed" });
+
       return null;
     }
     setState({ step: "booking" });
@@ -119,12 +123,14 @@ export const createVoiceBookingFlow = (
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
       });
       setState({ appointment: appt, step: "booked" });
+
       return appt;
     } catch (error) {
       setState({
         error: error instanceof Error ? error.message : String(error),
         step: "failed",
       });
+
       return null;
     }
   };
@@ -142,12 +148,13 @@ export const createVoiceBookingFlow = (
     chooseService,
     chooseSlot,
     confirm,
-    getState: () => state,
     proposeSlotsForDay,
     reset,
+    getState: () => state,
     subscribe(listener: (state: VoiceBookingFlowState) => void) {
       listeners.add(listener);
       listener(state);
+
       return () => {
         listeners.delete(listener);
       };

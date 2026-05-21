@@ -63,6 +63,7 @@ const getAudioLevel = (audio: Uint8Array | ArrayBuffer) => {
     const normalized = sample / 0x8000;
     sumSquares += normalized * normalized;
   }
+
   return Math.min(1, Math.max(0, Math.sqrt(sumSquares / samples.length) * 5.5));
 };
 
@@ -165,6 +166,7 @@ export const createVoiceLiveTurnLatencyMonitor = (
       thresholdMs: failAfterMs,
     };
     emit();
+
     return pending;
   };
   const getSnapshot = (): VoiceLiveTurnLatencySnapshot => {
@@ -175,6 +177,7 @@ export const createVoiceLiveTurnLatencyMonitor = (
     const failed = events.filter((event) => event.status === "fail").length;
     const warnings = events.filter((event) => event.status === "warn").length;
     const passed = events.filter((event) => event.status === "pass").length;
+
     return {
       averageLatencyMs: latencies.length
         ? Math.round(
@@ -208,6 +211,7 @@ export const createVoiceLiveTurnLatencyMonitor = (
     recordAudio,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

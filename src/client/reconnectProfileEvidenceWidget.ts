@@ -82,7 +82,7 @@ export const createVoiceReconnectProfileEvidenceViewModel = (
   snapshot: VoiceReconnectProfileEvidenceSnapshot,
   options: VoiceReconnectProfileEvidenceWidgetOptions = {},
 ): VoiceReconnectProfileEvidenceViewModel => {
-  const report = snapshot.report;
+  const {report} = snapshot;
   const latest = report?.latest;
   const latestAt = latest?.generatedAt ?? latest?.createdAt;
 
@@ -137,7 +137,68 @@ export const createVoiceReconnectProfileEvidenceViewModel = (
     title: options.title ?? DEFAULT_TITLE,
   };
 };
+export const defineVoiceReconnectProfileEvidenceElement = (
+  tagName = "absolute-voice-reconnect-profile-evidence",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceReconnectProfileEvidenceElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceReconnectProfileEvidence>;
+
+      connectedCallback() {
+        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        this.mounted = mountVoiceReconnectProfileEvidence(
+          this,
+          this.getAttribute("path") ?? "/api/voice/reconnect-profile-evidence",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const getVoiceReconnectProfileEvidenceCSS = () =>
+  `.absolute-voice-reconnect-evidence{border:1px solid #bae6fd;border-radius:20px;background:#f0f9ff;color:#0f172a;padding:18px;box-shadow:0 18px 40px rgba(14,165,233,.12);font-family:inherit}.absolute-voice-reconnect-evidence--warning,.absolute-voice-reconnect-evidence--error{border-color:#fbbf24;background:#fffbeb}.absolute-voice-reconnect-evidence__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-reconnect-evidence__eyebrow{color:#0369a1;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-reconnect-evidence__label{font-size:24px;line-height:1}.absolute-voice-reconnect-evidence__description,.absolute-voice-reconnect-evidence__empty,.absolute-voice-reconnect-evidence__latest{color:#475569}.absolute-voice-reconnect-evidence__metrics{display:grid;gap:10px;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:14px}.absolute-voice-reconnect-evidence__metrics article{background:#fff;border:1px solid #bae6fd;border-radius:16px;padding:12px}.absolute-voice-reconnect-evidence__metrics span{color:#64748b;display:block;font-size:11px;font-weight:800;text-transform:uppercase}.absolute-voice-reconnect-evidence__metrics strong{display:block;font-size:20px;margin-top:4px}.absolute-voice-reconnect-evidence__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-reconnect-evidence__links a{border:1px solid #7dd3fc;border-radius:999px;color:#0369a1;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-reconnect-evidence__error{color:#9f1239;font-weight:700}@media (max-width:720px){.absolute-voice-reconnect-evidence__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
+export const mountVoiceReconnectProfileEvidence = (
+  element: Element,
+  path = "/api/voice/reconnect-profile-evidence",
+  options: VoiceReconnectProfileEvidenceWidgetOptions = {},
+) => {
+  const store = createVoiceReconnectProfileEvidenceStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceReconnectProfileEvidenceHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceReconnectProfileEvidenceHTML = (
   snapshot: VoiceReconnectProfileEvidenceSnapshot,
   options: VoiceReconnectProfileEvidenceWidgetOptions = {},
@@ -174,69 +235,4 @@ export const renderVoiceReconnectProfileEvidenceHTML = (
   ${links}
   ${model.error ? `<p class="absolute-voice-reconnect-evidence__error">${escapeHtml(model.error)}</p>` : ""}
 </section>`;
-};
-
-export const getVoiceReconnectProfileEvidenceCSS = () =>
-  `.absolute-voice-reconnect-evidence{border:1px solid #bae6fd;border-radius:20px;background:#f0f9ff;color:#0f172a;padding:18px;box-shadow:0 18px 40px rgba(14,165,233,.12);font-family:inherit}.absolute-voice-reconnect-evidence--warning,.absolute-voice-reconnect-evidence--error{border-color:#fbbf24;background:#fffbeb}.absolute-voice-reconnect-evidence__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-reconnect-evidence__eyebrow{color:#0369a1;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-reconnect-evidence__label{font-size:24px;line-height:1}.absolute-voice-reconnect-evidence__description,.absolute-voice-reconnect-evidence__empty,.absolute-voice-reconnect-evidence__latest{color:#475569}.absolute-voice-reconnect-evidence__metrics{display:grid;gap:10px;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:14px}.absolute-voice-reconnect-evidence__metrics article{background:#fff;border:1px solid #bae6fd;border-radius:16px;padding:12px}.absolute-voice-reconnect-evidence__metrics span{color:#64748b;display:block;font-size:11px;font-weight:800;text-transform:uppercase}.absolute-voice-reconnect-evidence__metrics strong{display:block;font-size:20px;margin-top:4px}.absolute-voice-reconnect-evidence__links{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.absolute-voice-reconnect-evidence__links a{border:1px solid #7dd3fc;border-radius:999px;color:#0369a1;font-weight:800;padding:6px 10px;text-decoration:none}.absolute-voice-reconnect-evidence__error{color:#9f1239;font-weight:700}@media (max-width:720px){.absolute-voice-reconnect-evidence__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
-
-export const mountVoiceReconnectProfileEvidence = (
-  element: Element,
-  path = "/api/voice/reconnect-profile-evidence",
-  options: VoiceReconnectProfileEvidenceWidgetOptions = {},
-) => {
-  const store = createVoiceReconnectProfileEvidenceStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceReconnectProfileEvidenceHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceReconnectProfileEvidenceElement = (
-  tagName = "absolute-voice-reconnect-profile-evidence",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceReconnectProfileEvidenceElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceReconnectProfileEvidence>;
-
-      connectedCallback() {
-        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
-        this.mounted = mountVoiceReconnectProfileEvidence(
-          this,
-          this.getAttribute("path") ?? "/api/voice/reconnect-profile-evidence",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

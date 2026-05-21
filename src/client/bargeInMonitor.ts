@@ -101,6 +101,7 @@ export const createVoiceBargeInMonitor = (
     events.push(event);
     postEvent(event);
     emit();
+
     return event;
   };
 
@@ -111,6 +112,7 @@ export const createVoiceBargeInMonitor = (
     recordStopped: (input) => record("stopped", input),
     subscribe: (subscriber) => {
       listeners.add(subscriber);
+
       return () => {
         listeners.delete(subscriber);
       };

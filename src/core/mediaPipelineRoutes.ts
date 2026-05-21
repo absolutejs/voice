@@ -111,6 +111,13 @@ const worstStatus = (
   statuses: readonly MediaPipelineStatus[],
 ): MediaPipelineStatus => worstVoiceStatus(statuses);
 
+export const assertVoiceMediaPipelineEvidence = (
+  report: VoiceMediaPipelineReport,
+  input: VoiceMediaPipelineAssertionInput = {},
+): VoiceMediaPipelineAssertionReport => assertVoiceEvidence(
+    "Voice media pipeline assertion failed",
+    evaluateVoiceMediaPipelineEvidence(report, input),
+  );
 export const buildVoiceMediaPipelineReport = (
   options: VoiceMediaPipelineReportOptions = {},
 ): VoiceMediaPipelineReport => {
@@ -177,7 +184,80 @@ export const buildVoiceMediaPipelineReport = (
     vad,
   };
 };
+export const createVoiceMediaPipelineRoutes = (
+  options: VoiceMediaPipelineRoutesOptions = {},
+) => {
+  const path = options.path ?? "/api/voice/media-pipeline";
+  const htmlPath = options.htmlPath ?? "/voice/media-pipeline";
+  const markdownPath = options.markdownPath ?? "/voice/media-pipeline.md";
+  const headers = options.headers ?? {};
+  const title = options.title ?? "Voice Media Pipeline Proof";
+  const resolveOptions = async () => {
+    const source =
+      typeof options.source === "function"
+        ? await options.source()
+        : (options.source ?? options);
+    const {
+      headers: _headers,
+      htmlPath: _htmlPath,
+      markdownPath: _markdownPath,
+      name: _name,
+      path: _path,
+      render: _render,
+      source: _source,
+      title: _title,
+      ...reportOptions
+    } = {
+      ...options,
+      ...source,
+    };
 
+    return reportOptions satisfies VoiceMediaPipelineReportOptions;
+  };
+  const report = async () =>
+    buildVoiceMediaPipelineReport(await resolveOptions());
+  const app = new Elysia({ name: options.name ?? "voice-media-pipeline" }).get(
+    path,
+    async () =>
+      new Response(JSON.stringify(await report(), null, 2), {
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          ...headers,
+        },
+      }),
+  );
+
+  if (htmlPath !== false) {
+    app.get(htmlPath, async () => {
+      const current = await report();
+      const body = options.render
+        ? await options.render(current)
+        : renderVoiceMediaPipelineHTML(current, title);
+
+      return new Response(body, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          ...headers,
+        },
+      });
+    });
+  }
+
+  if (markdownPath !== false) {
+    app.get(
+      markdownPath,
+      async () =>
+        new Response(renderVoiceMediaPipelineMarkdown(await report()), {
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            ...headers,
+          },
+        }),
+    );
+  }
+
+  return app;
+};
 export const evaluateVoiceMediaPipelineEvidence = (
   report: VoiceMediaPipelineReport,
   input: VoiceMediaPipelineAssertionInput = {},
@@ -259,7 +339,7 @@ export const evaluateVoiceMediaPipelineEvidence = (
       `Expected media quality proof to pass, found ${report.quality.status}.`,
     );
   }
-  const maxMediaGapMs = input.maxMediaGapMs;
+  const {maxMediaGapMs} = input;
   if (
     maxMediaGapMs !== undefined &&
     report.quality.gapsMs.some((gap) => gap > maxMediaGapMs)
@@ -356,17 +436,29 @@ export const evaluateVoiceMediaPipelineEvidence = (
     surface: report.surface,
   };
 };
-
-export const assertVoiceMediaPipelineEvidence = (
+export const renderVoiceMediaPipelineHTML = (
   report: VoiceMediaPipelineReport,
-  input: VoiceMediaPipelineAssertionInput = {},
-): VoiceMediaPipelineAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice media pipeline assertion failed",
-    evaluateVoiceMediaPipelineEvidence(report, input),
-  );
-};
+  title = "Voice Media Pipeline Proof",
+) => {
+  const issues = [
+    ...report.calibration.issues,
+    ...report.interruption.issues,
+    ...report.quality.issues,
+  ]
+    .map(
+      (issue) =>
+        `<li class="${escapeHtml(issue.severity)}"><strong>${escapeHtml(issue.code)}</strong>: ${escapeHtml(issue.message)}</li>`,
+    )
+    .join("");
+  const segments = report.vad.segments
+    .map(
+      (segment) =>
+        `<tr><td>${escapeHtml(segment.segmentId)}</td><td>${escapeHtml(segment.frameCount)}</td><td>${escapeHtml(segment.durationMs ?? "n/a")}</td><td>${escapeHtml(segment.turnId ?? "n/a")}</td></tr>`,
+    )
+    .join("");
 
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero,.card{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.metric{background:#101814;border:1px solid #2e3d36;border-radius:18px;padding:14px}.metric span{color:#a8b5ad;display:block;font-size:.78rem;text-transform:uppercase}.metric strong{display:block;font-size:1.65rem;margin-top:5px}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:7px 11px}.pass{color:#86efac}.warn,.warning{color:#fde68a}.fail,.error{color:#fecaca}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2e3d36;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Native media pipeline</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${escapeHtml(report.surface)}</p><section class="summary"><div class="metric"><span>Frames</span><strong>${String(report.frames)}</strong></div><div class="metric"><span>Input audio</span><strong>${String(report.calibration.inputAudioFrames)}</strong></div><div class="metric"><span>Assistant audio</span><strong>${String(report.calibration.assistantAudioFrames)}</strong></div><div class="metric"><span>Trace linked</span><strong>${String(report.calibration.traceLinkedFrames)}</strong></div><div class="metric"><span>First audio</span><strong>${escapeHtml(report.calibration.firstAudioLatencyMs ?? "n/a")}ms</strong></div><div class="metric"><span>VAD segments</span><strong>${String(report.vad.segments.length)}</strong></div><div class="metric"><span>Media quality</span><strong>${escapeHtml(report.quality.status)}</strong></div><div class="metric"><span>Media gaps</span><strong>${String(report.quality.gapCount)}</strong></div><div class="metric"><span>Media jitter</span><strong>${escapeHtml(report.quality.jitterMs ?? "n/a")}ms</strong></div><div class="metric"><span>Speech ratio</span><strong>${String(report.quality.speechRatio)}</strong></div><div class="metric"><span>Timestamp drift</span><strong>${escapeHtml(report.quality.timestampDriftMs ?? "n/a")}ms</strong></div><div class="metric"><span>Interruptions</span><strong>${String(report.interruption.interruptionFrames)}</strong></div><div class="metric"><span>Processor graph</span><strong>${String(report.processorGraph?.nodes.length ?? 0)} nodes</strong></div><div class="metric"><span>Graph out/drop</span><strong>${String(report.processorGraph?.emittedFrames ?? 0)}/${String(report.processorGraph?.droppedFrames ?? 0)}</strong></div><div class="metric"><span>Resampling</span><strong>${report.calibration.resamplingRequired ? "required" : "not required"}</strong></div><div class="metric"><span>Transport</span><strong>${escapeHtml(report.transport?.state ?? "n/a")}</strong></div><div class="metric"><span>Transport in/out</span><strong>${String(report.transport?.inputFrames ?? 0)}/${String(report.transport?.outputFrames ?? 0)}</strong></div><div class="metric"><span>Backpressure</span><strong>${String(report.transport?.backpressureEvents ?? 0)}</strong></div></section></section><section class="card"><h2>Issues</h2><ul>${issues || '<li class="pass">No media pipeline issues.</li>'}</ul></section><section class="card"><h2>VAD Segments</h2><table><thead><tr><th>Segment</th><th>Frames</th><th>Duration ms</th><th>Turn</th></tr></thead><tbody>${segments || '<tr><td colspan="4">No VAD segments.</td></tr>'}</tbody></table></section></main></body></html>`;
+};
 export const renderVoiceMediaPipelineMarkdown = (
   report: VoiceMediaPipelineReport,
 ) =>
@@ -412,103 +504,6 @@ export const renderVoiceMediaPipelineMarkdown = (
       ? ["- None"]
       : []),
   ].join("\n");
-
-export const renderVoiceMediaPipelineHTML = (
-  report: VoiceMediaPipelineReport,
-  title = "Voice Media Pipeline Proof",
-) => {
-  const issues = [
-    ...report.calibration.issues,
-    ...report.interruption.issues,
-    ...report.quality.issues,
-  ]
-    .map(
-      (issue) =>
-        `<li class="${escapeHtml(issue.severity)}"><strong>${escapeHtml(issue.code)}</strong>: ${escapeHtml(issue.message)}</li>`,
-    )
-    .join("");
-  const segments = report.vad.segments
-    .map(
-      (segment) =>
-        `<tr><td>${escapeHtml(segment.segmentId)}</td><td>${escapeHtml(segment.frameCount)}</td><td>${escapeHtml(segment.durationMs ?? "n/a")}</td><td>${escapeHtml(segment.turnId ?? "n/a")}</td></tr>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero,.card{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.metric{background:#101814;border:1px solid #2e3d36;border-radius:18px;padding:14px}.metric span{color:#a8b5ad;display:block;font-size:.78rem;text-transform:uppercase}.metric strong{display:block;font-size:1.65rem;margin-top:5px}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:7px 11px}.pass{color:#86efac}.warn,.warning{color:#fde68a}.fail,.error{color:#fecaca}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2e3d36;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Native media pipeline</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${escapeHtml(report.surface)}</p><section class="summary"><div class="metric"><span>Frames</span><strong>${String(report.frames)}</strong></div><div class="metric"><span>Input audio</span><strong>${String(report.calibration.inputAudioFrames)}</strong></div><div class="metric"><span>Assistant audio</span><strong>${String(report.calibration.assistantAudioFrames)}</strong></div><div class="metric"><span>Trace linked</span><strong>${String(report.calibration.traceLinkedFrames)}</strong></div><div class="metric"><span>First audio</span><strong>${escapeHtml(report.calibration.firstAudioLatencyMs ?? "n/a")}ms</strong></div><div class="metric"><span>VAD segments</span><strong>${String(report.vad.segments.length)}</strong></div><div class="metric"><span>Media quality</span><strong>${escapeHtml(report.quality.status)}</strong></div><div class="metric"><span>Media gaps</span><strong>${String(report.quality.gapCount)}</strong></div><div class="metric"><span>Media jitter</span><strong>${escapeHtml(report.quality.jitterMs ?? "n/a")}ms</strong></div><div class="metric"><span>Speech ratio</span><strong>${String(report.quality.speechRatio)}</strong></div><div class="metric"><span>Timestamp drift</span><strong>${escapeHtml(report.quality.timestampDriftMs ?? "n/a")}ms</strong></div><div class="metric"><span>Interruptions</span><strong>${String(report.interruption.interruptionFrames)}</strong></div><div class="metric"><span>Processor graph</span><strong>${String(report.processorGraph?.nodes.length ?? 0)} nodes</strong></div><div class="metric"><span>Graph out/drop</span><strong>${String(report.processorGraph?.emittedFrames ?? 0)}/${String(report.processorGraph?.droppedFrames ?? 0)}</strong></div><div class="metric"><span>Resampling</span><strong>${report.calibration.resamplingRequired ? "required" : "not required"}</strong></div><div class="metric"><span>Transport</span><strong>${escapeHtml(report.transport?.state ?? "n/a")}</strong></div><div class="metric"><span>Transport in/out</span><strong>${String(report.transport?.inputFrames ?? 0)}/${String(report.transport?.outputFrames ?? 0)}</strong></div><div class="metric"><span>Backpressure</span><strong>${String(report.transport?.backpressureEvents ?? 0)}</strong></div></section></section><section class="card"><h2>Issues</h2><ul>${issues || '<li class="pass">No media pipeline issues.</li>'}</ul></section><section class="card"><h2>VAD Segments</h2><table><thead><tr><th>Segment</th><th>Frames</th><th>Duration ms</th><th>Turn</th></tr></thead><tbody>${segments || '<tr><td colspan="4">No VAD segments.</td></tr>'}</tbody></table></section></main></body></html>`;
-};
-
-export const createVoiceMediaPipelineRoutes = (
-  options: VoiceMediaPipelineRoutesOptions = {},
-) => {
-  const path = options.path ?? "/api/voice/media-pipeline";
-  const htmlPath = options.htmlPath ?? "/voice/media-pipeline";
-  const markdownPath = options.markdownPath ?? "/voice/media-pipeline.md";
-  const headers = options.headers ?? {};
-  const title = options.title ?? "Voice Media Pipeline Proof";
-  const resolveOptions = async () => {
-    const source =
-      typeof options.source === "function"
-        ? await options.source()
-        : (options.source ?? options);
-    const {
-      headers: _headers,
-      htmlPath: _htmlPath,
-      markdownPath: _markdownPath,
-      name: _name,
-      path: _path,
-      render: _render,
-      source: _source,
-      title: _title,
-      ...reportOptions
-    } = {
-      ...options,
-      ...source,
-    };
-    return reportOptions satisfies VoiceMediaPipelineReportOptions;
-  };
-  const report = async () =>
-    buildVoiceMediaPipelineReport(await resolveOptions());
-  const app = new Elysia({ name: options.name ?? "voice-media-pipeline" }).get(
-    path,
-    async () =>
-      new Response(JSON.stringify(await report(), null, 2), {
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          ...headers,
-        },
-      }),
-  );
-
-  if (htmlPath !== false) {
-    app.get(htmlPath, async () => {
-      const current = await report();
-      const body = options.render
-        ? await options.render(current)
-        : renderVoiceMediaPipelineHTML(current, title);
-      return new Response(body, {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          ...headers,
-        },
-      });
-    });
-  }
-
-  if (markdownPath !== false) {
-    app.get(
-      markdownPath,
-      async () =>
-        new Response(renderVoiceMediaPipelineMarkdown(await report()), {
-          headers: {
-            "content-type": "text/markdown; charset=utf-8",
-            ...headers,
-          },
-        }),
-    );
-  }
-
-  return app;
-};
 
 const PROOF_SUMMARY_ISSUE_LIMIT = 8;
 
@@ -577,7 +572,7 @@ export const summarizeVoiceMediaPipelineReport = (
   report: VoiceMediaPipelineReport,
   options: VoiceMediaPipelineProofSummaryOptions = {},
 ): VoiceMediaPipelineProofSummary => {
-  const calibration = report.calibration;
+  const {calibration} = report;
   const quality = summarizeMediaQualityReport(report.quality);
   const processorGraph = report.processorGraph
     ? summarizeMediaProcessorGraphReport(report.processorGraph)
@@ -599,6 +594,7 @@ export const summarizeVoiceMediaPipelineReport = (
     ...report.quality.issues,
     ...report.interruption.issues,
   ].slice(0, PROOF_SUMMARY_ISSUE_LIMIT);
+
   return {
     artifacts: options.artifacts,
     calibration: {

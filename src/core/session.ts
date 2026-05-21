@@ -481,7 +481,7 @@ export const createVoiceSession = <
   const phraseHints = options.phraseHints ?? [];
   const lexicon = options.lexicon ?? [];
 
-  let socket = options.socket;
+  let {socket} = options;
   let sttSession: STTAdapterSession | RealtimeAdapterSession | null = null;
   let ttsSession: TTSAdapterSession | null = null;
   let ttsSessionPromise: Promise<TTSAdapterSession | null> | null = null;
@@ -683,6 +683,7 @@ export const createVoiceSession = <
     }
 
     pruneTurnAudio();
+
     return currentTurnAudio.map((audio) => audio.chunk);
   };
 
@@ -747,7 +748,7 @@ export const createVoiceSession = <
       sessionId: options.id,
       sessionMetadata:
         session.metadata && typeof session.metadata === "object"
-          ? (session.metadata as Record<string, unknown>)
+          ? (session.metadata)
           : undefined,
       status: session.status,
       turns: session.turns,
@@ -1082,6 +1083,7 @@ export const createVoiceSession = <
 
     if (reason === "vendor") {
       scheduleTurnCommit(getVendorCommitDelayMs(), reason);
+
       return;
     }
 
@@ -1094,6 +1096,7 @@ export const createVoiceSession = <
         turnDetection.transcriptStabilityMs - transcriptStabilityAge,
         reason,
       );
+
       return;
     }
 
@@ -1473,11 +1476,13 @@ export const createVoiceSession = <
       await failInternal(
         new Error(event.reason ?? "Speech-to-text session closed"),
       );
+
       return;
     }
 
     if (!event.reason) {
       await closeAdapter("provider stream closed");
+
       return;
     }
 
@@ -1535,6 +1540,7 @@ export const createVoiceSession = <
         error: toError(error).message,
         sessionId: options.id,
       });
+
       return null;
     }
 
@@ -1700,6 +1706,7 @@ export const createVoiceSession = <
       .filter((transcript) => transcript.isFinal)
       .map((transcript) => transcript.id);
     const fallbackIds = transcripts.map((transcript) => transcript.id);
+
     return finalTranscriptIds.length > 0 ? finalTranscriptIds : fallbackIds;
   };
 
@@ -1773,6 +1780,7 @@ export const createVoiceSession = <
     const finalTranscriptIds =
       transcriptIdsOverride ??
       getFinalTranscriptIds(session.currentTurn.transcripts);
+
     return `${normalizeText(finalText)}|${finalTranscriptIds.join(",")}`;
   };
 
@@ -1818,7 +1826,7 @@ export const createVoiceSession = <
     committedTranscripts: Transcript[],
   ) => {
     session.lastCommittedTurn = {
-      ...((session.lastCommittedTurn as object | undefined) ?? {}),
+      ...((session.lastCommittedTurn) ?? {}),
       committedAt: Date.now(),
       signature: buildTurnSignature(
         session,
@@ -1964,6 +1972,7 @@ export const createVoiceSession = <
 
     if (!pendingText) {
       speechDetected = false;
+
       return;
     }
 
@@ -2171,6 +2180,7 @@ export const createVoiceSession = <
         turnId: turn.id,
         type: "operator.action",
       });
+
       return;
     }
     const injectedInstruction = liveOpsControl?.injectedInstruction?.trim();
@@ -2328,6 +2338,7 @@ export const createVoiceSession = <
         result: output.result,
         target: output.transfer.target,
       });
+
       return;
     }
 
@@ -2337,6 +2348,7 @@ export const createVoiceSession = <
         reason: output.escalate.reason,
         result: output.result,
       });
+
       return;
     }
 
@@ -2345,6 +2357,7 @@ export const createVoiceSession = <
         metadata: output.voicemail.metadata,
         result: output.result,
       });
+
       return;
     }
 
@@ -2353,6 +2366,7 @@ export const createVoiceSession = <
         metadata: output.noAnswer.metadata,
         result: output.result,
       });
+
       return;
     }
 
@@ -2443,6 +2457,7 @@ export const createVoiceSession = <
         reason,
         sessionId: options.id,
       });
+
       return;
     }
 
@@ -2456,6 +2471,7 @@ export const createVoiceSession = <
         reason,
         false,
       );
+
       return;
     }
 
@@ -2605,7 +2621,7 @@ export const createVoiceSession = <
       createVoiceSessionRecord<TSession>(
         options.id,
         options.scenarioId,
-      )) as TSession;
+      ));
 
     if (options.scenarioId && session.scenarioId !== options.scenarioId) {
       session.scenarioId = options.scenarioId;
@@ -2699,7 +2715,7 @@ export const createVoiceSession = <
       status: session.status,
       sessionMetadata:
         session.metadata && typeof session.metadata === "object"
-          ? (session.metadata as Record<string, unknown>)
+          ? (session.metadata)
           : undefined,
       scenarioId: session.scenarioId,
       type: "session",
@@ -2941,13 +2957,13 @@ export const createVoiceSession = <
       runSerial("api.disconnect", async () => {
         await disconnectInternal(event);
       }),
-    fail: async (error: unknown) =>
-      runSerial("api.fail", async () => {
-        await failInternal(error);
-      }),
     escalate: async (input) =>
       runSerial("api.escalate", async () => {
         await escalateInternal(input);
+      }),
+    fail: async (error: unknown) =>
+      runSerial("api.fail", async () => {
+        await failInternal(error);
       }),
     markNoAnswer: async (input) =>
       runSerial("api.markNoAnswer", async () => {
@@ -2961,11 +2977,11 @@ export const createVoiceSession = <
       runSerial("api.receiveAudio", async () => {
         await receiveAudioInternal(audio);
       }),
+    snapshot: async () => runSerial("api.snapshot", async () => readSession()),
     transfer: async (input) =>
       runSerial("api.transfer", async () => {
         await transferInternal(input);
       }),
-    snapshot: async () => runSerial("api.snapshot", async () => readSession()),
   };
 
   return api;

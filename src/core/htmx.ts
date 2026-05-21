@@ -166,13 +166,6 @@ const defaultResult = <
   ].join("");
 };
 
-export const resolveVoiceHTMXTargets = (
-  custom?: Partial<VoiceHTMXTargets>,
-): VoiceHTMXTargets => ({
-  ...DEFAULT_HTMX_TARGETS,
-  ...custom,
-});
-
 export const resolveVoiceHTMXRenderers = <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TResult = unknown,
@@ -191,6 +184,12 @@ export const resolveVoiceHTMXRenderers = <
     turns: renderConfig?.turns ?? defaultTurns,
   };
 };
+export const resolveVoiceHTMXTargets = (
+  custom?: Partial<VoiceHTMXTargets>,
+): VoiceHTMXTargets => ({
+  ...DEFAULT_HTMX_TARGETS,
+  ...custom,
+});
 
 const renderOob = (id: string, html: string) =>
   `<div id="${escapeHtml(id)}" hx-swap-oob="innerHTML">${html}</div>`;

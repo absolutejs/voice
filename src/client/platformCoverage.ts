@@ -12,18 +12,6 @@ export type VoicePlatformCoverageSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoicePlatformCoverage = async (
-  path = "/api/voice/platform-coverage",
-  options: Pick<VoicePlatformCoverageClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice platform coverage failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoicePlatformCoverageSummary;
-};
-
 export const createVoicePlatformCoverageStore = (
   path = "/api/voice/platform-coverage",
   options: VoicePlatformCoverageClientOptions = {},
@@ -59,6 +47,7 @@ export const createVoicePlatformCoverageStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -91,14 +80,27 @@ export const createVoicePlatformCoverageStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoicePlatformCoverage = async (
+  path = "/api/voice/platform-coverage",
+  options: Pick<VoicePlatformCoverageClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice platform coverage failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoicePlatformCoverageSummary;
 };

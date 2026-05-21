@@ -132,6 +132,26 @@ const resolveRetryDelay = (
     ? retryDelayMs(input)
     : (retryDelayMs ?? 0);
 
+export const createVoiceToolIdempotencyKey = (input: {
+  args: unknown;
+  sessionId: string;
+  toolCallId?: string;
+  toolName: string;
+  turnId: string;
+}) => {
+  const args =
+    typeof input.args === "string"
+      ? input.args
+      : JSON.stringify(input.args ?? null);
+
+  return [
+    input.sessionId,
+    input.turnId,
+    input.toolCallId ?? "no-call-id",
+    input.toolName,
+    args,
+  ].join(":");
+};
 export const createVoiceToolRuntime = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -224,6 +244,7 @@ export const createVoiceToolRuntime = <
             turnId: input.turn.id,
             type: "agent.tool",
           });
+
           return runtimeResult;
         } catch (error) {
           lastError = error;
@@ -269,6 +290,7 @@ export const createVoiceToolRuntime = <
         turnId: input.turn.id,
         type: "agent.tool",
       });
+
       return runtimeResult;
     })();
 
@@ -303,28 +325,9 @@ export const createVoiceToolRuntime = <
         if (result.status === "error") {
           throw new Error(result.error);
         }
+
         return result.result as never;
       },
     }),
   };
-};
-
-export const createVoiceToolIdempotencyKey = (input: {
-  args: unknown;
-  sessionId: string;
-  toolCallId?: string;
-  toolName: string;
-  turnId: string;
-}) => {
-  const args =
-    typeof input.args === "string"
-      ? input.args
-      : JSON.stringify(input.args ?? null);
-  return [
-    input.sessionId,
-    input.turnId,
-    input.toolCallId ?? "no-call-id",
-    input.toolName,
-    args,
-  ].join(":");
 };

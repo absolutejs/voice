@@ -99,7 +99,8 @@ const resolveRequestedProvider = <TProvider extends string>(
   context: VoiceProviderFailureSimulationContext<TProvider>,
   providers: readonly TProvider[],
 ): TProvider => {
-  const provider = getContextQuery(context).provider;
+  const {provider} = getContextQuery(context);
+
   return providers.includes(provider) ? provider : providers[0]!;
 };
 
@@ -155,29 +156,6 @@ export const createVoiceProviderFailureSimulator = <
     TResult,
     TProvider
   >({
-    allowProviders: async (input) => {
-      const recoverProvider = getContextQuery(input.context).recoverProvider;
-      if (recoverProvider) {
-        return [recoverProvider];
-      }
-      if (typeof options.allowProviders === "function") {
-        return options.allowProviders(input);
-      }
-      return options.allowProviders ?? options.providers;
-    },
-    fallback: async (input) => {
-      const selectedProvider = resolveRequestedProvider(
-        input.context,
-        options.providers,
-      );
-      if (typeof options.fallback === "function") {
-        return options.fallback(selectedProvider, input);
-      }
-      return (
-        options.fallback ??
-        options.providers.filter((provider) => provider !== selectedProvider)
-      );
-    },
     fallbackMode: "provider-error",
     isProviderError: options.isProviderError,
     isRateLimitError: options.isRateLimitError,
@@ -189,6 +167,31 @@ export const createVoiceProviderFailureSimulator = <
       rateLimitCooldownMs: 120_000,
     },
     providers: providerModels,
+    allowProviders: async (input) => {
+      const {recoverProvider} = getContextQuery(input.context);
+      if (recoverProvider) {
+        return [recoverProvider];
+      }
+      if (typeof options.allowProviders === "function") {
+        return options.allowProviders(input);
+      }
+
+      return options.allowProviders ?? options.providers;
+    },
+    fallback: async (input) => {
+      const selectedProvider = resolveRequestedProvider(
+        input.context,
+        options.providers,
+      );
+      if (typeof options.fallback === "function") {
+        return options.fallback(selectedProvider, input);
+      }
+
+      return (
+        options.fallback ??
+        options.providers.filter((provider) => provider !== selectedProvider)
+      );
+    },
     selectProvider: ({ context }) =>
       resolveRequestedProvider(context, options.providers),
   });

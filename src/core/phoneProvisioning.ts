@@ -57,6 +57,7 @@ const searchTwilioCandidate = async (input: TwilioProvisionInput) => {
   if (!candidate) {
     throw new Error("Twilio returned no available phone numbers for the query");
   }
+
   return candidate;
 };
 
@@ -95,6 +96,7 @@ export const provisionTwilioPhoneNumber = async (
     phone_number: string;
     sid: string;
   };
+
   return {
     phoneNumber: result.phone_number,
     provider: "twilio",
@@ -210,6 +212,7 @@ export const provisionTelnyxPhoneNumber = async (
       );
     }
   }
+
   return {
     phoneNumber: orderedNumber,
     provider: "telnyx",

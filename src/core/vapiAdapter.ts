@@ -256,6 +256,7 @@ const extractSystemPrompt = (
       message.role === "system" && typeof message.content === "string",
   );
   if (systemMessage?.content) return systemMessage.content;
+
   return fallback;
 };
 
@@ -273,6 +274,7 @@ const compileVapiSystem = <
     return template;
   }
   VAPI_TEMPLATE_REGEX.lastIndex = 0;
+
   return (input: { context: TContext; session: TSession }) =>
     template.replace(VAPI_TEMPLATE_REGEX, (match, rawPath: string) => {
       const path = rawPath.trim();
@@ -284,6 +286,7 @@ const compileVapiSystem = <
         const resolved = variableResolver(path, input);
         if (resolved !== undefined) return String(resolved);
       }
+
       return match;
     });
 };
@@ -301,6 +304,7 @@ const httpMethodFor = (
   ) {
     return upper;
   }
+
   return "GET";
 };
 
@@ -339,6 +343,7 @@ const buildToolFromVapi = <
       .map((entry, index) => {
         const target = entry.number ?? entry.sipUri;
         if (!target) return undefined;
+
         return {
           description: entry.description,
           id:
@@ -358,8 +363,10 @@ const buildToolFromVapi = <
           "transferCall tool has no usable destinations (need number or sipUri).",
         field: "tools[].destinations",
       });
+
       return undefined;
     }
+
     return createVoiceTransferCallTool<TContext, TSession, TResult>({
       description: raw.function?.description ?? raw.description,
       destinations,
@@ -380,8 +387,10 @@ const buildToolFromVapi = <
           "dtmf tool requires a dtmfSendFactory to map to the telephony adapter.",
         field: "tools[].type=dtmf",
       });
+
       return undefined;
     }
+
     return createVoiceDTMFTool<TContext, TSession>({
       description: raw.function?.description ?? raw.description,
       name: raw.function?.name ?? "sendDTMF",
@@ -412,8 +421,10 @@ const buildToolFromVapi = <
         detail: "apiRequest tool is missing url.",
         field: "tools[].url",
       });
+
       return undefined;
     }
+
     return createVoiceApiRequestTool<
       TContext,
       TSession,
@@ -442,8 +453,10 @@ const buildToolFromVapi = <
           "query tool requires a knowledgeBase option (a VoiceRAGCollectionLike).",
         field: "tools[].type=query",
       });
+
       return undefined;
     }
+
     return createVoiceRAGTool<TContext, TSession>(
       options.knowledgeBase.collection,
       {
@@ -491,12 +504,14 @@ const buildToolFromVapi = <
         "function tool without server.url; provide customToolFactory to handle it.",
       field: `tools[].name=${raw.function?.name ?? raw.name ?? "<unnamed>"}`,
     });
+
     return undefined;
   }
   unsupported.push({
     detail: `Unrecognized Vapi tool type "${type}".`,
     field: "tools[].type",
   });
+
   return undefined;
 };
 
@@ -668,6 +683,7 @@ export const fromVapiAssistantConfig = <
   const assistant = createVoiceAssistant<TContext, TSession, TResult>(
     assistantOptions,
   );
+
   return {
     assistant,
     assistantOptions,

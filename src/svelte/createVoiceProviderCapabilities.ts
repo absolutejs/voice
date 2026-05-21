@@ -15,6 +15,7 @@ export const createVoiceProviderCapabilities = <
     path,
     options,
   );
+
   return {
     ...store,
     getHTML: () =>

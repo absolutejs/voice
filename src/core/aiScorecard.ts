@@ -53,6 +53,7 @@ const buildPrompt = (input: ScoreVoiceCallWithAIInput): string => {
   const metadataBlock = input.metadata
     ? `\nMetadata:\n${JSON.stringify(input.metadata, null, 2)}\n`
     : "";
+
   return `Rubric: ${rubric.label} (scaleMax=${scaleMax})\nCriteria:\n${criteriaBlock}\n${metadataBlock}\nTranscript:\n${input.transcript}\n\nReturn JSON only.`;
 };
 
@@ -75,6 +76,50 @@ const extractJson = (raw: string): unknown => {
   }
 };
 
+export const createVoiceAIScorecard = (
+  options: CreateVoiceAIScorecardOptions,
+) => {
+  const systemPrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+
+  return {
+    async scoreCall(input: ScoreVoiceCallWithAIInput): Promise<VoiceScorecard> {
+      const prompt = buildPrompt(input);
+      const raw = await options.completion({ prompt, systemPrompt });
+      const parsed = parseVoiceAIScorecardResponse(raw, input.rubric);
+      const scoreMap: Record<string, { score: number; rationale?: string }> =
+        {};
+      for (const entry of parsed.scores) {
+        scoreMap[entry.criterionId] = {
+          score: entry.score,
+          ...(entry.rationale !== undefined
+            ? { rationale: entry.rationale }
+            : {}),
+        };
+      }
+      for (const criterion of input.rubric.criteria) {
+        if (!scoreMap[criterion.id]) {
+          scoreMap[criterion.id] = {
+            rationale: "No rationale returned by AI scorer",
+            score: 0,
+          };
+        }
+      }
+
+      return buildVoiceCallScorecard({
+        reviewer: "llm",
+        rubric: input.rubric,
+        scores: scoreMap,
+        sessionId: input.sessionId,
+        ...(input.agentId !== undefined ? { agentId: input.agentId } : {}),
+        ...(input.reviewerId !== undefined
+          ? { reviewerId: input.reviewerId }
+          : {}),
+        ...(parsed.comments !== undefined ? { comments: parsed.comments } : {}),
+        ...(input.now !== undefined ? { now: input.now } : {}),
+      });
+    },
+  };
+};
 export const parseVoiceAIScorecardResponse = (
   raw: string,
   rubric: VoiceScorecardRubric,
@@ -106,54 +151,11 @@ export const parseVoiceAIScorecardResponse = (
     });
   }
   const comments =
-    typeof root.comments === "string" ? (root.comments as string) : undefined;
+    typeof root.comments === "string" ? (root.comments) : undefined;
+
   return {
     scores: parsed,
     ...(comments !== undefined ? { comments } : {}),
-  };
-};
-
-export const createVoiceAIScorecard = (
-  options: CreateVoiceAIScorecardOptions,
-) => {
-  const systemPrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-
-  return {
-    async scoreCall(input: ScoreVoiceCallWithAIInput): Promise<VoiceScorecard> {
-      const prompt = buildPrompt(input);
-      const raw = await options.completion({ prompt, systemPrompt });
-      const parsed = parseVoiceAIScorecardResponse(raw, input.rubric);
-      const scoreMap: Record<string, { score: number; rationale?: string }> =
-        {};
-      for (const entry of parsed.scores) {
-        scoreMap[entry.criterionId] = {
-          score: entry.score,
-          ...(entry.rationale !== undefined
-            ? { rationale: entry.rationale }
-            : {}),
-        };
-      }
-      for (const criterion of input.rubric.criteria) {
-        if (!scoreMap[criterion.id]) {
-          scoreMap[criterion.id] = {
-            rationale: "No rationale returned by AI scorer",
-            score: 0,
-          };
-        }
-      }
-      return buildVoiceCallScorecard({
-        reviewer: "llm",
-        rubric: input.rubric,
-        scores: scoreMap,
-        sessionId: input.sessionId,
-        ...(input.agentId !== undefined ? { agentId: input.agentId } : {}),
-        ...(input.reviewerId !== undefined
-          ? { reviewerId: input.reviewerId }
-          : {}),
-        ...(parsed.comments !== undefined ? { comments: parsed.comments } : {}),
-        ...(input.now !== undefined ? { now: input.now } : {}),
-      });
-    },
   };
 };
 

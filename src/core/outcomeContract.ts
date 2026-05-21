@@ -145,6 +145,7 @@ const resolveSessionHref = (
     return href(sessionId);
   }
   const encoded = encodeURIComponent(sessionId);
+
   return href.includes(":sessionId")
     ? href.replace(":sessionId", encoded)
     : `${href.replace(/\/$/, "")}/${encoded}`;
@@ -155,7 +156,7 @@ const getPayloadString = (
   key: string,
 ): string | undefined =>
   typeof event.payload[key] === "string"
-    ? (event.payload[key] as string)
+    ? (event.payload[key])
     : undefined;
 
 const toList = async <T>(input: T[] | ListStore<T> | undefined) =>
@@ -168,16 +169,17 @@ const hydrateSessions = async <
 ) => {
   if (!input) return [];
   if (Array.isArray(input)) return input;
-  const summaries = (await input.list()) as VoiceSessionSummary[];
+  const summaries = (await input.list());
   const sessions = await Promise.all(
     summaries.map((summary) => input.get(summary.id)),
   );
   const hydrated: TSession[] = [];
   for (const session of sessions) {
     if (session) {
-      hydrated.push(session as TSession);
+      hydrated.push(session);
     }
   }
+
   return hydrated;
 };
 
@@ -235,6 +237,7 @@ const reportContract = (input: {
     const eventOutcome =
       getPayloadString(event, "outcome") ??
       getPayloadString(event, "disposition");
+
     return (
       (sessionIds.size === 0 ||
         !eventSessionId ||
@@ -299,41 +302,53 @@ const reportContract = (input: {
   };
 };
 
-export const runVoiceOutcomeContractSuite = async <
+export const assertVoiceOutcomeContractEvidence = (
+  report: VoiceOutcomeContractSuiteReport,
+  input: VoiceOutcomeContractAssertionInput = {},
+): VoiceOutcomeContractAssertionReport => assertVoiceEvidence(
+    "Voice outcome contract evidence assertion failed",
+    evaluateVoiceOutcomeContractEvidence(report, input),
+  );
+export const createVoiceOutcomeContractHTMLHandler =
+  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
+    options: VoiceOutcomeContractHTMLHandlerOptions<TSession>,
+  ) =>
+  async () => {
+    const report = await runVoiceOutcomeContractSuite(options);
+    const render =
+      options.render ??
+      ((input) => renderVoiceOutcomeContractHTML(input, options));
+
+    return new Response(await render(report), {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceOutcomeContractJSONHandler =
+  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
+    options: VoiceOutcomeContractOptions<TSession>,
+  ) =>
+  async () =>
+    runVoiceOutcomeContractSuite(options);
+export const createVoiceOutcomeContractRoutes = <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
 >(
-  options: VoiceOutcomeContractOptions<TSession>,
-): Promise<VoiceOutcomeContractSuiteReport> => {
-  const [sessions, reviews, tasks, events, handoffs] = await Promise.all([
-    hydrateSessions(options.sessions),
-    toList(options.reviews),
-    toList(options.tasks),
-    toList(options.events),
-    toList(options.handoffs),
-  ]);
-  const contracts = options.contracts.map((contract) =>
-    reportContract({
-      contract,
-      events,
-      handoffs,
-      operationsRecordHref: options.operationsRecordHref,
-      reviews,
-      sessions,
-      tasks,
-    }),
-  );
-  const passed = contracts.filter((contract) => contract.pass).length;
-  const failed = contracts.length - passed;
-  return {
-    checkedAt: Date.now(),
-    contracts,
-    failed,
-    passed,
-    status: failed > 0 ? "fail" : "pass",
-    total: contracts.length,
-  };
-};
+  options: VoiceOutcomeContractRoutesOptions<TSession>,
+) => {
+  const path = options.path ?? "/api/outcome-contracts";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-outcome-contracts",
+  }).get(path, createVoiceOutcomeContractJSONHandler(options));
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceOutcomeContractHTMLHandler(options));
+  }
 
+  return routes;
+};
 export const evaluateVoiceOutcomeContractEvidence = (
   report: VoiceOutcomeContractSuiteReport,
   input: VoiceOutcomeContractAssertionInput = {},
@@ -442,8 +457,8 @@ export const evaluateVoiceOutcomeContractEvidence = (
     failed: report.failed,
     handoffs: totals.handoffs,
     integrationEvents: totals.integrationEvents,
-    issues,
     issueCount,
+    issues,
     ok: issues.length === 0,
     operationsRecordHrefs: totals.operationsRecordHrefs,
     passed: report.passed,
@@ -454,17 +469,6 @@ export const evaluateVoiceOutcomeContractEvidence = (
     total: report.total,
   };
 };
-
-export const assertVoiceOutcomeContractEvidence = (
-  report: VoiceOutcomeContractSuiteReport,
-  input: VoiceOutcomeContractAssertionInput = {},
-): VoiceOutcomeContractAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice outcome contract evidence assertion failed",
-    evaluateVoiceOutcomeContractEvidence(report, input),
-  );
-};
-
 export const renderVoiceOutcomeContractHTML = (
   report: VoiceOutcomeContractSuiteReport,
   options: { title?: string } = {},
@@ -475,6 +479,7 @@ export const renderVoiceOutcomeContractHTML = (
       const sessionLinks = contract.operationsRecordHrefs.length
         ? `<p>${contract.operationsRecordHrefs.map((href, index) => `<a href="${escapeHtml(href)}">${escapeHtml(contract.sessionIds[index] ?? href)}</a>`).join(" · ")}</p>`
         : "";
+
       return `<section class="contract ${contract.pass ? "pass" : "fail"}">
   <div class="contract-header">
     <div>
@@ -496,46 +501,41 @@ export const renderVoiceOutcomeContractHTML = (
 </section>`;
     })
     .join("");
+
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.contract{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(14,165,233,.12))}.eyebrow{color:#7dd3fc;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0}.summary,.grid{display:flex;flex-wrap:wrap;gap:10px}.pill,.grid span{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.contract-header{display:flex;gap:16px;justify-content:space-between}.pass{color:#86efac}.fail{color:#fca5a5}.contract.fail{border-color:rgba(248,113,113,.45)}li{margin:8px 0}@media(max-width:800px){main{padding:18px}.contract-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Business Outcome Verification</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill ${report.status}">${report.status}</span><span class="pill">${String(report.passed)} passing</span><span class="pill">${String(report.failed)} failing</span><span class="pill">${String(report.total)} contracts</span></div></section>${contracts || '<section class="contract"><p>No outcome contracts configured.</p></section>'}</main></body></html>`;
 };
-
-export const createVoiceOutcomeContractJSONHandler =
-  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
-    options: VoiceOutcomeContractOptions<TSession>,
-  ) =>
-  async () =>
-    runVoiceOutcomeContractSuite(options);
-
-export const createVoiceOutcomeContractHTMLHandler =
-  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
-    options: VoiceOutcomeContractHTMLHandlerOptions<TSession>,
-  ) =>
-  async () => {
-    const report = await runVoiceOutcomeContractSuite(options);
-    const render =
-      options.render ??
-      ((input) => renderVoiceOutcomeContractHTML(input, options));
-    return new Response(await render(report), {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceOutcomeContractRoutes = <
+export const runVoiceOutcomeContractSuite = async <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
 >(
-  options: VoiceOutcomeContractRoutesOptions<TSession>,
-) => {
-  const path = options.path ?? "/api/outcome-contracts";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-outcome-contracts",
-  }).get(path, createVoiceOutcomeContractJSONHandler(options));
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceOutcomeContractHTMLHandler(options));
-  }
-  return routes;
+  options: VoiceOutcomeContractOptions<TSession>,
+): Promise<VoiceOutcomeContractSuiteReport> => {
+  const [sessions, reviews, tasks, events, handoffs] = await Promise.all([
+    hydrateSessions(options.sessions),
+    toList(options.reviews),
+    toList(options.tasks),
+    toList(options.events),
+    toList(options.handoffs),
+  ]);
+  const contracts = options.contracts.map((contract) =>
+    reportContract({
+      contract,
+      events,
+      handoffs,
+      operationsRecordHref: options.operationsRecordHref,
+      reviews,
+      sessions,
+      tasks,
+    }),
+  );
+  const passed = contracts.filter((contract) => contract.pass).length;
+  const failed = contracts.length - passed;
+
+  return {
+    checkedAt: Date.now(),
+    contracts,
+    failed,
+    passed,
+    status: failed > 0 ? "fail" : "pass",
+    total: contracts.length,
+  };
 };

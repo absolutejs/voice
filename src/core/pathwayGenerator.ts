@@ -105,6 +105,7 @@ const coercePathway = (parsed: unknown, fallbackId: string): VoicePathway => {
     throw new Error("Pathway generator response is not a JSON object");
   }
   const root = parsed as Partial<VoicePathway>;
+
   return {
     entryStateId: String(root.entryStateId ?? ""),
     id:

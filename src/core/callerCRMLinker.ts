@@ -28,12 +28,14 @@ export type CreateVoiceCallerCRMLinkerOptions = {
 const cacheKeyFor = (identity: VoiceCallerIdentity, vendor: string): string => {
   const id =
     identity.externalId ?? identity.phone ?? identity.email ?? "anonymous";
+
   return `${vendor}::${id}`;
 };
 
 export const createInMemoryVoiceCallerCRMLinkCache =
   (): VoiceCallerCRMLinkCacheStore => {
     const store = new Map<string, VoiceCallerCRMLinkRecord>();
+
     return {
       get: (key) => store.get(key) ?? null,
       put: (record) => {
@@ -81,6 +83,7 @@ export const createVoiceCallerCRMLinker = (
       vendor: options.contract.vendor,
     };
     await Promise.resolve(cache.put(record));
+
     return record;
   };
 
@@ -98,6 +101,7 @@ export const createVoiceCallerCRMLinker = (
       vendor: options.contract.vendor,
     };
     await Promise.resolve(cache.put(record));
+
     return record;
   };
 
@@ -105,6 +109,7 @@ export const createVoiceCallerCRMLinker = (
     identity: VoiceCallerIdentity,
   ): Promise<boolean> => {
     const key = cacheKeyFor(identity, options.contract.vendor);
+
     return Promise.resolve(cache.remove(key));
   };
 

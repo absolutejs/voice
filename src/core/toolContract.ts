@@ -176,6 +176,7 @@ const resolveSessionHref = (
     return href(sessionId);
   }
   const encoded = encodeURIComponent(sessionId);
+
   return href.includes(":sessionId")
     ? href.replace(":sessionId", encoded)
     : `${href.replace(/\/$/, "")}/${encoded}`;
@@ -192,7 +193,7 @@ const evaluateExpectation = (input: {
   timedOut: boolean;
 }): VoiceToolContractIssue[] => {
   const issues: VoiceToolContractIssue[] = [];
-  const expect = input.expect;
+  const {expect} = input;
   if (!expect) {
     return issues;
   }
@@ -258,114 +259,13 @@ const evaluateExpectation = (input: {
   return issues;
 };
 
-export const runVoiceToolContract = async <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
-  TArgs = Record<string, unknown>,
-  TToolResult = unknown,
-  TRouteResult = unknown,
->(
-  definition: VoiceToolContractDefinition<
-    TContext,
-    TSession,
-    TArgs,
-    TToolResult,
-    TRouteResult
-  >,
-  options: Pick<VoiceToolContractHandlerOptions, "operationsRecordHref"> = {},
-): Promise<VoiceToolContractReport> => {
-  const cases: VoiceToolContractCaseReport[] = [];
-  for (const testCase of definition.cases) {
-    const session =
-      testCase.session ??
-      (createDefaultSession(definition.id, testCase.id) as TSession);
-    const turn = testCase.turn ?? createDefaultTurn(testCase.id);
-    const context = testCase.context ?? ({} as TContext);
-    const runtimeOptions = {
-      ...definition.defaultRuntime,
-      ...testCase.runtime,
-    };
-    const runtime = createVoiceToolRuntime<TContext, TSession, TRouteResult>(
-      runtimeOptions,
-    );
-    const toolCall: VoiceAgentToolCall<TArgs> = {
-      args: testCase.args,
-      id: testCase.toolCallId ?? testCase.id,
-      name: definition.tool.name,
-    };
-    const executeOnce = () =>
-      runtime.execute({
-        api: defaultApi as VoiceSessionHandle<TContext, TSession, TRouteResult>,
-        args: toolCall.args,
-        context,
-        session,
-        tool: definition.tool,
-        toolCallId: toolCall.id,
-        turn,
-      });
-    const result = await executeOnce();
-    let issues = evaluateExpectation({
-      attempts: result.attempts,
-      caseId: testCase.id,
-      elapsedMs: result.elapsedMs,
-      error: result.error,
-      expect: testCase.expect,
-      result: result.result,
-      status: result.status,
-      timedOut: result.timedOut,
-    });
-
-    if (testCase.expect?.expectIdempotent) {
-      const second = await executeOnce();
-      if (
-        second.result !== result.result &&
-        !sameJSON(second.result, result.result)
-      ) {
-        issues.push({
-          caseId: testCase.id,
-          code: "tool.idempotency_result_mismatch",
-          message: "Repeated idempotent execution returned a different result.",
-        });
-      }
-      if (second.idempotencyKey !== result.idempotencyKey) {
-        issues.push({
-          caseId: testCase.id,
-          code: "tool.idempotency_key_mismatch",
-          message:
-            "Repeated idempotent execution used a different idempotency key.",
-        });
-      }
-    }
-
-    cases.push({
-      attempts: result.attempts,
-      caseId: testCase.id,
-      elapsedMs: result.elapsedMs,
-      error: result.error,
-      issues,
-      label: testCase.label,
-      operationsRecordHref: resolveSessionHref(
-        options.operationsRecordHref,
-        session.id,
-      ),
-      pass: issues.length === 0,
-      sessionId: session.id,
-      status: result.status,
-      timedOut: result.timedOut,
-    });
-  }
-
-  const issues = cases.flatMap((testCase) => testCase.issues);
-  return {
-    cases,
-    contractId: definition.id,
-    label: definition.label,
-    issues,
-    pass: issues.length === 0,
-    toolName: definition.tool.name,
-  };
-};
-
+export const assertVoiceToolContractEvidence = (
+  report: VoiceToolContractSuiteReport,
+  input: VoiceToolContractAssertionInput = {},
+): VoiceToolContractAssertionReport => assertVoiceEvidence(
+    "Voice tool contract evidence assertion failed",
+    evaluateVoiceToolContractEvidence(report, input),
+  );
 export const createVoiceToolContract = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -381,6 +281,7 @@ export const createVoiceToolContract = <
     TRouteResult
   >,
 ) => ({
+  definition,
   assert: async () => {
     const report = await runVoiceToolContract(definition);
     if (!report.pass) {
@@ -390,17 +291,53 @@ export const createVoiceToolContract = <
           .join(" ")}`,
       );
     }
+
     return report;
   },
-  definition,
   run: () => runVoiceToolContract(definition),
 });
+export const createVoiceToolContractHTMLHandler =
+  (options: VoiceToolContractHTMLHandlerOptions) => async () => {
+    const report = await runVoiceToolContractSuite(options);
+    const render =
+      options.render ??
+      ((input) => renderVoiceToolContractHTML(input, options));
+    const body = await render(report);
 
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceToolContractJSONHandler =
+  (options: VoiceToolContractHandlerOptions) => () =>
+    runVoiceToolContractSuite(options);
+export const createVoiceToolContractRoutes = (
+  options: VoiceToolContractRoutesOptions,
+) => {
+  const path = options.path ?? "/api/tool-contracts";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-tool-contracts",
+  }).get(path, createVoiceToolContractJSONHandler(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceToolContractHTMLHandler(options));
+  }
+
+  return routes;
+};
 export const createVoiceToolRuntimeContractDefaults = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TRouteResult = unknown,
 >(): VoiceToolRuntimeOptions<TContext, TSession, TRouteResult> => ({
+  idempotencyTtlMs: 60_000,
+  maxRetries: 1,
+  timeoutMs: 5_000,
   idempotencyKey: ({ args, session, toolCallId, toolName, turn }) =>
     createVoiceToolIdempotencyKey({
       args,
@@ -409,32 +346,7 @@ export const createVoiceToolRuntimeContractDefaults = <
       toolName,
       turnId: turn.id,
     }),
-  idempotencyTtlMs: 60_000,
-  maxRetries: 1,
-  timeoutMs: 5_000,
 });
-
-export const runVoiceToolContractSuite = async (
-  options: VoiceToolContractHandlerOptions,
-): Promise<VoiceToolContractSuiteReport> => {
-  const contracts = await Promise.all(
-    options.contracts.map((contract) =>
-      runVoiceToolContract(contract, options),
-    ),
-  );
-  const passed = contracts.filter((contract) => contract.pass).length;
-  const failed = contracts.length - passed;
-
-  return {
-    checkedAt: Date.now(),
-    contracts,
-    failed,
-    passed,
-    status: failed > 0 ? "fail" : "pass",
-    total: contracts.length,
-  };
-};
-
 export const evaluateVoiceToolContractEvidence = (
   report: VoiceToolContractSuiteReport,
   input: VoiceToolContractAssertionInput = {},
@@ -512,12 +424,12 @@ export const evaluateVoiceToolContractEvidence = (
   }
 
   return {
-    caseStatuses,
     cases: cases.length,
+    caseStatuses,
     contractIds,
     failed: report.failed,
-    issues,
     issueCount,
+    issues,
     missingOperationsRecordHrefs,
     ok: issues.length === 0,
     passed: report.passed,
@@ -527,17 +439,6 @@ export const evaluateVoiceToolContractEvidence = (
     total: report.total,
   };
 };
-
-export const assertVoiceToolContractEvidence = (
-  report: VoiceToolContractSuiteReport,
-  input: VoiceToolContractAssertionInput = {},
-): VoiceToolContractAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice tool contract evidence assertion failed",
-    evaluateVoiceToolContractEvidence(report, input),
-  );
-};
-
 export const renderVoiceToolContractHTML = (
   report: VoiceToolContractSuiteReport,
   options: { title?: string } = {},
@@ -583,6 +484,7 @@ export const renderVoiceToolContractHTML = (
 </tr>`,
         )
         .join("");
+
       return `<section class="contract ${contract.pass ? "pass" : "fail"}">
   <div class="contract-header">
     <div>
@@ -601,40 +503,131 @@ export const renderVoiceToolContractHTML = (
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.primitive,.contract{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(245,158,11,.12))}.primitive{background:#151b20;border-color:#5a4421}.eyebrow{color:#fbbf24;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.contract-header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}h2{margin:.2rem 0 1rem}.pass{color:#86efac}.fail{color:#fca5a5}.contract.fail{border-color:rgba(248,113,113,.45)}.primitive p{color:#d8dee6;line-height:1.55}.primitive pre{background:#0f1217;border:1px solid #2a323a;border-radius:16px;color:#fef3c7;overflow:auto;padding:14px}.primitive code{color:#fef3c7}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2a323a;padding:12px;text-align:left;vertical-align:top}th{color:#a8b0b8;font-size:.82rem}@media(max-width:800px){main{padding:18px}table{display:block;overflow:auto}.contract-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Tool Reliability</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill ${report.status === "pass" ? "pass" : "fail"}">${escapeHtml(report.status)}</span><span class="pill">${String(report.passed)} passing</span><span class="pill">${String(report.failed)} failing</span><span class="pill">${String(report.total)} contracts</span></div></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceToolContractRoutes(...)</code> certifies tool behavior</h2><p>Define deterministic tool cases for retries, idempotency, timeouts, result shape, and error handling so assistant tools fail in pre-production instead of live calls.</p><pre><code>${snippet}</code></pre></section>${contracts || '<section class="contract"><p>No tool contracts configured.</p></section>'}</main></body></html>`;
 };
-
-export const createVoiceToolContractJSONHandler =
-  (options: VoiceToolContractHandlerOptions) => () =>
-    runVoiceToolContractSuite(options);
-
-export const createVoiceToolContractHTMLHandler =
-  (options: VoiceToolContractHTMLHandlerOptions) => async () => {
-    const report = await runVoiceToolContractSuite(options);
-    const render =
-      options.render ??
-      ((input) => renderVoiceToolContractHTML(input, options));
-    const body = await render(report);
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
+export const runVoiceToolContract = async <
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TArgs = Record<string, unknown>,
+  TToolResult = unknown,
+  TRouteResult = unknown,
+>(
+  definition: VoiceToolContractDefinition<
+    TContext,
+    TSession,
+    TArgs,
+    TToolResult,
+    TRouteResult
+  >,
+  options: Pick<VoiceToolContractHandlerOptions, "operationsRecordHref"> = {},
+): Promise<VoiceToolContractReport> => {
+  const cases: VoiceToolContractCaseReport[] = [];
+  for (const testCase of definition.cases) {
+    const session =
+      testCase.session ??
+      (createDefaultSession(definition.id, testCase.id) as TSession);
+    const turn = testCase.turn ?? createDefaultTurn(testCase.id);
+    const context = testCase.context ?? ({} as TContext);
+    const runtimeOptions = {
+      ...definition.defaultRuntime,
+      ...testCase.runtime,
+    };
+    const runtime = createVoiceToolRuntime<TContext, TSession, TRouteResult>(
+      runtimeOptions,
+    );
+    const toolCall: VoiceAgentToolCall<TArgs> = {
+      args: testCase.args,
+      id: testCase.toolCallId ?? testCase.id,
+      name: definition.tool.name,
+    };
+    const executeOnce = () =>
+      runtime.execute({
+        api: defaultApi as VoiceSessionHandle<TContext, TSession, TRouteResult>,
+        args: toolCall.args,
+        context,
+        session,
+        tool: definition.tool,
+        toolCallId: toolCall.id,
+        turn,
+      });
+    const result = await executeOnce();
+    const issues = evaluateExpectation({
+      attempts: result.attempts,
+      caseId: testCase.id,
+      elapsedMs: result.elapsedMs,
+      error: result.error,
+      expect: testCase.expect,
+      result: result.result,
+      status: result.status,
+      timedOut: result.timedOut,
     });
-  };
 
-export const createVoiceToolContractRoutes = (
-  options: VoiceToolContractRoutesOptions,
-) => {
-  const path = options.path ?? "/api/tool-contracts";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-tool-contracts",
-  }).get(path, createVoiceToolContractJSONHandler(options));
+    if (testCase.expect?.expectIdempotent) {
+      const second = await executeOnce();
+      if (
+        second.result !== result.result &&
+        !sameJSON(second.result, result.result)
+      ) {
+        issues.push({
+          caseId: testCase.id,
+          code: "tool.idempotency_result_mismatch",
+          message: "Repeated idempotent execution returned a different result.",
+        });
+      }
+      if (second.idempotencyKey !== result.idempotencyKey) {
+        issues.push({
+          caseId: testCase.id,
+          code: "tool.idempotency_key_mismatch",
+          message:
+            "Repeated idempotent execution used a different idempotency key.",
+        });
+      }
+    }
 
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceToolContractHTMLHandler(options));
+    cases.push({
+      attempts: result.attempts,
+      caseId: testCase.id,
+      elapsedMs: result.elapsedMs,
+      error: result.error,
+      issues,
+      label: testCase.label,
+      operationsRecordHref: resolveSessionHref(
+        options.operationsRecordHref,
+        session.id,
+      ),
+      pass: issues.length === 0,
+      sessionId: session.id,
+      status: result.status,
+      timedOut: result.timedOut,
+    });
   }
 
-  return routes;
+  const issues = cases.flatMap((testCase) => testCase.issues);
+
+  return {
+    cases,
+    contractId: definition.id,
+    issues,
+    label: definition.label,
+    pass: issues.length === 0,
+    toolName: definition.tool.name,
+  };
+};
+export const runVoiceToolContractSuite = async (
+  options: VoiceToolContractHandlerOptions,
+): Promise<VoiceToolContractSuiteReport> => {
+  const contracts = await Promise.all(
+    options.contracts.map((contract) =>
+      runVoiceToolContract(contract, options),
+    ),
+  );
+  const passed = contracts.filter((contract) => contract.pass).length;
+  const failed = contracts.length - passed;
+
+  return {
+    checkedAt: Date.now(),
+    contracts,
+    failed,
+    passed,
+    status: failed > 0 ? "fail" : "pass",
+    total: contracts.length,
+  };
 };

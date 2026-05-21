@@ -10,6 +10,7 @@ export const createVoiceProviderStatus = <TProvider extends string = string>(
   options: VoiceProviderStatusWidgetOptions = {},
 ) => {
   const store = createSharedVoiceProviderStatusStore<TProvider>(path, options);
+
   return {
     ...store,
     getHTML: () => renderVoiceProviderStatusHTML(store.getSnapshot(), options),

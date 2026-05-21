@@ -86,6 +86,7 @@ const callerTurnText = async (
   if (caller.kind === "script") {
     const text = caller.utterances[turnIndex];
     if (text === undefined) return null;
+
     return {
       done: turnIndex === caller.utterances.length - 1,
       text,
@@ -93,11 +94,26 @@ const callerTurnText = async (
   }
   const cap = caller.maxCallerTurns;
   if (cap !== undefined && turnIndex >= cap) return null;
+
   return Promise.resolve(
     caller.model({ persona: caller.persona, transcript, turnIndex }),
   );
 };
 
+export const renderVoiceSimulationTranscript = (
+  transcript: ReadonlyArray<VoiceSimulatedTurn>,
+  labels: { caller?: string; agent?: string } = {},
+): string => {
+  const callerLabel = labels.caller ?? "Caller";
+  const agentLabel = labels.agent ?? "Agent";
+
+  return transcript
+    .map(
+      (turn) =>
+        `${turn.role === "caller" ? callerLabel : agentLabel}: ${turn.text}`,
+    )
+    .join("\n");
+};
 export const runVoiceConversationSimulation = async <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -191,20 +207,6 @@ export const runVoiceConversationSimulation = async <
   };
 };
 
-export const renderVoiceSimulationTranscript = (
-  transcript: ReadonlyArray<VoiceSimulatedTurn>,
-  labels: { caller?: string; agent?: string } = {},
-): string => {
-  const callerLabel = labels.caller ?? "Caller";
-  const agentLabel = labels.agent ?? "Agent";
-  return transcript
-    .map(
-      (turn) =>
-        `${turn.role === "caller" ? callerLabel : agentLabel}: ${turn.text}`,
-    )
-    .join("\n");
-};
-
 export type VoiceScriptedCallerStep = string;
 
 /** Convenience: build a deterministic scripted caller from a list of lines. */
@@ -232,6 +234,7 @@ export const createPersonaVoiceCaller = (options: {
   endSentinel?: string;
 }): VoiceSimulatorCaller => {
   const endSentinel = options.endSentinel ?? "[[END]]";
+
   return {
     kind: "model",
     ...(options.maxCallerTurns !== undefined
@@ -251,6 +254,7 @@ export const createPersonaVoiceCaller = (options: {
         systemPrompt: `You are role-playing a caller in a voice conversation. ${persona}\nRespond with only your spoken line. When your goal is met or you want to hang up, end your line with ${endSentinel}.`,
       });
       const done = raw.includes(endSentinel);
+
       return {
         done,
         text: raw.replaceAll(endSentinel, "").trim(),

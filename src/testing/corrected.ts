@@ -91,6 +91,7 @@ const tokenizeCodeSwitchText = (value: string): CodeSwitchToken[] =>
   (value.match(CODE_SWITCH_TOKEN_PATTERN) ?? []).map((token) => {
     const normalizedToken = normalizeApostrophes(token);
     const strippedToken = stripDiacritics(normalizedToken);
+
     return {
       marked:
         /\d/u.test(normalizedToken) ||
@@ -150,7 +151,7 @@ const countDistinctScripts = (value: string) => {
 };
 
 const scoreCodeSwitchLexiconEntry = (entry: VoiceLexiconEntry) => {
-  const text = entry.text;
+  const {text} = entry;
   const tokens = tokenizeCodeSwitchText(text);
   const normalized = normalizeBenchmarkText(text);
   const hasAlias = (entry.aliases?.length ?? 0) > 0;
@@ -232,7 +233,7 @@ const appendParlamentParlaCodeSwitchLexicon = (
   fixture: Pick<VoiceTestFixture, "expectedText" | "language" | "tags">,
 ) => {
   const expectedText = normalizeBenchmarkText(fixture.expectedText ?? "");
-  const language = fixture.language;
+  const {language} = fixture;
 
   if (expectedText.includes("espanya es paro y muerte")) {
     pushUniqueLexiconEntryWithAliases(
@@ -286,6 +287,7 @@ const toBaseFixtureId = (fixtureId: string) =>
 
 export const isCorrectionHoldoutFixtureId = (fixtureId: string) => {
   const baseFixtureId = toBaseFixtureId(fixtureId);
+
   return (
     baseFixtureId.startsWith("dialogue-") ||
     baseFixtureId.startsWith("multiturn-")
@@ -431,118 +433,6 @@ const buildFixtureDomainTerms = (
   return terms;
 };
 
-export const buildCodeSwitchBenchmarkLexicon = (
-  fixture: Pick<
-    VoiceTestFixture,
-    "expectedTerms" | "expectedText" | "language" | "tags"
-  >,
-): VoiceLexiconEntry[] => {
-  const expectedTermEntries: VoiceLexiconEntry[] = [];
-  const candidateEntries: VoiceLexiconEntry[] = [];
-  const seen = new Set<string>();
-  const language = fixture.language;
-  const tokens = tokenizeCodeSwitchText(fixture.expectedText ?? "");
-
-  for (const expectedTerm of fixture.expectedTerms ?? []) {
-    pushUniqueLexiconEntry(expectedTermEntries, seen, expectedTerm, language);
-  }
-
-  for (const token of tokens) {
-    if (!token.marked || token.text.length < 4) {
-      continue;
-    }
-
-    pushUniqueLexiconEntry(candidateEntries, seen, token.text, language);
-  }
-
-  for (let startIndex = 0; startIndex < tokens.length; startIndex += 1) {
-    for (let windowSize = 2; windowSize <= 3; windowSize += 1) {
-      const window = tokens.slice(startIndex, startIndex + windowSize);
-      if (window.length !== windowSize || !isUsefulCodeSwitchWindow(window)) {
-        continue;
-      }
-
-      pushUniqueLexiconEntry(
-        candidateEntries,
-        seen,
-        window.map((token) => token.text).join(" "),
-        language,
-      );
-    }
-  }
-
-  if (hasFixtureTag(fixture, "parlament_parla")) {
-    appendParlamentParlaCodeSwitchLexicon(candidateEntries, seen, fixture);
-  }
-
-  return [
-    ...expectedTermEntries,
-    ...candidateEntries.sort(
-      (left, right) =>
-        scoreCodeSwitchLexiconEntry(right) - scoreCodeSwitchLexiconEntry(left),
-    ),
-  ].slice(0, MAX_CODE_SWITCH_LEXICON_ENTRIES);
-};
-
-export const buildCodeSwitchBenchmarkPhraseHints = (
-  fixture: Pick<
-    VoiceTestFixture,
-    "expectedTerms" | "expectedText" | "language" | "tags"
-  >,
-): VoicePhraseHint[] =>
-  buildCodeSwitchBenchmarkLexicon(fixture).map((entry) => ({
-    aliases: entry.aliases,
-    metadata: entry.metadata,
-    text: entry.text,
-  }));
-
-export const createCodeSwitchBenchmarkCorrectionHandler =
-  (): VoiceTurnCorrectionHandler =>
-    createLexiconCorrectionHandler({
-      provider: "codeswitch-lexicon-corrector",
-      reason: "codeswitch-lexicon-correction",
-    });
-
-export const createBenchmarkCorrectionHandler = (
-  profile: VoiceCorrectionHintProfile,
-): VoiceTurnCorrectionHandler =>
-  createPhraseHintCorrectionHandler({
-    provider:
-      profile === "generic"
-        ? "generic-hint-corrector"
-        : "benchmark-seeded-corrector",
-    reason:
-      profile === "generic"
-        ? "generic-domain-correction"
-        : "benchmark-seeded-correction",
-  });
-
-export const scoreCorrectedExpectedTerms = (
-  actualText: string,
-  expectedTerms: string[] | undefined,
-): VoiceExpectedTermAccuracy => {
-  const normalizedActual = normalizeBenchmarkText(actualText);
-  const normalizedExpectedTerms = (expectedTerms ?? []).map((entry) =>
-    normalizeBenchmarkText(entry),
-  );
-  const matchedTerms = normalizedExpectedTerms.filter(
-    (term) => term.length > 0 && normalizedActual.includes(term),
-  );
-  const missingTerms = normalizedExpectedTerms.filter(
-    (term) => term.length > 0 && !matchedTerms.includes(term),
-  );
-  const denominator = normalizedExpectedTerms.length;
-  const recall = denominator > 0 ? matchedTerms.length / denominator : 1;
-
-  return {
-    allMatched: missingTerms.length === 0,
-    expectedTerms: normalizedExpectedTerms,
-    matchedTerms,
-    missingTerms,
-    recall,
-  };
-};
-
 export const applyCorrectedBenchmarkReport = (
   report: VoiceSTTBenchmarkReport,
   fixtures: VoiceTestFixture[],
@@ -598,7 +488,6 @@ export const applyCorrectedBenchmarkReport = (
     summary: summarizeSTTBenchmark(report.adapterId, correctedFixtures),
   };
 };
-
 export const applyExperimentalBenchmarkReport = (
   report: VoiceSTTBenchmarkReport,
   fixtures: VoiceTestFixture[],
@@ -659,7 +548,6 @@ export const applyExperimentalBenchmarkReport = (
     summary: summarizeSTTBenchmark(report.adapterId, correctedFixtures),
   };
 };
-
 export const applyLexiconCorrectedBenchmarkReport = (
   report: VoiceSTTBenchmarkReport,
   fixtures: VoiceTestFixture[],
@@ -715,6 +603,113 @@ export const applyLexiconCorrectedBenchmarkReport = (
     fixtures: correctedFixtures,
     generatedAt: report.generatedAt,
     summary: summarizeSTTBenchmark(report.adapterId, correctedFixtures),
+  };
+};
+export const buildCodeSwitchBenchmarkLexicon = (
+  fixture: Pick<
+    VoiceTestFixture,
+    "expectedTerms" | "expectedText" | "language" | "tags"
+  >,
+): VoiceLexiconEntry[] => {
+  const expectedTermEntries: VoiceLexiconEntry[] = [];
+  const candidateEntries: VoiceLexiconEntry[] = [];
+  const seen = new Set<string>();
+  const {language} = fixture;
+  const tokens = tokenizeCodeSwitchText(fixture.expectedText ?? "");
+
+  for (const expectedTerm of fixture.expectedTerms ?? []) {
+    pushUniqueLexiconEntry(expectedTermEntries, seen, expectedTerm, language);
+  }
+
+  for (const token of tokens) {
+    if (!token.marked || token.text.length < 4) {
+      continue;
+    }
+
+    pushUniqueLexiconEntry(candidateEntries, seen, token.text, language);
+  }
+
+  for (let startIndex = 0; startIndex < tokens.length; startIndex += 1) {
+    for (let windowSize = 2; windowSize <= 3; windowSize += 1) {
+      const window = tokens.slice(startIndex, startIndex + windowSize);
+      if (window.length !== windowSize || !isUsefulCodeSwitchWindow(window)) {
+        continue;
+      }
+
+      pushUniqueLexiconEntry(
+        candidateEntries,
+        seen,
+        window.map((token) => token.text).join(" "),
+        language,
+      );
+    }
+  }
+
+  if (hasFixtureTag(fixture, "parlament_parla")) {
+    appendParlamentParlaCodeSwitchLexicon(candidateEntries, seen, fixture);
+  }
+
+  return [
+    ...expectedTermEntries,
+    ...candidateEntries.sort(
+      (left, right) =>
+        scoreCodeSwitchLexiconEntry(right) - scoreCodeSwitchLexiconEntry(left),
+    ),
+  ].slice(0, MAX_CODE_SWITCH_LEXICON_ENTRIES);
+};
+export const buildCodeSwitchBenchmarkPhraseHints = (
+  fixture: Pick<
+    VoiceTestFixture,
+    "expectedTerms" | "expectedText" | "language" | "tags"
+  >,
+): VoicePhraseHint[] =>
+  buildCodeSwitchBenchmarkLexicon(fixture).map((entry) => ({
+    aliases: entry.aliases,
+    metadata: entry.metadata,
+    text: entry.text,
+  }));
+export const createBenchmarkCorrectionHandler = (
+  profile: VoiceCorrectionHintProfile,
+): VoiceTurnCorrectionHandler =>
+  createPhraseHintCorrectionHandler({
+    provider:
+      profile === "generic"
+        ? "generic-hint-corrector"
+        : "benchmark-seeded-corrector",
+    reason:
+      profile === "generic"
+        ? "generic-domain-correction"
+        : "benchmark-seeded-correction",
+  });
+export const createCodeSwitchBenchmarkCorrectionHandler =
+  (): VoiceTurnCorrectionHandler =>
+    createLexiconCorrectionHandler({
+      provider: "codeswitch-lexicon-corrector",
+      reason: "codeswitch-lexicon-correction",
+    });
+export const scoreCorrectedExpectedTerms = (
+  actualText: string,
+  expectedTerms: string[] | undefined,
+): VoiceExpectedTermAccuracy => {
+  const normalizedActual = normalizeBenchmarkText(actualText);
+  const normalizedExpectedTerms = (expectedTerms ?? []).map((entry) =>
+    normalizeBenchmarkText(entry),
+  );
+  const matchedTerms = normalizedExpectedTerms.filter(
+    (term) => term.length > 0 && normalizedActual.includes(term),
+  );
+  const missingTerms = normalizedExpectedTerms.filter(
+    (term) => term.length > 0 && !matchedTerms.includes(term),
+  );
+  const denominator = normalizedExpectedTerms.length;
+  const recall = denominator > 0 ? matchedTerms.length / denominator : 1;
+
+  return {
+    allMatched: missingTerms.length === 0,
+    expectedTerms: normalizedExpectedTerms,
+    matchedTerms,
+    missingTerms,
+    recall,
   };
 };
 
@@ -794,6 +789,7 @@ const average = (values: number[]) =>
 
 const roundMetric = (value: number, digits = 4) => {
   const factor = 10 ** digits;
+
   return Math.round(value * factor) / factor;
 };
 

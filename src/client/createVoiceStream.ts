@@ -66,7 +66,7 @@ export const createVoiceStream = <TResult = unknown>(
   const unsubscribeConnection = connection.subscribe((message) => {
     const action = serverMessageToAction<TResult>(message as never);
     if (action) {
-      store.dispatch(action as never);
+      store.dispatch(action);
       if (message.type === "connection") {
         reportReconnect();
       }
@@ -75,6 +75,16 @@ export const createVoiceStream = <TResult = unknown>(
   });
 
   return {
+    start,
+    get assistantAudio() {
+      return store.getSnapshot().assistantAudio;
+    },
+    get assistantTexts() {
+      return store.getSnapshot().assistantTexts;
+    },
+    get call() {
+      return store.getSnapshot().call;
+    },
     callControl(message) {
       connection.callControl(message);
     },
@@ -100,42 +110,29 @@ export const createVoiceStream = <TResult = unknown>(
     get isConnected() {
       return store.getSnapshot().isConnected;
     },
-    get scenarioId() {
-      return store.getSnapshot().scenarioId;
-    },
-    get sessionMetadata() {
-      return store.getSnapshot().sessionMetadata;
-    },
-    start,
     get partial() {
       return store.getSnapshot().partial;
     },
     get reconnect() {
       return store.getSnapshot().reconnect;
     },
-    get sessionId() {
-      return connection.getSessionId();
-    },
-    get status() {
-      return store.getSnapshot().status;
-    },
-    get turns() {
-      return store.getSnapshot().turns;
-    },
-    get assistantTexts() {
-      return store.getSnapshot().assistantTexts;
-    },
-    get assistantAudio() {
-      return store.getSnapshot().assistantAudio;
-    },
-    get call() {
-      return store.getSnapshot().call;
+    get scenarioId() {
+      return store.getSnapshot().scenarioId;
     },
     sendAudio(audio: Uint8Array | ArrayBuffer) {
       connection.sendAudio(audio);
     },
+    get sessionId() {
+      return connection.getSessionId();
+    },
+    get sessionMetadata() {
+      return store.getSnapshot().sessionMetadata;
+    },
     simulateDisconnect() {
       connection.simulateDisconnect();
+    },
+    get status() {
+      return store.getSnapshot().status;
     },
     subscribe(subscriber: () => void) {
       subscribers.add(subscriber);
@@ -143,6 +140,9 @@ export const createVoiceStream = <TResult = unknown>(
       return () => {
         subscribers.delete(subscriber);
       };
+    },
+    get turns() {
+      return store.getSnapshot().turns;
     },
   };
 };

@@ -39,6 +39,7 @@ export const createVoiceTranscriptRedactor = (
   options: CreateVoiceTranscriptRedactorOptions = {},
 ): VoiceTranscriptRedactor => {
   const patterns = options.patterns ?? DEFAULT_VOICE_REDACTION_PATTERNS;
+
   return (transcript) => {
     if (!transcript.text) {
       return transcript;
@@ -53,6 +54,7 @@ export const createVoiceTranscriptRedactor = (
     if (redacted === transcript.text) {
       return transcript;
     }
+
     return { ...transcript, text: redacted };
   };
 };

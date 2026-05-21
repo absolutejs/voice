@@ -117,6 +117,7 @@ const getPathValue = (value: unknown, path: string): unknown => {
     }
     current = record[part];
   }
+
   return current;
 };
 
@@ -148,9 +149,53 @@ const resolveOutcome = <TResult>(
   if (routeResult.escalate) return "escalate";
   if (routeResult.voicemail) return "voicemail";
   if (routeResult.noAnswer) return "no-answer";
+
   return undefined;
 };
 
+export const createVoiceWorkflowContract = <TResult = unknown>(
+  definition: VoiceWorkflowContractDefinition<TResult>,
+): VoiceWorkflowContract<TResult> => ({
+  definition,
+  assertRouteResult: (routeResult) => {
+    const validation = validateVoiceWorkflowRouteResult(
+      definition,
+      routeResult,
+    );
+    if (!validation.pass) {
+      throw new Error(
+        `Voice workflow contract ${definition.id} failed: ${validation.issues
+          .map((issue) => issue.message)
+          .join(" ")}`,
+      );
+    }
+  },
+  toScenarioEval: (overrides) =>
+    createVoiceWorkflowScenario(definition, overrides),
+  validateRouteResult: (routeResult) =>
+    validateVoiceWorkflowRouteResult(definition, routeResult),
+});
+export const createVoiceWorkflowScenario = <TResult = unknown>(
+  definition: VoiceWorkflowContractDefinition<TResult>,
+  overrides: Partial<VoiceScenarioEvalDefinition> = {},
+): VoiceScenarioEvalDefinition => ({
+  description: definition.description,
+  forbiddenHandoffActions: definition.forbiddenHandoffActions,
+  id: definition.id,
+  label: definition.label,
+  maxProviderErrors: definition.maxProviderErrors,
+  maxSessionErrors: definition.maxSessionErrors,
+  minSessions: definition.minSessions,
+  minTurns: definition.minTurns,
+  requiredAssistantIncludes: definition.requiredAssistantIncludes,
+  requiredDisposition: definition.requiredDisposition,
+  requiredHandoffActions: definition.requiredHandoffActions,
+  requiredLifecycleTypes: definition.requiredLifecycleTypes,
+  requiredTranscriptIncludes: definition.requiredTranscriptIncludes,
+  requiredWorkflowContracts: [definition.id],
+  scenarioId: definition.scenarioId,
+  ...overrides,
+});
 export const validateVoiceWorkflowRouteResult = <TResult = unknown>(
   definition: VoiceWorkflowContractDefinition<TResult>,
   routeResult: VoiceRouteResult<TResult>,
@@ -204,51 +249,6 @@ export const validateVoiceWorkflowRouteResult = <TResult = unknown>(
     requiredFields,
   };
 };
-
-export const createVoiceWorkflowScenario = <TResult = unknown>(
-  definition: VoiceWorkflowContractDefinition<TResult>,
-  overrides: Partial<VoiceScenarioEvalDefinition> = {},
-): VoiceScenarioEvalDefinition => ({
-  description: definition.description,
-  forbiddenHandoffActions: definition.forbiddenHandoffActions,
-  id: definition.id,
-  label: definition.label,
-  maxProviderErrors: definition.maxProviderErrors,
-  maxSessionErrors: definition.maxSessionErrors,
-  minSessions: definition.minSessions,
-  minTurns: definition.minTurns,
-  requiredAssistantIncludes: definition.requiredAssistantIncludes,
-  requiredDisposition: definition.requiredDisposition,
-  requiredHandoffActions: definition.requiredHandoffActions,
-  requiredLifecycleTypes: definition.requiredLifecycleTypes,
-  requiredTranscriptIncludes: definition.requiredTranscriptIncludes,
-  requiredWorkflowContracts: [definition.id],
-  scenarioId: definition.scenarioId,
-  ...overrides,
-});
-
-export const createVoiceWorkflowContract = <TResult = unknown>(
-  definition: VoiceWorkflowContractDefinition<TResult>,
-): VoiceWorkflowContract<TResult> => ({
-  assertRouteResult: (routeResult) => {
-    const validation = validateVoiceWorkflowRouteResult(
-      definition,
-      routeResult,
-    );
-    if (!validation.pass) {
-      throw new Error(
-        `Voice workflow contract ${definition.id} failed: ${validation.issues
-          .map((issue) => issue.message)
-          .join(" ")}`,
-      );
-    }
-  },
-  definition,
-  toScenarioEval: (overrides) =>
-    createVoiceWorkflowScenario(definition, overrides),
-  validateRouteResult: (routeResult) =>
-    validateVoiceWorkflowRouteResult(definition, routeResult),
-});
 
 const presetDefinitions = {
   "appointment-booking": {
@@ -404,46 +404,6 @@ const presetDefinitions = {
   VoiceWorkflowContractDefinition<unknown>
 >;
 
-export const createVoiceWorkflowContractPreset = <TResult = unknown>(
-  name: VoiceWorkflowContractPresetName,
-  options: VoiceWorkflowContractPresetOptions<TResult> = {},
-): VoiceWorkflowContract<TResult> => {
-  const preset = presetDefinitions[name];
-  return createVoiceWorkflowContract<TResult>({
-    ...(preset as VoiceWorkflowContractDefinition<TResult>),
-    ...options,
-    fields: options.fields ?? (preset.fields as VoiceWorkflowContractField[]),
-    id: options.id ?? preset.id,
-  });
-};
-
-export const recordVoiceWorkflowContractTrace = async (input: {
-  at?: number;
-  contractId?: string;
-  scenarioId?: string;
-  sessionId: string;
-  store: VoiceTraceEventStore;
-  traceId?: string;
-  turnId?: string;
-  validation: VoiceWorkflowContractValidation;
-}): Promise<StoredVoiceTraceEvent<VoiceWorkflowContractTracePayload>> =>
-  input.store.append({
-    at: input.at ?? Date.now(),
-    payload: {
-      contractId: input.contractId ?? input.validation.contractId,
-      issues: input.validation.issues,
-      missingFields: input.validation.missingFields,
-      outcome: input.validation.outcome,
-      requiredFields: input.validation.requiredFields,
-      status: input.validation.pass ? "pass" : "fail",
-    },
-    scenarioId: input.scenarioId,
-    sessionId: input.sessionId,
-    traceId: input.traceId,
-    turnId: input.turnId,
-    type: "workflow.contract",
-  }) as Promise<StoredVoiceTraceEvent<VoiceWorkflowContractTracePayload>>;
-
 export const createVoiceWorkflowContractHandler = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -463,8 +423,7 @@ export const createVoiceWorkflowContractHandler = <
     | VoiceWorkflowContractDefinition<TResult>
     | undefined;
   store?: VoiceTraceEventStore;
-}): VoiceOnTurnHandler<TContext, TSession, TResult> => {
-  return async (session, turn, api, context) => {
+}): VoiceOnTurnHandler<TContext, TSession, TResult> => async (session, turn, api, context) => {
     const legacyHandler = input.handler as (
       session: TSession,
       turn: VoiceTurnRecord,
@@ -504,6 +463,45 @@ export const createVoiceWorkflowContractHandler = <
         validation,
       });
     }
+
     return result;
   };
+export const createVoiceWorkflowContractPreset = <TResult = unknown>(
+  name: VoiceWorkflowContractPresetName,
+  options: VoiceWorkflowContractPresetOptions<TResult> = {},
+): VoiceWorkflowContract<TResult> => {
+  const preset = presetDefinitions[name];
+
+  return createVoiceWorkflowContract<TResult>({
+    ...(preset as VoiceWorkflowContractDefinition<TResult>),
+    ...options,
+    fields: options.fields ?? (preset.fields),
+    id: options.id ?? preset.id,
+  });
 };
+export const recordVoiceWorkflowContractTrace = async (input: {
+  at?: number;
+  contractId?: string;
+  scenarioId?: string;
+  sessionId: string;
+  store: VoiceTraceEventStore;
+  traceId?: string;
+  turnId?: string;
+  validation: VoiceWorkflowContractValidation;
+}): Promise<StoredVoiceTraceEvent<VoiceWorkflowContractTracePayload>> =>
+  input.store.append({
+    at: input.at ?? Date.now(),
+    payload: {
+      contractId: input.contractId ?? input.validation.contractId,
+      issues: input.validation.issues,
+      missingFields: input.validation.missingFields,
+      outcome: input.validation.outcome,
+      requiredFields: input.validation.requiredFields,
+      status: input.validation.pass ? "pass" : "fail",
+    },
+    scenarioId: input.scenarioId,
+    sessionId: input.sessionId,
+    traceId: input.traceId,
+    turnId: input.turnId,
+    type: "workflow.contract",
+  }) as Promise<StoredVoiceTraceEvent<VoiceWorkflowContractTracePayload>>;

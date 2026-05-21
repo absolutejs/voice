@@ -100,9 +100,9 @@ const defaultRequirement: Required<VoiceProviderOrchestrationRequirement> = {
 };
 
 const statusRank: Record<VoiceProviderOrchestrationStatus, number> = {
+  fail: 2,
   pass: 0,
   warn: 1,
-  fail: 2,
 };
 
 const isProviderList = (value: unknown): value is readonly string[] =>
@@ -317,7 +317,88 @@ export const buildVoiceProviderOrchestrationReport = <
     surfaces,
   };
 };
+export const createVoiceProviderOrchestrationRoutes = <
+  TProvider extends string = string,
+  TSurface extends string = string,
+>(
+  options: VoiceProviderOrchestrationRoutesOptions<TProvider, TSurface>,
+) => {
+  const path = options.path ?? "/api/voice/provider-orchestration";
+  const htmlPath =
+    options.htmlPath === undefined
+      ? "/voice/provider-orchestration"
+      : options.htmlPath;
+  const markdownPath =
+    options.markdownPath === undefined
+      ? "/voice/provider-orchestration.md"
+      : options.markdownPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-provider-orchestration",
+  }).get(path, () => buildVoiceProviderOrchestrationReport(options));
 
+  if (htmlPath) {
+    routes.get(htmlPath, async () => {
+      const report = buildVoiceProviderOrchestrationReport(options);
+      const render =
+        options.render ??
+        ((input: VoiceProviderOrchestrationReport) =>
+          renderVoiceProviderOrchestrationHTML(input, options));
+      const body = await render(report);
+
+      return new Response(body, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      });
+    });
+  }
+
+  if (markdownPath) {
+    routes.get(markdownPath, () => {
+      const report = buildVoiceProviderOrchestrationReport(options);
+
+      return new Response(renderVoiceProviderOrchestrationMarkdown(report), {
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          ...options.headers,
+        },
+      });
+    });
+  }
+
+  return routes;
+};
+export const renderVoiceProviderOrchestrationHTML = (
+  report: VoiceProviderOrchestrationReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Voice Provider Orchestration";
+  const cards = report.surfaces
+    .map(
+      (surface) => `<article class="card ${escapeHtml(surface.status)}">
+  <div class="card-header"><div><p class="eyebrow">${escapeHtml(surface.surface)}</p><h2>${escapeHtml(surface.strategy ?? "default policy")}</h2></div><strong>${escapeHtml(surface.status)}</strong></div>
+  <dl>
+    <div><dt>Providers</dt><dd>${escapeHtml(surface.providers.join(", ") || "none")}</dd></div>
+    <div><dt>Fallback</dt><dd>${escapeHtml(surface.fallbackProviders.join(" -> ") || "none")}</dd></div>
+    <div><dt>Circuit breaker</dt><dd>${surface.circuitBreaker ? "yes" : "no"}</dd></div>
+    <div><dt>Timeout</dt><dd>${surface.timeoutBudget ? `${String(surface.timeoutMs)}ms` : "none"}</dd></div>
+    <div><dt>Max cost</dt><dd>${surface.budgetPolicy.maxCost ?? "none"}</dd></div>
+    <div><dt>Max latency</dt><dd>${surface.budgetPolicy.maxLatencyMs ? `${String(surface.budgetPolicy.maxLatencyMs)}ms` : "none"}</dd></div>
+    <div><dt>Min quality</dt><dd>${surface.budgetPolicy.minQuality ?? "none"}</dd></div>
+    <div><dt>Fallback mode</dt><dd>${escapeHtml(surface.fallbackMode || "default")}</dd></div>
+  </dl>
+  ${
+    surface.issues.length
+      ? `<ul>${surface.issues.map((issue) => `<li><strong>${escapeHtml(issue.status)}</strong> ${escapeHtml(issue.message)}</li>`).join("")}</ul>`
+      : "<p>No orchestration issues.</p>"
+  }
+</article>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#f9fafb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.card{background:#172033;border:1px solid #2d3b55;border-radius:22px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(59,130,246,.18),rgba(20,184,166,.12))}.eyebrow{color:#93c5fd;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f172a;border:1px solid #334155;border-radius:999px;padding:7px 10px}.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}.card-header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.pass strong{color:#86efac}.warn strong{color:#fde68a}.fail strong{color:#fca5a5}dl{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}dt{color:#a8b0b8;font-size:.8rem}dd{margin:0;overflow-wrap:anywhere}li{margin:.35rem 0}@media(max-width:800px){main{padding:18px}.card-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Provider Policy Proof</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill">${escapeHtml(report.profileId)}</span><span class="pill">${escapeHtml(report.status)}</span><span class="pill">${String(report.summary.surfaces)} surfaces</span><span class="pill">${String(report.summary.providers)} providers</span><span class="pill">${String(report.issues.length)} issues</span></div></section><section class="grid">${cards || '<article class="card"><p>No provider orchestration surfaces configured.</p></article>'}</section></main></body></html>`;
+};
 export const renderVoiceProviderOrchestrationMarkdown = (
   report: VoiceProviderOrchestrationReport,
 ) => {
@@ -349,87 +430,6 @@ export const renderVoiceProviderOrchestrationMarkdown = (
       lines.push("");
     }
   }
-  return lines.join("\n").trimEnd() + "\n";
-};
 
-export const renderVoiceProviderOrchestrationHTML = (
-  report: VoiceProviderOrchestrationReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Voice Provider Orchestration";
-  const cards = report.surfaces
-    .map(
-      (surface) => `<article class="card ${escapeHtml(surface.status)}">
-  <div class="card-header"><div><p class="eyebrow">${escapeHtml(surface.surface)}</p><h2>${escapeHtml(surface.strategy ?? "default policy")}</h2></div><strong>${escapeHtml(surface.status)}</strong></div>
-  <dl>
-    <div><dt>Providers</dt><dd>${escapeHtml(surface.providers.join(", ") || "none")}</dd></div>
-    <div><dt>Fallback</dt><dd>${escapeHtml(surface.fallbackProviders.join(" -> ") || "none")}</dd></div>
-    <div><dt>Circuit breaker</dt><dd>${surface.circuitBreaker ? "yes" : "no"}</dd></div>
-    <div><dt>Timeout</dt><dd>${surface.timeoutBudget ? `${String(surface.timeoutMs)}ms` : "none"}</dd></div>
-    <div><dt>Max cost</dt><dd>${surface.budgetPolicy.maxCost ?? "none"}</dd></div>
-    <div><dt>Max latency</dt><dd>${surface.budgetPolicy.maxLatencyMs ? `${String(surface.budgetPolicy.maxLatencyMs)}ms` : "none"}</dd></div>
-    <div><dt>Min quality</dt><dd>${surface.budgetPolicy.minQuality ?? "none"}</dd></div>
-    <div><dt>Fallback mode</dt><dd>${escapeHtml(surface.fallbackMode || "default")}</dd></div>
-  </dl>
-  ${
-    surface.issues.length
-      ? `<ul>${surface.issues.map((issue) => `<li><strong>${escapeHtml(issue.status)}</strong> ${escapeHtml(issue.message)}</li>`).join("")}</ul>`
-      : "<p>No orchestration issues.</p>"
-  }
-</article>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#f9fafb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.card{background:#172033;border:1px solid #2d3b55;border-radius:22px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(59,130,246,.18),rgba(20,184,166,.12))}.eyebrow{color:#93c5fd;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f172a;border:1px solid #334155;border-radius:999px;padding:7px 10px}.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}.card-header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.pass strong{color:#86efac}.warn strong{color:#fde68a}.fail strong{color:#fca5a5}dl{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}dt{color:#a8b0b8;font-size:.8rem}dd{margin:0;overflow-wrap:anywhere}li{margin:.35rem 0}@media(max-width:800px){main{padding:18px}.card-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Provider Policy Proof</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill">${escapeHtml(report.profileId)}</span><span class="pill">${escapeHtml(report.status)}</span><span class="pill">${String(report.summary.surfaces)} surfaces</span><span class="pill">${String(report.summary.providers)} providers</span><span class="pill">${String(report.issues.length)} issues</span></div></section><section class="grid">${cards || '<article class="card"><p>No provider orchestration surfaces configured.</p></article>'}</section></main></body></html>`;
-};
-
-export const createVoiceProviderOrchestrationRoutes = <
-  TProvider extends string = string,
-  TSurface extends string = string,
->(
-  options: VoiceProviderOrchestrationRoutesOptions<TProvider, TSurface>,
-) => {
-  const path = options.path ?? "/api/voice/provider-orchestration";
-  const htmlPath =
-    options.htmlPath === undefined
-      ? "/voice/provider-orchestration"
-      : options.htmlPath;
-  const markdownPath =
-    options.markdownPath === undefined
-      ? "/voice/provider-orchestration.md"
-      : options.markdownPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-provider-orchestration",
-  }).get(path, () => buildVoiceProviderOrchestrationReport(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, async () => {
-      const report = buildVoiceProviderOrchestrationReport(options);
-      const render =
-        options.render ??
-        ((input: VoiceProviderOrchestrationReport) =>
-          renderVoiceProviderOrchestrationHTML(input, options));
-      const body = await render(report);
-      return new Response(body, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      });
-    });
-  }
-
-  if (markdownPath) {
-    routes.get(markdownPath, () => {
-      const report = buildVoiceProviderOrchestrationReport(options);
-      return new Response(renderVoiceProviderOrchestrationMarkdown(report), {
-        headers: {
-          "Content-Type": "text/markdown; charset=utf-8",
-          ...options.headers,
-        },
-      });
-    });
-  }
-
-  return routes;
+  return `${lines.join("\n").trimEnd()  }\n`;
 };

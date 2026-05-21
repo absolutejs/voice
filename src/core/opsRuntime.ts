@@ -327,6 +327,8 @@ export const createVoiceOpsRuntime = <
 
   return {
     checkSLA,
+    start,
+    stop,
     isRunning: () =>
       Boolean(
         webhookLoop?.isRunning() ||
@@ -339,8 +341,6 @@ export const createVoiceOpsRuntime = <
         config: config.ops,
       });
     },
-    start,
-    stop,
     summarize: async () => {
       const summary: VoiceOpsRuntimeSummary = {};
 

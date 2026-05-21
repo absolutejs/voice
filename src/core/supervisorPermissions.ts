@@ -76,6 +76,7 @@ export const createVoiceSupervisorPermissions = (
     if (permission.expiresAt !== undefined && permission.expiresAt <= now()) {
       return null;
     }
+
     return permission;
   };
 
@@ -88,6 +89,7 @@ export const createVoiceSupervisorPermissions = (
     for (const extra of permission.extraCapabilities ?? []) base.add(extra);
     for (const denied of permission.deniedCapabilities ?? [])
       base.delete(denied);
+
     return Array.from(base);
   };
 
@@ -109,6 +111,7 @@ export const createVoiceSupervisorPermissions = (
     if (capabilitiesFor(supervisorId).includes(capability)) {
       return { allowed: true };
     }
+
     return { allowed: false, reason: "tier-too-low" };
   };
 
@@ -135,6 +138,7 @@ export const createVoiceSupervisorPermissions = (
         : {}),
     };
     store.set(supervisorId, permission);
+
     return permission;
   };
 

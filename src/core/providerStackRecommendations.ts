@@ -364,9 +364,9 @@ const rollupContractStatus = (
   worstVoiceStatus(checks.map((check) => check.status));
 
 const statusRank: Record<VoiceProviderContractCheckStatus, number> = {
+  fail: 2,
   pass: 0,
   warn: 1,
-  fail: 2,
 };
 
 const statusExceeds = (
@@ -374,6 +374,15 @@ const statusExceeds = (
   max: VoiceProviderContractCheckStatus,
 ) => statusRank[actual] > statusRank[max];
 
+export const assertVoiceProviderContractMatrixEvidence = <
+  TProvider extends string = string,
+>(
+  report: VoiceProviderContractMatrixReport<TProvider>,
+  input: VoiceProviderContractMatrixAssertionInput<TProvider> = {},
+): VoiceProviderContractMatrixAssertionReport<TProvider> => assertVoiceEvidence(
+    "Voice provider contract matrix assertion failed",
+    evaluateVoiceProviderContractMatrixEvidence(report, input),
+  );
 export const buildVoiceProviderContractMatrix = <
   TProvider extends string = string,
 >(
@@ -521,7 +530,52 @@ export const buildVoiceProviderContractMatrix = <
     warned,
   };
 };
+export const createVoiceProviderContractMatrixPreset = <
+  TProvider extends string = string,
+>(
+  profile: VoiceReadinessProfileName,
+  options: VoiceProviderContractMatrixPresetOptions<TProvider>,
+): VoiceProviderContractMatrixInput<TProvider> => {
+  const contracts = (["llm", "stt", "tts"] as const).flatMap((kind) => {
+    const providers = options.providers[kind] ?? [];
 
+    return providers.map((provider) => {
+      const configured =
+        options.configured?.[provider] ??
+        (defaultProviderEnv[provider]?.length
+          ? defaultProviderEnv[provider].every((name) => options.env?.[name])
+          : true);
+      const fallbackProviders =
+        options.fallbackProviders?.[kind] ??
+        providers.filter((candidate) => candidate !== provider);
+      const requiredCapabilities = profileRequiredCapabilities[profile][kind];
+      const capabilities =
+        options.capabilities?.[kind]?.[provider] ??
+        defaultProviderCapabilities[provider] ??
+        [];
+      const requiredEnv = defaultProviderEnv[provider] ?? [];
+
+      return {
+        capabilities,
+        configured,
+        env: options.env,
+        fallbackProviders,
+        kind,
+        latencyBudgetMs: options.latencyBudgets?.[provider],
+        provider,
+        requiredCapabilities,
+        requiredEnv,
+        remediationHref: options.remediationHref,
+        selected: options.selected?.[kind] === provider,
+        streaming:
+          options.streaming?.[provider] ??
+          defaultStreamingProviders.has(provider),
+      } satisfies VoiceProviderContractDefinition<TProvider>;
+    });
+  });
+
+  return { contracts };
+};
 export const evaluateVoiceProviderContractMatrixEvidence = <
   TProvider extends string = string,
 >(
@@ -609,71 +663,78 @@ export const evaluateVoiceProviderContractMatrixEvidence = <
   };
 };
 
-export const assertVoiceProviderContractMatrixEvidence = <
-  TProvider extends string = string,
->(
-  report: VoiceProviderContractMatrixReport<TProvider>,
-  input: VoiceProviderContractMatrixAssertionInput<TProvider> = {},
-): VoiceProviderContractMatrixAssertionReport<TProvider> => {
-  return assertVoiceEvidence(
-    "Voice provider contract matrix assertion failed",
-    evaluateVoiceProviderContractMatrixEvidence(report, input),
-  );
-};
-
-export const createVoiceProviderContractMatrixPreset = <
-  TProvider extends string = string,
->(
-  profile: VoiceReadinessProfileName,
-  options: VoiceProviderContractMatrixPresetOptions<TProvider>,
-): VoiceProviderContractMatrixInput<TProvider> => {
-  const contracts = (["llm", "stt", "tts"] as const).flatMap((kind) => {
-    const providers = options.providers[kind] ?? [];
-
-    return providers.map((provider) => {
-      const configured =
-        options.configured?.[provider] ??
-        (defaultProviderEnv[provider]?.length
-          ? defaultProviderEnv[provider].every((name) => options.env?.[name])
-          : true);
-      const fallbackProviders =
-        options.fallbackProviders?.[kind] ??
-        providers.filter((candidate) => candidate !== provider);
-      const requiredCapabilities = profileRequiredCapabilities[profile][kind];
-      const capabilities =
-        options.capabilities?.[kind]?.[provider] ??
-        defaultProviderCapabilities[provider] ??
-        [];
-      const requiredEnv = defaultProviderEnv[provider] ?? [];
-
-      return {
-        capabilities,
-        configured,
-        env: options.env,
-        fallbackProviders,
-        kind,
-        latencyBudgetMs: options.latencyBudgets?.[provider],
-        provider,
-        requiredCapabilities,
-        requiredEnv,
-        remediationHref: options.remediationHref,
-        selected: options.selected?.[kind] === provider,
-        streaming:
-          options.streaming?.[provider] ??
-          defaultStreamingProviders.has(provider),
-      } satisfies VoiceProviderContractDefinition<TProvider>;
-    });
-  });
-
-  return { contracts };
-};
-
 const resolveProviderContractMatrixInput = async <
   TProvider extends string = string,
 >(
   matrix: VoiceProviderContractMatrixHandlerOptions<TProvider>,
 ) => (typeof matrix === "function" ? await matrix() : matrix);
 
+export const createVoiceProviderContractMatrixHTMLHandler =
+  <TProvider extends string = string>(
+    options: VoiceProviderContractMatrixHTMLHandlerOptions<TProvider>,
+  ) =>
+  async () => {
+    const report = buildVoiceProviderContractMatrix(
+      await resolveProviderContractMatrixInput(options.matrix),
+    );
+    const body = await (
+      options.render ?? renderVoiceProviderContractMatrixHTML
+    )(report, { title: options.title });
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+      },
+    });
+  };
+export const createVoiceProviderContractMatrixJSONHandler =
+  <TProvider extends string = string>(
+    matrix: VoiceProviderContractMatrixHandlerOptions<TProvider>,
+  ) =>
+  async () =>
+    buildVoiceProviderContractMatrix(
+      await resolveProviderContractMatrixInput(matrix),
+    );
+export const createVoiceProviderContractMatrixRoutes = <
+  TProvider extends string = string,
+>(
+  options: VoiceProviderContractMatrixRoutesOptions<TProvider>,
+) => {
+  const path = options.path ?? "/api/provider-contracts";
+  const htmlPath = options.htmlPath ?? "/provider-contracts";
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-provider-contract-matrix",
+  });
+  const jsonHandler = createVoiceProviderContractMatrixJSONHandler(
+    options.matrix,
+  );
+
+  routes.get(path, async () => {
+    const report = await jsonHandler();
+
+    return new Response(JSON.stringify(report), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  });
+  if (htmlPath !== false) {
+    routes.get(htmlPath, async () => {
+      const response =
+        await createVoiceProviderContractMatrixHTMLHandler(options)();
+
+      return new Response(response.body, {
+        headers: {
+          ...Object.fromEntries(response.headers.entries()),
+          ...options.headers,
+        },
+      });
+    });
+  }
+
+  return routes;
+};
 export const renderVoiceProviderContractMatrixHTML = <
   TProvider extends string = string,
 >(
@@ -729,73 +790,6 @@ createVoiceProductionReadinessRoutes({
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0f1412;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.primitive,.row{background:#17201b;border:1px solid #2d3b32;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(125,211,252,.12))}.primitive{background:#111814;border-color:#41604a}.eyebrow{color:#86efac;font-size:.78rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill,.status{border:1px solid #3f4f45;border-radius:999px;display:inline-flex;padding:8px 12px}.primitive code{color:#bbf7d0}.primitive p{color:#c8d8ca;line-height:1.55;margin:.45rem 0 0}.primitive pre{background:#08110d;border:1px solid #294132;border-radius:18px;color:#d9f99d;margin:16px 0 0;overflow:auto;padding:16px}.status.pass,.row.pass,.pass{border-color:rgba(34,197,94,.65)}.status.warn,.row.warn,.warn{border-color:rgba(245,158,11,.7)}.status.fail,.row.fail,.fail{border-color:rgba(239,68,68,.75)}.row{display:grid;gap:20px;grid-template-columns:minmax(180px,.45fr) 1fr}.row ul{display:grid;gap:10px;list-style:none;margin:0;padding:0}.row li{background:#111814;border:1px solid #2d3b32;border-radius:16px;display:grid;gap:4px;padding:12px}.row li span{color:#b8c2ba}.row li em{color:#f9d77e;font-style:normal}.row li a{color:#86efac}@media(max-width:760px){main{padding:18px}.row{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Provider contracts</p><h1>${escapeHtml(title)}</h1><p>Self-hosted provider proof for configured state, required env, latency budgets, fallback, streaming, and declared capabilities.</p><div class="summary"><span class="pill">${String(report.passed)} passing</span><span class="pill">${String(report.warned)} warning</span><span class="pill">${String(report.failed)} failing</span><span class="pill">${String(report.total)} total</span></div></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceProviderContractMatrixPreset(...)</code> builds this matrix</h2><p>Give AbsoluteJS your configured LLM, STT, and TTS providers once. It turns them into deploy-checkable proof for env, fallback, streaming, latency budgets, selected providers, and profile-required capabilities without a hosted dashboard.</p><pre><code>${snippet}</code></pre></section>${rows || '<article class="row"><p>No provider contracts configured.</p></article>'}</main></body></html>`;
 };
 
-export const createVoiceProviderContractMatrixJSONHandler =
-  <TProvider extends string = string>(
-    matrix: VoiceProviderContractMatrixHandlerOptions<TProvider>,
-  ) =>
-  async () =>
-    buildVoiceProviderContractMatrix(
-      await resolveProviderContractMatrixInput(matrix),
-    );
-
-export const createVoiceProviderContractMatrixHTMLHandler =
-  <TProvider extends string = string>(
-    options: VoiceProviderContractMatrixHTMLHandlerOptions<TProvider>,
-  ) =>
-  async () => {
-    const report = buildVoiceProviderContractMatrix(
-      await resolveProviderContractMatrixInput(options.matrix),
-    );
-    const body = await (
-      options.render ?? renderVoiceProviderContractMatrixHTML
-    )(report, { title: options.title });
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-      },
-    });
-  };
-
-export const createVoiceProviderContractMatrixRoutes = <
-  TProvider extends string = string,
->(
-  options: VoiceProviderContractMatrixRoutesOptions<TProvider>,
-) => {
-  const path = options.path ?? "/api/provider-contracts";
-  const htmlPath = options.htmlPath ?? "/provider-contracts";
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-provider-contract-matrix",
-  });
-  const jsonHandler = createVoiceProviderContractMatrixJSONHandler(
-    options.matrix,
-  );
-
-  routes.get(path, async () => {
-    const report = await jsonHandler();
-    return new Response(JSON.stringify(report), {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  });
-  if (htmlPath !== false) {
-    routes.get(htmlPath, async () => {
-      const response =
-        await createVoiceProviderContractMatrixHTMLHandler(options)();
-      return new Response(response.body, {
-        headers: {
-          ...Object.fromEntries(response.headers.entries()),
-          ...options.headers,
-        },
-      });
-    });
-  }
-
-  return routes;
-};
-
 const normalizeCapability = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
@@ -807,6 +801,7 @@ const includesCapability = (
 
   return capabilities.some((capability) => {
     const normalizedCapability = normalizeCapability(capability);
+
     return (
       normalizedCapability === normalizedRequired ||
       normalizedCapability.includes(normalizedRequired) ||
@@ -815,50 +810,15 @@ const includesCapability = (
   });
 };
 
-export const evaluateVoiceProviderStackGaps = <
+export const assertVoiceProviderStackEvidence = <
   TProvider extends string = string,
 >(
-  input: VoiceProviderStackCapabilityGapInput<TProvider>,
-): VoiceProviderStackCapabilityGapReport<TProvider> => {
-  const recommendation =
-    input.recommendation ?? recommendVoiceProviderStack(input);
-  const gaps = (["llm", "stt", "tts"] as const).map((kind) => {
-    const required =
-      input.required?.[kind] ??
-      profileRequiredCapabilities[input.profile][kind];
-    const provider = recommendation.recommended[kind];
-    const present = provider
-      ? [...(input.capabilities?.[kind]?.[provider] ?? [])]
-      : [];
-    const missing = provider
-      ? required.filter(
-          (capability) => !includesCapability(present, capability),
-        )
-      : [...required];
-
-    return {
-      kind,
-      missing,
-      present,
-      provider,
-      required: [...required],
-      status: !provider ? "fail" : missing.length > 0 ? "warn" : "pass",
-    } satisfies VoiceProviderStackCapabilityGap<TProvider>;
-  });
-  const missing = gaps.reduce((total, gap) => total + gap.missing.length, 0);
-
-  return {
-    gaps,
-    missing,
-    profile: input.profile,
-    status: gaps.some((gap) => gap.status === "fail")
-      ? "fail"
-      : gaps.some((gap) => gap.status === "warn")
-        ? "warn"
-        : "pass",
-  };
-};
-
+  report: VoiceProviderStackCapabilityGapReport<TProvider>,
+  input: VoiceProviderStackAssertionInput<TProvider> = {},
+): VoiceProviderStackAssertionReport<TProvider> => assertVoiceEvidence(
+    "Voice provider stack assertion failed",
+    evaluateVoiceProviderStackEvidence(report, input),
+  );
 export const evaluateVoiceProviderStackEvidence = <
   TProvider extends string = string,
 >(
@@ -934,15 +894,46 @@ export const evaluateVoiceProviderStackEvidence = <
     status: report.status,
   };
 };
-
-export const assertVoiceProviderStackEvidence = <
+export const evaluateVoiceProviderStackGaps = <
   TProvider extends string = string,
 >(
-  report: VoiceProviderStackCapabilityGapReport<TProvider>,
-  input: VoiceProviderStackAssertionInput<TProvider> = {},
-): VoiceProviderStackAssertionReport<TProvider> => {
-  return assertVoiceEvidence(
-    "Voice provider stack assertion failed",
-    evaluateVoiceProviderStackEvidence(report, input),
-  );
+  input: VoiceProviderStackCapabilityGapInput<TProvider>,
+): VoiceProviderStackCapabilityGapReport<TProvider> => {
+  const recommendation =
+    input.recommendation ?? recommendVoiceProviderStack(input);
+  const gaps = (["llm", "stt", "tts"] as const).map((kind) => {
+    const required =
+      input.required?.[kind] ??
+      profileRequiredCapabilities[input.profile][kind];
+    const provider = recommendation.recommended[kind];
+    const present = provider
+      ? [...(input.capabilities?.[kind]?.[provider] ?? [])]
+      : [];
+    const missing = provider
+      ? required.filter(
+          (capability) => !includesCapability(present, capability),
+        )
+      : [...required];
+
+    return {
+      kind,
+      missing,
+      present,
+      provider,
+      required: [...required],
+      status: !provider ? "fail" : missing.length > 0 ? "warn" : "pass",
+    } satisfies VoiceProviderStackCapabilityGap<TProvider>;
+  });
+  const missing = gaps.reduce((total, gap) => total + gap.missing.length, 0);
+
+  return {
+    gaps,
+    missing,
+    profile: input.profile,
+    status: gaps.some((gap) => gap.status === "fail")
+      ? "fail"
+      : gaps.some((gap) => gap.status === "warn")
+        ? "warn"
+        : "pass",
+  };
 };

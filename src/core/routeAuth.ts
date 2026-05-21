@@ -31,6 +31,7 @@ export const createVoiceBearerAuthVerifier = (input: {
 }): VoiceRouteAuthVerifier => {
   const headerName = (input.headerName ?? "authorization").toLowerCase();
   const expected = `Bearer ${input.expectedToken}`;
+
   return ({ headers }) => {
     const value = headers.get(headerName);
     if (!value) {
@@ -39,6 +40,7 @@ export const createVoiceBearerAuthVerifier = (input: {
     if (value !== expected) {
       return { allow: false, reason: "bearer-mismatch", status: 401 };
     }
+
     return { allow: true };
   };
 };
@@ -46,8 +48,7 @@ export const createVoiceBearerAuthVerifier = (input: {
 export const createVoiceHMACAuthVerifier = (input: {
   secret: string;
   toleranceMs?: number;
-}): VoiceRouteAuthVerifier => {
-  return async ({ body, headers }) => {
+}): VoiceRouteAuthVerifier => async ({ body, headers }) => {
     const { signature, timestamp } =
       extractVoiceWebhookSignatureFromHeaders(headers);
     const result = await verifyVoiceWebhookSignature({
@@ -60,9 +61,9 @@ export const createVoiceHMACAuthVerifier = (input: {
     if (!result.ok) {
       return { allow: false, reason: result.reason, status: 401 };
     }
+
     return { allow: true };
   };
-};
 
 const isBypassed = (
   bypassPaths: ReadonlyArray<string>,
@@ -71,14 +72,16 @@ const isBypassed = (
   for (const path of bypassPaths) {
     if (url.includes(path)) return true;
   }
+
   return false;
 };
 
 export const createVoiceRouteAuth = (options: VoiceRouteAuthOptions) => {
   const bypassPaths = options.bypassPaths ?? [];
+
   return new Elysia({ name: options.name ?? "voice-route-auth" }).onRequest(
     async ({ request, set }) => {
-      const url = request.url;
+      const {url} = request;
       if (isBypassed(bypassPaths, url)) return;
       const cloned = request.clone();
       const body =
@@ -95,6 +98,7 @@ export const createVoiceRouteAuth = (options: VoiceRouteAuthOptions) => {
       );
       if (!decision.allow) {
         set.status = decision.status ?? 401;
+
         return new Response(
           JSON.stringify({ error: decision.reason, ok: false }),
           {

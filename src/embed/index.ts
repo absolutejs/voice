@@ -39,6 +39,7 @@ const resolveTarget = (target: string | HTMLElement): HTMLElement => {
   if (!el) {
     throw new Error(`AbsoluteVoice.mount: no element matches "${target}"`);
   }
+
   return el as HTMLElement;
 };
 
@@ -74,7 +75,7 @@ export const mount = (
     for (const button of host.querySelectorAll<HTMLButtonElement>(
       "button[data-action]",
     )) {
-      const action = button.dataset.action;
+      const {action} = button.dataset;
       button.addEventListener("click", () => {
         if (action === "start") void controller.startRecording();
         else if (action === "mute") controller.stopRecording();
@@ -130,7 +131,7 @@ const globalApi: VoiceEmbedGlobal = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var AbsoluteVoice: VoiceEmbedGlobal | undefined;
 }
 

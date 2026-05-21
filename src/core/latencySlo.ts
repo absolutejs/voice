@@ -113,6 +113,7 @@ const percentile = (values: number[], percentileValue: number) => {
     sorted.length - 1,
     Math.max(0, Math.ceil((percentileValue / 100) * sorted.length) - 1),
   );
+
   return Math.round(sorted[index] ?? 0);
 };
 
@@ -194,6 +195,7 @@ const providerStageForEvent = (
   if (kind === "tts" || kind === "speech") {
     return "provider_tts";
   }
+
   return undefined;
 };
 
@@ -322,6 +324,7 @@ const collectTraceStageMeasurements = (
       }
     }
   }
+
   return measurements;
 };
 
@@ -377,6 +380,7 @@ const collectDirectMeasurements = (
       }
     }
   }
+
   return measurements;
 };
 
@@ -397,6 +401,7 @@ const summarizeStage = (
   const warnings = stageMeasurements.filter(
     (measurement) => measurement.status === "warn",
   ).length;
+
   return {
     averageMs: average(latencies),
     budget: resolveBudget(stage, options),
@@ -420,6 +425,20 @@ const summarizeStage = (
   };
 };
 
+export const assertVoiceLatencySLOGate = async (
+  options: VoiceLatencySLOGateOptions,
+) => {
+  const report = await buildVoiceLatencySLOGate(options);
+  if (report.status === "fail") {
+    const error = new Error(
+      `Voice latency SLO gate failed with ${report.failed} failed measurement(s).`,
+    ) as VoiceLatencySLOGateError;
+    error.report = report;
+    throw error;
+  }
+
+  return report;
+};
 export const buildVoiceLatencySLOGate = async (
   options: VoiceLatencySLOGateOptions,
 ): Promise<VoiceLatencySLOGateReport> => {
@@ -465,21 +484,6 @@ export const buildVoiceLatencySLOGate = async (
     warnings,
   };
 };
-
-export const assertVoiceLatencySLOGate = async (
-  options: VoiceLatencySLOGateOptions,
-) => {
-  const report = await buildVoiceLatencySLOGate(options);
-  if (report.status === "fail") {
-    const error = new Error(
-      `Voice latency SLO gate failed with ${report.failed} failed measurement(s).`,
-    ) as VoiceLatencySLOGateError;
-    error.report = report;
-    throw error;
-  }
-  return report;
-};
-
 export const renderVoiceLatencySLOMarkdown = (
   report: VoiceLatencySLOGateReport,
   options: { title?: string } = {},

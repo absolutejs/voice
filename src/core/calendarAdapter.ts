@@ -85,6 +85,7 @@ export const createVoiceInMemoryCalendarAdapter = (
       .map((a) => ({ endMs: a.endMs, startMs: a.startMs }));
 
   return {
+    providerName: "in-memory",
     async book(input) {
       const clash = liveRanges().some(
         (r) => input.startMs < r.endMs && r.startMs < input.endMs,
@@ -106,6 +107,7 @@ export const createVoiceInMemoryCalendarAdapter = (
         ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
       };
       appointments.set(id, appointment);
+
       return appointment;
     },
     async cancel(id) {
@@ -116,6 +118,7 @@ export const createVoiceInMemoryCalendarAdapter = (
         status: "cancelled",
       };
       appointments.set(id, cancelled);
+
       return cancelled;
     },
     async get(id) {
@@ -123,6 +126,7 @@ export const createVoiceInMemoryCalendarAdapter = (
     },
     async listAvailability(query) {
       const { generateVoiceCalendarSlots } = await import("./calendarSlots");
+
       return generateVoiceCalendarSlots({
         bookedRanges: liveRanges(),
         ...(query.bufferMinutes !== undefined
@@ -141,7 +145,6 @@ export const createVoiceInMemoryCalendarAdapter = (
         toMs: query.toMs,
       });
     },
-    providerName: "in-memory",
     async reschedule(id, nextStartMs, nextEndMs) {
       const existing = appointments.get(id);
       if (!existing) return null;
@@ -158,6 +161,7 @@ export const createVoiceInMemoryCalendarAdapter = (
         startMs: nextStartMs,
       };
       appointments.set(id, updated);
+
       return updated;
     },
   };

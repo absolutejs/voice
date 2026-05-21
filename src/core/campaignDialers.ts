@@ -148,6 +148,7 @@ const resolveFetch = (fetcher?: VoiceCampaignDialerFetch) => {
   if (!activeFetch) {
     throw new Error("Campaign dialer requires fetch or globalThis.fetch.");
   }
+
   return activeFetch;
 };
 
@@ -158,6 +159,7 @@ const resolveURL = async (
   if (!resolver) {
     return undefined;
   }
+
   return typeof resolver === "function" ? await resolver(input) : resolver;
 };
 
@@ -191,6 +193,7 @@ const appendQuery = (
       parsed.searchParams.set(key, String(value));
     }
   }
+
   return parsed.toString();
 };
 
@@ -215,6 +218,7 @@ const assertOk = async (response: Response, provider: string) => {
       `${provider} campaign dialer failed with ${response.status}: ${JSON.stringify(body)}`,
     );
   }
+
   return body;
 };
 
@@ -241,9 +245,112 @@ const formBody = (values: Record<string, unknown>) => {
       body.set(key, String(value));
     }
   }
+
   return body;
 };
 
+export const createVoicePlivoCampaignDialer =
+  (options: VoicePlivoCampaignDialerOptions): VoiceCampaignDialer =>
+  async (input) => {
+    const fetcher = resolveFetch(options.fetch);
+    const metadata = await resolveMetadata(options.metadata, {
+      ...input,
+      provider: "plivo",
+    });
+    const answerUrl = appendQuery(
+      await resolveURL(options.answerUrl, input),
+      metadata,
+    );
+    const callbackUrl = appendQuery(
+      await resolveURL(options.callbackUrl, input),
+      metadata,
+    );
+    const response = await fetcher(
+      `${options.apiBaseUrl ?? "https://api.plivo.com"}/v1/Account/${encodeURIComponent(options.authId)}/Call/`,
+      {
+        body: formBody({
+          answer_method: options.answerMethod,
+          answer_url: answerUrl,
+          callback_method: options.callbackMethod,
+          callback_url: callbackUrl,
+          from: options.from,
+          to: input.recipient.phone,
+        }),
+        headers: {
+          authorization: `Basic ${Buffer.from(`${options.authId}:${options.authToken}`).toString("base64")}`,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        method: "POST",
+      },
+    );
+    const body = await assertOk(response, "Plivo");
+
+    return {
+      externalCallId: firstString([
+        body.request_uuid,
+        body.requestUuid,
+        body.call_uuid,
+        body.callUuid,
+      ]),
+      metadata: {
+        provider: "plivo",
+        response: body,
+      },
+      status: "running",
+    } satisfies VoiceCampaignDialerResult;
+  };
+export const createVoiceTelnyxCampaignDialer =
+  (options: VoiceTelnyxCampaignDialerOptions): VoiceCampaignDialer =>
+  async (input) => {
+    const fetcher = resolveFetch(options.fetch);
+    const metadata = await resolveMetadata(options.clientState, {
+      ...input,
+      provider: "telnyx",
+    });
+    const webhookUrl = appendQuery(
+      await resolveURL(options.webhookUrl, input),
+      metadata,
+    );
+    const response = await fetcher(
+      `${options.apiBaseUrl ?? "https://api.telnyx.com"}/v2/calls`,
+      {
+        body: JSON.stringify({
+          client_state: Buffer.from(JSON.stringify(metadata)).toString(
+            "base64",
+          ),
+          connection_id: options.connectionId,
+          from: options.from,
+          to: input.recipient.phone,
+          webhook_url: webhookUrl,
+          webhook_url_method: options.webhookUrlMethod,
+        }),
+        headers: {
+          authorization: `Bearer ${options.apiKey}`,
+          "content-type": "application/json",
+        },
+        method: "POST",
+      },
+    );
+    const body = await assertOk(response, "Telnyx");
+    const data = (
+      typeof body.data === "object" && body.data !== null ? body.data : body
+    ) as Record<string, unknown>;
+
+    return {
+      externalCallId: firstString([
+        data.call_control_id,
+        data.call_session_id,
+        data.call_leg_id,
+        body.call_control_id,
+        body.call_session_id,
+      ]),
+      metadata: {
+        provider: "telnyx",
+        response: body,
+      },
+      status: "running",
+    } satisfies VoiceCampaignDialerResult;
+  };
 export const createVoiceTwilioCampaignDialer =
   (options: VoiceTwilioCampaignDialerOptions): VoiceCampaignDialer =>
   async (input) => {
@@ -281,112 +388,11 @@ export const createVoiceTwilioCampaignDialer =
       },
     );
     const body = await assertOk(response, "Twilio");
+
     return {
       externalCallId: firstString([body.sid, body.callSid, body.call_sid]),
       metadata: {
         provider: "twilio",
-        response: body,
-      },
-      status: "running",
-    } satisfies VoiceCampaignDialerResult;
-  };
-
-export const createVoiceTelnyxCampaignDialer =
-  (options: VoiceTelnyxCampaignDialerOptions): VoiceCampaignDialer =>
-  async (input) => {
-    const fetcher = resolveFetch(options.fetch);
-    const metadata = await resolveMetadata(options.clientState, {
-      ...input,
-      provider: "telnyx",
-    });
-    const webhookUrl = appendQuery(
-      await resolveURL(options.webhookUrl, input),
-      metadata,
-    );
-    const response = await fetcher(
-      `${options.apiBaseUrl ?? "https://api.telnyx.com"}/v2/calls`,
-      {
-        body: JSON.stringify({
-          client_state: Buffer.from(JSON.stringify(metadata)).toString(
-            "base64",
-          ),
-          connection_id: options.connectionId,
-          from: options.from,
-          to: input.recipient.phone,
-          webhook_url: webhookUrl,
-          webhook_url_method: options.webhookUrlMethod,
-        }),
-        headers: {
-          authorization: `Bearer ${options.apiKey}`,
-          "content-type": "application/json",
-        },
-        method: "POST",
-      },
-    );
-    const body = await assertOk(response, "Telnyx");
-    const data = (
-      typeof body.data === "object" && body.data !== null ? body.data : body
-    ) as Record<string, unknown>;
-    return {
-      externalCallId: firstString([
-        data.call_control_id,
-        data.call_session_id,
-        data.call_leg_id,
-        body.call_control_id,
-        body.call_session_id,
-      ]),
-      metadata: {
-        provider: "telnyx",
-        response: body,
-      },
-      status: "running",
-    } satisfies VoiceCampaignDialerResult;
-  };
-
-export const createVoicePlivoCampaignDialer =
-  (options: VoicePlivoCampaignDialerOptions): VoiceCampaignDialer =>
-  async (input) => {
-    const fetcher = resolveFetch(options.fetch);
-    const metadata = await resolveMetadata(options.metadata, {
-      ...input,
-      provider: "plivo",
-    });
-    const answerUrl = appendQuery(
-      await resolveURL(options.answerUrl, input),
-      metadata,
-    );
-    const callbackUrl = appendQuery(
-      await resolveURL(options.callbackUrl, input),
-      metadata,
-    );
-    const response = await fetcher(
-      `${options.apiBaseUrl ?? "https://api.plivo.com"}/v1/Account/${encodeURIComponent(options.authId)}/Call/`,
-      {
-        body: formBody({
-          answer_method: options.answerMethod,
-          answer_url: answerUrl,
-          callback_method: options.callbackMethod,
-          callback_url: callbackUrl,
-          from: options.from,
-          to: input.recipient.phone,
-        }),
-        headers: {
-          authorization: `Basic ${Buffer.from(`${options.authId}:${options.authToken}`).toString("base64")}`,
-          "content-type": "application/x-www-form-urlencoded",
-        },
-        method: "POST",
-      },
-    );
-    const body = await assertOk(response, "Plivo");
-    return {
-      externalCallId: firstString([
-        body.request_uuid,
-        body.requestUuid,
-        body.call_uuid,
-        body.callUuid,
-      ]),
-      metadata: {
-        provider: "plivo",
         response: body,
       },
       status: "running",
@@ -413,6 +419,7 @@ const serializeProofRequestBody = (body: RequestInit["body"]) => {
       return body;
     }
   }
+
   return body ? String(body) : undefined;
 };
 
@@ -566,45 +573,13 @@ const runCampaignDialerProofForProvider = async (input: {
   };
 };
 
-export const getVoiceCampaignDialerProofStatus = (
-  options: Pick<VoiceCampaignDialerProofOptions, "providers" | "runPath"> = {},
-): VoiceCampaignDialerProofStatus => ({
-  generatedAt: Date.now(),
-  mode: "dry-run",
-  ok: true,
-  providers: options.providers ?? campaignDialerProofProviders,
-  runPath: options.runPath,
-  safe: true,
-});
-
-export const runVoiceCampaignDialerProof = async (
-  options: VoiceCampaignDialerProofOptions = {},
-): Promise<VoiceCampaignDialerProofReport> => {
-  const providers = options.providers ?? campaignDialerProofProviders;
-  const store = options.store ?? createVoiceMemoryCampaignStore();
-  const results = await Promise.all(
-    providers.map((provider) =>
-      runCampaignDialerProofForProvider({
-        baseUrl: options.baseUrl ?? "http://localhost",
-        from: options.from ?? "+15550009999",
-        provider,
-        store,
-      }),
-    ),
+export const assertVoiceCampaignDialerProofEvidence = (
+  report: VoiceCampaignDialerProofReport,
+  input: VoiceCampaignDialerProofAssertionInput = {},
+): VoiceCampaignDialerProofAssertionReport => assertVoiceEvidence(
+    "Voice campaign dialer proof evidence assertion failed",
+    evaluateVoiceCampaignDialerProofEvidence(report, input),
   );
-
-  return {
-    generatedAt: Date.now(),
-    mode: "dry-run",
-    ok: results.every(
-      (result) =>
-        result.carrierRequests.length > 0 &&
-        result.outcomes.every((outcome) => outcome.applied),
-    ),
-    providers: results,
-  };
-};
-
 export const evaluateVoiceCampaignDialerProofEvidence = (
   report: VoiceCampaignDialerProofReport,
   input: VoiceCampaignDialerProofAssertionInput = {},
@@ -685,13 +660,40 @@ export const evaluateVoiceCampaignDialerProofEvidence = (
     totalProviders: report.providers.length,
   };
 };
-
-export const assertVoiceCampaignDialerProofEvidence = (
-  report: VoiceCampaignDialerProofReport,
-  input: VoiceCampaignDialerProofAssertionInput = {},
-): VoiceCampaignDialerProofAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice campaign dialer proof evidence assertion failed",
-    evaluateVoiceCampaignDialerProofEvidence(report, input),
+export const getVoiceCampaignDialerProofStatus = (
+  options: Pick<VoiceCampaignDialerProofOptions, "providers" | "runPath"> = {},
+): VoiceCampaignDialerProofStatus => ({
+  generatedAt: Date.now(),
+  mode: "dry-run",
+  ok: true,
+  providers: options.providers ?? campaignDialerProofProviders,
+  runPath: options.runPath,
+  safe: true,
+});
+export const runVoiceCampaignDialerProof = async (
+  options: VoiceCampaignDialerProofOptions = {},
+): Promise<VoiceCampaignDialerProofReport> => {
+  const providers = options.providers ?? campaignDialerProofProviders;
+  const store = options.store ?? createVoiceMemoryCampaignStore();
+  const results = await Promise.all(
+    providers.map((provider) =>
+      runCampaignDialerProofForProvider({
+        baseUrl: options.baseUrl ?? "http://localhost",
+        from: options.from ?? "+15550009999",
+        provider,
+        store,
+      }),
+    ),
   );
+
+  return {
+    generatedAt: Date.now(),
+    mode: "dry-run",
+    ok: results.every(
+      (result) =>
+        result.carrierRequests.length > 0 &&
+        result.outcomes.every((outcome) => outcome.applied),
+    ),
+    providers: results,
+  };
 };

@@ -34,9 +34,11 @@ const matchesAnyPattern = (
     pattern.regex.lastIndex = 0;
     if (pattern.regex.test(text)) {
       pattern.regex.lastIndex = 0;
+
       return pattern;
     }
   }
+
   return undefined;
 };
 
@@ -69,6 +71,7 @@ export const deriveVoiceRecordingRedactionRanges = (
       startMs: Math.max(0, start - padding),
     });
   }
+
   return out;
 };
 
@@ -116,6 +119,7 @@ export const redactVoiceRecording = (
   const bytes = applyAudioRedaction(input.pcm, input.format, ranges, {
     ...(input.fill !== undefined ? { fill: input.fill } : {}),
   });
+
   return {
     bytes,
     ranges,

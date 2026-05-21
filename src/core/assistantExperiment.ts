@@ -71,6 +71,7 @@ const hashStickyKey = (value: string): number => {
     hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
+
   return hash >>> 0;
 };
 
@@ -94,6 +95,7 @@ const pickByWeight = <T extends { weight?: number }>(
     cumulative += Math.max(0, item.weight ?? 1);
     if (target < cumulative) return item;
   }
+
   return items[items.length - 1]!;
 };
 
@@ -109,12 +111,16 @@ export const createVoiceAssistantExperiment = <
       "createVoiceAssistantExperiment requires at least one variant",
     );
   }
-  const allocator = options.allocator;
+  const {allocator} = options;
   const findById = (id: string) => {
     const found = options.variants.find((v) => v.id === id);
+
     return found ?? options.variants[0]!;
   };
+
   return {
+    experimentId: options.experimentId,
+    variants: options.variants,
     allocate: (input) => {
       let variantId: string;
       if (typeof allocator === "function") {
@@ -136,9 +142,8 @@ export const createVoiceAssistantExperiment = <
         stickyKey: input.stickyKey,
         variant,
       });
+
       return { experimentId: options.experimentId, variant };
     },
-    experimentId: options.experimentId,
-    variants: options.variants,
   };
 };

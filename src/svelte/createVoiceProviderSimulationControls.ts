@@ -12,6 +12,7 @@ export const createVoiceProviderSimulationControls = <
   options: VoiceProviderSimulationControlsOptions<TProvider>,
 ) => {
   const store = createVoiceProviderSimulationControlsStore<TProvider>(options);
+
   return {
     ...store,
     bind: (element: Element) =>

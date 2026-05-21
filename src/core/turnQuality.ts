@@ -76,6 +76,7 @@ const getTurnLatencyMs = (turn: VoiceTurnRecord) => {
   if (firstTranscriptAt === undefined) {
     return undefined;
   }
+
   return Math.max(0, turn.committedAt - firstTranscriptAt);
 };
 
@@ -84,7 +85,7 @@ const summarizeTurn = (
   turn: VoiceTurnRecord,
   options: { confidenceWarnThreshold: number },
 ): VoiceTurnQualityItem => {
-  const quality = turn.quality;
+  const {quality} = turn;
   const correctionChanged = quality?.correction?.changed === true;
   const fallbackUsed = quality?.fallbackUsed === true;
   const lowConfidence =
@@ -133,7 +134,7 @@ const resolveSessions = async <
   }
   const ids =
     options.sessionIds ??
-    ((await options.store.list()) as VoiceSessionSummary[]).map(
+    ((await options.store.list())).map(
       (summary) => summary.id,
     );
   const hydrated = await Promise.all(
@@ -142,41 +143,54 @@ const resolveSessions = async <
   const sessions: TSession[] = [];
   for (const session of hydrated) {
     if (session) {
-      sessions.push(session as TSession);
+      sessions.push(session);
     }
   }
+
   return sessions;
 };
 
-export const summarizeVoiceTurnQuality = async <
+export const createVoiceTurnQualityHTMLHandler =
+  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
+    options: VoiceTurnQualityHTMLHandlerOptions<TSession>,
+  ) =>
+  async () => {
+    const report = await summarizeVoiceTurnQuality(options);
+    const render =
+      options.render ?? ((input) => renderVoiceTurnQualityHTML(input, options));
+    const body = await render(report);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceTurnQualityJSONHandler =
+  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
+    options: VoiceTurnQualityOptions<TSession>,
+  ) =>
+  async () =>
+    summarizeVoiceTurnQuality(options);
+export const createVoiceTurnQualityRoutes = <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
 >(
-  options: VoiceTurnQualityOptions<TSession>,
-): Promise<VoiceTurnQualityReport> => {
-  const sessions = await resolveSessions(options);
-  const confidenceWarnThreshold =
-    options.confidenceWarnThreshold ?? DEFAULT_CONFIDENCE_WARN_THRESHOLD;
-  const turns = sessions
-    .flatMap((session) =>
-      session.turns.map((turn) =>
-        summarizeTurn(session.id, turn, { confidenceWarnThreshold }),
-      ),
-    )
-    .sort((left, right) => right.committedAt - left.committedAt);
-  const failed = turns.filter((turn) => turn.status === "fail").length;
-  const warnings = turns.filter((turn) => turn.status === "warn").length;
+  options: VoiceTurnQualityRoutesOptions<TSession>,
+) => {
+  const path = options.path ?? "/api/turn-quality";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-turn-quality",
+  }).get(path, createVoiceTurnQualityJSONHandler(options));
 
-  return {
-    checkedAt: Date.now(),
-    failed,
-    sessions: sessions.length,
-    status: failed > 0 ? "fail" : warnings > 0 ? "warn" : "pass",
-    total: turns.length,
-    turns,
-    warnings,
-  };
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceTurnQualityHTMLHandler(options));
+  }
+
+  return routes;
 };
-
 export const renderVoiceTurnQualityHTML = (
   report: VoiceTurnQualityReport,
   options: { title?: string } = {},
@@ -206,47 +220,31 @@ export const renderVoiceTurnQualityHTML = (
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101316;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.turn{background:#181d22;border:1px solid #2a323a;border-radius:20px;margin-bottom:16px;padding:20px}.hero{background:linear-gradient(135deg,rgba(251,191,36,.16),rgba(34,197,94,.1))}.eyebrow{color:#fbbf24;font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{background:#0f1217;border:1px solid #3f3f46;border-radius:999px;padding:7px 10px}.turn-header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.pass{color:#86efac}.warn,.unknown{color:#fde68a}.fail{color:#fca5a5}.turn.fail{border-color:rgba(248,113,113,.45)}dl{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}dt{color:#a8b0b8;font-size:.8rem}dd{margin:0}@media(max-width:800px){main{padding:18px}.turn-header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Realtime STT Debugging</p><h1>${escapeHtml(title)}</h1><div class="summary"><span class="pill ${escapeHtml(report.status)}">${escapeHtml(report.status)}</span><span class="pill">${String(report.total)} turns</span><span class="pill">${String(report.warnings)} warnings</span><span class="pill">${String(report.failed)} failed</span><span class="pill">${String(report.sessions)} sessions</span></div></section>${turns || '<section class="turn"><p>No committed turns found.</p></section>'}</main></body></html>`;
 };
-
-export const createVoiceTurnQualityJSONHandler =
-  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
-    options: VoiceTurnQualityOptions<TSession>,
-  ) =>
-  async () =>
-    summarizeVoiceTurnQuality(options);
-
-export const createVoiceTurnQualityHTMLHandler =
-  <TSession extends VoiceSessionRecord = VoiceSessionRecord>(
-    options: VoiceTurnQualityHTMLHandlerOptions<TSession>,
-  ) =>
-  async () => {
-    const report = await summarizeVoiceTurnQuality(options);
-    const render =
-      options.render ?? ((input) => renderVoiceTurnQualityHTML(input, options));
-    const body = await render(report);
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceTurnQualityRoutes = <
+export const summarizeVoiceTurnQuality = async <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
 >(
-  options: VoiceTurnQualityRoutesOptions<TSession>,
-) => {
-  const path = options.path ?? "/api/turn-quality";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-turn-quality",
-  }).get(path, createVoiceTurnQualityJSONHandler(options));
+  options: VoiceTurnQualityOptions<TSession>,
+): Promise<VoiceTurnQualityReport> => {
+  const sessions = await resolveSessions(options);
+  const confidenceWarnThreshold =
+    options.confidenceWarnThreshold ?? DEFAULT_CONFIDENCE_WARN_THRESHOLD;
+  const turns = sessions
+    .flatMap((session) =>
+      session.turns.map((turn) =>
+        summarizeTurn(session.id, turn, { confidenceWarnThreshold }),
+      ),
+    )
+    .sort((left, right) => right.committedAt - left.committedAt);
+  const failed = turns.filter((turn) => turn.status === "fail").length;
+  const warnings = turns.filter((turn) => turn.status === "warn").length;
 
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceTurnQualityHTMLHandler(options));
-  }
-
-  return routes;
+  return {
+    checkedAt: Date.now(),
+    failed,
+    sessions: sessions.length,
+    status: failed > 0 ? "fail" : warnings > 0 ? "warn" : "pass",
+    total: turns.length,
+    turns,
+    warnings,
+  };
 };

@@ -12,18 +12,6 @@ export type VoiceTurnQualitySnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceTurnQuality = async (
-  path = "/api/turn-quality",
-  options: Pick<VoiceTurnQualityClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice turn quality failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceTurnQualityReport;
-};
-
 export const createVoiceTurnQualityStore = (
   path = "/api/turn-quality",
   options: VoiceTurnQualityClientOptions = {},
@@ -59,6 +47,7 @@ export const createVoiceTurnQualityStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -87,14 +76,27 @@ export const createVoiceTurnQualityStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceTurnQuality = async (
+  path = "/api/turn-quality",
+  options: Pick<VoiceTurnQualityClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice turn quality failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceTurnQualityReport;
 };

@@ -62,6 +62,7 @@ const createSurface = (
   }
 
   const blocked = summary.failed + summary.deadLettered;
+
   return {
     deadLettered: summary.deadLettered,
     detail: `${summary.delivered}/${summary.total} delivered, ${summary.pending} pending`,
@@ -78,7 +79,7 @@ export const createVoiceDeliveryRuntimeViewModel = (
   snapshot: VoiceDeliveryRuntimeSnapshot,
   options: VoiceDeliveryRuntimeWidgetOptions = {},
 ): VoiceDeliveryRuntimeViewModel => {
-  const report = snapshot.report;
+  const {report} = snapshot;
   const surfaces = [
     createSurface("audit", report?.summary.audit),
     createSurface("trace", report?.summary.trace),
@@ -111,7 +112,88 @@ export const createVoiceDeliveryRuntimeViewModel = (
     updatedAt: snapshot.updatedAt,
   };
 };
+export const defineVoiceDeliveryRuntimeElement = (
+  tagName = "absolute-voice-delivery-runtime",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceDeliveryRuntimeElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceDeliveryRuntime>;
+
+      connectedCallback() {
+        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        this.mounted = mountVoiceDeliveryRuntime(
+          this,
+          this.getAttribute("path") ?? "/api/voice-delivery-runtime",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const getVoiceDeliveryRuntimeCSS = () =>
+  `.absolute-voice-delivery-runtime{border:1px solid #c9d8cf;border-radius:20px;background:#f6fff9;color:#0d1b12;padding:18px;box-shadow:0 18px 40px rgba(19,55,35,.12);font-family:inherit}.absolute-voice-delivery-runtime--warn,.absolute-voice-delivery-runtime--error{border-color:#f2b56b;background:#fff9ed}.absolute-voice-delivery-runtime__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-delivery-runtime__eyebrow{color:#4e6b59;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-delivery-runtime__label{font-size:28px;line-height:1}.absolute-voice-delivery-runtime__description{color:#33483b;margin:12px 0 0}.absolute-voice-delivery-runtime__surfaces{display:grid;gap:8px;list-style:none;margin:16px 0 0;padding:0}.absolute-voice-delivery-runtime__surface{background:#fff;border:1px solid #d9eadf;border-radius:14px;display:grid;gap:4px;padding:10px 12px}.absolute-voice-delivery-runtime__surface--warn{border-color:#f2b56b}.absolute-voice-delivery-runtime__surface--disabled{opacity:.72}.absolute-voice-delivery-runtime__surface span,.absolute-voice-delivery-runtime__surface small{color:#587063}.absolute-voice-delivery-runtime__actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.absolute-voice-delivery-runtime__actions button{background:#134e2d;border:0;border-radius:999px;color:#f6fff9;cursor:pointer;font:inherit;font-weight:800;padding:8px 12px}.absolute-voice-delivery-runtime__actions button:disabled{cursor:not-allowed;opacity:.48}.absolute-voice-delivery-runtime__error{color:#9f1239;font-weight:700}`;
+export const mountVoiceDeliveryRuntime = (
+  element: Element,
+  path = "/api/voice-delivery-runtime",
+  options: VoiceDeliveryRuntimeWidgetOptions = {},
+) => {
+  const store = createVoiceDeliveryRuntimeStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceDeliveryRuntimeHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribe = store.subscribe(render);
+  const handleClick = (event: Event) => {
+    const {target} = event;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    const action = target.closest(
+      "[data-absolute-voice-delivery-runtime-action]",
+    );
+    const actionName = action?.getAttribute(
+      "data-absolute-voice-delivery-runtime-action",
+    );
+    if (actionName === "tick") {
+      void store.tick().catch(() => {});
+    }
+    if (actionName === "requeue-dead-letters") {
+      void store.requeueDeadLetters().catch(() => {});
+    }
+  };
+  element.addEventListener?.("click", handleClick);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      element.removeEventListener?.("click", handleClick);
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceDeliveryRuntimeHTML = (
   snapshot: VoiceDeliveryRuntimeSnapshot,
   options: VoiceDeliveryRuntimeWidgetOptions = {},
@@ -150,89 +232,4 @@ export const renderVoiceDeliveryRuntimeHTML = (
   ${actionError}
   ${model.error ? `<p class="absolute-voice-delivery-runtime__error">${escapeHtml(model.error)}</p>` : ""}
 </section>`;
-};
-
-export const getVoiceDeliveryRuntimeCSS = () =>
-  `.absolute-voice-delivery-runtime{border:1px solid #c9d8cf;border-radius:20px;background:#f6fff9;color:#0d1b12;padding:18px;box-shadow:0 18px 40px rgba(19,55,35,.12);font-family:inherit}.absolute-voice-delivery-runtime--warn,.absolute-voice-delivery-runtime--error{border-color:#f2b56b;background:#fff9ed}.absolute-voice-delivery-runtime__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-delivery-runtime__eyebrow{color:#4e6b59;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-delivery-runtime__label{font-size:28px;line-height:1}.absolute-voice-delivery-runtime__description{color:#33483b;margin:12px 0 0}.absolute-voice-delivery-runtime__surfaces{display:grid;gap:8px;list-style:none;margin:16px 0 0;padding:0}.absolute-voice-delivery-runtime__surface{background:#fff;border:1px solid #d9eadf;border-radius:14px;display:grid;gap:4px;padding:10px 12px}.absolute-voice-delivery-runtime__surface--warn{border-color:#f2b56b}.absolute-voice-delivery-runtime__surface--disabled{opacity:.72}.absolute-voice-delivery-runtime__surface span,.absolute-voice-delivery-runtime__surface small{color:#587063}.absolute-voice-delivery-runtime__actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.absolute-voice-delivery-runtime__actions button{background:#134e2d;border:0;border-radius:999px;color:#f6fff9;cursor:pointer;font:inherit;font-weight:800;padding:8px 12px}.absolute-voice-delivery-runtime__actions button:disabled{cursor:not-allowed;opacity:.48}.absolute-voice-delivery-runtime__error{color:#9f1239;font-weight:700}`;
-
-export const mountVoiceDeliveryRuntime = (
-  element: Element,
-  path = "/api/voice-delivery-runtime",
-  options: VoiceDeliveryRuntimeWidgetOptions = {},
-) => {
-  const store = createVoiceDeliveryRuntimeStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceDeliveryRuntimeHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribe = store.subscribe(render);
-  const handleClick = (event: Event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-    const action = target.closest(
-      "[data-absolute-voice-delivery-runtime-action]",
-    );
-    const actionName = action?.getAttribute(
-      "data-absolute-voice-delivery-runtime-action",
-    );
-    if (actionName === "tick") {
-      void store.tick().catch(() => {});
-    }
-    if (actionName === "requeue-dead-letters") {
-      void store.requeueDeadLetters().catch(() => {});
-    }
-  };
-  element.addEventListener?.("click", handleClick);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      element.removeEventListener?.("click", handleClick);
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceDeliveryRuntimeElement = (
-  tagName = "absolute-voice-delivery-runtime",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceDeliveryRuntimeElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceDeliveryRuntime>;
-
-      connectedCallback() {
-        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
-        this.mounted = mountVoiceDeliveryRuntime(
-          this,
-          this.getAttribute("path") ?? "/api/voice-delivery-runtime",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

@@ -93,6 +93,7 @@ export const createVoiceReminderScheduler = (
       created.push(job);
       broadcast(job);
     }
+
     return created;
   };
 
@@ -107,6 +108,7 @@ export const createVoiceReminderScheduler = (
     job.status = "in-flight";
     job.attempts += 1;
     broadcast(job);
+
     return true;
   };
 
@@ -115,6 +117,7 @@ export const createVoiceReminderScheduler = (
     if (!job) return false;
     job.status = "sent";
     broadcast(job);
+
     return true;
   };
 
@@ -129,6 +132,7 @@ export const createVoiceReminderScheduler = (
       job.status = "failed";
     }
     broadcast(job);
+
     return true;
   };
 
@@ -144,22 +148,24 @@ export const createVoiceReminderScheduler = (
         count += 1;
       }
     }
+
     return count;
   };
 
   return {
     cancelForAppointment,
     due,
-    list: (appointmentId?: string) =>
-      Array.from(jobs.values()).filter(
-        (j) => !appointmentId || j.appointmentId === appointmentId,
-      ),
     markFailed,
     markInFlight,
     markSent,
     schedule,
+    list: (appointmentId?: string) =>
+      Array.from(jobs.values()).filter(
+        (j) => !appointmentId || j.appointmentId === appointmentId,
+      ),
     subscribe(listener: (job: VoiceReminderJob) => void) {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

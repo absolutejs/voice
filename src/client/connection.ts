@@ -47,14 +47,14 @@ const NOOP_CONNECTION: VoiceConnectionHandle = {
   callControl: noop,
   close: noop,
   endTurn: noop,
-  getReadyState: () => WS_CLOSED,
-  getScenarioId: () => "",
-  getSessionId: () => "",
   send: noop,
   sendAudio: noop,
   simulateDisconnect: noop,
-  start: () => {},
   subscribe: noopUnsubscribe,
+  getReadyState: () => WS_CLOSED,
+  getScenarioId: () => "",
+  getSessionId: () => "",
+  start: () => {},
 };
 
 const createSessionId = () => crypto.randomUUID();
@@ -195,6 +195,7 @@ export const createVoiceConnection = (
           },
           type: "connection",
         });
+
         return;
       }
 
@@ -307,9 +308,9 @@ export const createVoiceConnection = (
     }
 
     send({
-      type: "start",
-      sessionId: state.sessionId,
       scenarioId: state.scenarioId ?? undefined,
+      sessionId: state.sessionId,
+      type: "start",
     });
   };
 
@@ -362,13 +363,13 @@ export const createVoiceConnection = (
     callControl,
     close,
     endTurn,
-    getReadyState: () => state.ws?.readyState ?? WS_CLOSED,
-    getScenarioId: () => state.scenarioId ?? "",
-    getSessionId: () => state.sessionId,
     send,
     sendAudio,
     simulateDisconnect,
     start,
     subscribe,
+    getReadyState: () => state.ws?.readyState ?? WS_CLOSED,
+    getScenarioId: () => state.scenarioId ?? "",
+    getSessionId: () => state.sessionId,
   };
 };

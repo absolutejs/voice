@@ -41,9 +41,9 @@ export function useVoiceDeliveryRuntime(
     actionStatus,
     error,
     isLoading,
-    requeueDeadLetters: store.requeueDeadLetters,
     refresh: store.refresh,
     report,
+    requeueDeadLetters: store.requeueDeadLetters,
     tick: store.tick,
     updatedAt,
   };

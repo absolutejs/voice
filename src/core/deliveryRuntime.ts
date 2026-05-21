@@ -214,7 +214,7 @@ const requeueDelivery = <
     deliveryStatus: "pending",
     sinkDeliveries: undefined,
     updatedAt: Date.now(),
-  }) as TDelivery;
+  });
 
 const createDeliveryRuntimeFileSink = <TEvent extends { id: string }>(input: {
   directory: string;
@@ -232,6 +232,8 @@ const createDeliveryRuntimeFileSink = <TEvent extends { id: string }>(input: {
   id: string;
   kind: string;
 } => ({
+  id: input.id,
+  kind: "file",
   deliver: async ({ events }) => {
     const firstEvent = events[0];
     const fileName = `${Date.now()}-${encodeURIComponent(firstEvent?.id ?? crypto.randomUUID())}.json`;
@@ -259,8 +261,6 @@ const createDeliveryRuntimeFileSink = <TEvent extends { id: string }>(input: {
       status: "delivered",
     };
   },
-  id: input.id,
-  kind: "file",
 });
 
 const createPresetSinks = (
@@ -327,34 +327,13 @@ const createPresetSinks = (
   };
 };
 
-export const createVoiceDeliveryRuntimePresetConfig = (
-  options: VoiceDeliveryRuntimePresetOptions,
-): VoiceDeliveryRuntimeConfig => {
-  const leases = resolvePresetLeases(options.leases);
-  const sinks = createPresetSinks(options);
-
-  return {
-    audit: {
-      autoStart: options.autoStart,
-      deliveries: options.auditDeliveries,
-      leases: leases.audit,
-      maxFailures: options.failures?.maxFailures,
-      pollIntervalMs: options.pollIntervalMs,
-      sinks: [sinks.audit],
-      workerId: options.auditWorkerId ?? `voice-${options.mode}-audit-worker`,
-    },
-    trace: {
-      autoStart: options.autoStart,
-      deliveries: options.traceDeliveries,
-      leases: leases.trace,
-      maxFailures: options.failures?.maxFailures,
-      pollIntervalMs: options.pollIntervalMs,
-      sinks: [sinks.trace],
-      workerId: options.traceWorkerId ?? `voice-${options.mode}-trace-worker`,
-    },
-  };
-};
-
+export const buildVoiceDeliveryRuntimeReport = async (
+  runtime: VoiceDeliveryRuntime,
+): Promise<VoiceDeliveryRuntimeReport> => ({
+  checkedAt: Date.now(),
+  isRunning: runtime.isRunning(),
+  summary: await runtime.summarize(),
+});
 export const createVoiceDeliveryRuntime = <
   TAuditDelivery extends VoiceAuditSinkDeliveryRecord =
     VoiceAuditSinkDeliveryRecord,
@@ -390,6 +369,7 @@ export const createVoiceDeliveryRuntime = <
 
   return {
     audit,
+    trace,
     isRunning: () => Boolean(auditLoop?.isRunning() || traceLoop?.isRunning()),
     requeueDeadLetters: async () => {
       let audit = 0;
@@ -419,8 +399,8 @@ export const createVoiceDeliveryRuntime = <
 
       return {
         audit,
-        trace,
         total: audit + trace,
+        trace,
       };
     },
     start: () => {
@@ -471,18 +451,92 @@ export const createVoiceDeliveryRuntime = <
 
       return result;
     },
-    trace,
   };
 };
+export const createVoiceDeliveryRuntimePresetConfig = (
+  options: VoiceDeliveryRuntimePresetOptions,
+): VoiceDeliveryRuntimeConfig => {
+  const leases = resolvePresetLeases(options.leases);
+  const sinks = createPresetSinks(options);
 
-export const buildVoiceDeliveryRuntimeReport = async (
-  runtime: VoiceDeliveryRuntime,
-): Promise<VoiceDeliveryRuntimeReport> => ({
-  checkedAt: Date.now(),
-  isRunning: runtime.isRunning(),
-  summary: await runtime.summarize(),
-});
+  return {
+    audit: {
+      autoStart: options.autoStart,
+      deliveries: options.auditDeliveries,
+      leases: leases.audit,
+      maxFailures: options.failures?.maxFailures,
+      pollIntervalMs: options.pollIntervalMs,
+      sinks: [sinks.audit],
+      workerId: options.auditWorkerId ?? `voice-${options.mode}-audit-worker`,
+    },
+    trace: {
+      autoStart: options.autoStart,
+      deliveries: options.traceDeliveries,
+      leases: leases.trace,
+      maxFailures: options.failures?.maxFailures,
+      pollIntervalMs: options.pollIntervalMs,
+      sinks: [sinks.trace],
+      workerId: options.traceWorkerId ?? `voice-${options.mode}-trace-worker`,
+    },
+  };
+};
+export const createVoiceDeliveryRuntimeRoutes = (
+  options: VoiceDeliveryRuntimeRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice-delivery-runtime";
+  const htmlPath =
+    options.htmlPath === undefined ? "/delivery-runtime" : options.htmlPath;
+  const tickPath =
+    options.tickPath === undefined
+      ? "/api/voice-delivery-runtime/tick"
+      : options.tickPath;
+  const requeueDeadLettersPath =
+    options.requeueDeadLettersPath === undefined
+      ? "/api/voice-delivery-runtime/requeue-dead-letters"
+      : options.requeueDeadLettersPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-delivery-runtime",
+  }).get(path, () => buildVoiceDeliveryRuntimeReport(options.runtime));
 
+  if (tickPath !== false) {
+    routes.post(tickPath, async () => ({
+      drainedAt: Date.now(),
+      result: await options.runtime.tick(),
+      summary: await options.runtime.summarize(),
+    }));
+  }
+
+  if (requeueDeadLettersPath !== false) {
+    routes.post(requeueDeadLettersPath, async () => ({
+      requeuedAt: Date.now(),
+      result: await options.runtime.requeueDeadLetters(),
+      summary: await options.runtime.summarize(),
+    }));
+  }
+
+  if (htmlPath !== false) {
+    routes.get(htmlPath, async () => {
+      const report = await buildVoiceDeliveryRuntimeReport(options.runtime);
+      const body = await (options.render ?? renderVoiceDeliveryRuntimeHTML)(
+        report,
+        {
+          requeueDeadLettersPath,
+          tickPath,
+          title: options.title,
+        },
+      );
+
+      return new Response(body, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      });
+    });
+  }
+
+  return routes;
+};
 export const renderVoiceDeliveryRuntimeHTML = (
   report: VoiceDeliveryRuntimeReport,
   options: {
@@ -529,62 +583,4 @@ app.use(
 );`);
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0f1411;color:#f7f2df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1080px;padding:32px}a{color:#86efac;text-decoration:none}.hero{background:linear-gradient(135deg,rgba(34,197,94,.18),rgba(14,165,233,.13));border:1px solid #263a30;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#86efac;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,5vw,4.8rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.status.running{border-color:rgba(34,197,94,.7);color:#bbf7d0}.muted{color:#b9c3b4}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:18px 0}article,.card{background:#151d18;border:1px solid #263a30;border-radius:22px;padding:18px}.primitive{background:#111a15;border-color:#41604a}article span{color:#b9c3b4;display:block;font-weight:800}article strong{display:block;font-size:2.3rem;margin-top:8px}.actions{display:flex;flex-wrap:wrap;gap:10px}button{background:#86efac;border:0;border-radius:999px;color:#07120b;cursor:pointer;font-weight:900;margin-top:12px;padding:10px 14px}pre{background:#09100c;border:1px solid #263a30;border-radius:18px;color:#dcfce7;overflow:auto;padding:16px}.primitive p{color:#c8d8ca;line-height:1.55}.primitive code{color:#bbf7d0}</style></head><body><main><p><a href="/delivery-sinks">Delivery sinks</a></p><section class="hero"><p class="eyebrow">Worker control plane</p><h1>${escapeHtml(title)}</h1><p class="muted">Inspect queue summaries, manually tick failed/pending audit and trace deliveries, and requeue dead letters after operator review.</p><p class="status ${report.isRunning ? "running" : ""}">${report.isRunning ? "Running" : "Stopped"}</p><p class="muted">Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}</p><div class="actions">${tickForm}${requeueForm}</div></section><section class="grid">${renderSummaryCard("Audit", report.summary.audit)}${renderSummaryCard("Trace", report.summary.trace)}</section><section class="card primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceDeliveryRuntimeRoutes(...)</code> builds this control plane</h2><p>Own the audit and trace delivery queues in your app, mount one runtime route group, and pass the same runtime into production readiness so failed or dead-lettered exports block deploys.</p><pre><code>${snippet}</code></pre></section></main></body></html>`;
-};
-
-export const createVoiceDeliveryRuntimeRoutes = (
-  options: VoiceDeliveryRuntimeRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice-delivery-runtime";
-  const htmlPath =
-    options.htmlPath === undefined ? "/delivery-runtime" : options.htmlPath;
-  const tickPath =
-    options.tickPath === undefined
-      ? "/api/voice-delivery-runtime/tick"
-      : options.tickPath;
-  const requeueDeadLettersPath =
-    options.requeueDeadLettersPath === undefined
-      ? "/api/voice-delivery-runtime/requeue-dead-letters"
-      : options.requeueDeadLettersPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-delivery-runtime",
-  }).get(path, () => buildVoiceDeliveryRuntimeReport(options.runtime));
-
-  if (tickPath !== false) {
-    routes.post(tickPath, async () => ({
-      drainedAt: Date.now(),
-      result: await options.runtime.tick(),
-      summary: await options.runtime.summarize(),
-    }));
-  }
-
-  if (requeueDeadLettersPath !== false) {
-    routes.post(requeueDeadLettersPath, async () => ({
-      requeuedAt: Date.now(),
-      result: await options.runtime.requeueDeadLetters(),
-      summary: await options.runtime.summarize(),
-    }));
-  }
-
-  if (htmlPath !== false) {
-    routes.get(htmlPath, async () => {
-      const report = await buildVoiceDeliveryRuntimeReport(options.runtime);
-      const body = await (options.render ?? renderVoiceDeliveryRuntimeHTML)(
-        report,
-        {
-          tickPath,
-          requeueDeadLettersPath,
-          title: options.title,
-        },
-      );
-
-      return new Response(body, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      });
-    });
-  }
-
-  return routes;
 };

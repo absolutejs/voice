@@ -108,6 +108,7 @@ export const summarizeVoiceProviderHealth = async <
       timeoutCount: 0,
     };
     entries.set(provider, entry);
+
     return entry;
   };
 
@@ -145,7 +146,7 @@ export const summarizeVoiceProviderHealth = async <
       continue;
     }
 
-    const provider = event.payload.provider;
+    const {provider} = event.payload;
     if (!isAllowedProvider(provider)) {
       continue;
     }
@@ -154,7 +155,7 @@ export const summarizeVoiceProviderHealth = async <
       : undefined;
     const applyProviderHealth = () => {
       const entry = getEntry(provider);
-      const providerHealth = event.payload.providerHealth;
+      const {providerHealth} = event.payload;
       if (providerHealth && typeof providerHealth === "object") {
         const suppressedUntil = getNumber(
           (providerHealth as Record<string, unknown>).suppressedUntil,
@@ -173,6 +174,7 @@ export const summarizeVoiceProviderHealth = async <
       if (suppressionRemainingMs !== undefined) {
         entry.suppressionRemainingMs = suppressionRemainingMs;
       }
+
       return entry;
     };
 
@@ -191,7 +193,7 @@ export const summarizeVoiceProviderHealth = async <
         entry.elapsedCount += 1;
         entry.elapsedTotal += elapsedMs;
       }
-      const selectedProvider = event.payload.selectedProvider;
+      const {selectedProvider} = event.payload;
       if (
         providerStatus === "fallback" &&
         isAllowedProvider(selectedProvider) &&
@@ -254,10 +256,10 @@ export const summarizeVoiceProviderHealth = async <
       recommended: false,
       runCount: entry.runCount,
       status,
+      suppressedUntil: entry.suppressedUntil,
       suppressionRemainingMs: activeSuppression
         ? suppressionRemainingMs
         : undefined,
-      suppressedUntil: entry.suppressedUntil,
       timeoutCount: entry.timeoutCount,
     };
   });
@@ -286,28 +288,46 @@ export type VoiceProviderHealthByModalityOptions = {
  * Provider-health summary across LLM/STT/TTS, scoping STT and TTS to their
  * respective trace-event kinds. Returns the three groups flattened.
  */
-export const summarizeVoiceProviderHealthByModality = async (
-  events: StoredVoiceTraceEvent[],
-  {
-    llmProviders,
-    sttProviders,
-    ttsProviders,
-  }: VoiceProviderHealthByModalityOptions,
-): Promise<VoiceProviderHealthSummary[]> => {
-  const groups = await Promise.all([
-    summarizeVoiceProviderHealth({ events, providers: llmProviders ?? [] }),
-    summarizeVoiceProviderHealth({
-      events: events.filter((event) => event.payload.kind === "stt"),
-      providers: sttProviders ?? [],
-    }),
-    summarizeVoiceProviderHealth({
-      events: events.filter((event) => event.payload.kind === "tts"),
-      providers: ttsProviders ?? [],
-    }),
-  ]);
-  return groups.flat();
-};
+export const createVoiceProviderHealthHTMLHandler =
+  <TProvider extends string = string>(
+    options: VoiceProviderHealthHTMLHandlerOptions<TProvider>,
+  ) =>
+  async () => {
+    const providers = await summarizeVoiceProviderHealth(options);
+    const render = options.render ?? renderVoiceProviderHealthHTML;
+    const body = await render(providers);
 
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceProviderHealthJSONHandler =
+  <TProvider extends string = string>(
+    options: VoiceProviderHealthHandlerOptions<TProvider>,
+  ) =>
+  async () =>
+    summarizeVoiceProviderHealth(options);
+export const createVoiceProviderHealthRoutes = <
+  TProvider extends string = string,
+>(
+  options: VoiceProviderHealthRoutesOptions<TProvider>,
+) => {
+  const path = options.path ?? "/api/provider-status";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-provider-health",
+  }).get(path, createVoiceProviderHealthJSONHandler(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceProviderHealthHTMLHandler(options));
+  }
+
+  return routes;
+};
 export const renderVoiceProviderHealthHTML = (
   providers: VoiceProviderHealthSummary[],
 ) =>
@@ -320,6 +340,7 @@ export const renderVoiceProviderHealthHTML = (
             typeof provider.suppressionRemainingMs === "number"
               ? Math.ceil(provider.suppressionRemainingMs / 1000)
               : undefined;
+
           return [
             `<article class="voice-provider-card ${escapeHtml(provider.status)}">`,
             '<div class="voice-provider-card-header">',
@@ -344,46 +365,25 @@ export const renderVoiceProviderHealthHTML = (
         }),
         "</div>",
       ].join("");
+export const summarizeVoiceProviderHealthByModality = async (
+  events: StoredVoiceTraceEvent[],
+  {
+    llmProviders,
+    sttProviders,
+    ttsProviders,
+  }: VoiceProviderHealthByModalityOptions,
+): Promise<VoiceProviderHealthSummary[]> => {
+  const groups = await Promise.all([
+    summarizeVoiceProviderHealth({ events, providers: llmProviders ?? [] }),
+    summarizeVoiceProviderHealth({
+      events: events.filter((event) => event.payload.kind === "stt"),
+      providers: sttProviders ?? [],
+    }),
+    summarizeVoiceProviderHealth({
+      events: events.filter((event) => event.payload.kind === "tts"),
+      providers: ttsProviders ?? [],
+    }),
+  ]);
 
-export const createVoiceProviderHealthJSONHandler =
-  <TProvider extends string = string>(
-    options: VoiceProviderHealthHandlerOptions<TProvider>,
-  ) =>
-  async () =>
-    summarizeVoiceProviderHealth(options);
-
-export const createVoiceProviderHealthHTMLHandler =
-  <TProvider extends string = string>(
-    options: VoiceProviderHealthHTMLHandlerOptions<TProvider>,
-  ) =>
-  async () => {
-    const providers = await summarizeVoiceProviderHealth(options);
-    const render = options.render ?? renderVoiceProviderHealthHTML;
-    const body = await render(providers);
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceProviderHealthRoutes = <
-  TProvider extends string = string,
->(
-  options: VoiceProviderHealthRoutesOptions<TProvider>,
-) => {
-  const path = options.path ?? "/api/provider-status";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-provider-health",
-  }).get(path, createVoiceProviderHealthJSONHandler(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceProviderHealthHTMLHandler(options));
-  }
-
-  return routes;
+  return groups.flat();
 };

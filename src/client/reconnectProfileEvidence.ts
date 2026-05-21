@@ -12,20 +12,6 @@ export type VoiceReconnectProfileEvidenceSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceReconnectProfileEvidence = async (
-  path = "/api/voice/reconnect-profile-evidence",
-  options: Pick<VoiceReconnectProfileEvidenceClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(
-      `Voice reconnect profile evidence failed: HTTP ${response.status}`,
-    );
-  }
-  return (await response.json()) as VoiceReconnectProfileEvidenceSummary;
-};
-
 export const createVoiceReconnectProfileEvidenceStore = (
   path = "/api/voice/reconnect-profile-evidence",
   options: VoiceReconnectProfileEvidenceClientOptions = {},
@@ -57,6 +43,7 @@ export const createVoiceReconnectProfileEvidenceStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -89,14 +76,29 @@ export const createVoiceReconnectProfileEvidenceStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceReconnectProfileEvidence = async (
+  path = "/api/voice/reconnect-profile-evidence",
+  options: Pick<VoiceReconnectProfileEvidenceClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(
+      `Voice reconnect profile evidence failed: HTTP ${response.status}`,
+    );
+  }
+
+  return (await response.json()) as VoiceReconnectProfileEvidenceSummary;
 };

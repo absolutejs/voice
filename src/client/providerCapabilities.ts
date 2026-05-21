@@ -14,22 +14,6 @@ export type VoiceProviderCapabilitiesSnapshot<
   updatedAt?: number;
 };
 
-export const fetchVoiceProviderCapabilities = async <
-  TProvider extends string = string,
->(
-  path = "/api/provider-capabilities",
-  options: Pick<VoiceProviderCapabilitiesClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(
-      `Voice provider capabilities failed: HTTP ${response.status}`,
-    );
-  }
-  return (await response.json()) as VoiceProviderCapabilityReport<TProvider>;
-};
-
 export const createVoiceProviderCapabilitiesStore = <
   TProvider extends string = string,
 >(
@@ -70,6 +54,7 @@ export const createVoiceProviderCapabilitiesStore = <
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -98,14 +83,31 @@ export const createVoiceProviderCapabilitiesStore = <
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceProviderCapabilities = async <
+  TProvider extends string = string,
+>(
+  path = "/api/provider-capabilities",
+  options: Pick<VoiceProviderCapabilitiesClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(
+      `Voice provider capabilities failed: HTTP ${response.status}`,
+    );
+  }
+
+  return (await response.json()) as VoiceProviderCapabilityReport<TProvider>;
 };

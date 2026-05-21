@@ -440,6 +440,7 @@ const hasPayloadValue = (
   values: Set<string>,
 ) => {
   const value = payload[key];
+
   return typeof value === "string" && values.has(value);
 };
 
@@ -518,6 +519,7 @@ const toGuardrailFinding = (
     return undefined;
   }
   const record = value as Record<string, unknown>;
+
   return {
     action: getString(record.action),
     label: getString(record.label),
@@ -630,6 +632,7 @@ const summarizeMediaPipelineForOperationsRecord = (
       ...(processorGraph?.issueCodes ?? []),
     ]),
   );
+
   return {
     frames: report.frames,
     issueCodes,
@@ -743,8 +746,8 @@ const toProviderDecision = (
     selectedProvider: getString(event.payload.selectedProvider),
     status,
     surface: getString(event.payload.surface),
-    type: event.type,
     turnId: event.turnId,
+    type: event.type,
   };
 };
 
@@ -824,6 +827,7 @@ const resolveOutcome = (
   events: StoredVoiceTraceEvent[],
 ): VoiceOperationsRecordOutcome => {
   const agentResults = events.filter((event) => event.type === "agent.result");
+
   return {
     assistantReplies: events.filter((event) => event.type === "turn.assistant")
       .length,
@@ -837,6 +841,32 @@ const resolveOutcome = (
   };
 };
 
+export const assertVoiceOperationsRecordGuardrails = (
+  record: VoiceOperationsRecord,
+  input: VoiceOperationsRecordGuardrailAssertionInput = {},
+): VoiceOperationsRecordGuardrailAssertionReport => {
+  const report = evaluateVoiceOperationsRecordGuardrails(record, input);
+  if (!report.ok) {
+    throw new Error(
+      `Voice operations record guardrail assertion failed for ${record.sessionId}: ${report.issues.join(" ")}`,
+    );
+  }
+
+  return report;
+};
+export const assertVoiceOperationsRecordProviderRecovery = (
+  record: VoiceOperationsRecord,
+  input: VoiceOperationsRecordProviderRecoveryAssertionInput = {},
+): VoiceOperationsRecordProviderRecoveryAssertionReport => {
+  const report = evaluateVoiceOperationsRecordProviderRecovery(record, input);
+  if (!report.ok) {
+    throw new Error(
+      `Voice operations record provider recovery assertion failed for ${record.sessionId}: ${report.issues.join(" ")}`,
+    );
+  }
+
+  return report;
+};
 export const buildVoiceOperationsRecord = async (
   options: VoiceOperationsRecordOptions,
 ): Promise<VoiceOperationsRecord> => {
@@ -979,13 +1009,12 @@ export const buildVoiceOperationsRecord = async (
     transcript: buildTranscript(replay),
   };
 };
-
 export const evaluateVoiceOperationsRecordGuardrails = (
   record: VoiceOperationsRecord,
   input: VoiceOperationsRecordGuardrailAssertionInput = {},
 ): VoiceOperationsRecordGuardrailAssertionReport => {
   const issues: string[] = [];
-  const decisions = record.guardrails.decisions;
+  const {decisions} = record.guardrails;
   const proofs = uniqueSorted(decisions.map((decision) => decision.proof));
   const ruleIds = uniqueSorted(
     decisions.flatMap((decision) =>
@@ -1074,20 +1103,6 @@ export const evaluateVoiceOperationsRecordGuardrails = (
     warned: record.guardrails.warned,
   };
 };
-
-export const assertVoiceOperationsRecordGuardrails = (
-  record: VoiceOperationsRecord,
-  input: VoiceOperationsRecordGuardrailAssertionInput = {},
-): VoiceOperationsRecordGuardrailAssertionReport => {
-  const report = evaluateVoiceOperationsRecordGuardrails(record, input);
-  if (!report.ok) {
-    throw new Error(
-      `Voice operations record guardrail assertion failed for ${record.sessionId}: ${report.issues.join(" ")}`,
-    );
-  }
-  return report;
-};
-
 export const evaluateVoiceOperationsRecordProviderRecovery = (
   record: VoiceOperationsRecord,
   input: VoiceOperationsRecordProviderRecoveryAssertionInput = {},
@@ -1203,19 +1218,6 @@ export const evaluateVoiceOperationsRecordProviderRecovery = (
   };
 };
 
-export const assertVoiceOperationsRecordProviderRecovery = (
-  record: VoiceOperationsRecord,
-  input: VoiceOperationsRecordProviderRecoveryAssertionInput = {},
-): VoiceOperationsRecordProviderRecoveryAssertionReport => {
-  const report = evaluateVoiceOperationsRecordProviderRecovery(record, input);
-  if (!report.ok) {
-    throw new Error(
-      `Voice operations record provider recovery assertion failed for ${record.sessionId}: ${report.issues.join(" ")}`,
-    );
-  }
-  return report;
-};
-
 const getAssistantRepliesForTurn = (
   record: VoiceOperationsRecord,
   turnId: string | undefined,
@@ -1235,6 +1237,7 @@ const mediaIssueForStep = (
   if (event === "media" && step.audioBytes <= 0) {
     return "Carrier media packet had no audio bytes.";
   }
+
   return undefined;
 };
 
@@ -1274,6 +1277,7 @@ export const buildVoiceFailureReplay = (
         event: event.event,
         streamId: event.streamId,
       };
+
       return {
         ...step,
         issue: mediaIssueForStep(step),
@@ -1295,6 +1299,7 @@ export const buildVoiceFailureReplay = (
           : step.status === "degraded"
             ? `degraded to ${step.fallbackProvider ?? step.selectedProvider ?? "fallback"}`
             : "failed before recovery";
+
       return `${provider} ${recovery}${step.reason ? `: ${step.reason}` : ""}`;
     });
   const pipelineIssueCodes = record.mediaPipeline?.issueCodes ?? [];
@@ -1407,6 +1412,7 @@ export const renderVoiceFailureReplayMarkdown = (
               : undefined,
             step.reason,
           ].filter((part): part is string => typeof part === "string");
+
           return `- ${provider}: ${parts.join("; ")}`;
         })
         .join("\n")
@@ -1423,6 +1429,7 @@ export const renderVoiceFailureReplayMarkdown = (
             `audioBytes=${String(step.audioBytes)}`,
             step.issue,
           ].filter((part): part is string => typeof part === "string");
+
           return `- ${parts.join("; ")}`;
         })
         .join("\n")
@@ -1434,6 +1441,7 @@ export const renderVoiceFailureReplayMarkdown = (
   const pipelineCodes = report.media.pipelineIssueCodes.length
     ? report.media.pipelineIssueCodes.map((code) => `- ${code}`).join("\n")
     : "- none";
+
   return [
     `# Voice Failure Replay: ${report.sessionId}`,
     "",
@@ -1470,306 +1478,6 @@ const outcomeLabels = (outcome: VoiceOperationsRecordOutcome) =>
     outcome.noAnswer ? "no-answer" : undefined,
   ].filter((label): label is string => label !== undefined);
 
-export const renderVoiceOperationsRecordIncidentMarkdown = (
-  record: VoiceOperationsRecord,
-) => {
-  const outcomes = outcomeLabels(record.outcome);
-  const topErrors = record.traceEvents
-    .filter((event) => event.type === "session.error")
-    .map((event) => getString(event.payload.error))
-    .filter((error): error is string => typeof error === "string")
-    .slice(0, 3);
-  const openTasks =
-    record.tasks?.tasks
-      .filter((task) => task.status !== "done")
-      .map((task) => task.title)
-      .slice(0, 3) ?? [];
-  const providerDecisions = record.providerDecisions
-    .filter(
-      (decision) =>
-        decision.provider ||
-        decision.selectedProvider ||
-        decision.fallbackProvider ||
-        decision.reason,
-    )
-    .slice(0, 5);
-  const providerDecisionLines = providerDecisions.length
-    ? providerDecisions.map((decision) => {
-        const provider =
-          decision.provider ??
-          decision.selectedProvider ??
-          decision.fallbackProvider ??
-          "provider";
-        const parts = [
-          decision.surface ? `surface=${decision.surface}` : undefined,
-          decision.status ? `status=${decision.status}` : undefined,
-          decision.selectedProvider
-            ? `selected=${decision.selectedProvider}`
-            : undefined,
-          decision.fallbackProvider
-            ? `fallback=${decision.fallbackProvider}`
-            : undefined,
-          decision.reason ? `reason=${decision.reason}` : undefined,
-        ].filter((part): part is string => typeof part === "string");
-        return `- ${provider}: ${parts.join("; ") || "decision recorded"}`;
-      })
-    : ["- none recorded"];
-  const providerDecisionSummary = record.providerDecisionSummary;
-  const providerRecoveryLine = [
-    `status=${providerDecisionSummary.recoveryStatus}`,
-    `selected=${String(providerDecisionSummary.selected)}`,
-    `fallbacks=${String(providerDecisionSummary.fallbacks)}`,
-    `degraded=${String(providerDecisionSummary.degraded)}`,
-    `errors=${String(providerDecisionSummary.errors)}`,
-  ].join("; ");
-  const telephonyMediaLine = [
-    `events=${String(record.telephonyMedia.total)}`,
-    `starts=${String(record.telephonyMedia.starts)}`,
-    `media=${String(record.telephonyMedia.media)}`,
-    `inbound=${String(record.telephonyMedia.inbound)}`,
-    `outbound=${String(record.telephonyMedia.outbound)}`,
-    `marks=${String(record.telephonyMedia.marks)}`,
-    `clears=${String(record.telephonyMedia.clears)}`,
-    `stops=${String(record.telephonyMedia.stops)}`,
-    `errors=${String(record.telephonyMedia.errors)}`,
-    `audioBytes=${String(record.telephonyMedia.audioBytes)}`,
-    `carriers=${record.telephonyMedia.carriers.join(", ") || "none"}`,
-    `streams=${record.telephonyMedia.streamIds.join(", ") || "none"}`,
-  ].join("; ");
-  const telephonyMediaLines = record.telephonyMedia.events.length
-    ? record.telephonyMedia.events.slice(0, 12).map((event) => {
-        const parts = [
-          event.carrier ? `carrier=${event.carrier}` : undefined,
-          event.streamId ? `stream=${event.streamId}` : undefined,
-          event.callSid ? `call=${event.callSid}` : undefined,
-          event.direction ? `direction=${event.direction}` : undefined,
-          event.sequenceNumber ? `seq=${event.sequenceNumber}` : undefined,
-          `audioBytes=${String(event.audioBytes)}`,
-        ].filter((part): part is string => typeof part === "string");
-        return `- ${event.event}: ${parts.join("; ")}`;
-      })
-    : ["- none recorded"];
-  const mediaPipelineLine = record.mediaPipeline
-    ? [
-        `status=${record.mediaPipeline.status}`,
-        `surface=${record.mediaPipeline.surface}`,
-        `quality=${record.mediaPipeline.qualityStatus}`,
-        `transport=${record.mediaPipeline.transportStatus ?? "n/a"}`,
-        `graph=${record.mediaPipeline.processorGraphStatus ?? "n/a"}`,
-        `frames=${String(record.mediaPipeline.frames)}`,
-        `jitter=${record.mediaPipeline.jitterMs === undefined ? "n/a" : `${String(record.mediaPipeline.jitterMs)}ms`}`,
-        `issueCodes=${record.mediaPipeline.issueCodes.join(", ") || "none"}`,
-      ].join("; ")
-    : "not provided";
-  const mediaPipelineCodeLines = record.mediaPipeline
-    ? record.mediaPipeline.issueCodes.length
-      ? record.mediaPipeline.issueCodes.map((code) => `- ${code}`)
-      : ["- none"]
-    : ["- media pipeline report not attached to this record"];
-
-  return [
-    `# Voice incident handoff: ${record.sessionId}`,
-    "",
-    `- Status: ${record.status}`,
-    `- Duration: ${formatMs(record.summary.callDurationMs)}`,
-    `- Turns: ${String(record.summary.turnCount)}`,
-    `- Errors: ${String(record.summary.errorCount)}`,
-    `- Outcome: ${outcomes.join(", ") || "unknown"}`,
-    `- Providers: ${record.providers.map((provider) => provider.provider).join(", ") || "none recorded"}`,
-    `- Open tasks: ${openTasks.join("; ") || "none"}`,
-    `- Top errors: ${topErrors.join("; ") || "none"}`,
-    `- Guardrails: ${String(record.guardrails.blocked)} blocked / ${String(record.guardrails.warned)} warned / ${String(record.guardrails.total)} decisions`,
-    `- Provider recovery: ${providerRecoveryLine}`,
-    `- Telephony media: ${telephonyMediaLine}`,
-    `- Media pipeline: ${mediaPipelineLine}`,
-    "",
-    "## Provider decisions",
-    "",
-    ...providerDecisionLines,
-    "",
-    "## Telephony media",
-    "",
-    ...telephonyMediaLines,
-    "",
-    "## Media pipeline issue codes",
-    "",
-    ...mediaPipelineCodeLines,
-    "",
-    renderVoiceOperationsRecordGuardrailMarkdown(record),
-    "",
-    "## Next checks",
-    "- Review provider decisions and fallback status.",
-    "- Review transcript and assistant replies.",
-    "- Review handoffs, tools, audit, tasks, and integration delivery.",
-  ].join("\n");
-};
-
-export const renderVoiceOperationsRecordGuardrailMarkdown = (
-  record: VoiceOperationsRecord,
-) => {
-  if (record.guardrails.total === 0) {
-    return [
-      "## Guardrail evidence",
-      "",
-      "- No assistant.guardrail events were recorded for this session.",
-    ].join("\n");
-  }
-
-  return [
-    "## Guardrail evidence",
-    "",
-    ...record.guardrails.decisions.map((decision) => {
-      const findings = decision.findings
-        .map((finding) =>
-          [finding.action, finding.ruleId, finding.label]
-            .filter((value): value is string => typeof value === "string")
-            .join(":"),
-        )
-        .filter(Boolean)
-        .join(", ");
-      return `- assistant.guardrail ${decision.stage ?? "unknown"}: ${decision.status ?? "unknown"}; allowed=${String(decision.allowed ?? "unknown")}; proof=${decision.proof ?? "runtime"}; findings=${findings || "none"}`;
-    }),
-  ].join("\n");
-};
-
-export const renderVoiceOperationsRecordHTML = (
-  record: VoiceOperationsRecord,
-  options: { incidentHref?: string; title?: string } = {},
-) => {
-  const providers = record.providers.length
-    ? record.providers
-        .map(
-          (provider) =>
-            `<article><strong>${escapeHtml(provider.provider)}</strong><span>${String(provider.eventCount)} events</span><span>${formatMs(provider.averageElapsedMs)} avg</span><span>${String(provider.errorCount)} errors</span></article>`,
-        )
-        .join("")
-    : '<p class="muted">No provider events recorded.</p>';
-  const transcript = record.transcript.length
-    ? record.transcript
-        .map(
-          (turn) =>
-            `<li><strong>${escapeHtml(turn.id)}</strong>${turn.committedText ? `<p><span class="label">Caller</span>${escapeHtml(turn.committedText)}</p>` : ""}${turn.assistantReplies.map((reply) => `<p><span class="label">Assistant</span>${escapeHtml(reply)}</p>`).join("")}${turn.errors.map((error) => `<p class="error"><span class="label">Error</span>${escapeHtml(error)}</p>`).join("")}</li>`,
-        )
-        .join("")
-    : "<li>No transcript turns recorded.</li>";
-  const providerDecisions = record.providerDecisions.length
-    ? record.providerDecisions
-        .map(
-          (decision) =>
-            `<li><strong>${escapeHtml(decision.provider ?? decision.selectedProvider ?? decision.fallbackProvider ?? "provider")}</strong> <span>${escapeHtml(decision.status ?? decision.type)}</span> ${formatMs(decision.elapsedMs)}${decision.surface ? `<p><span class="label">Surface</span>${escapeHtml(decision.surface)}</p>` : ""}${decision.kind ? `<p><span class="label">Kind</span>${escapeHtml(decision.kind)}</p>` : ""}${decision.selectedProvider ? `<p>Selected: ${escapeHtml(decision.selectedProvider)}</p>` : ""}${decision.fallbackProvider ? `<p>Fallback: ${escapeHtml(decision.fallbackProvider)}</p>` : ""}${decision.error ? `<p class="error">${escapeHtml(decision.error)}</p>` : ""}${decision.reason ? `<p>${escapeHtml(decision.reason)}</p>` : ""}</li>`,
-        )
-        .join("")
-    : "<li>No provider decisions recorded.</li>";
-  const providerDecisionSummary = record.providerDecisionSummary;
-  const handoffs = record.handoffs.length
-    ? record.handoffs
-        .map(
-          (handoff) =>
-            `<li><strong>${escapeHtml(handoff.fromAgentId ?? "unknown")}</strong> to <strong>${escapeHtml(handoff.targetAgentId ?? "unknown")}</strong> <span>${escapeHtml(handoff.status ?? "")}</span><p>${escapeHtml(handoff.summary ?? handoff.reason ?? "")}</p></li>`,
-        )
-        .join("")
-    : "<li>No agent handoffs recorded.</li>";
-  const tools = record.tools.length
-    ? record.tools
-        .map(
-          (tool) =>
-            `<li><strong>${escapeHtml(tool.toolName ?? "tool")}</strong> <span>${escapeHtml(tool.status ?? "")}</span> ${formatMs(tool.elapsedMs)} ${tool.error ? `<p>${escapeHtml(tool.error)}</p>` : ""}</li>`,
-        )
-        .join("")
-    : "<li>No tool calls recorded.</li>";
-  const reviews = record.reviews?.reviews.length
-    ? record.reviews.reviews
-        .map(
-          (review) =>
-            `<li><strong>${escapeHtml(review.title)}</strong> <span>${escapeHtml(review.summary.outcome ?? "")}</span><p>${escapeHtml(review.postCall?.summary ?? review.transcript.actual)}</p></li>`,
-        )
-        .join("")
-    : "<li>No call reviews recorded.</li>";
-  const tasks = record.tasks?.tasks.length
-    ? record.tasks.tasks
-        .map(
-          (task) =>
-            `<li><strong>${escapeHtml(task.title)}</strong> <span>${escapeHtml(task.status)}</span><p>${escapeHtml(task.recommendedAction)}</p></li>`,
-        )
-        .join("")
-    : "<li>No ops tasks recorded.</li>";
-  const integrationEvents = record.integrationEvents?.events.length
-    ? record.integrationEvents.events
-        .map(
-          (event) =>
-            `<li><strong>${escapeHtml(event.type)}</strong> <span>${escapeHtml(event.deliveryStatus ?? "local")}</span><p>${escapeHtml(event.deliveryError ?? event.deliveredTo ?? "")}</p></li>`,
-        )
-        .join("")
-    : "<li>No integration events recorded.</li>";
-  const guardrails = record.guardrails.total
-    ? record.guardrails.decisions
-        .map((decision) => {
-          const findings =
-            decision.findings
-              .map(
-                (finding) => finding.label ?? finding.ruleId ?? finding.action,
-              )
-              .filter((value): value is string => typeof value === "string")
-              .join(", ") || "none";
-          return `<li><strong>assistant.guardrail ${escapeHtml(decision.stage ?? "unknown")}</strong> <span>${escapeHtml(decision.status ?? "")}</span><p>Allowed: ${escapeHtml(String(decision.allowed ?? "unknown"))} · Proof: ${escapeHtml(decision.proof ?? "runtime")}${decision.turnId ? ` · Turn: ${escapeHtml(decision.turnId)}` : ""}</p><p>${escapeHtml(findings)}</p></li>`;
-        })
-        .join("")
-    : "<li>No assistant.guardrail events recorded.</li>";
-  const telephonyMedia = record.telephonyMedia.events.length
-    ? record.telephonyMedia.events
-        .slice(0, 50)
-        .map((event) => {
-          const details = [
-            event.carrier ? `Carrier: ${event.carrier}` : undefined,
-            event.streamId ? `Stream: ${event.streamId}` : undefined,
-            event.callSid ? `Call: ${event.callSid}` : undefined,
-            event.direction ? `Direction: ${event.direction}` : undefined,
-            event.sequenceNumber ? `Seq: ${event.sequenceNumber}` : undefined,
-            `Audio bytes: ${String(event.audioBytes)}`,
-          ].filter((detail): detail is string => typeof detail === "string");
-          return `<li><strong>${escapeHtml(event.event)}</strong> <span>${escapeHtml(new Date(event.at).toLocaleString())}</span><p>${escapeHtml(details.join(" · "))}</p></li>`;
-        })
-        .join("")
-    : "<li>No telephony media trace events recorded.</li>";
-  const mediaPipelineSection = record.mediaPipeline
-    ? `<section id="media-pipeline"><h2>Media Pipeline</h2><p class="muted">Surface: ${escapeHtml(record.mediaPipeline.surface)} · Status: ${escapeHtml(record.mediaPipeline.status)} · Quality: ${escapeHtml(record.mediaPipeline.qualityStatus)} · Transport: ${escapeHtml(record.mediaPipeline.transportStatus ?? "n/a")} · Graph: ${escapeHtml(record.mediaPipeline.processorGraphStatus ?? "n/a")} · Frames: ${String(record.mediaPipeline.frames)} · Jitter: ${record.mediaPipeline.jitterMs === undefined ? "n/a" : `${String(record.mediaPipeline.jitterMs)}ms`}</p><ul>${
-        record.mediaPipeline.issueCodes.length
-          ? record.mediaPipeline.issueCodes
-              .map((code) => `<li><strong>${escapeHtml(code)}</strong></li>`)
-              .join("")
-          : "<li>No media pipeline issue codes.</li>"
-      }</ul></section>`
-    : "";
-  const mediaPipelineCard = record.mediaPipeline
-    ? `<div class="card"><span>Media pipeline</span><strong>${escapeHtml(record.mediaPipeline.status)}</strong><span>${String(record.mediaPipeline.issueCodes.length)} issue code(s)</span></div>`
-    : "";
-  const mediaPipelineNavLink = record.mediaPipeline
-    ? '<a href="#media-pipeline">Media pipeline</a>'
-    : "";
-  const snippet = escapeHtml(`app.use(
-	createVoiceOperationsRecordRoutes({
-		audit: auditStore,
-		integrationEvents: opsEvents,
-		htmlPath: '/voice-ops/:sessionId',
-		path: '/api/voice-ops/:sessionId',
-		redact: {
-			keys: ['authorization', 'apiKey', 'token']
-		},
-		reviews: callReviews,
-		store: traceStore,
-		tasks: opsTasks
-	})
-);`);
-  const incidentMarkdown = escapeHtml(
-    renderVoiceOperationsRecordIncidentMarkdown(record),
-  );
-  const incidentLink = options.incidentHref
-    ? `<a href="${escapeHtml(options.incidentHref)}">Download incident.md</a>`
-    : "";
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? "Voice Operations Record")}</title><style>body{background:#101417;color:#f9f4e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.eyebrow{color:#fbbf24;font-size:.8rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.8rem);line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #475569;border-radius:999px;display:inline-flex;padding:8px 12px}.healthy{color:#86efac}.warning{color:#fbbf24}.failed,.error{color:#fca5a5}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:20px 0}.card,.primitive{background:#182025;border:1px solid #2d3a43;border-radius:20px;padding:16px}.card span,.muted,.label{color:#a9b4bd}.label{display:block;font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.card strong{display:block;font-size:2rem}section{margin-top:28px}article{display:grid;gap:8px}ul{display:grid;gap:10px;list-style:none;padding:0}li{background:#182025;border:1px solid #2d3a43;border-radius:16px;padding:14px}pre{background:#080d10;border:1px solid #2d3a43;border-radius:16px;color:#dbeafe;overflow:auto;padding:14px}.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.hero-actions a{background:#fbbf24;border-radius:999px;color:#111827;font-weight:900;padding:10px 14px;text-decoration:none}.two-column{display:grid;gap:18px;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr)}@media(max-width:860px){main{padding:20px}.two-column{grid-template-columns:1fr}}</style></head><body><main><p class="eyebrow">Call log replacement</p><h1>${escapeHtml(options.title ?? "Voice Operations Record")}</h1><p class="status ${escapeHtml(record.status)}">${escapeHtml(record.status)}</p><div class="hero-actions"><a href="#transcript">Transcript</a><a href="#provider-decisions">Provider decisions</a><a href="#telephony-media">Telephony media</a>${mediaPipelineNavLink}<a href="#guardrails">Guardrails</a><a href="#incident-handoff">Incident handoff</a>${incidentLink}</div><section class="grid"><div class="card"><span>Events</span><strong>${String(record.summary.eventCount)}</strong></div><div class="card"><span>Turns</span><strong>${String(record.summary.turnCount)}</strong></div><div class="card"><span>Errors</span><strong>${String(record.summary.errorCount)}</strong></div><div class="card"><span>Duration</span><strong>${formatMs(record.summary.callDurationMs)}</strong></div><div class="card"><span>Provider recovery</span><strong>${escapeHtml(providerDecisionSummary.recoveryStatus)}</strong><span>${String(providerDecisionSummary.fallbacks)} fallback / ${String(providerDecisionSummary.degraded)} degraded / ${String(providerDecisionSummary.errors)} errors</span></div><div class="card"><span>Telephony media</span><strong>${String(record.telephonyMedia.media)}</strong><span>${String(record.telephonyMedia.inbound)} inbound / ${String(record.telephonyMedia.outbound)} outbound / ${String(record.telephonyMedia.clears)} clears</span></div><div class="card"><span>Guardrails</span><strong>${String(record.guardrails.blocked)}</strong></div><div class="card"><span>Audit</span><strong>${String(record.audit?.total ?? 0)}</strong></div><div class="card"><span>Reviews</span><strong>${String(record.reviews?.total ?? 0)}</strong></div><div class="card"><span>Tasks</span><strong>${String(record.tasks?.total ?? 0)}</strong></div><div class="card"><span>Integrations</span><strong>${String(record.integrationEvents?.total ?? 0)}</strong></div>${mediaPipelineCard}</section><section class="two-column"><div><h2 id="transcript">Transcript</h2><ul>${transcript}</ul></div><div><h2 id="provider-decisions">Provider Decisions</h2><ul>${providerDecisions}</ul></div></section><section id="telephony-media"><h2>Telephony Media</h2><p class="muted">Live <code>client.telephony_media</code> stream lifecycle evidence attached to this session. Carriers: ${escapeHtml(record.telephonyMedia.carriers.join(", ") || "none")}. Streams: ${escapeHtml(record.telephonyMedia.streamIds.join(", ") || "none")}. Inbound: ${String(record.telephonyMedia.inbound)}. Outbound: ${String(record.telephonyMedia.outbound)}. Marks: ${String(record.telephonyMedia.marks)}. Clears: ${String(record.telephonyMedia.clears)}.</p><ul>${telephonyMedia}</ul></section>${mediaPipelineSection}<section id="guardrails"><h2>Guardrail Evidence</h2><p class="muted">Live <code>assistant.guardrail</code> decisions attached to this session.</p><ul>${guardrails}</ul></section><section id="incident-handoff"><h2>Copyable Incident Handoff</h2><p class="muted">Paste this into Slack, Linear, Zendesk, or an incident review. ${incidentLink}</p><pre><code>${incidentMarkdown}</code></pre></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceOperationsRecordRoutes(...)</code> gives every call one debuggable object</h2><p class="muted">Use this as the support/debug payload across traces, provider routing, tools, handoffs, guardrails, audit, latency, replay, reviews, tasks, media streams, and webhook delivery.</p><pre><code>${snippet}</code></pre></section><section><h2>Provider Summary</h2><div class="grid">${providers}</div></section><section><h2>Handoffs</h2><ul>${handoffs}</ul></section><section><h2>Tools</h2><ul>${tools}</ul></section><section><h2>Reviews</h2><ul>${reviews}</ul></section><section><h2>Tasks</h2><ul>${tasks}</ul></section><section><h2>Integration Events</h2><ul>${integrationEvents}</ul></section></main></body></html>`;
-};
-
 export const createVoiceOperationsRecordRoutes = (
   options: VoiceOperationsRecordRoutesOptions,
 ) => {
@@ -1793,6 +1501,7 @@ export const createVoiceOperationsRecordRoutes = (
     sessionId: string,
   ): Promise<VoiceMediaPipelineReport | undefined> => {
     if (options.mediaPipeline === undefined) return undefined;
+
     return typeof options.mediaPipeline === "function"
       ? await options.mediaPipeline({ sessionId })
       : options.mediaPipeline;
@@ -1856,6 +1565,7 @@ export const createVoiceOperationsRecordRoutes = (
               title: options.title,
             }))
         )(record);
+
         return new Response(body, {
           headers: {
             "Content-Type": "text/html; charset=utf-8",
@@ -1870,4 +1580,306 @@ export const createVoiceOperationsRecordRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceOperationsRecordGuardrailMarkdown = (
+  record: VoiceOperationsRecord,
+) => {
+  if (record.guardrails.total === 0) {
+    return [
+      "## Guardrail evidence",
+      "",
+      "- No assistant.guardrail events were recorded for this session.",
+    ].join("\n");
+  }
+
+  return [
+    "## Guardrail evidence",
+    "",
+    ...record.guardrails.decisions.map((decision) => {
+      const findings = decision.findings
+        .map((finding) =>
+          [finding.action, finding.ruleId, finding.label]
+            .filter((value): value is string => typeof value === "string")
+            .join(":"),
+        )
+        .filter(Boolean)
+        .join(", ");
+
+      return `- assistant.guardrail ${decision.stage ?? "unknown"}: ${decision.status ?? "unknown"}; allowed=${String(decision.allowed ?? "unknown")}; proof=${decision.proof ?? "runtime"}; findings=${findings || "none"}`;
+    }),
+  ].join("\n");
+};
+export const renderVoiceOperationsRecordHTML = (
+  record: VoiceOperationsRecord,
+  options: { incidentHref?: string; title?: string } = {},
+) => {
+  const providers = record.providers.length
+    ? record.providers
+        .map(
+          (provider) =>
+            `<article><strong>${escapeHtml(provider.provider)}</strong><span>${String(provider.eventCount)} events</span><span>${formatMs(provider.averageElapsedMs)} avg</span><span>${String(provider.errorCount)} errors</span></article>`,
+        )
+        .join("")
+    : '<p class="muted">No provider events recorded.</p>';
+  const transcript = record.transcript.length
+    ? record.transcript
+        .map(
+          (turn) =>
+            `<li><strong>${escapeHtml(turn.id)}</strong>${turn.committedText ? `<p><span class="label">Caller</span>${escapeHtml(turn.committedText)}</p>` : ""}${turn.assistantReplies.map((reply) => `<p><span class="label">Assistant</span>${escapeHtml(reply)}</p>`).join("")}${turn.errors.map((error) => `<p class="error"><span class="label">Error</span>${escapeHtml(error)}</p>`).join("")}</li>`,
+        )
+        .join("")
+    : "<li>No transcript turns recorded.</li>";
+  const providerDecisions = record.providerDecisions.length
+    ? record.providerDecisions
+        .map(
+          (decision) =>
+            `<li><strong>${escapeHtml(decision.provider ?? decision.selectedProvider ?? decision.fallbackProvider ?? "provider")}</strong> <span>${escapeHtml(decision.status ?? decision.type)}</span> ${formatMs(decision.elapsedMs)}${decision.surface ? `<p><span class="label">Surface</span>${escapeHtml(decision.surface)}</p>` : ""}${decision.kind ? `<p><span class="label">Kind</span>${escapeHtml(decision.kind)}</p>` : ""}${decision.selectedProvider ? `<p>Selected: ${escapeHtml(decision.selectedProvider)}</p>` : ""}${decision.fallbackProvider ? `<p>Fallback: ${escapeHtml(decision.fallbackProvider)}</p>` : ""}${decision.error ? `<p class="error">${escapeHtml(decision.error)}</p>` : ""}${decision.reason ? `<p>${escapeHtml(decision.reason)}</p>` : ""}</li>`,
+        )
+        .join("")
+    : "<li>No provider decisions recorded.</li>";
+  const {providerDecisionSummary} = record;
+  const handoffs = record.handoffs.length
+    ? record.handoffs
+        .map(
+          (handoff) =>
+            `<li><strong>${escapeHtml(handoff.fromAgentId ?? "unknown")}</strong> to <strong>${escapeHtml(handoff.targetAgentId ?? "unknown")}</strong> <span>${escapeHtml(handoff.status ?? "")}</span><p>${escapeHtml(handoff.summary ?? handoff.reason ?? "")}</p></li>`,
+        )
+        .join("")
+    : "<li>No agent handoffs recorded.</li>";
+  const tools = record.tools.length
+    ? record.tools
+        .map(
+          (tool) =>
+            `<li><strong>${escapeHtml(tool.toolName ?? "tool")}</strong> <span>${escapeHtml(tool.status ?? "")}</span> ${formatMs(tool.elapsedMs)} ${tool.error ? `<p>${escapeHtml(tool.error)}</p>` : ""}</li>`,
+        )
+        .join("")
+    : "<li>No tool calls recorded.</li>";
+  const reviews = record.reviews?.reviews.length
+    ? record.reviews.reviews
+        .map(
+          (review) =>
+            `<li><strong>${escapeHtml(review.title)}</strong> <span>${escapeHtml(review.summary.outcome ?? "")}</span><p>${escapeHtml(review.postCall?.summary ?? review.transcript.actual)}</p></li>`,
+        )
+        .join("")
+    : "<li>No call reviews recorded.</li>";
+  const tasks = record.tasks?.tasks.length
+    ? record.tasks.tasks
+        .map(
+          (task) =>
+            `<li><strong>${escapeHtml(task.title)}</strong> <span>${escapeHtml(task.status)}</span><p>${escapeHtml(task.recommendedAction)}</p></li>`,
+        )
+        .join("")
+    : "<li>No ops tasks recorded.</li>";
+  const integrationEvents = record.integrationEvents?.events.length
+    ? record.integrationEvents.events
+        .map(
+          (event) =>
+            `<li><strong>${escapeHtml(event.type)}</strong> <span>${escapeHtml(event.deliveryStatus ?? "local")}</span><p>${escapeHtml(event.deliveryError ?? event.deliveredTo ?? "")}</p></li>`,
+        )
+        .join("")
+    : "<li>No integration events recorded.</li>";
+  const guardrails = record.guardrails.total
+    ? record.guardrails.decisions
+        .map((decision) => {
+          const findings =
+            decision.findings
+              .map(
+                (finding) => finding.label ?? finding.ruleId ?? finding.action,
+              )
+              .filter((value): value is string => typeof value === "string")
+              .join(", ") || "none";
+
+          return `<li><strong>assistant.guardrail ${escapeHtml(decision.stage ?? "unknown")}</strong> <span>${escapeHtml(decision.status ?? "")}</span><p>Allowed: ${escapeHtml(String(decision.allowed ?? "unknown"))} · Proof: ${escapeHtml(decision.proof ?? "runtime")}${decision.turnId ? ` · Turn: ${escapeHtml(decision.turnId)}` : ""}</p><p>${escapeHtml(findings)}</p></li>`;
+        })
+        .join("")
+    : "<li>No assistant.guardrail events recorded.</li>";
+  const telephonyMedia = record.telephonyMedia.events.length
+    ? record.telephonyMedia.events
+        .slice(0, 50)
+        .map((event) => {
+          const details = [
+            event.carrier ? `Carrier: ${event.carrier}` : undefined,
+            event.streamId ? `Stream: ${event.streamId}` : undefined,
+            event.callSid ? `Call: ${event.callSid}` : undefined,
+            event.direction ? `Direction: ${event.direction}` : undefined,
+            event.sequenceNumber ? `Seq: ${event.sequenceNumber}` : undefined,
+            `Audio bytes: ${String(event.audioBytes)}`,
+          ].filter((detail): detail is string => typeof detail === "string");
+
+          return `<li><strong>${escapeHtml(event.event)}</strong> <span>${escapeHtml(new Date(event.at).toLocaleString())}</span><p>${escapeHtml(details.join(" · "))}</p></li>`;
+        })
+        .join("")
+    : "<li>No telephony media trace events recorded.</li>";
+  const mediaPipelineSection = record.mediaPipeline
+    ? `<section id="media-pipeline"><h2>Media Pipeline</h2><p class="muted">Surface: ${escapeHtml(record.mediaPipeline.surface)} · Status: ${escapeHtml(record.mediaPipeline.status)} · Quality: ${escapeHtml(record.mediaPipeline.qualityStatus)} · Transport: ${escapeHtml(record.mediaPipeline.transportStatus ?? "n/a")} · Graph: ${escapeHtml(record.mediaPipeline.processorGraphStatus ?? "n/a")} · Frames: ${String(record.mediaPipeline.frames)} · Jitter: ${record.mediaPipeline.jitterMs === undefined ? "n/a" : `${String(record.mediaPipeline.jitterMs)}ms`}</p><ul>${
+        record.mediaPipeline.issueCodes.length
+          ? record.mediaPipeline.issueCodes
+              .map((code) => `<li><strong>${escapeHtml(code)}</strong></li>`)
+              .join("")
+          : "<li>No media pipeline issue codes.</li>"
+      }</ul></section>`
+    : "";
+  const mediaPipelineCard = record.mediaPipeline
+    ? `<div class="card"><span>Media pipeline</span><strong>${escapeHtml(record.mediaPipeline.status)}</strong><span>${String(record.mediaPipeline.issueCodes.length)} issue code(s)</span></div>`
+    : "";
+  const mediaPipelineNavLink = record.mediaPipeline
+    ? '<a href="#media-pipeline">Media pipeline</a>'
+    : "";
+  const snippet = escapeHtml(`app.use(
+	createVoiceOperationsRecordRoutes({
+		audit: auditStore,
+		integrationEvents: opsEvents,
+		htmlPath: '/voice-ops/:sessionId',
+		path: '/api/voice-ops/:sessionId',
+		redact: {
+			keys: ['authorization', 'apiKey', 'token']
+		},
+		reviews: callReviews,
+		store: traceStore,
+		tasks: opsTasks
+	})
+);`);
+  const incidentMarkdown = escapeHtml(
+    renderVoiceOperationsRecordIncidentMarkdown(record),
+  );
+  const incidentLink = options.incidentHref
+    ? `<a href="${escapeHtml(options.incidentHref)}">Download incident.md</a>`
+    : "";
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? "Voice Operations Record")}</title><style>body{background:#101417;color:#f9f4e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.eyebrow{color:#fbbf24;font-size:.8rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.8rem);line-height:.9;margin:.2rem 0 1rem}.status{border:1px solid #475569;border-radius:999px;display:inline-flex;padding:8px 12px}.healthy{color:#86efac}.warning{color:#fbbf24}.failed,.error{color:#fca5a5}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:20px 0}.card,.primitive{background:#182025;border:1px solid #2d3a43;border-radius:20px;padding:16px}.card span,.muted,.label{color:#a9b4bd}.label{display:block;font-size:.72rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.card strong{display:block;font-size:2rem}section{margin-top:28px}article{display:grid;gap:8px}ul{display:grid;gap:10px;list-style:none;padding:0}li{background:#182025;border:1px solid #2d3a43;border-radius:16px;padding:14px}pre{background:#080d10;border:1px solid #2d3a43;border-radius:16px;color:#dbeafe;overflow:auto;padding:14px}.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.hero-actions a{background:#fbbf24;border-radius:999px;color:#111827;font-weight:900;padding:10px 14px;text-decoration:none}.two-column{display:grid;gap:18px;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr)}@media(max-width:860px){main{padding:20px}.two-column{grid-template-columns:1fr}}</style></head><body><main><p class="eyebrow">Call log replacement</p><h1>${escapeHtml(options.title ?? "Voice Operations Record")}</h1><p class="status ${escapeHtml(record.status)}">${escapeHtml(record.status)}</p><div class="hero-actions"><a href="#transcript">Transcript</a><a href="#provider-decisions">Provider decisions</a><a href="#telephony-media">Telephony media</a>${mediaPipelineNavLink}<a href="#guardrails">Guardrails</a><a href="#incident-handoff">Incident handoff</a>${incidentLink}</div><section class="grid"><div class="card"><span>Events</span><strong>${String(record.summary.eventCount)}</strong></div><div class="card"><span>Turns</span><strong>${String(record.summary.turnCount)}</strong></div><div class="card"><span>Errors</span><strong>${String(record.summary.errorCount)}</strong></div><div class="card"><span>Duration</span><strong>${formatMs(record.summary.callDurationMs)}</strong></div><div class="card"><span>Provider recovery</span><strong>${escapeHtml(providerDecisionSummary.recoveryStatus)}</strong><span>${String(providerDecisionSummary.fallbacks)} fallback / ${String(providerDecisionSummary.degraded)} degraded / ${String(providerDecisionSummary.errors)} errors</span></div><div class="card"><span>Telephony media</span><strong>${String(record.telephonyMedia.media)}</strong><span>${String(record.telephonyMedia.inbound)} inbound / ${String(record.telephonyMedia.outbound)} outbound / ${String(record.telephonyMedia.clears)} clears</span></div><div class="card"><span>Guardrails</span><strong>${String(record.guardrails.blocked)}</strong></div><div class="card"><span>Audit</span><strong>${String(record.audit?.total ?? 0)}</strong></div><div class="card"><span>Reviews</span><strong>${String(record.reviews?.total ?? 0)}</strong></div><div class="card"><span>Tasks</span><strong>${String(record.tasks?.total ?? 0)}</strong></div><div class="card"><span>Integrations</span><strong>${String(record.integrationEvents?.total ?? 0)}</strong></div>${mediaPipelineCard}</section><section class="two-column"><div><h2 id="transcript">Transcript</h2><ul>${transcript}</ul></div><div><h2 id="provider-decisions">Provider Decisions</h2><ul>${providerDecisions}</ul></div></section><section id="telephony-media"><h2>Telephony Media</h2><p class="muted">Live <code>client.telephony_media</code> stream lifecycle evidence attached to this session. Carriers: ${escapeHtml(record.telephonyMedia.carriers.join(", ") || "none")}. Streams: ${escapeHtml(record.telephonyMedia.streamIds.join(", ") || "none")}. Inbound: ${String(record.telephonyMedia.inbound)}. Outbound: ${String(record.telephonyMedia.outbound)}. Marks: ${String(record.telephonyMedia.marks)}. Clears: ${String(record.telephonyMedia.clears)}.</p><ul>${telephonyMedia}</ul></section>${mediaPipelineSection}<section id="guardrails"><h2>Guardrail Evidence</h2><p class="muted">Live <code>assistant.guardrail</code> decisions attached to this session.</p><ul>${guardrails}</ul></section><section id="incident-handoff"><h2>Copyable Incident Handoff</h2><p class="muted">Paste this into Slack, Linear, Zendesk, or an incident review. ${incidentLink}</p><pre><code>${incidentMarkdown}</code></pre></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceOperationsRecordRoutes(...)</code> gives every call one debuggable object</h2><p class="muted">Use this as the support/debug payload across traces, provider routing, tools, handoffs, guardrails, audit, latency, replay, reviews, tasks, media streams, and webhook delivery.</p><pre><code>${snippet}</code></pre></section><section><h2>Provider Summary</h2><div class="grid">${providers}</div></section><section><h2>Handoffs</h2><ul>${handoffs}</ul></section><section><h2>Tools</h2><ul>${tools}</ul></section><section><h2>Reviews</h2><ul>${reviews}</ul></section><section><h2>Tasks</h2><ul>${tasks}</ul></section><section><h2>Integration Events</h2><ul>${integrationEvents}</ul></section></main></body></html>`;
+};
+export const renderVoiceOperationsRecordIncidentMarkdown = (
+  record: VoiceOperationsRecord,
+) => {
+  const outcomes = outcomeLabels(record.outcome);
+  const topErrors = record.traceEvents
+    .filter((event) => event.type === "session.error")
+    .map((event) => getString(event.payload.error))
+    .filter((error): error is string => typeof error === "string")
+    .slice(0, 3);
+  const openTasks =
+    record.tasks?.tasks
+      .filter((task) => task.status !== "done")
+      .map((task) => task.title)
+      .slice(0, 3) ?? [];
+  const providerDecisions = record.providerDecisions
+    .filter(
+      (decision) =>
+        decision.provider ||
+        decision.selectedProvider ||
+        decision.fallbackProvider ||
+        decision.reason,
+    )
+    .slice(0, 5);
+  const providerDecisionLines = providerDecisions.length
+    ? providerDecisions.map((decision) => {
+        const provider =
+          decision.provider ??
+          decision.selectedProvider ??
+          decision.fallbackProvider ??
+          "provider";
+        const parts = [
+          decision.surface ? `surface=${decision.surface}` : undefined,
+          decision.status ? `status=${decision.status}` : undefined,
+          decision.selectedProvider
+            ? `selected=${decision.selectedProvider}`
+            : undefined,
+          decision.fallbackProvider
+            ? `fallback=${decision.fallbackProvider}`
+            : undefined,
+          decision.reason ? `reason=${decision.reason}` : undefined,
+        ].filter((part): part is string => typeof part === "string");
+
+        return `- ${provider}: ${parts.join("; ") || "decision recorded"}`;
+      })
+    : ["- none recorded"];
+  const {providerDecisionSummary} = record;
+  const providerRecoveryLine = [
+    `status=${providerDecisionSummary.recoveryStatus}`,
+    `selected=${String(providerDecisionSummary.selected)}`,
+    `fallbacks=${String(providerDecisionSummary.fallbacks)}`,
+    `degraded=${String(providerDecisionSummary.degraded)}`,
+    `errors=${String(providerDecisionSummary.errors)}`,
+  ].join("; ");
+  const telephonyMediaLine = [
+    `events=${String(record.telephonyMedia.total)}`,
+    `starts=${String(record.telephonyMedia.starts)}`,
+    `media=${String(record.telephonyMedia.media)}`,
+    `inbound=${String(record.telephonyMedia.inbound)}`,
+    `outbound=${String(record.telephonyMedia.outbound)}`,
+    `marks=${String(record.telephonyMedia.marks)}`,
+    `clears=${String(record.telephonyMedia.clears)}`,
+    `stops=${String(record.telephonyMedia.stops)}`,
+    `errors=${String(record.telephonyMedia.errors)}`,
+    `audioBytes=${String(record.telephonyMedia.audioBytes)}`,
+    `carriers=${record.telephonyMedia.carriers.join(", ") || "none"}`,
+    `streams=${record.telephonyMedia.streamIds.join(", ") || "none"}`,
+  ].join("; ");
+  const telephonyMediaLines = record.telephonyMedia.events.length
+    ? record.telephonyMedia.events.slice(0, 12).map((event) => {
+        const parts = [
+          event.carrier ? `carrier=${event.carrier}` : undefined,
+          event.streamId ? `stream=${event.streamId}` : undefined,
+          event.callSid ? `call=${event.callSid}` : undefined,
+          event.direction ? `direction=${event.direction}` : undefined,
+          event.sequenceNumber ? `seq=${event.sequenceNumber}` : undefined,
+          `audioBytes=${String(event.audioBytes)}`,
+        ].filter((part): part is string => typeof part === "string");
+
+        return `- ${event.event}: ${parts.join("; ")}`;
+      })
+    : ["- none recorded"];
+  const mediaPipelineLine = record.mediaPipeline
+    ? [
+        `status=${record.mediaPipeline.status}`,
+        `surface=${record.mediaPipeline.surface}`,
+        `quality=${record.mediaPipeline.qualityStatus}`,
+        `transport=${record.mediaPipeline.transportStatus ?? "n/a"}`,
+        `graph=${record.mediaPipeline.processorGraphStatus ?? "n/a"}`,
+        `frames=${String(record.mediaPipeline.frames)}`,
+        `jitter=${record.mediaPipeline.jitterMs === undefined ? "n/a" : `${String(record.mediaPipeline.jitterMs)}ms`}`,
+        `issueCodes=${record.mediaPipeline.issueCodes.join(", ") || "none"}`,
+      ].join("; ")
+    : "not provided";
+  const mediaPipelineCodeLines = record.mediaPipeline
+    ? record.mediaPipeline.issueCodes.length
+      ? record.mediaPipeline.issueCodes.map((code) => `- ${code}`)
+      : ["- none"]
+    : ["- media pipeline report not attached to this record"];
+
+  return [
+    `# Voice incident handoff: ${record.sessionId}`,
+    "",
+    `- Status: ${record.status}`,
+    `- Duration: ${formatMs(record.summary.callDurationMs)}`,
+    `- Turns: ${String(record.summary.turnCount)}`,
+    `- Errors: ${String(record.summary.errorCount)}`,
+    `- Outcome: ${outcomes.join(", ") || "unknown"}`,
+    `- Providers: ${record.providers.map((provider) => provider.provider).join(", ") || "none recorded"}`,
+    `- Open tasks: ${openTasks.join("; ") || "none"}`,
+    `- Top errors: ${topErrors.join("; ") || "none"}`,
+    `- Guardrails: ${String(record.guardrails.blocked)} blocked / ${String(record.guardrails.warned)} warned / ${String(record.guardrails.total)} decisions`,
+    `- Provider recovery: ${providerRecoveryLine}`,
+    `- Telephony media: ${telephonyMediaLine}`,
+    `- Media pipeline: ${mediaPipelineLine}`,
+    "",
+    "## Provider decisions",
+    "",
+    ...providerDecisionLines,
+    "",
+    "## Telephony media",
+    "",
+    ...telephonyMediaLines,
+    "",
+    "## Media pipeline issue codes",
+    "",
+    ...mediaPipelineCodeLines,
+    "",
+    renderVoiceOperationsRecordGuardrailMarkdown(record),
+    "",
+    "## Next checks",
+    "- Review provider decisions and fallback status.",
+    "- Review transcript and assistant replies.",
+    "- Review handoffs, tools, audit, tasks, and integration delivery.",
+  ].join("\n");
 };

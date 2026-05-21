@@ -101,6 +101,7 @@ export const createVoiceRetryPolicy = (
     const exponent = Math.pow(backoff, Math.max(0, attemptCount - 1));
     const jitterDelta = jitter > 0 ? Math.floor(Math.random() * jitter) : 0;
     const retryAt = now() + Math.round(cooldown * exponent) + jitterDelta;
+
     return {
       action: "retry",
       attemptNumber: attemptCount + 1,

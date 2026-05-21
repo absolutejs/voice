@@ -43,20 +43,14 @@ import type { VoicePostgresClient } from "./postgresStore";
 
 export type VoiceObservabilityExportStatus = "fail" | "pass" | "warn";
 
-export const voiceObservabilityExportSchemaVersion = "1.0.0";
 export const voiceObservabilityExportSchemaId =
   "com.absolutejs.voice.observability-export";
+export const voiceObservabilityExportSchemaVersion = "1.0.0";
 
 export type VoiceObservabilityExportSchema = {
   id: typeof voiceObservabilityExportSchemaId;
   version: typeof voiceObservabilityExportSchemaVersion;
 };
-
-export const createVoiceObservabilityExportSchema =
-  (): VoiceObservabilityExportSchema => ({
-    id: voiceObservabilityExportSchemaId,
-    version: voiceObservabilityExportSchemaVersion,
-  });
 
 export const assertVoiceObservabilityExportSchema = (input: {
   schema?: {
@@ -73,6 +67,11 @@ export const assertVoiceObservabilityExportSchema = (input: {
     );
   }
 };
+export const createVoiceObservabilityExportSchema =
+  (): VoiceObservabilityExportSchema => ({
+    id: voiceObservabilityExportSchemaId,
+    version: voiceObservabilityExportSchemaVersion,
+  });
 
 export type VoiceObservabilityExportIngestedRecordKind =
   | "artifact-index"
@@ -139,6 +138,7 @@ const inferVoiceObservabilityExportRecordKind = (
   if (Array.isArray(record.artifacts) && isRecord(record.summary)) {
     return Array.isArray(record.envelopes) ? "manifest" : "artifact-index";
   }
+
   return undefined;
 };
 
@@ -167,6 +167,7 @@ const requireRecordSchema = (
       path: `${path}.schema`,
     });
   }
+
   return schema;
 };
 
@@ -241,6 +242,7 @@ const validateDeliveryDestinations = (
       message: `${path} must be an array.`,
       path,
     });
+
     return;
   }
   destinations.forEach((destination, index) => {
@@ -251,6 +253,7 @@ const validateDeliveryDestinations = (
         message: `${destinationPath} must be an object.`,
         path: destinationPath,
       });
+
       return;
     }
     requireRecordSchema(issues, destination, destinationPath);
@@ -270,6 +273,20 @@ const validateDeliveryDestinations = (
   });
 };
 
+export const assertVoiceObservabilityExportRecord = (
+  input: unknown,
+  options?: VoiceObservabilityExportRecordValidationOptions,
+) => {
+  const result = validateVoiceObservabilityExportRecord(input, options);
+  if (!result.ok) {
+    const firstIssue = result.issues[0];
+    throw new Error(
+      `Invalid voice observability export record: ${firstIssue?.path ?? "$"} ${firstIssue?.message ?? "unknown validation failure"}`,
+    );
+  }
+
+  return result;
+};
 export const validateVoiceObservabilityExportRecord = (
   input: unknown,
   options: VoiceObservabilityExportRecordValidationOptions = {},
@@ -439,20 +456,6 @@ export const validateVoiceObservabilityExportRecord = (
     ok: issues.length === 0,
     schema,
   };
-};
-
-export const assertVoiceObservabilityExportRecord = (
-  input: unknown,
-  options?: VoiceObservabilityExportRecordValidationOptions,
-) => {
-  const result = validateVoiceObservabilityExportRecord(input, options);
-  if (!result.ok) {
-    const firstIssue = result.issues[0];
-    throw new Error(
-      `Invalid voice observability export record: ${firstIssue?.path ?? "$"} ${firstIssue?.message ?? "unknown validation failure"}`,
-    );
-  }
-  return result;
 };
 
 export type VoiceObservabilityExportArtifactKind =
@@ -978,6 +981,7 @@ const toSeverityFromTrace = (
   ) {
     return "warn";
   }
+
   return "pass";
 };
 
@@ -1105,13 +1109,16 @@ const toEpochMs = (value: number | string | undefined) => {
   }
   if (typeof value === "string") {
     const parsed = Date.parse(value);
+
     return Number.isFinite(parsed) ? parsed : undefined;
   }
+
   return undefined;
 };
 
 const checksumFile = async (path: string): Promise<string> => {
   const buffer = await readFile(path);
+
   return createHash("sha256").update(buffer).digest("hex");
 };
 
@@ -1130,6 +1137,7 @@ const safeArtifactFileName = (artifact: VoiceObservabilityExportArtifact) => {
         : artifact.contentType?.includes("json")
           ? ".json"
           : "";
+
   return `${artifact.id.replace(/[^a-z0-9_.-]/gi, "-")}${extension}`;
 };
 
@@ -1168,6 +1176,7 @@ const readS3ObjectText = async (input: {
   const file = input.client.file(input.key, input.options) as {
     text: () => Promise<string> | string;
   };
+
   return await file.text();
 };
 
@@ -1220,6 +1229,7 @@ const collectReplayDeliveryDestinations = (
       collectReplayDeliveryDestinations(receipt),
     );
   }
+
   return [];
 };
 
@@ -1228,6 +1238,13 @@ const replayIssueSeverity = (
 ): Exclude<VoiceObservabilityExportStatus, "pass"> =>
   status === "fail" ? "fail" : "warn";
 
+export const assertVoiceObservabilityExportReplayEvidence = (
+  report: VoiceObservabilityExportReplayReport,
+  input: VoiceObservabilityExportReplayAssertionInput = {},
+): VoiceObservabilityExportReplayAssertionReport => assertVoiceEvidence(
+    "Voice observability export replay assertion failed",
+    evaluateVoiceObservabilityExportReplayEvidence(report, input),
+  );
 export const buildVoiceObservabilityExportReplayReport = (
   records: VoiceObservabilityExportReplayRecords,
 ): VoiceObservabilityExportReplayReport => {
@@ -1272,8 +1289,8 @@ export const buildVoiceObservabilityExportReplayReport = (
   const validationIssues = Object.entries(validations).flatMap(
     ([kind, result]) =>
       result?.issues.map((issue) => ({
-        kind,
         issue,
+        kind,
       })) ?? [],
   );
   const manifestRecord = isRecord(manifest)
@@ -1374,7 +1391,6 @@ export const buildVoiceObservabilityExportReplayReport = (
     },
   };
 };
-
 export const evaluateVoiceObservabilityExportReplayEvidence = (
   report: VoiceObservabilityExportReplayReport,
   input: VoiceObservabilityExportReplayAssertionInput = {},
@@ -1387,7 +1403,7 @@ export const evaluateVoiceObservabilityExportReplayEvidence = (
   const maxFailedDeliveryDestinations =
     input.maxFailedDeliveryDestinations ?? 0;
   const minArtifacts = input.minArtifacts ?? 1;
-  const minDeliveryDestinations = input.minDeliveryDestinations;
+  const {minDeliveryDestinations} = input;
   const recordKinds = Object.values(report.records)
     .map((record) => record?.kind)
     .filter((kind): kind is VoiceObservabilityExportIngestedRecordKind =>
@@ -1456,17 +1472,6 @@ export const evaluateVoiceObservabilityExportReplayEvidence = (
     validationIssues: report.summary.validationIssues,
   };
 };
-
-export const assertVoiceObservabilityExportReplayEvidence = (
-  report: VoiceObservabilityExportReplayReport,
-  input: VoiceObservabilityExportReplayAssertionInput = {},
-): VoiceObservabilityExportReplayAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice observability export replay assertion failed",
-    evaluateVoiceObservabilityExportReplayEvidence(report, input),
-  );
-};
-
 export const loadVoiceObservabilityExportReplaySource = async (
   source: VoiceObservabilityExportReplaySource,
 ): Promise<VoiceObservabilityExportReplayRecords> => {
@@ -1505,6 +1510,7 @@ export const loadVoiceObservabilityExportReplaySource = async (
       normalizeExportS3KeyPrefix(source.keyPrefix),
       source.runId,
     );
+
     return {
       artifactIndex: JSON.parse(
         await readS3ObjectText({
@@ -1530,7 +1536,7 @@ export const loadVoiceObservabilityExportReplaySource = async (
       );
     }
     const database =
-      source.database ?? new Database(source.path as string, { create: false });
+      source.database ?? new Database(source.path, { create: false });
     const table = quoteObservabilityIdentifier(
       normalizeObservabilityIdentifier(source.tableName),
     );
@@ -1548,6 +1554,7 @@ export const loadVoiceObservabilityExportReplaySource = async (
     if (!row) {
       throw new Error(`No observability export found for run ${source.runId}.`);
     }
+
     return {
       artifactIndex: parseObservabilityExportJson(row.artifact_index_json),
       databaseRecord: parseObservabilityExportJson(row.payload_json),
@@ -1560,6 +1567,7 @@ export const loadVoiceObservabilityExportReplaySource = async (
     (source.connectionString
       ? (() => {
           const client = new Bun.SQL(source.connectionString);
+
           return { unsafe: client.unsafe.bind(client) };
         })()
       : undefined);
@@ -1576,22 +1584,18 @@ export const loadVoiceObservabilityExportReplaySource = async (
   const rows = (await sql.unsafe(
     `SELECT manifest_json, artifact_index_json, payload FROM ${qualifiedTable} WHERE run_id = $1`,
     [source.runId],
-  )) as Array<{
-    artifact_index_json?: unknown;
-    manifest_json?: unknown;
-    payload?: unknown;
-  }>;
+  ));
   const row = rows[0];
   if (!row) {
     throw new Error(`No observability export found for run ${source.runId}.`);
   }
+
   return {
     artifactIndex: parseObservabilityExportJson(row.artifact_index_json),
     databaseRecord: parseObservabilityExportJson(row.payload),
     manifest: parseObservabilityExportJson(row.manifest_json),
   };
 };
-
 export const replayVoiceObservabilityExport = async (
   source: VoiceObservabilityExportReplaySource,
 ) =>
@@ -1624,11 +1628,51 @@ const resolveVoiceObservabilityExportReplayReport = async (
     | VoiceObservabilityExportReplayReport,
 ) => {
   const resolved = typeof input === "function" ? await input() : input;
+
   return isVoiceObservabilityExportReplayReport(resolved)
     ? resolved
     : replayVoiceObservabilityExport(resolved);
 };
 
+export const createVoiceObservabilityExportReplayRoutes = (
+  options: VoiceObservabilityExportReplayRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/observability-export/replay";
+  const htmlPath = options.htmlPath ?? "/voice/observability-export/replay";
+  const headers = {
+    "cache-control": "no-store",
+    ...(options.headers ?? {}),
+  };
+  const buildReport = () =>
+    resolveVoiceObservabilityExportReplayReport(options.source);
+  const app = new Elysia({
+    name: options.name ?? "absolute-voice-observability-export-replay",
+  });
+
+  app.get(path, async () => Response.json(await buildReport(), { headers }));
+
+  if (htmlPath !== false) {
+    app.get(htmlPath, async () => {
+      const report = await buildReport();
+
+      return new Response(
+        options.render
+          ? await options.render(report)
+          : renderVoiceObservabilityExportReplayHTML(report, {
+              title: options.title,
+            }),
+        {
+          headers: {
+            ...headers,
+            "content-type": "text/html; charset=utf-8",
+          },
+        },
+      );
+    });
+  }
+
+  return app;
+};
 export const renderVoiceObservabilityExportReplayHTML = (
   report: VoiceObservabilityExportReplayReport,
   options: {
@@ -1653,45 +1697,6 @@ export const renderVoiceObservabilityExportReplayHTML = (
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeObservabilityReplayHtml(title)}</title><style>body{background:#0d1117;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1060px;padding:32px}.hero{background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(14,165,233,.12));border:1px solid #263241;border-radius:26px;margin-bottom:18px;padding:28px}.eyebrow{color:#67e8f9;font-size:.78rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.1rem,5vw,4.2rem);line-height:.95;margin:.2rem 0 1rem}.status{border:1px solid #334155;border-radius:999px;display:inline-flex;font-weight:800;padding:8px 12px;text-transform:uppercase}.pass{color:#86efac}.warn{color:#fde68a}.fail{color:#fca5a5}.metrics{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:18px 0}.metrics article,table,.primitive{background:#151b23;border:1px solid #263241;border-radius:18px}.metrics article,.primitive{padding:16px}.metrics span{color:#a8b0b8}.metrics strong{display:block;font-size:2rem;margin-top:.25rem}.primitive{margin:0 0 18px}.primitive p{color:#cbd5e1;line-height:1.55}table{border-collapse:collapse;margin-bottom:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #263241;padding:12px;text-align:left}code{color:#bfdbfe}@media(max-width:760px){main{padding:20px}}</style></head><body><main><section class="hero"><p class="eyebrow">Customer-owned observability proof</p><h1>${escapeObservabilityReplayHtml(title)}</h1><p>This page reads back a delivered observability export and validates the manifest, artifact index, delivery evidence, and schema contract from storage you own.</p><p class="status ${escapeObservabilityReplayHtml(report.status)}">Status: ${escapeObservabilityReplayHtml(report.status)}</p><section class="metrics"><article><span>Artifacts</span><strong>${report.summary.artifacts}</strong></article><article><span>Delivery destinations</span><strong>${report.summary.deliveryDestinations}</strong></article><article><span>Validation issues</span><strong>${report.summary.validationIssues}</strong></article><article><span>Failed artifacts</span><strong>${report.summary.failedArtifacts}</strong></article></section></section><section class="primitive"><p class="eyebrow">Primitive</p><p><code>createVoiceObservabilityExportReplayRoutes(...)</code> gives self-hosted apps a readable replay proof and a JSON report for CI, release gates, SIEM ingestion, or customer evidence packets.</p></section><h2>Records</h2><table><thead><tr><th>Record</th><th>Status</th><th>Issues</th><th>Schema</th></tr></thead><tbody>${records}</tbody></table><h2>Issues</h2><table><thead><tr><th>Severity</th><th>Label</th><th>Value</th><th>Detail</th></tr></thead><tbody>${issues}</tbody></table><p>Checked at ${escapeObservabilityReplayHtml(new Date(report.checkedAt).toISOString())}</p></main></body></html>`;
 };
 
-export const createVoiceObservabilityExportReplayRoutes = (
-  options: VoiceObservabilityExportReplayRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/observability-export/replay";
-  const htmlPath = options.htmlPath ?? "/voice/observability-export/replay";
-  const headers = {
-    "cache-control": "no-store",
-    ...(options.headers ?? {}),
-  };
-  const buildReport = () =>
-    resolveVoiceObservabilityExportReplayReport(options.source);
-  const app = new Elysia({
-    name: options.name ?? "absolute-voice-observability-export-replay",
-  });
-
-  app.get(path, async () => Response.json(await buildReport(), { headers }));
-
-  if (htmlPath !== false) {
-    app.get(htmlPath, async () => {
-      const report = await buildReport();
-      return new Response(
-        options.render
-          ? await options.render(report)
-          : renderVoiceObservabilityExportReplayHTML(report, {
-              title: options.title,
-            }),
-        {
-          headers: {
-            ...headers,
-            "content-type": "text/html; charset=utf-8",
-          },
-        },
-      );
-    });
-  }
-
-  return app;
-};
-
 const deliverObservabilityExportToSQLite = async (input: {
   artifactIndex: VoiceObservabilityExportArtifactIndex;
   checkedAt: number;
@@ -1712,7 +1717,7 @@ const deliverObservabilityExportToSQLite = async (input: {
 
   const database =
     input.destination.database ??
-    new Database(input.destination.path as string, { create: true });
+    new Database(input.destination.path, { create: true });
   const table = quoteObservabilityIdentifier(
     normalizeObservabilityIdentifier(input.destination.tableName),
   );
@@ -1776,6 +1781,7 @@ const deliverObservabilityExportToPostgres = async (input: {
     (input.destination.connectionString
       ? (() => {
           const client = new Bun.SQL(input.destination.connectionString);
+
           return { unsafe: client.unsafe.bind(client) };
         })()
       : undefined);
@@ -1851,72 +1857,9 @@ const observabilityExportDeliveryFailureTarget = (
   if (destination.kind === "postgres") {
     return destination.connectionString ?? "postgres://configured-client";
   }
+
   return destination.url;
 };
-
-export const createVoiceMemoryObservabilityExportDeliveryReceiptStore =
-  (): VoiceObservabilityExportDeliveryReceiptStore => {
-    const receipts = new Map<string, VoiceObservabilityExportDeliveryReceipt>();
-
-    return {
-      get: (id) => receipts.get(id),
-      list: () =>
-        [...receipts.values()].sort(
-          (left, right) => right.checkedAt - left.checkedAt,
-        ),
-      remove: (id) => {
-        receipts.delete(id);
-      },
-      set: (id, receipt) => {
-        receipts.set(id, receipt);
-      },
-    };
-  };
-
-export const createVoiceFileObservabilityExportDeliveryReceiptStore =
-  (options: {
-    directory: string;
-  }): VoiceObservabilityExportDeliveryReceiptStore => {
-    const receiptPath = (id: string) =>
-      join(options.directory, `${encodeURIComponent(id)}.json`);
-
-    return {
-      get: async (id) => {
-        const file = Bun.file(receiptPath(id));
-        if (!(await file.exists())) {
-          return undefined;
-        }
-        return JSON.parse(
-          await file.text(),
-        ) as VoiceObservabilityExportDeliveryReceipt;
-      },
-      list: async () => {
-        await mkdir(options.directory, { recursive: true });
-        const receipts: VoiceObservabilityExportDeliveryReceipt[] = [];
-        for (const entry of await Array.fromAsync(
-          new Bun.Glob("*.json").scan(options.directory),
-        )) {
-          const file = Bun.file(join(options.directory, entry));
-          receipts.push(
-            JSON.parse(
-              await file.text(),
-            ) as VoiceObservabilityExportDeliveryReceipt,
-          );
-        }
-        return receipts.sort((left, right) => right.checkedAt - left.checkedAt);
-      },
-      remove: async (id) => {
-        await unlink(receiptPath(id)).catch(() => undefined);
-      },
-      set: async (id, receipt) => {
-        await mkdir(options.directory, { recursive: true });
-        await Bun.write(
-          receiptPath(id),
-          `${JSON.stringify(receipt, null, 2)}\n`,
-        );
-      },
-    };
-  };
 
 export const buildVoiceObservabilityExportDeliveryHistory = async (
   store: VoiceObservabilityExportDeliveryReceiptStore,
@@ -1952,6 +1895,70 @@ export const buildVoiceObservabilityExportDeliveryHistory = async (
     },
   };
 };
+export const createVoiceFileObservabilityExportDeliveryReceiptStore =
+  (options: {
+    directory: string;
+  }): VoiceObservabilityExportDeliveryReceiptStore => {
+    const receiptPath = (id: string) =>
+      join(options.directory, `${encodeURIComponent(id)}.json`);
+
+    return {
+      get: async (id) => {
+        const file = Bun.file(receiptPath(id));
+        if (!(await file.exists())) {
+          return undefined;
+        }
+
+        return JSON.parse(
+          await file.text(),
+        ) as VoiceObservabilityExportDeliveryReceipt;
+      },
+      list: async () => {
+        await mkdir(options.directory, { recursive: true });
+        const receipts: VoiceObservabilityExportDeliveryReceipt[] = [];
+        for (const entry of await Array.fromAsync(
+          new Bun.Glob("*.json").scan(options.directory),
+        )) {
+          const file = Bun.file(join(options.directory, entry));
+          receipts.push(
+            JSON.parse(
+              await file.text(),
+            ) as VoiceObservabilityExportDeliveryReceipt,
+          );
+        }
+
+        return receipts.sort((left, right) => right.checkedAt - left.checkedAt);
+      },
+      remove: async (id) => {
+        await unlink(receiptPath(id)).catch(() => undefined);
+      },
+      set: async (id, receipt) => {
+        await mkdir(options.directory, { recursive: true });
+        await Bun.write(
+          receiptPath(id),
+          `${JSON.stringify(receipt, null, 2)}\n`,
+        );
+      },
+    };
+  };
+export const createVoiceMemoryObservabilityExportDeliveryReceiptStore =
+  (): VoiceObservabilityExportDeliveryReceiptStore => {
+    const receipts = new Map<string, VoiceObservabilityExportDeliveryReceipt>();
+
+    return {
+      get: (id) => receipts.get(id),
+      list: () =>
+        [...receipts.values()].sort(
+          (left, right) => right.checkedAt - left.checkedAt,
+        ),
+      remove: (id) => {
+        receipts.delete(id);
+      },
+      set: (id, receipt) => {
+        receipts.set(id, receipt);
+      },
+    };
+  };
 
 const getSuccessfulObservabilityExportReceipts = (
   history: VoiceObservabilityExportDeliveryHistory,
@@ -1971,6 +1978,13 @@ const getLatestSuccessfulObservabilityExportReceipt = (
     (left, right) => right.checkedAt - left.checkedAt,
   )[0];
 
+export const assertVoiceObservabilityExportDeliveryEvidence = (
+  history: VoiceObservabilityExportDeliveryHistory,
+  input: VoiceObservabilityExportDeliveryAssertionInput = {},
+): VoiceObservabilityExportDeliveryAssertionReport => assertVoiceEvidence(
+    "Voice observability export delivery assertion failed",
+    evaluateVoiceObservabilityExportDeliveryEvidence(history, input),
+  );
 export const evaluateVoiceObservabilityExportDeliveryEvidence = (
   history: VoiceObservabilityExportDeliveryHistory,
   input: VoiceObservabilityExportDeliveryAssertionInput = {},
@@ -2079,16 +2093,6 @@ export const evaluateVoiceObservabilityExportDeliveryEvidence = (
   };
 };
 
-export const assertVoiceObservabilityExportDeliveryEvidence = (
-  history: VoiceObservabilityExportDeliveryHistory,
-  input: VoiceObservabilityExportDeliveryAssertionInput = {},
-): VoiceObservabilityExportDeliveryAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice observability export delivery assertion failed",
-    evaluateVoiceObservabilityExportDeliveryEvidence(history, input),
-  );
-};
-
 const inferContentType = (artifact: VoiceObservabilityExportArtifact) => {
   if (artifact.contentType) {
     return artifact.contentType;
@@ -2112,6 +2116,7 @@ const inferContentType = (artifact: VoiceObservabilityExportArtifact) => {
   if (path.endsWith(".txt") || path.endsWith(".log")) {
     return "text/plain; charset=utf-8";
   }
+
   return "application/octet-stream";
 };
 
@@ -2188,6 +2193,7 @@ const verifyArtifact = async (
     const severity = artifact.required
       ? (options.missingSeverity ?? "fail")
       : "warn";
+
     return {
       ...artifact,
       freshness: {
@@ -2206,6 +2212,7 @@ const verifyArtifacts = (
   options?: VoiceObservabilityExportOptions["artifactIntegrity"],
 ) => {
   const integrity = options ?? {};
+
   return Promise.all(
     artifacts.map((artifact) => verifyArtifact(artifact, integrity)),
   );
@@ -2378,6 +2385,40 @@ const resolveObservabilityExportList = async <T>(
   value: T[] | (() => T[] | Promise<T[]>) | undefined,
 ) => (typeof value === "function" ? await value() : (value ?? []));
 
+export const buildVoiceObservabilityArtifactIndex = (
+  report: VoiceObservabilityExportReport,
+): VoiceObservabilityExportArtifactIndex => {
+  const artifacts = report.artifacts.map((artifact) => ({
+    bytes: artifact.bytes,
+    checksum: artifact.checksum,
+    contentType: artifact.contentType,
+    downloadHref: artifact.downloadHref,
+    freshness: artifact.freshness,
+    href: artifact.href,
+    id: artifact.id,
+    kind: artifact.kind,
+    label: artifact.label,
+    metadata: artifact.metadata,
+    required: artifact.required,
+    sessionId: artifact.sessionId,
+    status: artifact.status,
+  }));
+
+  return {
+    artifacts,
+    checkedAt: report.checkedAt,
+    schema: report.schema,
+    status: report.status,
+    summary: {
+      downloadable: artifacts.filter((artifact) => artifact.downloadHref)
+        .length,
+      failed: artifacts.filter((artifact) => artifact.status === "fail").length,
+      required: artifacts.filter((artifact) => artifact.required).length,
+      total: artifacts.length,
+      warn: artifacts.filter((artifact) => artifact.status === "warn").length,
+    },
+  };
+};
 export const buildVoiceObservabilityExport = async (
   options: VoiceObservabilityExportOptions = {},
 ): Promise<VoiceObservabilityExportReport> => {
@@ -2600,98 +2641,158 @@ export const buildVoiceObservabilityExport = async (
     },
   };
 };
-
-export const renderVoiceObservabilityExportMarkdown = (
-  report: VoiceObservabilityExportReport,
-  options: {
-    title?: string;
-  } = {},
+export const createVoiceObservabilityExportRoutes = (
+  options: VoiceObservabilityExportRoutesOptions = {},
 ) => {
-  const title = options.title ?? "Voice Observability Export";
-  const issues =
-    report.issues
-      .map(
-        (issue) =>
-          `- ${issue.severity}: ${issue.label}${issue.value !== undefined ? ` (${issue.value})` : ""}${issue.detail ? ` - ${issue.detail}` : ""}`,
-      )
-      .join("\n") || "No observability export issues.";
-  const artifacts =
-    report.artifacts
-      .map(
-        (artifact) =>
-          `- ${artifact.label}: ${artifact.kind}${artifact.href ? ` (${artifact.href})` : ""}${artifact.status ? ` - ${artifact.status}` : ""}${artifact.bytes !== undefined ? `, ${artifact.bytes} bytes` : ""}${artifact.checksum ? `, sha256 ${artifact.checksum.value}` : ""}${artifact.freshness?.ageMs !== undefined ? `, age ${Math.round(artifact.freshness.ageMs)}ms` : ""}`,
-      )
-      .join("\n") || "No artifacts attached.";
-
-  return `# ${title}
-
-Generated: ${new Date(report.checkedAt).toISOString()}
-
-Overall: **${report.status}**
-
-Redaction: **${report.redaction.mode}**
-
-Sessions: ${report.sessionIds.length}
-
-Trace events: ${report.summary.traceEvents}
-
-Audit events: ${report.summary.auditEvents}
-
-Operations records: ${report.operationsRecords.length}
-
-Artifacts: ${report.artifacts.length}
-
-## Delivery Summary
-
-Trace deliveries: ${report.deliveries.trace ? `${report.deliveries.trace.delivered} delivered, ${report.deliveries.trace.pending} pending, ${report.deliveries.trace.failed} failed` : "not configured"}
-
-Audit deliveries: ${report.deliveries.audit ? `${report.deliveries.audit.delivered} delivered, ${report.deliveries.audit.pending} pending, ${report.deliveries.audit.failed} failed` : "not configured"}
-
-## Artifacts
-
-${artifacts}
-
-## Issues
-
-${issues}
-`;
-};
-
-export const buildVoiceObservabilityArtifactIndex = (
-  report: VoiceObservabilityExportReport,
-): VoiceObservabilityExportArtifactIndex => {
-  const artifacts = report.artifacts.map((artifact) => ({
-    bytes: artifact.bytes,
-    checksum: artifact.checksum,
-    contentType: artifact.contentType,
-    downloadHref: artifact.downloadHref,
-    freshness: artifact.freshness,
-    href: artifact.href,
-    id: artifact.id,
-    kind: artifact.kind,
-    label: artifact.label,
-    metadata: artifact.metadata,
-    required: artifact.required,
-    sessionId: artifact.sessionId,
-    status: artifact.status,
-  }));
-
-  return {
-    artifacts,
-    checkedAt: report.checkedAt,
-    schema: report.schema,
-    status: report.status,
-    summary: {
-      downloadable: artifacts.filter((artifact) => artifact.downloadHref)
-        .length,
-      failed: artifacts.filter((artifact) => artifact.status === "fail").length,
-      required: artifacts.filter((artifact) => artifact.required).length,
-      total: artifacts.length,
-      warn: artifacts.filter((artifact) => artifact.status === "warn").length,
-    },
+  const path = options.path ?? "/api/voice/observability-export";
+  const artifactIndexPath = options.artifactIndexPath ?? `${path}/artifacts`;
+  const artifactDownloadPath =
+    options.artifactDownloadPath ?? `${path}/artifacts`;
+  const deliveryPath = options.deliveryPath ?? `${path}/deliveries`;
+  const markdownPath = options.markdownPath ?? "/voice/observability-export.md";
+  const htmlPath = options.htmlPath ?? "/voice/observability-export";
+  const headers = {
+    "cache-control": "no-store",
+    ...(options.headers ?? {}),
   };
-};
+  const buildReport = () =>
+    buildVoiceObservabilityExport({
+      ...options,
+      links: {
+        ...options.links,
+        artifactDownload:
+          options.links?.artifactDownload ??
+          (artifactDownloadPath
+            ? (artifact) =>
+                `${artifactDownloadPath}/${encodeURIComponent(artifact.id)}`
+            : undefined),
+      },
+    });
+  const app = new Elysia({
+    name: options.name ?? "absolute-voice-observability-export",
+  });
 
+  app.get(path, async () => Response.json(await buildReport(), { headers }));
+
+  if (artifactIndexPath !== false) {
+    app.get(artifactIndexPath, async () =>
+      Response.json(
+        options.artifactIndex
+          ? await resolveVoiceObservabilityArtifactIndex(options.artifactIndex)
+          : buildVoiceObservabilityArtifactIndex(await buildReport()),
+        { headers },
+      ),
+    );
+  }
+
+  if (artifactDownloadPath !== false) {
+    app.get(`${artifactDownloadPath}/:artifactId`, async ({ params }) => {
+      const artifactId = decodeURIComponent(params.artifactId);
+      const report = await buildReport();
+      const artifact = report.artifacts.find((item) => item.id === artifactId);
+
+      if (!artifact?.path) {
+        return Response.json(
+          { artifactId, error: "Artifact is not downloadable." },
+          { headers, status: 404 },
+        );
+      }
+
+      try {
+        const body = await readFile(stripArtifactPathAnchor(artifact.path));
+
+        return new Response(body, {
+          headers: {
+            ...headers,
+            "content-disposition": `attachment; filename="${encodeURIComponent(artifact.id)}"`,
+            "content-type": artifact.contentType ?? inferContentType(artifact),
+            ...(artifact.checksum
+              ? {
+                  "x-absolute-voice-artifact-sha256": artifact.checksum.value,
+                }
+              : {}),
+            "x-absolute-voice-artifact-id": artifact.id,
+            ...(artifact.freshness
+              ? {
+                  "x-absolute-voice-artifact-freshness":
+                    artifact.freshness.status,
+                }
+              : {}),
+          },
+        });
+      } catch {
+        return Response.json(
+          { artifactId, error: "Artifact file is not available." },
+          { headers, status: 404 },
+        );
+      }
+    });
+  }
+
+  if (deliveryPath !== false && options.deliveryDestinations) {
+    if (options.deliveryReceipts) {
+      app.get(deliveryPath, async () =>
+        Response.json(
+          await buildVoiceObservabilityExportDeliveryHistory(
+            options.deliveryReceipts as VoiceObservabilityExportDeliveryReceiptStore,
+          ),
+          { headers },
+        ),
+      );
+    }
+    app.post(deliveryPath, async () =>
+      Response.json(
+        await deliverVoiceObservabilityExport({
+          destinations: options.deliveryDestinations ?? [],
+          receipts: options.deliveryReceipts,
+          report: await buildReport(),
+        }),
+        { headers },
+      ),
+    );
+  }
+
+  if (markdownPath !== false) {
+    app.get(markdownPath, async () => {
+      const report = await buildReport();
+
+      return new Response(
+        renderVoiceObservabilityExportMarkdown(report, {
+          title: options.title,
+        }),
+        {
+          headers: {
+            ...headers,
+            "content-type": "text/markdown; charset=utf-8",
+          },
+        },
+      );
+    });
+  }
+
+  if (htmlPath !== false) {
+    app.get(htmlPath, async () => {
+      const report = await buildReport();
+      const markdown = options.render
+        ? await options.render(report)
+        : renderVoiceObservabilityExportMarkdown(report, {
+            title: options.title,
+          });
+
+      return new Response(
+        `<!doctype html><html><head><meta charset="utf-8" /><title>${options.title ?? "Voice Observability Export"}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:auto;max-width:920px;padding:32px;white-space:pre-wrap}</style></head><body>${markdown}</body></html>`,
+        {
+          headers: {
+            ...headers,
+            "content-type": "text/html; charset=utf-8",
+          },
+        },
+      );
+    });
+  }
+
+  return app;
+};
 export const deliverVoiceObservabilityExport = async (
   options: VoiceObservabilityExportDeliveryOptions,
 ): Promise<VoiceObservabilityExportDeliveryReport> => {
@@ -2954,153 +3055,58 @@ export const deliverVoiceObservabilityExport = async (
 
   return report;
 };
-
-export const createVoiceObservabilityExportRoutes = (
-  options: VoiceObservabilityExportRoutesOptions = {},
+export const renderVoiceObservabilityExportMarkdown = (
+  report: VoiceObservabilityExportReport,
+  options: {
+    title?: string;
+  } = {},
 ) => {
-  const path = options.path ?? "/api/voice/observability-export";
-  const artifactIndexPath = options.artifactIndexPath ?? `${path}/artifacts`;
-  const artifactDownloadPath =
-    options.artifactDownloadPath ?? `${path}/artifacts`;
-  const deliveryPath = options.deliveryPath ?? `${path}/deliveries`;
-  const markdownPath = options.markdownPath ?? "/voice/observability-export.md";
-  const htmlPath = options.htmlPath ?? "/voice/observability-export";
-  const headers = {
-    "cache-control": "no-store",
-    ...(options.headers ?? {}),
-  };
-  const buildReport = () =>
-    buildVoiceObservabilityExport({
-      ...options,
-      links: {
-        ...options.links,
-        artifactDownload:
-          options.links?.artifactDownload ??
-          (artifactDownloadPath
-            ? (artifact) =>
-                `${artifactDownloadPath}/${encodeURIComponent(artifact.id)}`
-            : undefined),
-      },
-    });
-  const app = new Elysia({
-    name: options.name ?? "absolute-voice-observability-export",
-  });
+  const title = options.title ?? "Voice Observability Export";
+  const issues =
+    report.issues
+      .map(
+        (issue) =>
+          `- ${issue.severity}: ${issue.label}${issue.value !== undefined ? ` (${issue.value})` : ""}${issue.detail ? ` - ${issue.detail}` : ""}`,
+      )
+      .join("\n") || "No observability export issues.";
+  const artifacts =
+    report.artifacts
+      .map(
+        (artifact) =>
+          `- ${artifact.label}: ${artifact.kind}${artifact.href ? ` (${artifact.href})` : ""}${artifact.status ? ` - ${artifact.status}` : ""}${artifact.bytes !== undefined ? `, ${artifact.bytes} bytes` : ""}${artifact.checksum ? `, sha256 ${artifact.checksum.value}` : ""}${artifact.freshness?.ageMs !== undefined ? `, age ${Math.round(artifact.freshness.ageMs)}ms` : ""}`,
+      )
+      .join("\n") || "No artifacts attached.";
 
-  app.get(path, async () => Response.json(await buildReport(), { headers }));
+  return `# ${title}
 
-  if (artifactIndexPath !== false) {
-    app.get(artifactIndexPath, async () =>
-      Response.json(
-        options.artifactIndex
-          ? await resolveVoiceObservabilityArtifactIndex(options.artifactIndex)
-          : buildVoiceObservabilityArtifactIndex(await buildReport()),
-        { headers },
-      ),
-    );
-  }
+Generated: ${new Date(report.checkedAt).toISOString()}
 
-  if (artifactDownloadPath !== false) {
-    app.get(`${artifactDownloadPath}/:artifactId`, async ({ params }) => {
-      const artifactId = decodeURIComponent(params.artifactId);
-      const report = await buildReport();
-      const artifact = report.artifacts.find((item) => item.id === artifactId);
+Overall: **${report.status}**
 
-      if (!artifact?.path) {
-        return Response.json(
-          { error: "Artifact is not downloadable.", artifactId },
-          { headers, status: 404 },
-        );
-      }
+Redaction: **${report.redaction.mode}**
 
-      try {
-        const body = await readFile(stripArtifactPathAnchor(artifact.path));
-        return new Response(body, {
-          headers: {
-            ...headers,
-            "content-disposition": `attachment; filename="${encodeURIComponent(artifact.id)}"`,
-            "content-type": artifact.contentType ?? inferContentType(artifact),
-            ...(artifact.checksum
-              ? {
-                  "x-absolute-voice-artifact-sha256": artifact.checksum.value,
-                }
-              : {}),
-            "x-absolute-voice-artifact-id": artifact.id,
-            ...(artifact.freshness
-              ? {
-                  "x-absolute-voice-artifact-freshness":
-                    artifact.freshness.status,
-                }
-              : {}),
-          },
-        });
-      } catch {
-        return Response.json(
-          { error: "Artifact file is not available.", artifactId },
-          { headers, status: 404 },
-        );
-      }
-    });
-  }
+Sessions: ${report.sessionIds.length}
 
-  if (deliveryPath !== false && options.deliveryDestinations) {
-    if (options.deliveryReceipts) {
-      app.get(deliveryPath, async () =>
-        Response.json(
-          await buildVoiceObservabilityExportDeliveryHistory(
-            options.deliveryReceipts as VoiceObservabilityExportDeliveryReceiptStore,
-          ),
-          { headers },
-        ),
-      );
-    }
-    app.post(deliveryPath, async () =>
-      Response.json(
-        await deliverVoiceObservabilityExport({
-          destinations: options.deliveryDestinations ?? [],
-          receipts: options.deliveryReceipts,
-          report: await buildReport(),
-        }),
-        { headers },
-      ),
-    );
-  }
+Trace events: ${report.summary.traceEvents}
 
-  if (markdownPath !== false) {
-    app.get(markdownPath, async () => {
-      const report = await buildReport();
-      return new Response(
-        renderVoiceObservabilityExportMarkdown(report, {
-          title: options.title,
-        }),
-        {
-          headers: {
-            ...headers,
-            "content-type": "text/markdown; charset=utf-8",
-          },
-        },
-      );
-    });
-  }
+Audit events: ${report.summary.auditEvents}
 
-  if (htmlPath !== false) {
-    app.get(htmlPath, async () => {
-      const report = await buildReport();
-      const markdown = options.render
-        ? await options.render(report)
-        : renderVoiceObservabilityExportMarkdown(report, {
-            title: options.title,
-          });
-      return new Response(
-        `<!doctype html><html><head><meta charset="utf-8" /><title>${options.title ?? "Voice Observability Export"}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:auto;max-width:920px;padding:32px;white-space:pre-wrap}</style></head><body>${markdown}</body></html>`,
-        {
-          headers: {
-            ...headers,
-            "content-type": "text/html; charset=utf-8",
-          },
-        },
-      );
-    });
-  }
+Operations records: ${report.operationsRecords.length}
 
-  return app;
+Artifacts: ${report.artifacts.length}
+
+## Delivery Summary
+
+Trace deliveries: ${report.deliveries.trace ? `${report.deliveries.trace.delivered} delivered, ${report.deliveries.trace.pending} pending, ${report.deliveries.trace.failed} failed` : "not configured"}
+
+Audit deliveries: ${report.deliveries.audit ? `${report.deliveries.audit.delivered} delivered, ${report.deliveries.audit.pending} pending, ${report.deliveries.audit.failed} failed` : "not configured"}
+
+## Artifacts
+
+${artifacts}
+
+## Issues
+
+${issues}
+`;
 };

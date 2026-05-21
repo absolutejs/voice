@@ -43,12 +43,11 @@ const speechMatchesPattern = (pattern: string | RegExp, speech: string) => {
   if (!target) {
     return false;
   }
+
   return normalized.includes(target);
 };
 
-const digitsMatchPattern = (pattern: string, input: string) => {
-  return input === pattern;
-};
+const digitsMatchPattern = (pattern: string, input: string) => input === pattern;
 
 const branchMatches = (
   branch: VoiceIVRBranch,
@@ -70,6 +69,7 @@ const branchMatches = (
       return true;
     }
   }
+
   return false;
 };
 
@@ -93,6 +93,7 @@ export const evaluateVoiceIVRPlan = (
       return { branch: fallback, reason: "fallback" };
     }
   }
+
   return { reason: "no-match" };
 };
 
@@ -106,10 +107,12 @@ export type VoiceIVRSession = {
 export const createVoiceIVRSession = (plan: VoiceIVRPlan): VoiceIVRSession => {
   const maxAttempts = plan.maxAttempts ?? 3;
   let attempts = 0;
+
   return {
     attempt: () => attempts,
     decide: (input) => {
       attempts += 1;
+
       return evaluateVoiceIVRPlan(plan, input);
     },
     exhausted: () => attempts >= maxAttempts,
@@ -136,5 +139,6 @@ export const describeVoiceIVRPlan = (plan: VoiceIVRPlan): string => {
     }
     lines.push(`- ${branch.label}: ${triggers.join(" or ")}`);
   }
+
   return lines.join("\n");
 };

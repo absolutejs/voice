@@ -200,6 +200,7 @@ export const buildVoiceReadinessRecoveryActions = (
         return [];
       }
       seen.add(key);
+
       return [
         {
           ...action,
@@ -1211,6 +1212,7 @@ export const createVoiceProductionReadinessProofRuntime = (
       };
       metadata = nextMetadata;
       await onRefresh?.(nextMetadata);
+
       return nextMetadata;
     })().finally(() => {
       refreshedAt = Date.now();
@@ -1234,6 +1236,7 @@ export const createVoiceProductionReadinessProofRuntime = (
       loadedAt: Date.now(),
       value,
     });
+
     return value;
   };
 
@@ -1283,7 +1286,6 @@ export const createVoiceProductionReadinessProofRuntime = (
   return {
     buildFreshnessCheck,
     cache,
-    getMetadata: () => metadata,
     options: {
       cacheMs,
       traceMaxAgeMs,
@@ -1292,6 +1294,7 @@ export const createVoiceProductionReadinessProofRuntime = (
     resetTraceProof,
     seedTraceProof,
     store,
+    getMetadata: () => metadata,
   };
 };
 
@@ -1312,12 +1315,12 @@ const readinessGateCodes: Record<string, string> = {
   "Handoff delivery": "voice.readiness.handoff_delivery",
   "Live latency proof": "voice.readiness.live_latency",
   "Media pipeline quality": "voice.readiness.media_pipeline_quality",
-  "Operations records": "voice.readiness.operations_records",
-  "Operator action history": "voice.readiness.operator_action_history",
-  "Ops recovery": "voice.readiness.ops_recovery",
   "Observability export delivery":
     "voice.readiness.observability_export_delivery",
   "Observability export replay": "voice.readiness.observability_export_replay",
+  "Operations records": "voice.readiness.operations_records",
+  "Operator action history": "voice.readiness.operator_action_history",
+  "Ops recovery": "voice.readiness.ops_recovery",
   "Phone agent production smoke": "voice.readiness.phone_agent_smoke",
   "Provider contract matrix": "voice.readiness.provider_contract_matrix",
   "Provider fallback recovery": "voice.readiness.provider_fallback_recovery",
@@ -1392,38 +1395,13 @@ const summarizeVoiceProductionReadinessGateProfile = (
   };
 };
 
-export const summarizeVoiceProductionReadinessGate = (
+export const assertVoiceProductionReadinessEvidence = (
   report: VoiceProductionReadinessReport,
-  options: VoiceProductionReadinessGateOptions = {},
-): VoiceProductionReadinessGateReport => {
-  const issues = report.checks
-    .filter((check) => check.status !== "pass")
-    .map(
-      (check): VoiceProductionReadinessGateIssue => ({
-        code: readinessGateCodeForCheck(check),
-        detail: check.detail,
-        href: check.href,
-        label: check.label,
-        status: check.status as Exclude<VoiceProductionReadinessStatus, "pass">,
-        value: check.value,
-      }),
-    );
-  const failures = issues.filter((issue) => issue.status === "fail");
-  const warnings = issues.filter((issue) => issue.status === "warn");
-  const ok =
-    failures.length === 0 &&
-    (options.failOnWarnings ? warnings.length === 0 : true);
-
-  return {
-    checkedAt: report.checkedAt,
-    failures,
-    ok,
-    profile: summarizeVoiceProductionReadinessGateProfile(report, issues),
-    status: ok ? report.status : "fail",
-    warnings,
-  };
-};
-
+  input: VoiceProductionReadinessAssertionInput = {},
+): VoiceProductionReadinessAssertionReport => assertVoiceEvidence(
+    "Voice production readiness assertion failed",
+    evaluateVoiceProductionReadinessEvidence(report, input),
+  );
 export const evaluateVoiceProductionReadinessEvidence = (
   report: VoiceProductionReadinessReport,
   input: VoiceProductionReadinessAssertionInput = {},
@@ -1434,7 +1412,7 @@ export const evaluateVoiceProductionReadinessEvidence = (
   const requiredStatus = input.requireStatus ?? "pass";
   const requireGateOk = input.requireGateOk ?? true;
   const maxFailures = input.maxFailures ?? 0;
-  const maxWarnings = input.maxWarnings;
+  const {maxWarnings} = input;
 
   if (report.status !== requiredStatus) {
     issues.push(
@@ -1472,15 +1450,36 @@ export const evaluateVoiceProductionReadinessEvidence = (
     warnings: gate.warnings.length,
   };
 };
-
-export const assertVoiceProductionReadinessEvidence = (
+export const summarizeVoiceProductionReadinessGate = (
   report: VoiceProductionReadinessReport,
-  input: VoiceProductionReadinessAssertionInput = {},
-): VoiceProductionReadinessAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice production readiness assertion failed",
-    evaluateVoiceProductionReadinessEvidence(report, input),
-  );
+  options: VoiceProductionReadinessGateOptions = {},
+): VoiceProductionReadinessGateReport => {
+  const issues = report.checks
+    .filter((check) => check.status !== "pass")
+    .map(
+      (check): VoiceProductionReadinessGateIssue => ({
+        code: readinessGateCodeForCheck(check),
+        detail: check.detail,
+        href: check.href,
+        label: check.label,
+        status: check.status as Exclude<VoiceProductionReadinessStatus, "pass">,
+        value: check.value,
+      }),
+    );
+  const failures = issues.filter((issue) => issue.status === "fail");
+  const warnings = issues.filter((issue) => issue.status === "warn");
+  const ok =
+    failures.length === 0 &&
+    (options.failOnWarnings ? warnings.length === 0 : true);
+
+  return {
+    checkedAt: report.checkedAt,
+    failures,
+    ok,
+    profile: summarizeVoiceProductionReadinessGateProfile(report, issues),
+    status: ok ? report.status : "fail",
+    warnings,
+  };
 };
 
 const carrierStatus = (
@@ -2027,6 +2026,7 @@ const summarizeAuditEvidence = async (
   const present = events.reduce(
     (counts, event) => {
       counts[event.type] = (counts[event.type] ?? 0) + 1;
+
       return counts;
     },
     {} as Record<VoiceAuditEventType, number>,
@@ -2186,6 +2186,7 @@ const resolveOpsRecovery = async (
   if (typeof options.opsRecovery === "function") {
     return options.opsRecovery(input);
   }
+
   return options.opsRecovery;
 };
 
@@ -2199,6 +2200,7 @@ const resolveIncidentRecoveryOutcomes = async (
   if (typeof options.incidentRecoveryOutcomes === "function") {
     return options.incidentRecoveryOutcomes(input);
   }
+
   return options.incidentRecoveryOutcomes;
 };
 
@@ -2212,6 +2214,7 @@ const resolveIncidentRecoveryTrend = async (
   if (typeof options.incidentRecoveryTrend === "function") {
     return options.incidentRecoveryTrend(input);
   }
+
   return options.incidentRecoveryTrend;
 };
 
@@ -2225,6 +2228,7 @@ const resolveObservabilityExport = async (
   if (typeof options.observabilityExport === "function") {
     return options.observabilityExport(input);
   }
+
   return options.observabilityExport;
 };
 
@@ -2515,6 +2519,7 @@ const voiceOperationsRecordHref = (base: string, sessionId: string) => {
   if (base.includes(":sessionId")) {
     return base.replace(":sessionId", encoded);
   }
+
   return `${base.replace(/\/+$/, "")}/${encoded}`;
 };
 
@@ -2677,7 +2682,7 @@ const applyProfileReadinessDefaults = (
         };
   const resolvedOptions = {
     ...options,
-  } as VoiceProductionReadinessRoutesOptions;
+  };
 
   if (resolvedOptions.browserMediaMinActiveCandidatePairs === undefined) {
     resolvedOptions.browserMediaMinActiveCandidatePairs =
@@ -2717,6 +2722,17 @@ const applyProfileReadinessDefaults = (
   return resolvedOptions;
 };
 
+export const buildVoiceProductionReadinessGate = async (
+  options: VoiceProductionReadinessRoutesOptions,
+  input: {
+    query?: Record<string, unknown>;
+    request?: Request;
+  } = {},
+): Promise<VoiceProductionReadinessGateReport> =>
+  summarizeVoiceProductionReadinessGate(
+    await buildVoiceProductionReadinessReport(options, input),
+    options.gate || undefined,
+  );
 export const buildVoiceProductionReadinessReport = async (
   options: VoiceProductionReadinessRoutesOptions,
   input: {
@@ -3259,6 +3275,7 @@ export const buildVoiceProductionReadinessReport = async (
     }
 
     const metrics = providerSlo?.kinds[issue.kind]?.metrics;
+
     return Object.values(metrics ?? {}).find(
       (metric) =>
         metric.label === issue.label ||
@@ -4267,13 +4284,13 @@ export const buildVoiceProductionReadinessReport = async (
         providerStack.status === "pass"
           ? `${providerStack.profile} provider stack has declared capability coverage.`
           : missingLanes.length > 0
-            ? missingLanes
+            ? `${missingLanes
                 .map((gap) =>
                   gap.provider
                     ? `${gap.kind.toUpperCase()} ${gap.provider} missing ${gap.missing.join(", ")}`
                     : `${gap.kind.toUpperCase()} provider is not configured`,
                 )
-                .join("; ") + "."
+                .join("; ")  }.`
             : "Provider stack capability coverage needs review.",
       href:
         options.links?.providerRoutingContracts ??
@@ -4311,15 +4328,16 @@ export const buildVoiceProductionReadinessReport = async (
         providerContractMatrix.status === "pass"
           ? `${providerContractMatrix.passed} provider contract row(s) are production-ready.`
           : blocked.length > 0
-            ? blocked
+            ? `${blocked
                 .map((row) => {
                   const issues = row.checks
                     .filter((check) => check.status !== "pass")
                     .map((check) => check.label)
                     .join(", ");
+
                   return `${row.kind.toUpperCase()} ${row.provider}: ${issues}`;
                 })
-                .join("; ") + "."
+                .join("; ")  }.`
             : "Provider contract matrix needs review.",
       href: options.links?.providerContracts ?? "/provider-contracts",
       label: "Provider contract matrix",
@@ -4958,12 +4976,16 @@ export const buildVoiceProductionReadinessReport = async (
         failed: handoffs.failed,
         total: handoffs.total,
       },
-      liveLatency,
       incidentRecoveryOutcomes: incidentRecoveryOutcomeSummary,
       incidentRecoveryTrend: incidentRecoveryTrendSummary,
+      liveLatency,
       mediaPipeline: mediaPipelineSummary,
       monitoring: monitoringSummary,
       monitoringNotifierDelivery: monitoringNotifierDeliverySummary,
+      observabilityExport: observabilityExportSummary,
+      observabilityExportDeliveryHistory:
+        observabilityExportDeliveryHistorySummary,
+      observabilityExportReplay: observabilityExportReplaySummary,
       opsActionHistory,
       opsRecovery: opsRecovery
         ? {
@@ -4974,18 +4996,7 @@ export const buildVoiceProductionReadinessReport = async (
               opsRecovery.providers.unresolvedFailures,
           }
         : undefined,
-      observabilityExport: observabilityExportSummary,
-      observabilityExportDeliveryHistory:
-        observabilityExportDeliveryHistorySummary,
-      observabilityExportReplay: observabilityExportReplaySummary,
-      providers: {
-        degraded: degradedProviders,
-        total: providers.length,
-      },
-      providerStack,
-      providerContractMatrix,
-      providerOrchestration: providerOrchestrationSummary,
-      providerRecovery,
+      phoneAgentSmokes: phoneAgentSmokeSummary,
       profileSwitchReadiness: profileSwitchReadiness
         ? {
             auditEvents: profileSwitchReadiness.summary.auditEvents,
@@ -4997,41 +5008,158 @@ export const buildVoiceProductionReadinessReport = async (
             traceEvents: profileSwitchReadiness.summary.traceEvents,
           }
         : undefined,
-      phoneAgentSmokes: phoneAgentSmokeSummary,
-      telephonyMedia: telephonyMediaSummary,
-      telephonyWebhookSecurity: telephonyWebhookSecuritySummary,
+      providerContractMatrix,
+      providerOrchestration: providerOrchestrationSummary,
+      providerRecovery,
       providerRoutingContracts: providerRoutingContractSummary,
+      providers: {
+        degraded: degradedProviders,
+        total: providers.length,
+      },
       providerSlo: providerSloSummary,
-      reconnectContracts: reconnectContractSummary,
-      sessionObservability: sessionObservabilitySummary,
+      providerStack,
       quality: {
         status: quality.status,
       },
+      reconnectContracts: reconnectContractSummary,
       routing: {
         events: routingEvents.length,
         sessions: routingSessions.length,
       },
+      sessionObservability: sessionObservabilitySummary,
       sessions: {
         failed: failedSessions,
         total: sessions.length,
       },
+      telephonyMedia: telephonyMediaSummary,
+      telephonyWebhookSecurity: telephonyWebhookSecuritySummary,
       traceDeliveries,
     },
   };
 };
-
-export const buildVoiceProductionReadinessGate = async (
+export const createVoiceProductionReadinessRoutes = (
   options: VoiceProductionReadinessRoutesOptions,
-  input: {
-    query?: Record<string, unknown>;
-    request?: Request;
-  } = {},
-): Promise<VoiceProductionReadinessGateReport> =>
-  summarizeVoiceProductionReadinessGate(
-    await buildVoiceProductionReadinessReport(options, input),
-    options.gate || undefined,
-  );
+) => {
+  const path = options.path ?? "/api/production-readiness";
+  const gatePath =
+    options.gatePath === undefined
+      ? "/api/production-readiness/gate"
+      : options.gatePath;
+  const htmlPath = options.htmlPath ?? "/production-readiness";
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-production-readiness",
+  });
+  let cachedReport:
+    | {
+        key: string;
+        loadedAt: number;
+        value: Promise<{
+          report: VoiceProductionReadinessReport;
+          resolvedOptions: VoiceProductionReadinessRoutesOptions;
+        }>;
+      }
+    | undefined;
+  const resolveOptions = async (input: VoiceProductionReadinessRouteInput) => {
+    if (!options.resolveOptions) {
+      return options;
+    }
 
+    return {
+      ...options,
+      ...(await options.resolveOptions(input)),
+    };
+  };
+  const reportCacheKey = (query: Record<string, unknown>, request: Request) => {
+    const queryKey = Object.entries(query)
+      .map(([key, value]) => [key, String(value)] as const)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${key}=${value}`)
+      .join("&");
+
+    return queryKey;
+  };
+  const getReport = async (
+    query: Record<string, unknown>,
+    request: Request,
+  ) => {
+    const cacheMs =
+      typeof options.cacheMs === "number" &&
+      Number.isFinite(options.cacheMs) &&
+      options.cacheMs > 0
+        ? options.cacheMs
+        : 0;
+    const key = reportCacheKey(query, request);
+    if (
+      cacheMs > 0 &&
+      cachedReport &&
+      cachedReport.key === key &&
+      Date.now() - cachedReport.loadedAt <= cacheMs
+    ) {
+      return cachedReport.value;
+    }
+
+    const value = (async () => {
+      const resolvedOptions = await resolveOptions({ query, request });
+
+      return {
+        report: await buildVoiceProductionReadinessReport(resolvedOptions, {
+          query,
+          request,
+        }),
+        resolvedOptions,
+      };
+    })();
+
+    if (cacheMs > 0) {
+      cachedReport = {
+        key,
+        loadedAt: Date.now(),
+        value,
+      };
+    }
+
+    return value;
+  };
+
+  routes.get(
+    path,
+    async ({ query, request }) => (await getReport(query, request)).report,
+  );
+  if (gatePath !== false) {
+    routes.get(gatePath, async ({ query, request }) => {
+      const { report, resolvedOptions } = await getReport(query, request);
+      const gate = summarizeVoiceProductionReadinessGate(
+        report,
+        resolvedOptions.gate || undefined,
+      );
+
+      return new Response(JSON.stringify(gate), {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          ...resolvedOptions.headers,
+        },
+        status: gate.ok ? 200 : 503,
+      });
+    });
+  }
+  if (htmlPath !== false) {
+    routes.get(htmlPath, async ({ query, request }) => {
+      const { report, resolvedOptions } = await getReport(query, request);
+      const body = await (
+        resolvedOptions.render ?? renderVoiceProductionReadinessHTML
+      )(report);
+
+      return new Response(body, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          ...resolvedOptions.headers,
+        },
+      });
+    });
+  }
+
+  return routes;
+};
 export const renderVoiceProductionReadinessHTML = (
   report: VoiceProductionReadinessReport,
   options: { title?: string } = {},
@@ -5101,127 +5229,4 @@ export const renderVoiceProductionReadinessHTML = (
 });`);
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0c0f14;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1060px;padding:32px}.hero,.primitive,.profile{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.12));border:1px solid #26313d;border-radius:28px;margin-bottom:18px;padding:28px}.primitive,.profile{background:#111722}.primitive{border-color:#3a3f2d}.eyebrow{color:#fbbf24;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);line-height:.9;margin:.2rem 0 1rem}.status{display:inline-flex;border:1px solid #3f3f46;border-radius:999px;padding:8px 12px}.primitive code{color:#fde68a}.primitive p{color:#c8ccd3;line-height:1.55;margin:.45rem 0 0}.primitive pre{background:#0b0f16;border:1px solid #2c3440;border-radius:18px;color:#fef3c7;margin:16px 0 0;overflow:auto;padding:16px}.status.pass,.check.pass,.profile-surfaces .pass{border-color:rgba(34,197,94,.55)}.status.warn,.check.warn,.profile-surfaces .warn{border-color:rgba(245,158,11,.65)}.status.fail,.check.fail{border-color:rgba(239,68,68,.75)}.checks{display:grid;gap:14px}.check{align-items:center;background:#141922;border:1px solid #26313d;border-radius:22px;display:grid;gap:16px;grid-template-columns:1fr auto auto;padding:18px}.check span,.profile-surfaces span{color:#a8b0b8;font-size:.78rem;font-weight:900;letter-spacing:.08em}.check h2{margin:.2rem 0}.check p,.profile p{color:#b9c0c8;margin:.2rem 0 0}.check .proof-source{color:#f9d77e;font-weight:800}.check .gate-explanation{background:#0b0f16;border:1px solid #2c3440;border-radius:14px;color:#fef3c7;margin-top:10px;padding:10px}.check strong{font-size:1.5rem}.profile-surfaces{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-top:16px}.profile-surfaces article{background:#141922;border:1px solid #26313d;border-radius:16px;padding:14px}.profile-surfaces strong{display:block;margin-top:6px}.actions{display:flex;flex-wrap:wrap;gap:10px}.check a,a{color:#fbbf24}button{background:#fbbf24;border:0;border-radius:999px;color:#111827;cursor:pointer;font-weight:800;padding:9px 12px}button:disabled{cursor:wait;opacity:.65}@media(max-width:760px){main{padding:20px}.check{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted readiness</p><h1>${escapeHtml(title)}</h1><p>One deployable pass/fail report for quality gates, provider failover, session health, handoffs, routing evidence, and optional carrier readiness.</p><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p>Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}</p>${thresholdLink}</section>${profile}<section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceProductionReadinessRoutes(...)</code> builds this deploy gate</h2><p>Mount one package primitive to expose JSON readiness, HTML readiness, and a machine-readable gate route. Feed it the proof stores and contract reports your app already owns.</p><pre><code>${snippet}</code></pre></section><section class="checks">${checks}</section></main><script>document.querySelectorAll("[data-readiness-action]").forEach((button)=>{button.addEventListener("click",async()=>{const url=button.getAttribute("data-action-url");if(!url)return;button.disabled=true;const original=button.textContent;button.textContent="Running...";try{const response=await fetch(url,{method:"POST"});button.textContent=response.ok?"Done. Reloading...":"Failed";if(response.ok)setTimeout(()=>location.reload(),500)}catch{button.textContent="Failed"}finally{setTimeout(()=>{button.disabled=false;button.textContent=original},1500)}})});</script></body></html>`;
-};
-
-export const createVoiceProductionReadinessRoutes = (
-  options: VoiceProductionReadinessRoutesOptions,
-) => {
-  const path = options.path ?? "/api/production-readiness";
-  const gatePath =
-    options.gatePath === undefined
-      ? "/api/production-readiness/gate"
-      : options.gatePath;
-  const htmlPath = options.htmlPath ?? "/production-readiness";
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-production-readiness",
-  });
-  let cachedReport:
-    | {
-        key: string;
-        loadedAt: number;
-        value: Promise<{
-          report: VoiceProductionReadinessReport;
-          resolvedOptions: VoiceProductionReadinessRoutesOptions;
-        }>;
-      }
-    | undefined;
-  const resolveOptions = async (input: VoiceProductionReadinessRouteInput) => {
-    if (!options.resolveOptions) {
-      return options;
-    }
-
-    return {
-      ...options,
-      ...(await options.resolveOptions(input)),
-    };
-  };
-  const reportCacheKey = (query: Record<string, unknown>, request: Request) => {
-    const queryKey = Object.entries(query)
-      .map(([key, value]) => [key, String(value)] as const)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, value]) => `${key}=${value}`)
-      .join("&");
-
-    return queryKey;
-  };
-  const getReport = async (
-    query: Record<string, unknown>,
-    request: Request,
-  ) => {
-    const cacheMs =
-      typeof options.cacheMs === "number" &&
-      Number.isFinite(options.cacheMs) &&
-      options.cacheMs > 0
-        ? options.cacheMs
-        : 0;
-    const key = reportCacheKey(query, request);
-    if (
-      cacheMs > 0 &&
-      cachedReport &&
-      cachedReport.key === key &&
-      Date.now() - cachedReport.loadedAt <= cacheMs
-    ) {
-      return cachedReport.value;
-    }
-
-    const value = (async () => {
-      const resolvedOptions = await resolveOptions({ query, request });
-      return {
-        report: await buildVoiceProductionReadinessReport(resolvedOptions, {
-          query,
-          request,
-        }),
-        resolvedOptions,
-      };
-    })();
-
-    if (cacheMs > 0) {
-      cachedReport = {
-        key,
-        loadedAt: Date.now(),
-        value,
-      };
-    }
-
-    return value;
-  };
-
-  routes.get(
-    path,
-    async ({ query, request }) => (await getReport(query, request)).report,
-  );
-  if (gatePath !== false) {
-    routes.get(gatePath, async ({ query, request }) => {
-      const { report, resolvedOptions } = await getReport(query, request);
-      const gate = summarizeVoiceProductionReadinessGate(
-        report,
-        resolvedOptions.gate || undefined,
-      );
-
-      return new Response(JSON.stringify(gate), {
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          ...resolvedOptions.headers,
-        },
-        status: gate.ok ? 200 : 503,
-      });
-    });
-  }
-  if (htmlPath !== false) {
-    routes.get(htmlPath, async ({ query, request }) => {
-      const { report, resolvedOptions } = await getReport(query, request);
-      const body = await (
-        resolvedOptions.render ?? renderVoiceProductionReadinessHTML
-      )(report);
-
-      return new Response(body, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          ...resolvedOptions.headers,
-        },
-      });
-    });
-  }
-
-  return routes;
 };

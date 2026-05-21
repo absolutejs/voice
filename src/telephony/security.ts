@@ -199,7 +199,7 @@ const resolveVerificationUrl = (
 const createStores = <TResult>(
   options: VoiceTelephonyWebhookSecurityOptions<TResult>,
 ) => {
-  const ttlSeconds = options.ttlSeconds;
+  const {ttlSeconds} = options;
   const store = options.store ?? { kind: "memory" as const };
 
   if (store.kind === "sqlite") {
@@ -266,6 +266,7 @@ const createStores = <TResult>(
 
   if (store.kind === "redis") {
     const keyPrefix = store.keyPrefix?.trim() || "voice:webhook-security";
+
     return {
       idempotency:
         options.twilio?.idempotencyStore ??
@@ -314,6 +315,7 @@ const isPersistentStore = (
   store: VoiceTelephonyWebhookSecurityOptions["store"],
 ) => {
   const kind = resolveStoreKind(store);
+
   return kind === "postgres" || kind === "redis" || kind === "sqlite";
 };
 
@@ -343,6 +345,13 @@ const providerStatus = (
   };
 };
 
+export const assertVoiceTelephonyWebhookSecurityEvidence = (
+  report: VoiceTelephonyWebhookSecurityReport,
+  input: VoiceTelephonyWebhookSecurityAssertionInput = {},
+): VoiceTelephonyWebhookSecurityAssertionReport => assertVoiceEvidence(
+    "Voice telephony webhook security assertion failed",
+    evaluateVoiceTelephonyWebhookSecurityEvidence(report, input),
+  );
 export const buildVoiceTelephonyWebhookSecurityReport = <TResult = unknown>(
   options: VoiceTelephonyWebhookSecurityOptions<TResult> = {},
 ): VoiceTelephonyWebhookSecurityReport => {
@@ -407,81 +416,6 @@ export const buildVoiceTelephonyWebhookSecurityReport = <TResult = unknown>(
     },
   };
 };
-
-export const evaluateVoiceTelephonyWebhookSecurityEvidence = (
-  report: VoiceTelephonyWebhookSecurityReport,
-  input: VoiceTelephonyWebhookSecurityAssertionInput = {},
-): VoiceTelephonyWebhookSecurityAssertionReport => {
-  const issues = [...report.providers.flatMap((provider) => provider.issues)];
-  const enabledProviders = report.providers
-    .filter((provider) => provider.enabled)
-    .map((provider) => provider.provider);
-  const passingProviders = report.providers
-    .filter((provider) => provider.enabled && provider.status === "pass")
-    .map((provider) => provider.provider);
-  const failedProviders = report.providers
-    .filter((provider) => provider.enabled && provider.status === "fail")
-    .map((provider) => provider.provider);
-  const maxFailedProviders = input.maxFailedProviders ?? 0;
-  const minEnabledProviders = input.minEnabledProviders ?? 1;
-  const requirePersistentStores = input.requirePersistentStores ?? true;
-
-  if (enabledProviders.length < minEnabledProviders) {
-    issues.push(
-      `Expected at least ${String(minEnabledProviders)} enabled telephony webhook provider(s), found ${String(enabledProviders.length)}.`,
-    );
-  }
-  if (failedProviders.length > maxFailedProviders) {
-    issues.push(
-      `Expected at most ${String(maxFailedProviders)} failing telephony webhook provider(s), found ${String(failedProviders.length)}.`,
-    );
-  }
-  for (const provider of input.requiredProviders ?? []) {
-    if (!enabledProviders.includes(provider)) {
-      issues.push(`Missing enabled telephony webhook provider: ${provider}.`);
-    }
-    if (!passingProviders.includes(provider)) {
-      issues.push(`Telephony webhook provider is not passing: ${provider}.`);
-    }
-  }
-  if (requirePersistentStores) {
-    for (const provider of report.providers) {
-      if (provider.enabled && !provider.checks.persistentStore) {
-        issues.push(
-          `Telephony webhook provider ${provider.provider} is not using a persistent security store.`,
-        );
-      }
-    }
-  }
-
-  return {
-    failedProviders,
-    issues,
-    ok: issues.length === 0,
-    passingProviders,
-    status: report.status,
-  };
-};
-
-export const assertVoiceTelephonyWebhookSecurityEvidence = (
-  report: VoiceTelephonyWebhookSecurityReport,
-  input: VoiceTelephonyWebhookSecurityAssertionInput = {},
-): VoiceTelephonyWebhookSecurityAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice telephony webhook security assertion failed",
-    evaluateVoiceTelephonyWebhookSecurityEvidence(report, input),
-  );
-};
-
-export const createVoiceTelephonyWebhookSecurityRoutes = <TResult = unknown>(
-  options: VoiceTelephonyWebhookSecurityRoutesOptions<TResult>,
-) => {
-  const path = options.path ?? "/api/voice/telephony/webhook-security";
-  return new Elysia({
-    name: options.name ?? "absolutejs-voice-telephony-webhook-security",
-  }).get(path, () => buildVoiceTelephonyWebhookSecurityReport(options.options));
-};
-
 export const createVoiceTelephonyWebhookSecurityPreset = <TResult = unknown>(
   options: VoiceTelephonyWebhookSecurityOptions<TResult> = {},
 ): VoiceTelephonyWebhookSecurityPreset<TResult> => {
@@ -540,5 +474,68 @@ export const createVoiceTelephonyWebhookSecurityPreset = <TResult = unknown>(
       telnyx: telnyxVerify,
       twilio: twilioVerify,
     },
+  };
+};
+export const createVoiceTelephonyWebhookSecurityRoutes = <TResult = unknown>(
+  options: VoiceTelephonyWebhookSecurityRoutesOptions<TResult>,
+) => {
+  const path = options.path ?? "/api/voice/telephony/webhook-security";
+
+  return new Elysia({
+    name: options.name ?? "absolutejs-voice-telephony-webhook-security",
+  }).get(path, () => buildVoiceTelephonyWebhookSecurityReport(options.options));
+};
+export const evaluateVoiceTelephonyWebhookSecurityEvidence = (
+  report: VoiceTelephonyWebhookSecurityReport,
+  input: VoiceTelephonyWebhookSecurityAssertionInput = {},
+): VoiceTelephonyWebhookSecurityAssertionReport => {
+  const issues = [...report.providers.flatMap((provider) => provider.issues)];
+  const enabledProviders = report.providers
+    .filter((provider) => provider.enabled)
+    .map((provider) => provider.provider);
+  const passingProviders = report.providers
+    .filter((provider) => provider.enabled && provider.status === "pass")
+    .map((provider) => provider.provider);
+  const failedProviders = report.providers
+    .filter((provider) => provider.enabled && provider.status === "fail")
+    .map((provider) => provider.provider);
+  const maxFailedProviders = input.maxFailedProviders ?? 0;
+  const minEnabledProviders = input.minEnabledProviders ?? 1;
+  const requirePersistentStores = input.requirePersistentStores ?? true;
+
+  if (enabledProviders.length < minEnabledProviders) {
+    issues.push(
+      `Expected at least ${String(minEnabledProviders)} enabled telephony webhook provider(s), found ${String(enabledProviders.length)}.`,
+    );
+  }
+  if (failedProviders.length > maxFailedProviders) {
+    issues.push(
+      `Expected at most ${String(maxFailedProviders)} failing telephony webhook provider(s), found ${String(failedProviders.length)}.`,
+    );
+  }
+  for (const provider of input.requiredProviders ?? []) {
+    if (!enabledProviders.includes(provider)) {
+      issues.push(`Missing enabled telephony webhook provider: ${provider}.`);
+    }
+    if (!passingProviders.includes(provider)) {
+      issues.push(`Telephony webhook provider is not passing: ${provider}.`);
+    }
+  }
+  if (requirePersistentStores) {
+    for (const provider of report.providers) {
+      if (provider.enabled && !provider.checks.persistentStore) {
+        issues.push(
+          `Telephony webhook provider ${provider.provider} is not using a persistent security store.`,
+        );
+      }
+    }
+  }
+
+  return {
+    failedProviders,
+    issues,
+    ok: issues.length === 0,
+    passingProviders,
+    status: report.status,
   };
 };

@@ -20,6 +20,7 @@ export const useVoiceDeliveryRuntime = (
 
   useEffect(() => {
     void store.refresh().catch(() => {});
+
     return () => store.close();
   }, [store]);
 

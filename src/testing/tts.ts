@@ -116,7 +116,29 @@ const getAudioDurationMs = (chunk: Uint8Array, format: AudioFormat) => {
 
 export const getDefaultTTSBenchmarkFixtures = () =>
   DEFAULT_TTS_BENCHMARK_FIXTURES.map((fixture) => ({ ...fixture }));
+export const runTTSAdapterBenchmark = async (
+  adapterId: string,
+  adapter: VoiceOutputAdapter,
+  fixtures = getDefaultTTSBenchmarkFixtures(),
+  options: VoiceTTSBenchmarkOptions = {},
+): Promise<VoiceTTSBenchmarkReport> => {
+  const results: VoiceTTSBenchmarkFixtureResult[] = [];
 
+  for (const fixture of fixtures) {
+    results.push(await runTTSAdapterFixture(adapter, fixture, options));
+  }
+
+  return {
+    adapterId,
+    fixtures: results,
+    generatedAt: Date.now(),
+    profileId:
+      options.interruptAfterFirstAudioMs !== undefined
+        ? "interrupt"
+        : "default",
+    summary: summarizeTTSBenchmark(adapterId, results),
+  };
+};
 export const runTTSAdapterFixture = async (
   adapter: VoiceOutputAdapter,
   fixture: VoiceTTSBenchmarkFixture,
@@ -304,31 +326,6 @@ export const runTTSAdapterFixture = async (
     totalAudioBytes,
   };
 };
-
-export const runTTSAdapterBenchmark = async (
-  adapterId: string,
-  adapter: VoiceOutputAdapter,
-  fixtures = getDefaultTTSBenchmarkFixtures(),
-  options: VoiceTTSBenchmarkOptions = {},
-): Promise<VoiceTTSBenchmarkReport> => {
-  const results: VoiceTTSBenchmarkFixtureResult[] = [];
-
-  for (const fixture of fixtures) {
-    results.push(await runTTSAdapterFixture(adapter, fixture, options));
-  }
-
-  return {
-    adapterId,
-    fixtures: results,
-    generatedAt: Date.now(),
-    profileId:
-      options.interruptAfterFirstAudioMs !== undefined
-        ? "interrupt"
-        : "default",
-    summary: summarizeTTSBenchmark(adapterId, results),
-  };
-};
-
 export const summarizeTTSBenchmark = (
   adapterId: string,
   fixtures: VoiceTTSBenchmarkFixtureResult[],

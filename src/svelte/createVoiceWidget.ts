@@ -26,15 +26,16 @@ export const createVoiceWidget = <TResult = unknown>(
       theme: options.theme,
       title: options.title,
     });
+
   return {
+    getViewModel: buildModel,
+    subscribe: controller.subscribe,
     close: () => controller.close(),
     endCall: () => controller.close(),
     getHTML: () => renderVoiceWidgetHTML(buildModel()),
     getSnapshot: () => controller.getSnapshot(),
-    getViewModel: buildModel,
     mute: () => controller.stopRecording(),
     startCall: () => controller.startRecording(),
-    subscribe: controller.subscribe,
     unmute: () => controller.startRecording(),
   };
 };

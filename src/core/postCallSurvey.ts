@@ -56,6 +56,7 @@ const bucketize = (
   if (rating === null) return null;
   if (rating >= 9) return "promoter";
   if (rating >= 7) return "passive";
+
   return "detractor";
 };
 
@@ -73,6 +74,7 @@ const validateRating = (
       `Question ${question.id} expects a rating between ${min} and ${max}`,
     );
   }
+
   return value;
 };
 
@@ -127,6 +129,7 @@ export const createVoicePostCallSurvey = (
     }
     const idx = questions.findIndex((q) => q.id === questionId);
     if (idx >= 0) cursor = Math.max(cursor, idx + 1);
+
     return answer;
   };
 
@@ -138,6 +141,7 @@ export const createVoicePostCallSurvey = (
     }
     response.answers.push({ questionId: question.id, value: null });
     cursor += 1;
+
     return question;
   };
 
@@ -153,16 +157,17 @@ export const createVoicePostCallSurvey = (
       }
     }
     response.completedAt = now();
+
     return response;
   };
 
   return {
     complete,
-    getResponse: () => response,
     next,
     questions,
     record,
     skip,
+    getResponse: () => response,
   };
 };
 
@@ -181,6 +186,7 @@ export const summarizeVoicePostCallSurveys = (
   const promoters = ratings.filter((a) => a.value >= 9).length;
   const detractors = ratings.filter((a) => a.value <= 6).length;
   const denom = ratings.length || 1;
+
   return {
     completion:
       responses.length === 0 ? 0 : completed.length / responses.length,

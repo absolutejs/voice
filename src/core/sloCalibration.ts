@@ -179,6 +179,7 @@ const percentile = (values: number[], rank: number) => {
     sorted.length - 1,
     Math.max(0, Math.ceil((rank / 100) * sorted.length) - 1),
   );
+
   return sorted[index];
 };
 
@@ -243,6 +244,17 @@ const createThreshold = (
   };
 };
 
+export const assertVoiceSloCalibration = (
+  input: Array<VoiceProofTrendReport | VoiceSloCalibrationSample>,
+  options: VoiceSloCalibrationOptions = {},
+): VoiceSloCalibrationReport => {
+  const report = buildVoiceSloCalibrationReport(input, options);
+  if (!report.ok) {
+    throw new Error(`Voice SLO calibration failed: ${report.issues.join(" ")}`);
+  }
+
+  return report;
+};
 export const buildVoiceSloCalibrationReport = (
   input: Array<VoiceProofTrendReport | VoiceSloCalibrationSample>,
   options: VoiceSloCalibrationOptions = {},
@@ -368,20 +380,59 @@ export const buildVoiceSloCalibrationReport = (
   };
 };
 
-export const assertVoiceSloCalibration = (
-  input: Array<VoiceProofTrendReport | VoiceSloCalibrationSample>,
-  options: VoiceSloCalibrationOptions = {},
-): VoiceSloCalibrationReport => {
-  const report = buildVoiceSloCalibrationReport(input, options);
-  if (!report.ok) {
-    throw new Error(`Voice SLO calibration failed: ${report.issues.join(" ")}`);
-  }
-  return report;
-};
-
 const thresholdValue = (threshold: VoiceSloCalibrationThreshold) =>
   threshold.recommendedMs ?? threshold.failAfterMs;
 
+export const buildVoiceSloReadinessThresholdReport = (
+  input:
+    | VoiceSloCalibrationReport
+    | VoiceSloThresholdProfile
+    | Array<VoiceProofTrendReport | VoiceSloCalibrationSample>,
+  options: VoiceSloReadinessThresholdReportOptions = {},
+): VoiceSloReadinessThresholdReport => {
+  const report = Array.isArray(input)
+    ? buildVoiceSloCalibrationReport(input, options)
+    : "thresholds" in input
+      ? input
+      : undefined;
+  const profile: VoiceSloThresholdProfile =
+    report === undefined
+      ? (input as VoiceSloThresholdProfile)
+      : createVoiceSloThresholdProfile(report, options);
+
+  return {
+    bargeIn: profile.bargeIn,
+    generatedAt: new Date().toISOString(),
+    issues: profile.issues,
+    liveLatencyMaxAgeMs: options.liveLatencyMaxAgeMs,
+    ok: profile.status !== "fail",
+    providerSlo: profile.providerSlo,
+    readinessOptions: createVoiceSloReadinessThresholdOptions(profile),
+    sources: report?.sources ?? [],
+    status: profile.status,
+  };
+};
+export const createVoiceSloReadinessThresholdOptions = (
+  input:
+    | VoiceSloCalibrationReport
+    | VoiceSloThresholdProfile
+    | Array<VoiceProofTrendReport | VoiceSloCalibrationSample>,
+  options: VoiceSloCalibrationOptions = {},
+): VoiceSloReadinessThresholdOptions => {
+  const profile =
+    "providerSlo" in input
+      ? input
+      : createVoiceSloThresholdProfile(input, options);
+
+  return {
+    liveLatencyFailAfterMs: profile.liveLatency.failAfterMs,
+    liveLatencyWarnAfterMs: profile.liveLatency.warnAfterMs,
+    monitoringNotifierDeliveryFailAfterMs:
+      profile.monitoring.notifierDeliveryFailAfterMs,
+    monitoringRunFailAfterMs: profile.monitoring.monitorRunFailAfterMs,
+    reconnectResumeFailAfterMs: profile.reconnect.failAfterMs,
+  };
+};
 export const createVoiceSloThresholdProfile = (
   input:
     | VoiceSloCalibrationReport
@@ -419,58 +470,6 @@ export const createVoiceSloThresholdProfile = (
   };
 };
 
-export const createVoiceSloReadinessThresholdOptions = (
-  input:
-    | VoiceSloCalibrationReport
-    | VoiceSloThresholdProfile
-    | Array<VoiceProofTrendReport | VoiceSloCalibrationSample>,
-  options: VoiceSloCalibrationOptions = {},
-): VoiceSloReadinessThresholdOptions => {
-  const profile =
-    "providerSlo" in input
-      ? input
-      : createVoiceSloThresholdProfile(input, options);
-
-  return {
-    liveLatencyFailAfterMs: profile.liveLatency.failAfterMs,
-    liveLatencyWarnAfterMs: profile.liveLatency.warnAfterMs,
-    monitoringNotifierDeliveryFailAfterMs:
-      profile.monitoring.notifierDeliveryFailAfterMs,
-    monitoringRunFailAfterMs: profile.monitoring.monitorRunFailAfterMs,
-    reconnectResumeFailAfterMs: profile.reconnect.failAfterMs,
-  };
-};
-
-export const buildVoiceSloReadinessThresholdReport = (
-  input:
-    | VoiceSloCalibrationReport
-    | VoiceSloThresholdProfile
-    | Array<VoiceProofTrendReport | VoiceSloCalibrationSample>,
-  options: VoiceSloReadinessThresholdReportOptions = {},
-): VoiceSloReadinessThresholdReport => {
-  const report = Array.isArray(input)
-    ? buildVoiceSloCalibrationReport(input, options)
-    : "thresholds" in input
-      ? input
-      : undefined;
-  const profile: VoiceSloThresholdProfile =
-    report === undefined
-      ? (input as VoiceSloThresholdProfile)
-      : createVoiceSloThresholdProfile(report, options);
-
-  return {
-    bargeIn: profile.bargeIn,
-    generatedAt: new Date().toISOString(),
-    issues: profile.issues,
-    liveLatencyMaxAgeMs: options.liveLatencyMaxAgeMs,
-    ok: profile.status !== "fail",
-    providerSlo: profile.providerSlo,
-    readinessOptions: createVoiceSloReadinessThresholdOptions(profile),
-    sources: report?.sources ?? [],
-    status: profile.status,
-  };
-};
-
 const escapeMarkdown = (value: string) => value.replaceAll("|", "\\|");
 
 const formatMs = (value: number | undefined) =>
@@ -484,125 +483,40 @@ const readinessThresholdRows = (report: VoiceSloReadinessThresholdReport) => [
   },
   {
     control: "Live latency warn",
-    value: report.readinessOptions.liveLatencyWarnAfterMs,
     usedBy: "Production readiness live latency warning gate",
+    value: report.readinessOptions.liveLatencyWarnAfterMs,
   },
   {
     control: "Live latency fail",
-    value: report.readinessOptions.liveLatencyFailAfterMs,
     usedBy: "Production readiness live latency fail gate",
+    value: report.readinessOptions.liveLatencyFailAfterMs,
   },
   {
     control: "Live latency freshness",
-    value: report.liveLatencyMaxAgeMs,
     usedBy: "Maximum age for latency evidence before readiness ignores it",
+    value: report.liveLatencyMaxAgeMs,
   },
   {
     control: "Barge-in interruption",
-    value: report.bargeIn.thresholdMs,
     usedBy: "Runtime interruption classification threshold",
+    value: report.bargeIn.thresholdMs,
   },
   {
     control: "Reconnect resume p95",
-    value: report.readinessOptions.reconnectResumeFailAfterMs,
     usedBy: "Production readiness reconnect-resume gate",
+    value: report.readinessOptions.reconnectResumeFailAfterMs,
   },
   {
     control: "Monitor run elapsed",
-    value: report.readinessOptions.monitoringRunFailAfterMs,
     usedBy: "Production readiness monitoring run gate",
+    value: report.readinessOptions.monitoringRunFailAfterMs,
   },
   {
     control: "Notifier delivery elapsed",
-    value: report.readinessOptions.monitoringNotifierDeliveryFailAfterMs,
     usedBy: "Production readiness notifier delivery gate",
+    value: report.readinessOptions.monitoringNotifierDeliveryFailAfterMs,
   },
 ];
-
-export const renderVoiceSloCalibrationMarkdown = (
-  report: VoiceSloCalibrationReport,
-  options: { title?: string } = {},
-) => {
-  const rows = Object.values(report.thresholds)
-    .map(
-      (threshold) =>
-        `| ${escapeMarkdown(threshold.metric)} | ${threshold.status} | ${threshold.samples} | ${threshold.baselineP95Ms ?? "n/a"} | ${threshold.warnAfterMs ?? "n/a"} | ${threshold.failAfterMs ?? "n/a"} |`,
-    )
-    .join("\n");
-
-  return `# ${options.title ?? "Voice SLO Calibration"}
-
-Generated: ${report.generatedAt}
-
-Status: **${report.status}**
-
-Passing runs: ${report.passingRuns}/${report.runs}
-
-| Metric | Status | Samples | Baseline p95 | Warn after | Fail after |
-| --- | --- | ---: | ---: | ---: | ---: |
-${rows}
-
-Issues:
-
-${report.issues.map((issue) => `- ${issue}`).join("\n") || "- None"}
-`;
-};
-
-export const renderVoiceSloReadinessThresholdMarkdown = (
-  report: VoiceSloReadinessThresholdReport,
-  options: { title?: string } = {},
-) => {
-  const rows = readinessThresholdRows(report)
-    .map(
-      (row) =>
-        `| ${escapeMarkdown(row.control)} | ${formatMs(row.value)} | ${escapeMarkdown(row.usedBy)} |`,
-    )
-    .join("\n");
-
-  return `# ${options.title ?? "Calibration -> Active Readiness Gate"}
-
-Generated: ${report.generatedAt}
-
-Status: **${report.status}**
-
-| Threshold | Active value | Used by |
-| --- | ---: | --- |
-${rows}
-
-Sources:
-
-${report.sources.map((source) => `- ${source}`).join("\n") || "- n/a"}
-
-Issues:
-
-${report.issues.map((issue) => `- ${issue}`).join("\n") || "- None"}
-`;
-};
-
-export const renderVoiceSloReadinessThresholdHTML = (
-  report: VoiceSloReadinessThresholdReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Calibration -> Active Readiness Gate";
-  const rows = readinessThresholdRows(report)
-    .map(
-      (row) =>
-        `<tr><td>${escapeHtml(row.control)}</td><td>${escapeHtml(formatMs(row.value))}</td><td>${escapeHtml(row.usedBy)}</td></tr>`,
-    )
-    .join("");
-  const issues =
-    report.issues.length === 0
-      ? "<li>None</li>"
-      : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
-  const sources =
-    report.sources.length === 0
-      ? "<li>n/a</li>"
-      : report.sources
-          .map((source) => `<li><code>${escapeHtml(source)}</code></li>`)
-          .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#f8f7f2;color:#181713;font-family:ui-sans-serif,system-ui,sans-serif;line-height:1.45;margin:2rem}main{max-width:1040px;margin:auto}.summary{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:1rem 0}.card,table{background:white;border:1px solid #ddd6c8;border-radius:14px}.card{padding:1rem}table{border-collapse:collapse;width:100%;overflow:hidden}td,th{border-bottom:1px solid #eee8dc;padding:.7rem;text-align:left;vertical-align:top}code{white-space:pre-wrap;word-break:break-word}.status{font-size:1.6rem;font-weight:800;text-transform:uppercase}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>This page shows the calibrated thresholds currently driving production readiness gates.</p><section class="summary"><div class="card"><strong>Status</strong><br><span class="status">${escapeHtml(report.status)}</span></div><div class="card"><strong>Live evidence max age</strong><br>${escapeHtml(formatMs(report.liveLatencyMaxAgeMs))}</div><div class="card"><strong>Provider p95 gate</strong><br>${escapeHtml(formatMs(report.providerSlo.llm?.maxP95ElapsedMs))}</div><div class="card"><strong>Barge-in gate</strong><br>${escapeHtml(formatMs(report.bargeIn.thresholdMs))}</div></section><h2>Active Readiness Thresholds</h2><table><thead><tr><th>Threshold</th><th>Active value</th><th>Used by</th></tr></thead><tbody>${rows}</tbody></table><h2>Sources</h2><ul>${sources}</ul><h2>Issues</h2><ul>${issues}</ul></main></body></html>`;
-};
 
 export const createVoiceSloCalibrationRoutes = (
   options: VoiceSloCalibrationRoutesOptions,
@@ -630,6 +544,7 @@ export const createVoiceSloCalibrationRoutes = (
   if (markdownPath !== false) {
     routes.get(markdownPath, async () => {
       const report = await loadReport();
+
       return new Response(
         renderVoiceSloCalibrationMarkdown(report, {
           title: options.title,
@@ -646,7 +561,6 @@ export const createVoiceSloCalibrationRoutes = (
 
   return routes;
 };
-
 export const createVoiceSloReadinessThresholdRoutes = (
   options: VoiceSloReadinessThresholdRoutesOptions,
 ) => {
@@ -677,6 +591,7 @@ export const createVoiceSloReadinessThresholdRoutes = (
   if (htmlPath !== false) {
     routes.get(htmlPath, async () => {
       const report = await loadReport();
+
       return new Response(
         renderVoiceSloReadinessThresholdHTML(report, {
           title: options.title,
@@ -694,6 +609,7 @@ export const createVoiceSloReadinessThresholdRoutes = (
   if (markdownPath !== false) {
     routes.get(markdownPath, async () => {
       const report = await loadReport();
+
       return new Response(
         renderVoiceSloReadinessThresholdMarkdown(report, {
           title: options.title,
@@ -709,4 +625,86 @@ export const createVoiceSloReadinessThresholdRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceSloCalibrationMarkdown = (
+  report: VoiceSloCalibrationReport,
+  options: { title?: string } = {},
+) => {
+  const rows = Object.values(report.thresholds)
+    .map(
+      (threshold) =>
+        `| ${escapeMarkdown(threshold.metric)} | ${threshold.status} | ${threshold.samples} | ${threshold.baselineP95Ms ?? "n/a"} | ${threshold.warnAfterMs ?? "n/a"} | ${threshold.failAfterMs ?? "n/a"} |`,
+    )
+    .join("\n");
+
+  return `# ${options.title ?? "Voice SLO Calibration"}
+
+Generated: ${report.generatedAt}
+
+Status: **${report.status}**
+
+Passing runs: ${report.passingRuns}/${report.runs}
+
+| Metric | Status | Samples | Baseline p95 | Warn after | Fail after |
+| --- | --- | ---: | ---: | ---: | ---: |
+${rows}
+
+Issues:
+
+${report.issues.map((issue) => `- ${issue}`).join("\n") || "- None"}
+`;
+};
+export const renderVoiceSloReadinessThresholdHTML = (
+  report: VoiceSloReadinessThresholdReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Calibration -> Active Readiness Gate";
+  const rows = readinessThresholdRows(report)
+    .map(
+      (row) =>
+        `<tr><td>${escapeHtml(row.control)}</td><td>${escapeHtml(formatMs(row.value))}</td><td>${escapeHtml(row.usedBy)}</td></tr>`,
+    )
+    .join("");
+  const issues =
+    report.issues.length === 0
+      ? "<li>None</li>"
+      : report.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("");
+  const sources =
+    report.sources.length === 0
+      ? "<li>n/a</li>"
+      : report.sources
+          .map((source) => `<li><code>${escapeHtml(source)}</code></li>`)
+          .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#f8f7f2;color:#181713;font-family:ui-sans-serif,system-ui,sans-serif;line-height:1.45;margin:2rem}main{max-width:1040px;margin:auto}.summary{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:1rem 0}.card,table{background:white;border:1px solid #ddd6c8;border-radius:14px}.card{padding:1rem}table{border-collapse:collapse;width:100%;overflow:hidden}td,th{border-bottom:1px solid #eee8dc;padding:.7rem;text-align:left;vertical-align:top}code{white-space:pre-wrap;word-break:break-word}.status{font-size:1.6rem;font-weight:800;text-transform:uppercase}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>This page shows the calibrated thresholds currently driving production readiness gates.</p><section class="summary"><div class="card"><strong>Status</strong><br><span class="status">${escapeHtml(report.status)}</span></div><div class="card"><strong>Live evidence max age</strong><br>${escapeHtml(formatMs(report.liveLatencyMaxAgeMs))}</div><div class="card"><strong>Provider p95 gate</strong><br>${escapeHtml(formatMs(report.providerSlo.llm?.maxP95ElapsedMs))}</div><div class="card"><strong>Barge-in gate</strong><br>${escapeHtml(formatMs(report.bargeIn.thresholdMs))}</div></section><h2>Active Readiness Thresholds</h2><table><thead><tr><th>Threshold</th><th>Active value</th><th>Used by</th></tr></thead><tbody>${rows}</tbody></table><h2>Sources</h2><ul>${sources}</ul><h2>Issues</h2><ul>${issues}</ul></main></body></html>`;
+};
+export const renderVoiceSloReadinessThresholdMarkdown = (
+  report: VoiceSloReadinessThresholdReport,
+  options: { title?: string } = {},
+) => {
+  const rows = readinessThresholdRows(report)
+    .map(
+      (row) =>
+        `| ${escapeMarkdown(row.control)} | ${formatMs(row.value)} | ${escapeMarkdown(row.usedBy)} |`,
+    )
+    .join("\n");
+
+  return `# ${options.title ?? "Calibration -> Active Readiness Gate"}
+
+Generated: ${report.generatedAt}
+
+Status: **${report.status}**
+
+| Threshold | Active value | Used by |
+| --- | ---: | --- |
+${rows}
+
+Sources:
+
+${report.sources.map((source) => `- ${source}`).join("\n") || "- n/a"}
+
+Issues:
+
+${report.issues.map((issue) => `- ${issue}`).join("\n") || "- None"}
+`;
 };

@@ -100,6 +100,7 @@ export const createVoiceBrowserMediaReporter = (
   return {
     close: stop,
     reportOnce,
+    stop,
     start: () => {
       if (interval) {
         return;
@@ -111,6 +112,5 @@ export const createVoiceBrowserMediaReporter = (
         options.intervalMs ?? DEFAULT_BROWSER_MEDIA_INTERVAL_MS,
       );
     },
-    stop,
   };
 };

@@ -92,6 +92,7 @@ export const createLiveCallViewer = (
   };
 
   return {
+    applyEvent: pushEvent,
     applyControl: (control) => {
       pushEvent({
         at: Date.now(),
@@ -100,7 +101,6 @@ export const createLiveCallViewer = (
         title: `control:${control.type}`,
       });
     },
-    applyEvent: pushEvent,
     applyMonitorEvent: ({ payload, type }) => {
       pushEvent({
         at: Date.now(),
@@ -157,6 +157,7 @@ export const createLiveCallViewer = (
     },
     subscribe: (subscriber) => {
       subscribers.add(subscriber);
+
       return () => subscribers.delete(subscriber);
     },
   };

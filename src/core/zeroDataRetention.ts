@@ -45,37 +45,40 @@ const RETAIN_NONE: VoiceZeroDataRetentionRetainFlags = {
 
 const REDACTED = "[redacted:zdr]";
 
+export const VOICE_ZERO_DATA_RETENTION_REDACTION_MARKER = REDACTED;
 export const createVoiceZeroDataRetentionPolicy = (
   options: CreateVoiceZeroDataRetentionPolicyOptions = {},
 ): VoiceZeroDataRetentionPolicy => {
   const mode = options.mode ?? "off";
   const base =
     mode === "strict" ? RETAIN_NONE : mode === "off" ? RETAIN_ALL : RETAIN_ALL;
+
   return {
     mode,
     retain: { ...base, ...(options.retain ?? {}) },
   };
 };
-
 export const isVoiceZeroDataRetentionActive = (
   policy: VoiceZeroDataRetentionPolicy,
 ): boolean =>
   policy.mode !== "off" &&
   Object.values(policy.retain).some((retain) => retain === false);
-
-export const shouldRetainVoiceRecording = (
+export const scrubVoiceTraceForZeroDataRetention = (
+  event: VoiceTraceEvent,
   policy: VoiceZeroDataRetentionPolicy,
-): boolean => policy.retain.recordings;
+): VoiceTraceEvent => {
+  if (!isVoiceZeroDataRetentionActive(policy) || policy.retain.traceText) {
+    return event;
+  }
+  const {payload} = event;
+  if (!payload || typeof payload !== "object") return event;
+  const scrubbedPayload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    scrubbedPayload[key] = typeof value === "string" ? REDACTED : value;
+  }
 
-export const shouldRetainVoiceTranscript = (
-  policy: VoiceZeroDataRetentionPolicy,
-): boolean => policy.retain.transcriptText;
-
-/**
- * Returns a scrubbed copy of a turn record honoring the ZDR policy. Structural
- * fields (ids, timestamps, transcript count, citation ids) are preserved;
- * content fields are replaced with a redaction marker or dropped.
- */
+  return { ...event, payload: scrubbedPayload };
+};
 export const scrubVoiceTurnForZeroDataRetention = <TResult = unknown>(
   turn: VoiceTurnRecord<TResult>,
   policy: VoiceZeroDataRetentionPolicy,
@@ -97,28 +100,12 @@ export const scrubVoiceTurnForZeroDataRetention = <TResult = unknown>(
   if (!policy.retain.metadata) {
     delete (scrubbed as { attachments?: unknown }).attachments;
   }
+
   return scrubbed;
 };
-
-/**
- * Returns a scrubbed copy of a trace event honoring the ZDR policy. Drops or
- * masks free-text payload fields while keeping the event type, ids, and
- * timestamps so observability/lifecycle accounting still works.
- */
-export const scrubVoiceTraceForZeroDataRetention = (
-  event: VoiceTraceEvent,
+export const shouldRetainVoiceRecording = (
   policy: VoiceZeroDataRetentionPolicy,
-): VoiceTraceEvent => {
-  if (!isVoiceZeroDataRetentionActive(policy) || policy.retain.traceText) {
-    return event;
-  }
-  const payload = event.payload;
-  if (!payload || typeof payload !== "object") return event;
-  const scrubbedPayload: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(payload)) {
-    scrubbedPayload[key] = typeof value === "string" ? REDACTED : value;
-  }
-  return { ...event, payload: scrubbedPayload };
-};
-
-export const VOICE_ZERO_DATA_RETENTION_REDACTION_MARKER = REDACTED;
+): boolean => policy.retain.recordings;
+export const shouldRetainVoiceTranscript = (
+  policy: VoiceZeroDataRetentionPolicy,
+): boolean => policy.retain.transcriptText;

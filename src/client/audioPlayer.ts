@@ -83,7 +83,7 @@ const decodePCM16LEChunk = (
   audioContext: MinimalAudioContext,
   chunk: VoiceAudioChunk,
 ) => {
-  const format = chunk.format;
+  const {format} = chunk;
   if (format.container !== "raw" || format.encoding !== "pcm_s16le") {
     throw new Error(
       `Unsupported assistant audio format: ${format.container}/${format.encoding}`,
@@ -197,6 +197,7 @@ export const createVoiceAudioPlayer = (
     const gainValue = 1;
     if (outputNode.gain.setValueAtTime) {
       outputNode.gain.setValueAtTime(gainValue, context?.currentTime ?? 0);
+
       return;
     }
 
@@ -211,6 +212,7 @@ export const createVoiceAudioPlayer = (
     const gainValue = 0;
     if (outputNode.gain.setValueAtTime) {
       outputNode.gain.setValueAtTime(gainValue, context?.currentTime ?? 0);
+
       return;
     }
 
@@ -250,6 +252,7 @@ export const createVoiceAudioPlayer = (
     }
 
     queueEndTime = audioContext.currentTime;
+
     return audioContext;
   };
 
@@ -329,6 +332,7 @@ export const createVoiceAudioPlayer = (
       () => sync(),
       () => sync(),
     );
+
     return syncPromise;
   };
 
@@ -339,6 +343,7 @@ export const createVoiceAudioPlayer = (
       source.assistantAudio.length > 0
     ) {
       void player.start();
+
       return;
     }
 
@@ -348,6 +353,9 @@ export const createVoiceAudioPlayer = (
   });
 
   const player: VoiceAudioPlayer = {
+    get activeSourceCount() {
+      return state.activeSourceCount;
+    },
     close: async () => {
       unsubscribeSource();
       stopQueuedPlayback({ forceClear: true });
@@ -371,19 +379,10 @@ export const createVoiceAudioPlayer = (
         isPlaying: false,
       });
     },
-    get activeSourceCount() {
-      return state.activeSourceCount;
-    },
     get error() {
       return state.error;
     },
     getSnapshot: () => state,
-    get isActive() {
-      return state.isActive;
-    },
-    get isPlaying() {
-      return state.isPlaying;
-    },
     interrupt: async () => {
       const startedAt = Date.now();
       const context = await ensureAudioContext();
@@ -399,6 +398,7 @@ export const createVoiceAudioPlayer = (
 
       if (sourceNodes.size === 0) {
         resolveInterrupt(playbackStopLatencyMs);
+
         return;
       }
 
@@ -420,6 +420,12 @@ export const createVoiceAudioPlayer = (
       stopQueuedPlayback();
       await interruptPromise;
     },
+    get isActive() {
+      return state.isActive;
+    },
+    get isPlaying() {
+      return state.isPlaying;
+    },
     get lastInterruptLatencyMs() {
       return state.lastInterruptLatencyMs;
     },
@@ -433,6 +439,7 @@ export const createVoiceAudioPlayer = (
           isActive: false,
           isPlaying: false,
         });
+
         return;
       }
 

@@ -94,6 +94,7 @@ const resolveTableName = (input: {
     input.options.tablePrefix ?? "voice",
   );
   const fallback = normalizeTableNameSegment(input.fallback);
+
   return `${prefix}_${fallback}`;
 };
 
@@ -104,6 +105,7 @@ const openVoiceSQLiteDatabase = (path: string) => {
   database.exec("PRAGMA journal_mode = WAL;");
   database.exec("PRAGMA synchronous = NORMAL;");
   database.exec("PRAGMA busy_timeout = 5000;");
+
   return database;
 };
 
@@ -142,6 +144,7 @@ const createSQLiteRecordStore = <T>(input: {
 
   const get = async (id: string) => {
     const row = selectStatement.get(id) as { payload: string } | null;
+
     return row ? (JSON.parse(row.payload) as T) : undefined;
   };
 
@@ -179,9 +182,9 @@ const createSQLiteSessionStoreWithDatabase = <
 ): VoiceSessionStore<TSession> => {
   const store = createSQLiteRecordStore<TSession>({
     database,
+    tableName,
     decorate: (_id, value) => value,
     getSortAt: (value) => value.lastActivityAt ?? value.createdAt,
-    tableName,
   });
 
   const getOrCreate = async (id: string) => {
@@ -192,12 +195,15 @@ const createSQLiteSessionStoreWithDatabase = <
 
     const session = createVoiceSessionRecord<TSession>(id);
     await store.set(id, session);
+
     return session;
   };
 
   return {
     get: store.get,
     getOrCreate,
+    remove: store.remove,
+    set: store.set,
     list: async () =>
       (await store.list())
         .map((session) => toVoiceSessionSummary(session))
@@ -206,8 +212,6 @@ const createSQLiteSessionStoreWithDatabase = <
             (second.lastActivityAt ?? second.createdAt) -
             (first.lastActivityAt ?? first.createdAt),
         ),
-    remove: store.remove,
-    set: store.set,
   };
 };
 
@@ -220,10 +224,10 @@ const createSQLiteReviewStoreWithDatabase = <
 ): VoiceCallReviewStore<TArtifact> =>
   createSQLiteRecordStore<TArtifact>({
     database,
+    tableName,
     decorate: (id, value) =>
       withVoiceCallReviewId(id, value as TArtifact & VoiceCallReviewArtifact),
     getSortAt: (value) => value.generatedAt ?? 0,
-    tableName,
   });
 
 const createSQLiteTaskStoreWithDatabase = <
@@ -234,10 +238,10 @@ const createSQLiteTaskStoreWithDatabase = <
 ): VoiceOpsTaskStore<TTask> =>
   createSQLiteRecordStore<TTask>({
     database,
+    tableName,
     decorate: (id, value) =>
       withVoiceOpsTaskId(id, value as TTask & Omit<VoiceOpsTask, "id">),
     getSortAt: (value) => value.createdAt,
-    tableName,
   });
 
 const createSQLiteEventStoreWithDatabase = <
@@ -248,13 +252,13 @@ const createSQLiteEventStoreWithDatabase = <
 ): VoiceIntegrationEventStore<TEvent> =>
   createSQLiteRecordStore<TEvent>({
     database,
+    tableName,
     decorate: (id, value) =>
       withVoiceIntegrationEventId(
         id,
         value as TEvent & Omit<VoiceIntegrationEvent, "id">,
       ),
     getSortAt: (value) => value.createdAt,
-    tableName,
   });
 
 const createSQLiteExternalObjectMapStoreWithDatabase = <
@@ -265,13 +269,13 @@ const createSQLiteExternalObjectMapStoreWithDatabase = <
 ): VoiceExternalObjectMapStore<TMapping> => {
   const store = createSQLiteRecordStore<TMapping>({
     database,
+    tableName,
     decorate: (id, value) =>
       ({
         ...value,
         id,
-      }) as TMapping,
+      }),
     getSortAt: (value) => value.updatedAt,
-    tableName,
   });
 
   const find: VoiceExternalObjectMapStore<TMapping>["find"] = async (input) =>
@@ -298,22 +302,23 @@ const createSQLiteTraceEventStoreWithDatabase = <
 ): VoiceTraceEventStore<TEvent> => {
   const store = createSQLiteRecordStore<TEvent>({
     database,
+    tableName,
     decorate: (_id, value) => value,
     getSortAt: (value) => value.at,
-    tableName,
   });
 
   const append: VoiceTraceEventStore<TEvent>["append"] = async (event) => {
-    const stored = createVoiceTraceEvent(event as VoiceTraceEvent) as TEvent;
+    const stored = createVoiceTraceEvent(event) as TEvent;
     await store.set(stored.id, stored);
+
     return stored;
   };
 
   return {
     append,
     get: store.get,
-    list: async (filter) => filterVoiceTraceEvents(await store.list(), filter),
     remove: store.remove,
+    list: async (filter) => filterVoiceTraceEvents(await store.list(), filter),
   };
 };
 
@@ -325,13 +330,13 @@ const createSQLiteTraceSinkDeliveryStoreWithDatabase = <
 ): VoiceTraceSinkDeliveryStore<TDelivery> =>
   createSQLiteRecordStore<TDelivery>({
     database,
+    tableName,
     decorate: (id, value) =>
       ({
         ...value,
         id,
-      }) as TDelivery,
+      }),
     getSortAt: (value) => value.createdAt,
-    tableName,
   });
 
 const createSQLiteAuditEventStoreWithDatabase = <
@@ -342,14 +347,15 @@ const createSQLiteAuditEventStoreWithDatabase = <
 ): VoiceAuditEventStore<TEvent> => {
   const store = createSQLiteRecordStore<TEvent>({
     database,
+    tableName,
     decorate: (_id, value) => value,
     getSortAt: (value) => value.at,
-    tableName,
   });
 
   const append: VoiceAuditEventStore<TEvent>["append"] = async (event) => {
-    const stored = createVoiceAuditEvent(event as VoiceAuditEvent) as TEvent;
+    const stored = createVoiceAuditEvent(event) as TEvent;
     await store.set(stored.id, stored);
+
     return stored;
   };
 
@@ -368,13 +374,13 @@ const createSQLiteAuditSinkDeliveryStoreWithDatabase = <
 ): VoiceAuditSinkDeliveryStore<TDelivery> =>
   createSQLiteRecordStore<TDelivery>({
     database,
+    tableName,
     decorate: (id, value) =>
       ({
         ...value,
         id,
-      }) as TDelivery,
+      }),
     getSortAt: (value) => value.createdAt,
-    tableName,
   });
 
 const createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase = <
@@ -385,9 +391,9 @@ const createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase = <
 ): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
   createSQLiteRecordStore<StoredVoiceTelephonyWebhookDecision<TResult>>({
     database,
+    tableName,
     decorate: (_id, value) => value,
     getSortAt: (value) => value.updatedAt,
-    tableName,
   });
 
 const createSQLiteCampaignStoreWithDatabase = (
@@ -396,102 +402,10 @@ const createSQLiteCampaignStoreWithDatabase = (
 ): VoiceCampaignStore =>
   createSQLiteRecordStore<VoiceCampaignRecord>({
     database,
+    tableName,
     decorate: (_id, value) => value,
     getSortAt: (value) => value.campaign.createdAt,
-    tableName,
   });
-
-export const createVoiceSQLiteSessionStore = <
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceSessionStore<TSession> =>
-  createSQLiteSessionStoreWithDatabase(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "sessions",
-      options,
-    }),
-  );
-
-export const createVoiceSQLiteReviewStore = <
-  TArtifact extends StoredVoiceCallReviewArtifact =
-    StoredVoiceCallReviewArtifact,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceCallReviewStore<TArtifact> =>
-  createSQLiteReviewStoreWithDatabase(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "reviews",
-      options,
-    }),
-  );
-
-export const createVoiceSQLiteTaskStore = <
-  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceOpsTaskStore<TTask> =>
-  createSQLiteTaskStoreWithDatabase(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "tasks",
-      options,
-    }),
-  );
-
-export const createVoiceSQLiteIntegrationEventStore = <
-  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceIntegrationEventStore<TEvent> =>
-  createSQLiteEventStoreWithDatabase(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "events",
-      options,
-    }),
-  );
-
-export const createVoiceSQLiteExternalObjectMapStore = <
-  TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceExternalObjectMapStore<TMapping> =>
-  createSQLiteExternalObjectMapStoreWithDatabase(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "external_objects",
-      options,
-    }),
-  );
-
-export const createVoiceSQLiteTraceEventStore = <
-  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceTraceEventStore<TEvent> =>
-  createSQLiteTraceEventStoreWithDatabase(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "traces",
-      options,
-    }),
-  );
-
-export const createVoiceSQLiteTraceSinkDeliveryStore = <
-  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceTraceSinkDeliveryStore<TDelivery> =>
-  createSQLiteTraceSinkDeliveryStoreWithDatabase(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "trace_deliveries",
-      options,
-    }),
-  );
 
 export const createVoiceSQLiteAuditEventStore = <
   TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
@@ -505,7 +419,6 @@ export const createVoiceSQLiteAuditEventStore = <
       options,
     }),
   );
-
 export const createVoiceSQLiteAuditSinkDeliveryStore = <
   TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
 >(
@@ -518,20 +431,6 @@ export const createVoiceSQLiteAuditSinkDeliveryStore = <
       options,
     }),
   );
-
-export const createVoiceSQLiteTelephonyWebhookIdempotencyStore = <
-  TResult = unknown,
->(
-  options: VoiceSQLiteStoreOptions,
-): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
-  createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase<TResult>(
-    openVoiceSQLiteDatabase(options.path),
-    resolveTableName({
-      fallback: "telephony_webhook_idempotency",
-      options,
-    }),
-  );
-
 export const createVoiceSQLiteCampaignStore = (
   options: VoiceSQLiteStoreOptions,
 ): VoiceCampaignStore =>
@@ -542,7 +441,43 @@ export const createVoiceSQLiteCampaignStore = (
       options,
     }),
   );
-
+export const createVoiceSQLiteExternalObjectMapStore = <
+  TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceExternalObjectMapStore<TMapping> =>
+  createSQLiteExternalObjectMapStoreWithDatabase(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "external_objects",
+      options,
+    }),
+  );
+export const createVoiceSQLiteIntegrationEventStore = <
+  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceIntegrationEventStore<TEvent> =>
+  createSQLiteEventStoreWithDatabase(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "events",
+      options,
+    }),
+  );
+export const createVoiceSQLiteReviewStore = <
+  TArtifact extends StoredVoiceCallReviewArtifact =
+    StoredVoiceCallReviewArtifact,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceCallReviewStore<TArtifact> =>
+  createSQLiteReviewStoreWithDatabase(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "reviews",
+      options,
+    }),
+  );
 export const createVoiceSQLiteRuntimeStorage = <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
@@ -645,3 +580,63 @@ export const createVoiceSQLiteRuntimeStorage = <
     ),
   };
 };
+export const createVoiceSQLiteSessionStore = <
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceSessionStore<TSession> =>
+  createSQLiteSessionStoreWithDatabase(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "sessions",
+      options,
+    }),
+  );
+export const createVoiceSQLiteTaskStore = <
+  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceOpsTaskStore<TTask> =>
+  createSQLiteTaskStoreWithDatabase(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "tasks",
+      options,
+    }),
+  );
+export const createVoiceSQLiteTelephonyWebhookIdempotencyStore = <
+  TResult = unknown,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
+  createSQLiteTelephonyWebhookIdempotencyStoreWithDatabase<TResult>(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "telephony_webhook_idempotency",
+      options,
+    }),
+  );
+export const createVoiceSQLiteTraceEventStore = <
+  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceTraceEventStore<TEvent> =>
+  createSQLiteTraceEventStoreWithDatabase(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "traces",
+      options,
+    }),
+  );
+export const createVoiceSQLiteTraceSinkDeliveryStore = <
+  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+>(
+  options: VoiceSQLiteStoreOptions,
+): VoiceTraceSinkDeliveryStore<TDelivery> =>
+  createSQLiteTraceSinkDeliveryStoreWithDatabase(
+    openVoiceSQLiteDatabase(options.path),
+    resolveTableName({
+      fallback: "trace_deliveries",
+      options,
+    }),
+  );

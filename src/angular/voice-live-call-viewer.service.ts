@@ -19,6 +19,7 @@ export class VoiceLiveCallViewerService {
     const unsubscribe = viewer.subscribe(() => {
       stateSignal.set(viewer.getState());
     });
+
     return {
       noteAgentAudio: (at?: number) => viewer.noteAgentAudio(at),
       notePartial: (text: string, at?: number) => viewer.notePartial(text, at),

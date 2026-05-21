@@ -12,20 +12,6 @@ export type VoiceSessionObservabilitySnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceSessionObservability = async (
-  path: string,
-  options: Pick<VoiceSessionObservabilityClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(
-      `Voice session observability failed: HTTP ${response.status}`,
-    );
-  }
-  return (await response.json()) as VoiceSessionObservabilityReport;
-};
-
 export const createVoiceSessionObservabilityStore = (
   path: string,
   options: VoiceSessionObservabilityClientOptions = {},
@@ -62,6 +48,7 @@ export const createVoiceSessionObservabilityStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -90,14 +77,29 @@ export const createVoiceSessionObservabilityStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceSessionObservability = async (
+  path: string,
+  options: Pick<VoiceSessionObservabilityClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(
+      `Voice session observability failed: HTTP ${response.status}`,
+    );
+  }
+
+  return (await response.json()) as VoiceSessionObservabilityReport;
 };

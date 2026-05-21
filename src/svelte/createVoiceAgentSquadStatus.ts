@@ -13,12 +13,12 @@ export const createVoiceAgentSquadStatus = (
 
   return {
     close: store.close,
-    getHTML: () =>
-      renderVoiceAgentSquadStatusHTML(store.getSnapshot(), options),
     getSnapshot: store.getSnapshot,
-    getViewModel: () =>
-      createVoiceAgentSquadStatusViewModel(store.getSnapshot(), options),
     refresh: store.refresh,
     subscribe: store.subscribe,
+    getHTML: () =>
+      renderVoiceAgentSquadStatusHTML(store.getSnapshot(), options),
+    getViewModel: () =>
+      createVoiceAgentSquadStatusViewModel(store.getSnapshot(), options),
   };
 };

@@ -15,11 +15,11 @@ export const createVoiceLiveOps = (
 
   return {
     close: store.close,
-    getHTML: () => renderVoiceLiveOpsHTML(store.getSnapshot(), options),
     getSnapshot: store.getSnapshot,
-    mount: (element: Element) =>
-      mountVoiceLiveOps(element, options as VoiceLiveOpsWidgetOptions),
     run: store.run,
     subscribe: store.subscribe,
+    getHTML: () => renderVoiceLiveOpsHTML(store.getSnapshot(), options),
+    mount: (element: Element) =>
+      mountVoiceLiveOps(element, options),
   };
 };

@@ -150,6 +150,7 @@ const byteLength = (audio: MediaFrame["audio"]): number => {
   if (!audio) {
     return 0;
   }
+
   return audio instanceof ArrayBuffer ? audio.byteLength : audio.byteLength;
 };
 
@@ -232,62 +233,6 @@ export const buildVoiceTelephonyMediaReport = (
     status: issues.length === 0 ? "pass" : "fail",
   };
 };
-
-export const getLatestVoiceTelephonyMediaReport = async (
-  options: VoiceTelephonyMediaTraceReportOptions,
-): Promise<VoiceTelephonyMediaReport | undefined> => {
-  const events = (await options.store.list({ type: "client.telephony_media" }))
-    .filter((event) => {
-      const carrier = event.payload.carrier;
-      return (
-        typeof carrier === "string" &&
-        (!options.carriers ||
-          options.carriers.includes(carrier as MediaTelephonyCarrier)) &&
-        event.payload.envelope &&
-        typeof event.payload.envelope === "object"
-      );
-    })
-    .sort((left, right) => left.at - right.at);
-
-  if (events.length === 0) {
-    return undefined;
-  }
-
-  const byCarrier = new Map<MediaTelephonyCarrier, MediaTelephonyEnvelope[]>();
-  for (const event of events) {
-    const carrier = event.payload.carrier as MediaTelephonyCarrier;
-    const envelopes = byCarrier.get(carrier) ?? [];
-    envelopes.push(event.payload.envelope as MediaTelephonyEnvelope);
-    byCarrier.set(carrier, envelopes);
-  }
-
-  return buildVoiceTelephonyMediaReport({
-    carriers: [...byCarrier.entries()].map(([carrier, lifecycleEnvelopes]) => ({
-      carrier,
-      envelope: lifecycleEnvelopes.find((envelope) => {
-        const event = envelope.event;
-        return typeof event === "string" && event.toLowerCase() === "media";
-      }),
-      lifecycleEnvelopes,
-    })),
-  });
-};
-
-export const renderVoiceTelephonyMediaHTML = (
-  report: VoiceTelephonyMediaReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Voice Telephony Media Proof";
-  const rows = report.carriers
-    .map(
-      (carrier) =>
-        `<tr><td>${escapeHtml(carrier.carrier)}</td><td>${escapeHtml(carrier.status)}</td><td>${String(carrier.audioBytes)}</td><td>${String(carrier.lifecycle.mediaEvents)}</td><td>${escapeHtml(carrier.lifecycle.started ? "yes" : "no")}</td><td>${escapeHtml(carrier.lifecycle.stopped ? "yes" : "no")}</td><td>${escapeHtml(carrier.frame?.kind ?? "missing")}</td><td>${escapeHtml(carrier.frame?.format?.encoding ?? "missing")}</td><td>${escapeHtml(carrier.issues.join(" ") || "none")}</td></tr>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#e5e7eb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,table{background:#0f172a;border:1px solid #334155;border-radius:20px;margin-bottom:16px}.hero{padding:22px}.eyebrow{color:#67e8f9;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.5rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{color:#86efac}.fail{color:#fecaca}code{color:#bfdbfe}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Carrier media serializer proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><p>Twilio, Telnyx, and Plivo media payload envelopes are parsed into generic <code>MediaFrame</code> objects, serialized back into carrier envelopes, and checked for start/media/stop lifecycle sequencing by <code>@absolutejs/media</code>.</p></section><table><thead><tr><th>Carrier</th><th>Status</th><th>Audio bytes</th><th>Media events</th><th>Started</th><th>Stopped</th><th>Frame kind</th><th>Encoding</th><th>Issues</th></tr></thead><tbody>${rows}</tbody></table></main></body></html>`;
-};
-
 export const createVoiceTelephonyMediaRoutes = (
   options: VoiceTelephonyMediaRoutesOptions = {},
 ) => {
@@ -328,4 +273,59 @@ export const createVoiceTelephonyMediaRoutes = (
   }
 
   return routes;
+};
+export const getLatestVoiceTelephonyMediaReport = async (
+  options: VoiceTelephonyMediaTraceReportOptions,
+): Promise<VoiceTelephonyMediaReport | undefined> => {
+  const events = (await options.store.list({ type: "client.telephony_media" }))
+    .filter((event) => {
+      const {carrier} = event.payload;
+
+      return (
+        typeof carrier === "string" &&
+        (!options.carriers ||
+          options.carriers.includes(carrier as MediaTelephonyCarrier)) &&
+        event.payload.envelope &&
+        typeof event.payload.envelope === "object"
+      );
+    })
+    .sort((left, right) => left.at - right.at);
+
+  if (events.length === 0) {
+    return undefined;
+  }
+
+  const byCarrier = new Map<MediaTelephonyCarrier, MediaTelephonyEnvelope[]>();
+  for (const event of events) {
+    const carrier = event.payload.carrier as MediaTelephonyCarrier;
+    const envelopes = byCarrier.get(carrier) ?? [];
+    envelopes.push(event.payload.envelope as MediaTelephonyEnvelope);
+    byCarrier.set(carrier, envelopes);
+  }
+
+  return buildVoiceTelephonyMediaReport({
+    carriers: [...byCarrier.entries()].map(([carrier, lifecycleEnvelopes]) => ({
+      carrier,
+      envelope: lifecycleEnvelopes.find((envelope) => {
+        const {event} = envelope;
+
+        return typeof event === "string" && event.toLowerCase() === "media";
+      }),
+      lifecycleEnvelopes,
+    })),
+  });
+};
+export const renderVoiceTelephonyMediaHTML = (
+  report: VoiceTelephonyMediaReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Voice Telephony Media Proof";
+  const rows = report.carriers
+    .map(
+      (carrier) =>
+        `<tr><td>${escapeHtml(carrier.carrier)}</td><td>${escapeHtml(carrier.status)}</td><td>${String(carrier.audioBytes)}</td><td>${String(carrier.lifecycle.mediaEvents)}</td><td>${escapeHtml(carrier.lifecycle.started ? "yes" : "no")}</td><td>${escapeHtml(carrier.lifecycle.stopped ? "yes" : "no")}</td><td>${escapeHtml(carrier.frame?.kind ?? "missing")}</td><td>${escapeHtml(carrier.frame?.format?.encoding ?? "missing")}</td><td>${escapeHtml(carrier.issues.join(" ") || "none")}</td></tr>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#111827;color:#e5e7eb;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:980px;padding:32px}.hero,table{background:#0f172a;border:1px solid #334155;border-radius:20px;margin-bottom:16px}.hero{padding:22px}.eyebrow{color:#67e8f9;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.5rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{color:#86efac}.fail{color:#fecaca}code{color:#bfdbfe}table{border-collapse:collapse;overflow:hidden;width:100%}td,th{border-bottom:1px solid #334155;padding:10px;text-align:left}</style></head><body><main><section class="hero"><p class="eyebrow">Carrier media serializer proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><p>Twilio, Telnyx, and Plivo media payload envelopes are parsed into generic <code>MediaFrame</code> objects, serialized back into carrier envelopes, and checked for start/media/stop lifecycle sequencing by <code>@absolutejs/media</code>.</p></section><table><thead><tr><th>Carrier</th><th>Status</th><th>Audio bytes</th><th>Media events</th><th>Started</th><th>Stopped</th><th>Frame kind</th><th>Encoding</th><th>Issues</th></tr></thead><tbody>${rows}</tbody></table></main></body></html>`;
 };

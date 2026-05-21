@@ -378,6 +378,7 @@ const createVoiceAgentSquadState = (input: {
   handoffs: VoiceAgentSquadStateHandoff[];
 }): VoiceAgentSquadState => {
   const lastHandoff = input.handoffs.at(-1);
+
   return {
     agentId: input.agentId,
     handoffCount: input.handoffs.length,
@@ -430,18 +431,9 @@ const appendVoiceAgentSquadHandoff = async (input: {
     turn: input.turn,
     type: "agent.handoff",
   });
+
   return handoff;
 };
-
-export const createVoiceAgentTool = <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
-  TArgs = Record<string, unknown>,
-  TToolResult = unknown,
-  TRouteResult = unknown,
->(
-  tool: VoiceAgentTool<TContext, TSession, TArgs, TToolResult, TRouteResult>,
-): VoiceAgentTool<TContext, TSession, TArgs, TToolResult, TRouteResult> => tool;
 
 export const createVoiceAgent = <
   TContext = unknown,
@@ -763,11 +755,10 @@ export const createVoiceAgent = <
 
   return {
     id: options.id,
-    onTurn: async (input) => run(input),
     run,
+    onTurn: async (input) => run(input),
   };
 };
-
 export const createVoiceAgentSquad = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -865,6 +856,7 @@ export const createVoiceAgentSquad = <
           sessionId: input.session.id,
           toAgentId: targetAgentId,
         });
+
         return {
           ...result,
           escalate: result.escalate ??
@@ -911,6 +903,7 @@ export const createVoiceAgentSquad = <
           sessionId: input.session.id,
           toAgentId: targetAgentId,
         });
+
         return {
           ...result,
           escalate: result.escalate ?? {
@@ -1049,6 +1042,7 @@ export const createVoiceAgentSquad = <
         sessionId: input.session.id,
         toAgentId: result.handoff.targetAgentId,
       });
+
       return {
         ...result,
         escalate: result.escalate ?? {
@@ -1077,7 +1071,16 @@ export const createVoiceAgentSquad = <
 
   return {
     id: options.id,
-    onTurn: async (input) => run(input),
     run,
+    onTurn: async (input) => run(input),
   };
 };
+export const createVoiceAgentTool = <
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TArgs = Record<string, unknown>,
+  TToolResult = unknown,
+  TRouteResult = unknown,
+>(
+  tool: VoiceAgentTool<TContext, TSession, TArgs, TToolResult, TRouteResult>,
+): VoiceAgentTool<TContext, TSession, TArgs, TToolResult, TRouteResult> => tool;

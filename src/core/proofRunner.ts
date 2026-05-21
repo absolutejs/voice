@@ -151,49 +151,6 @@ const summarizeValue = (value: unknown): unknown => {
       };
 };
 
-export const getVoiceProofTargetLogicalFailure = (value: unknown) => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const record = value as Record<string, unknown>;
-  if (record.status === "fail") {
-    return 'Response status is "fail".';
-  }
-  if (record.pass === false) {
-    return "Response pass is false.";
-  }
-  if (record.ok === false) {
-    return "Response ok is false.";
-  }
-
-  return undefined;
-};
-
-export const mapVoiceProofTargetsWithConcurrency = async <TInput, TOutput>(
-  items: TInput[],
-  limit: number,
-  mapper: (item: TInput) => Promise<TOutput>,
-) => {
-  const results = new Array<TOutput>(items.length);
-  let nextIndex = 0;
-  const workerCount = Math.min(Math.max(1, limit), items.length);
-
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (nextIndex < items.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      const item = items[index];
-      if (item !== undefined) {
-        results[index] = await mapper(item);
-      }
-    }
-  });
-
-  await Promise.all(workers);
-  return results;
-};
-
 export const fetchVoiceProofTarget = async (
   target: VoiceProofTarget,
   options: VoiceProofTargetRunnerOptions,
@@ -304,17 +261,48 @@ export const fetchVoiceProofTarget = async (
     }
   }
 };
+export const getVoiceProofTargetLogicalFailure = (value: unknown) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
 
-export const runVoiceProofTargets = (
-  targets: VoiceProofTarget[],
-  options: VoiceProofTargetRunOptions,
-) =>
-  mapVoiceProofTargetsWithConcurrency(
-    targets,
-    options.concurrency ?? 2,
-    (target) => fetchVoiceProofTarget(target, options),
-  );
+  const record = value as Record<string, unknown>;
+  if (record.status === "fail") {
+    return 'Response status is "fail".';
+  }
+  if (record.pass === false) {
+    return "Response pass is false.";
+  }
+  if (record.ok === false) {
+    return "Response ok is false.";
+  }
 
+  return undefined;
+};
+export const mapVoiceProofTargetsWithConcurrency = async <TInput, TOutput>(
+  items: TInput[],
+  limit: number,
+  mapper: (item: TInput) => Promise<TOutput>,
+) => {
+  const results = new Array<TOutput>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      if (item !== undefined) {
+        results[index] = await mapper(item);
+      }
+    }
+  });
+
+  await Promise.all(workers);
+
+  return results;
+};
 export const runVoiceCommandProofTarget = async (
   target: VoiceCommandProofTarget,
   options: VoiceCommandProofTargetRunnerOptions,
@@ -324,7 +312,7 @@ export const runVoiceCommandProofTarget = async (
   const execution = await options.execute(target);
   const stdout = execution.stdout ?? "";
   const stderr = execution.stderr ?? "";
-  const status = execution.status;
+  const {status} = execution;
   const text = stdout.trim();
   const bytes = encoder.encode(`${stdout}${stderr}`).byteLength;
   let body: unknown = text;
@@ -379,7 +367,6 @@ export const runVoiceCommandProofTarget = async (
       : (summarizeValue(body) as Record<string, unknown>),
   };
 };
-
 export const runVoiceCommandProofTargets = (
   targets: VoiceCommandProofTarget[],
   options: VoiceCommandProofTargetRunOptions,
@@ -388,4 +375,13 @@ export const runVoiceCommandProofTargets = (
     targets,
     options.concurrency ?? targets.length,
     (target) => runVoiceCommandProofTarget(target, options),
+  );
+export const runVoiceProofTargets = (
+  targets: VoiceProofTarget[],
+  options: VoiceProofTargetRunOptions,
+) =>
+  mapVoiceProofTargetsWithConcurrency(
+    targets,
+    options.concurrency ?? 2,
+    (target) => fetchVoiceProofTarget(target, options),
   );

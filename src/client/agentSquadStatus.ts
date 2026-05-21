@@ -62,6 +62,7 @@ const eventStatus = (
   if (status === "blocked") return "blocked";
   if (status === "unknown-target") return "unknown-target";
   if (status === "allowed") return "handoff";
+
   return event.type === "agent.result" ? "active" : "handoff";
 };
 
@@ -144,6 +145,7 @@ export const createVoiceAgentSquadStatusStore = (
     });
   const getSnapshot = (): VoiceAgentSquadStatusSnapshot => {
     const snapshot = timelineStore.getSnapshot();
+
     return {
       error: snapshot.error,
       isLoading: snapshot.isLoading,

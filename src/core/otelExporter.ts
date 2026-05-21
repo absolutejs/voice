@@ -65,14 +65,14 @@ const hashToHex = (input: string, length: number) => {
     }
     hex += next.toString(16).padStart(16, "0");
   }
+
   return hex.slice(0, length);
 };
 
-export const buildOTELTraceId = (sessionId: string) =>
-  hashToHex(`voice-trace:${sessionId}`, 32);
-
 export const buildOTELSpanId = (sessionId: string, suffix: string) =>
   hashToHex(`voice-span:${sessionId}:${suffix}`, 16);
+export const buildOTELTraceId = (sessionId: string) =>
+  hashToHex(`voice-trace:${sessionId}`, 32);
 
 const toUnixNano = (ms: number) => `${Math.trunc(ms * 1_000_000)}`;
 
@@ -113,6 +113,7 @@ export const aggregateVoiceTurnLatencySpans = (
     existing.startedAt = Math.min(existing.startedAt, event.at);
     existing.endedAt = Math.max(existing.endedAt, event.at);
   }
+
   return Array.from(byTurn.values()).sort(
     (left, right) => left.startedAt - right.startedAt,
   );
@@ -205,6 +206,7 @@ export const createVoiceOTELHTTPExporter = (
   options: VoiceOTELExporterOptions,
 ): VoiceOTELExporter => {
   const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
+
   return {
     export: async (events) => {
       const spanSets = aggregateVoiceTurnLatencySpans(events);
@@ -223,6 +225,7 @@ export const createVoiceOTELHTTPExporter = (
         },
         method: "POST",
       });
+
       return { ok: response.ok, status: response.status };
     },
   };

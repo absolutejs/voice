@@ -33,12 +33,12 @@ const QUALITY_PROFILE_DEFAULTS: Record<
   VoiceTurnQualityProfile,
   Partial<VoiceResolvedTurnDetectionConfig>
 > = {
-  general: {},
   "accent-heavy": {
     silenceMs: 1_200,
     speechThreshold: 0.01,
     transcriptStabilityMs: 1_200,
   },
+  general: {},
   "noisy-room": {
     silenceMs: 2_000,
     speechThreshold: 0.02,

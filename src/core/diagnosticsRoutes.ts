@@ -35,6 +35,7 @@ const getNumber = (value: unknown) => {
       : typeof value === "string"
         ? Number(value)
         : undefined;
+
   return typeof parsed === "number" && Number.isFinite(parsed)
     ? parsed
     : undefined;
@@ -53,6 +54,7 @@ const parseTraceTypeFilter = (
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean) as VoiceTraceEventType[];
+
   return types.length <= 1 ? types[0] : types;
 };
 
@@ -75,6 +77,7 @@ const filterByDiagnosticsQuery = (
   const status = getString(query.status);
   const since = getNumber(query.since);
   const until = getNumber(query.until);
+
   return filterVoiceTraceEvents(
     events,
     resolveVoiceDiagnosticsTraceFilter(query),
@@ -151,9 +154,11 @@ const renderDiagnosticsIndex = (input: {
     .map(([sessionId, events]) => {
       const summary = summarizeVoiceTrace(events);
       const encoded = encodeURIComponent(sessionId);
+
       return `<tr><td>${escapeHtml(sessionId)}</td><td>${summary.eventCount}</td><td>${summary.turnCount}</td><td>${summary.errorCount}</td><td><a href="${input.basePath}/html?sessionId=${encoded}&redact=true">HTML</a> · <a href="${input.basePath}/markdown?sessionId=${encoded}&redact=true">Markdown</a> · <a href="${input.basePath}/json?sessionId=${encoded}&redact=true">JSON</a></td></tr>`;
     })
     .join("");
+
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(input.title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;margin:2rem;background:#f8f7f2;color:#181713}main{max-width:1100px;margin:auto}table{width:100%;border-collapse:collapse;background:white}td,th{border-bottom:1px solid #eee;padding:.7rem;text-align:left}a{color:#9a3412}</style></head><body><main><h1>${escapeHtml(input.title)}</h1><p>Recent voice trace diagnostics. Exports support filters: sessionId, traceId, turnId, scenarioId, type, provider, status, since, until, limit, redact.</p><table><thead><tr><th>Session</th><th>Events</th><th>Turns</th><th>Errors</th><th>Exports</th></tr></thead><tbody>${rows}</tbody></table></main></body></html>`;
 };
 
@@ -164,6 +169,7 @@ const withRedaction = (
 ) => {
   const shouldRedact =
     query.redact === undefined ? defaultRedact : getBoolean(query.redact);
+
   return shouldRedact ? redactVoiceTraceEvents(events, shouldRedact) : events;
 };
 
@@ -178,6 +184,7 @@ export const createVoiceDiagnosticsRoutes = (
 
   routes.get(path, async () => {
     const events = await options.store.list();
+
     return new Response(
       renderDiagnosticsIndex({ basePath: path, events, title }),
       {
@@ -191,6 +198,7 @@ export const createVoiceDiagnosticsRoutes = (
   routes.get(`${path}/json`, async ({ query }) => {
     const events = filterByDiagnosticsQuery(await options.store.list(), query);
     const redacted = withRedaction(events, query, options.redact);
+
     return Response.json({
       ...(await exportVoiceTrace({
         filter: resolveVoiceDiagnosticsTraceFilter(query),
@@ -214,6 +222,7 @@ export const createVoiceDiagnosticsRoutes = (
       evaluation: options.evaluation,
       title,
     });
+
     return new Response(body, {
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
@@ -231,6 +240,7 @@ export const createVoiceDiagnosticsRoutes = (
       evaluation: options.evaluation,
       title,
     });
+
     return new Response(body, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

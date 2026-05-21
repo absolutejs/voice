@@ -10,6 +10,7 @@ export const createVoiceRoutingStatus = (
   options: VoiceRoutingStatusWidgetOptions = {},
 ) => {
   const store = createSharedVoiceRoutingStatusStore(path, options);
+
   return {
     ...store,
     getHTML: () => renderVoiceRoutingStatusHTML(store.getSnapshot(), options),

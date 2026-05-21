@@ -25,6 +25,7 @@ const formatRelative = (ms: number) => {
   const seconds = Math.max(0, Math.floor(ms / 1_000));
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
+
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 };
 
@@ -55,6 +56,7 @@ export const VoiceLiveCallViewer = defineComponent({
     return () => {
       const s = state.value;
       const firstAt = s.events[0]?.at ?? Date.now();
+
       return h(
         "section",
         {

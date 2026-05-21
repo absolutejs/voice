@@ -51,6 +51,7 @@ export const createLiveAgentConsole = (
 
   const buildState = (): LiveAgentConsoleState => {
     const view = viewer.getState();
+
     return {
       caller,
       hasTakeover,
@@ -78,6 +79,7 @@ export const createLiveAgentConsole = (
 
   return {
     getState: buildState,
+    viewer,
     noteAgentAudio: (at) => viewer.noteAgentAudio(at),
     notePartial: (text, at) => viewer.notePartial(text, at),
     noteTranscript: (text, at) => viewer.noteTranscript(text, at),
@@ -95,6 +97,7 @@ export const createLiveAgentConsole = (
     },
     subscribe: (listener) => {
       subscribers.add(listener);
+
       return () => {
         subscribers.delete(listener);
         if (subscribers.size === 0) unsubscribeViewer();
@@ -108,6 +111,5 @@ export const createLiveAgentConsole = (
       viewer.applyControl({ reason, type: "takeover.engaged" });
       notify();
     },
-    viewer,
   };
 };

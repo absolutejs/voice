@@ -95,6 +95,7 @@ export const createVoiceController = <TResult = unknown>(
       onAudio: (audio) => {
         if (options.capture?.onAudio) {
           options.capture.onAudio(audio, stream.sendAudio);
+
           return;
         }
 
@@ -153,11 +154,22 @@ export const createVoiceController = <TResult = unknown>(
   };
 
   return {
+    close,
+    startRecording,
+    stopRecording,
+    get assistantAudio() {
+      return state.assistantAudio;
+    },
+    get assistantTexts() {
+      return state.assistantTexts;
+    },
     bindHTMX(bindingOptions: VoiceHTMXBindingOptions) {
       return bindVoiceHTMX(stream, bindingOptions);
     },
+    get call() {
+      return state.call;
+    },
     callControl: (message) => stream.callControl(message),
-    close,
     endTurn: () => stream.endTurn(),
     get error() {
       return state.error;
@@ -173,28 +185,26 @@ export const createVoiceController = <TResult = unknown>(
     get partial() {
       return state.partial;
     },
-    get recordingError() {
-      return state.recordingError;
-    },
     get reconnect() {
       return state.reconnect;
     },
+    get recordingError() {
+      return state.recordingError;
+    },
+    get scenarioId() {
+      return state.scenarioId;
+    },
     sendAudio: (audio) => stream.sendAudio(audio),
-    simulateDisconnect: () => stream.simulateDisconnect(),
     get sessionId() {
       return state.sessionId;
     },
     get sessionMetadata() {
       return state.sessionMetadata;
     },
-    get scenarioId() {
-      return state.scenarioId;
-    },
-    startRecording,
+    simulateDisconnect: () => stream.simulateDisconnect(),
     get status() {
       return state.status;
     },
-    stopRecording,
     subscribe: (subscriber) => {
       subscribers.add(subscriber);
 
@@ -205,6 +215,7 @@ export const createVoiceController = <TResult = unknown>(
     toggleRecording: async () => {
       if (state.isRecording) {
         stopRecording();
+
         return;
       }
 
@@ -212,15 +223,6 @@ export const createVoiceController = <TResult = unknown>(
     },
     get turns() {
       return state.turns;
-    },
-    get assistantTexts() {
-      return state.assistantTexts;
-    },
-    get assistantAudio() {
-      return state.assistantAudio;
-    },
-    get call() {
-      return state.call;
     },
   } as VoiceController<TResult> & {
     bindHTMX: (bindingOptions: VoiceHTMXBindingOptions) => () => void;

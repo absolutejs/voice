@@ -12,20 +12,6 @@ export type VoiceProfileSwitchRecommendationSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceProfileSwitchRecommendation = async (
-  path = "/api/voice/profile-switch-recommendation",
-  options: Pick<VoiceProfileSwitchRecommendationClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(
-      `Voice profile switch recommendation failed: HTTP ${response.status}`,
-    );
-  }
-  return (await response.json()) as VoiceProfileSwitchRecommendation;
-};
-
 export const createVoiceProfileSwitchRecommendationStore = (
   path = "/api/voice/profile-switch-recommendation",
   options: VoiceProfileSwitchRecommendationClientOptions = {},
@@ -60,6 +46,7 @@ export const createVoiceProfileSwitchRecommendationStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return recommendation;
     } catch (error) {
       snapshot = {
@@ -92,14 +79,29 @@ export const createVoiceProfileSwitchRecommendationStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceProfileSwitchRecommendation = async (
+  path = "/api/voice/profile-switch-recommendation",
+  options: Pick<VoiceProfileSwitchRecommendationClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(
+      `Voice profile switch recommendation failed: HTTP ${response.status}`,
+    );
+  }
+
+  return (await response.json()) as VoiceProfileSwitchRecommendation;
 };

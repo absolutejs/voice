@@ -87,71 +87,6 @@ const createMemoryId = (input: {
   namespace: string;
 }) => `${input.assistantId}:${input.namespace}:${input.key}`;
 
-export const createVoiceAssistantMemoryRecord = <
-  TValue = unknown,
-  TMetadata extends Record<string, unknown> = Record<string, unknown>,
->(
-  input: Omit<
-    VoiceAssistantMemoryRecord<TValue, TMetadata>,
-    "createdAt" | "updatedAt"
-  > & {
-    createdAt?: number;
-    updatedAt?: number;
-  },
-): VoiceAssistantMemoryRecord<TValue, TMetadata> => {
-  const now = Date.now();
-  return {
-    ...input,
-    createdAt: input.createdAt ?? input.updatedAt ?? now,
-    updatedAt: input.updatedAt ?? now,
-  };
-};
-
-export const createVoiceMemoryAssistantMemoryStore = <
-  TRecord extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord,
->(): VoiceAssistantMemoryStore<TRecord> => {
-  const records = new Map<string, TRecord>();
-
-  return {
-    delete: async (input) => {
-      records.delete(createMemoryId(input));
-    },
-    get: async (input) => records.get(createMemoryId(input)),
-    list: async (input) =>
-      [...records.values()]
-        .filter(
-          (record) =>
-            record.assistantId === input.assistantId &&
-            (input.namespace === undefined ||
-              record.namespace === input.namespace),
-        )
-        .sort((left, right) => right.updatedAt - left.updatedAt),
-    set: async (input) => {
-      const id = createMemoryId(input);
-      const existing = records.get(id);
-      const record = createVoiceAssistantMemoryRecord({
-        ...input,
-        createdAt: input.createdAt ?? existing?.createdAt,
-        updatedAt: input.updatedAt,
-      }) as TRecord;
-      records.set(id, record);
-      return record;
-    },
-  };
-};
-
-export const resolveVoiceAssistantMemoryNamespace = async <
-  TContext,
-  TSession extends VoiceSessionRecord,
->(
-  input: VoiceAssistantMemoryNamespaceInput<TContext, TSession> & {
-    memory: VoiceAssistantMemoryOptions<TContext, TSession>;
-  },
-) =>
-  typeof input.memory.namespace === "function"
-    ? await input.memory.namespace(input)
-    : input.memory.namespace;
-
 export const createVoiceAssistantMemoryHandle = async <
   TContext,
   TSession extends VoiceSessionRecord,
@@ -184,6 +119,7 @@ export const createVoiceAssistantMemoryHandle = async <
   };
 
   return {
+    namespace,
     delete: async (key) => {
       await input.memory.store.delete({
         assistantId: input.assistantId,
@@ -206,6 +142,7 @@ export const createVoiceAssistantMemoryHandle = async <
         found: Boolean(record),
         key,
       });
+
       return record?.value as never;
     },
     list: async () => {
@@ -217,9 +154,9 @@ export const createVoiceAssistantMemoryHandle = async <
         action: "list",
         count: records.length,
       });
+
       return records;
     },
-    namespace,
     set: async (key, value, metadata) => {
       const record = await input.memory.store.set({
         assistantId: input.assistantId,
@@ -232,7 +169,72 @@ export const createVoiceAssistantMemoryHandle = async <
         action: "set",
         key,
       });
+
       return record;
     },
   };
 };
+export const createVoiceAssistantMemoryRecord = <
+  TValue = unknown,
+  TMetadata extends Record<string, unknown> = Record<string, unknown>,
+>(
+  input: Omit<
+    VoiceAssistantMemoryRecord<TValue, TMetadata>,
+    "createdAt" | "updatedAt"
+  > & {
+    createdAt?: number;
+    updatedAt?: number;
+  },
+): VoiceAssistantMemoryRecord<TValue, TMetadata> => {
+  const now = Date.now();
+
+  return {
+    ...input,
+    createdAt: input.createdAt ?? input.updatedAt ?? now,
+    updatedAt: input.updatedAt ?? now,
+  };
+};
+export const createVoiceMemoryAssistantMemoryStore = <
+  TRecord extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord,
+>(): VoiceAssistantMemoryStore<TRecord> => {
+  const records = new Map<string, TRecord>();
+
+  return {
+    delete: async (input) => {
+      records.delete(createMemoryId(input));
+    },
+    get: async (input) => records.get(createMemoryId(input)),
+    list: async (input) =>
+      [...records.values()]
+        .filter(
+          (record) =>
+            record.assistantId === input.assistantId &&
+            (input.namespace === undefined ||
+              record.namespace === input.namespace),
+        )
+        .sort((left, right) => right.updatedAt - left.updatedAt),
+    set: async (input) => {
+      const id = createMemoryId(input);
+      const existing = records.get(id);
+      const record = createVoiceAssistantMemoryRecord({
+        ...input,
+        createdAt: input.createdAt ?? existing?.createdAt,
+        updatedAt: input.updatedAt,
+      }) as TRecord;
+      records.set(id, record);
+
+      return record;
+    },
+  };
+};
+export const resolveVoiceAssistantMemoryNamespace = async <
+  TContext,
+  TSession extends VoiceSessionRecord,
+>(
+  input: VoiceAssistantMemoryNamespaceInput<TContext, TSession> & {
+    memory: VoiceAssistantMemoryOptions<TContext, TSession>;
+  },
+) =>
+  typeof input.memory.namespace === "function"
+    ? await input.memory.namespace(input)
+    : input.memory.namespace;

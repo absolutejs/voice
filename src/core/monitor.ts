@@ -49,12 +49,14 @@ export type VoiceMonitorRegistryRegisterInput = {
 
 const buildAudioFanout = () => {
   const handlers = new Set<(event: VoiceMonitorAudioEvent) => void>();
+
   return {
     emit: (event: VoiceMonitorAudioEvent) => {
       for (const handler of handlers) handler(event);
     },
     onAudio: (handler: (event: VoiceMonitorAudioEvent) => void) => {
       handlers.add(handler);
+
       return () => {
         handlers.delete(handler);
       };
@@ -64,35 +66,18 @@ const buildAudioFanout = () => {
 
 const buildCloseFanout = () => {
   const handlers = new Set<(reason?: string) => void>();
+
   return {
     emitClose: (reason?: string) => {
       for (const handler of handlers) handler(reason);
     },
     onClose: (handler: (reason?: string) => void) => {
       handlers.add(handler);
+
       return () => {
         handlers.delete(handler);
       };
     },
-  };
-};
-
-export const createVoiceMonitorSession = (
-  input: VoiceMonitorRegistryRegisterInput,
-): VoiceMonitorSessionRecord & {
-  emit: (event: VoiceMonitorAudioEvent) => void;
-  emitClose: (reason?: string) => void;
-} => {
-  const audio = buildAudioFanout();
-  const close = buildCloseFanout();
-  return {
-    emit: audio.emit,
-    emitClose: close.emitClose,
-    handle: input.handle,
-    metadata: input.metadata,
-    onAudio: audio.onAudio,
-    onClose: close.onClose,
-    sessionId: input.sessionId,
   };
 };
 
@@ -111,6 +96,7 @@ export const createVoiceInMemoryMonitorRegistry =
       records.delete(sessionId);
       existing.emitClose(reason ?? "deregistered");
     };
+
     return {
       deregister,
       emit: (sessionId, event) => {
@@ -149,10 +135,30 @@ export const createVoiceInMemoryMonitorRegistry =
           record.onClose((reason) => wrapped.emitClose(reason));
         }
         records.set(record.sessionId, wrapped);
+
         return (reason?: string) => deregister(record.sessionId, reason);
       },
     };
   };
+export const createVoiceMonitorSession = (
+  input: VoiceMonitorRegistryRegisterInput,
+): VoiceMonitorSessionRecord & {
+  emit: (event: VoiceMonitorAudioEvent) => void;
+  emitClose: (reason?: string) => void;
+} => {
+  const audio = buildAudioFanout();
+  const close = buildCloseFanout();
+
+  return {
+    emit: audio.emit,
+    emitClose: close.emitClose,
+    handle: input.handle,
+    metadata: input.metadata,
+    onAudio: audio.onAudio,
+    onClose: close.onClose,
+    sessionId: input.sessionId,
+  };
+};
 
 export type VoiceMonitorControlMessage =
   | {
@@ -229,6 +235,7 @@ const buildDefaultControlHandler = (
         reason: message.reason,
         target: message.target,
       });
+
       return { detail: `Transferred to ${message.target}.`, ok: true, type };
     };
   }
@@ -238,6 +245,7 @@ const buildDefaultControlHandler = (
         return { error: "internal: type mismatch", ok: false, type };
       }
       await session.handle.complete();
+
       return {
         detail: message.reason ? `Hangup: ${message.reason}` : "Hangup.",
         ok: true,
@@ -254,6 +262,7 @@ const buildDefaultControlHandler = (
         metadata: message.metadata,
         reason: message.reason ?? "monitor-requested-escalation",
       });
+
       return { detail: "Escalated.", ok: true, type };
     };
   }
@@ -263,6 +272,7 @@ const buildDefaultControlHandler = (
         return { error: "internal: type mismatch", ok: false, type };
       }
       await session.handle.markVoicemail({ metadata: message.metadata });
+
       return { detail: "Voicemail marked.", ok: true, type };
     };
   }
@@ -272,9 +282,11 @@ const buildDefaultControlHandler = (
         return { error: "internal: type mismatch", ok: false, type };
       }
       await session.handle.markNoAnswer({ metadata: message.metadata });
+
       return { detail: "Marked no-answer.", ok: true, type };
     };
   }
+
   // 'mute', 'say', 'inject' have no VoiceSessionHandle verb today;
   // callers must supply their own handler.
   return undefined;
@@ -285,10 +297,11 @@ const parseControlMessage = (
 ): VoiceMonitorControlMessage | undefined => {
   if (!raw || typeof raw !== "object") return undefined;
   const record = raw as Record<string, unknown>;
-  const type = record.type;
+  const {type} = record;
   if (typeof type !== "string") return undefined;
   if (type === "transfer") {
     if (typeof record.target !== "string") return undefined;
+
     return {
       metadata: record.metadata as Record<string, unknown> | undefined,
       reason: typeof record.reason === "string" ? record.reason : undefined,
@@ -322,10 +335,12 @@ const parseControlMessage = (
     ) {
       return undefined;
     }
+
     return { muted: record.muted, target: record.target, type };
   }
   if (type === "say") {
     if (typeof record.text !== "string") return undefined;
+
     return {
       interrupt:
         typeof record.interrupt === "boolean" ? record.interrupt : undefined,
@@ -342,8 +357,10 @@ const parseControlMessage = (
     ) {
       return undefined;
     }
+
     return { role: record.role, text: record.text, type };
   }
+
   return undefined;
 };
 
@@ -405,6 +422,7 @@ export const buildVoiceMonitorPlan = (
   const controlTemplate =
     input.controlPath ?? joinPath(basePath, DEFAULT_CONTROL_PATH);
   const baseUrl = input.baseUrl.replace(/\/+$/, "");
+
   return {
     controlUrl: `${baseUrl}${substituteSessionId(controlTemplate, input.sessionId)}`,
     listenUrl: `${baseUrl}${substituteSessionId(listenTemplate, input.sessionId)}`,
@@ -433,6 +451,7 @@ export const createVoiceMonitorRuntimeBinding = (
   const audioFormat = options.audioFormat ?? DEFAULT_RUNTIME_AUDIO_FORMAT;
   const defaultSource: VoiceMonitorAudioSource =
     options.defaultSource ?? "assistant";
+
   return {
     registerSession: (
       input: VoiceMonitorRuntimeRegisterInput,
@@ -448,6 +467,7 @@ export const createVoiceMonitorRuntimeBinding = (
       });
       const deregisterFromRegistry = registry.register(record);
       let closed = false;
+
       return {
         deregister: (reason?: string) => {
           if (closed) return;
@@ -490,6 +510,7 @@ const resolveSessionId = (ws: ElysiaWebSocketLike): string | undefined => {
   if (!params) return undefined;
   const value = params.sessionId;
   if (typeof value !== "string" || value.length === 0) return undefined;
+
   return value;
 };
 
@@ -498,6 +519,7 @@ const resolveAuthenticate = async (
   input: VoiceMonitorAuthenticateInput,
 ): Promise<boolean> => {
   if (!authenticate) return true;
+
   return await authenticate(input);
 };
 
@@ -542,10 +564,10 @@ export const createVoiceLiveMonitorRoutes = (
   if (listenPath !== false && listenPath.length > 0) {
     app.ws(`/${listenPath.replace(/^\/+/, "")}`, {
       close: (ws) => {
-        const subs = unsubscribers.get(ws as unknown as object);
+        const subs = unsubscribers.get(ws);
         if (subs) {
           for (const unsub of subs) unsub();
-          unsubscribers.delete(ws as unknown as object);
+          unsubscribers.delete(ws);
         }
       },
       open: async (ws) => {
@@ -559,6 +581,7 @@ export const createVoiceLiveMonitorRoutes = (
             }),
           );
           webSocket.close(4400, "missing sessionId");
+
           return;
         }
         const authed = await resolveAuthenticate(options.authenticate, {
@@ -571,6 +594,7 @@ export const createVoiceLiveMonitorRoutes = (
             JSON.stringify({ error: "unauthorized", type: "error" }),
           );
           webSocket.close(4401, "unauthorized");
+
           return;
         }
         const record = options.registry.get(sessionId);
@@ -582,6 +606,7 @@ export const createVoiceLiveMonitorRoutes = (
             }),
           );
           webSocket.close(4404, "session not found");
+
           return;
         }
         const subs: Array<() => void> = [];
@@ -608,7 +633,7 @@ export const createVoiceLiveMonitorRoutes = (
             webSocket.close(1000, reason ?? "session-closed");
           }),
         );
-        unsubscribers.set(ws as unknown as object, subs);
+        unsubscribers.set(ws, subs);
       },
     });
   }
@@ -616,7 +641,7 @@ export const createVoiceLiveMonitorRoutes = (
   if (controlPath !== false && controlPath.length > 0) {
     app.ws(`/${controlPath.replace(/^\/+/, "")}`, {
       close: (ws) => {
-        unsubscribers.delete(ws as unknown as object);
+        unsubscribers.delete(ws);
       },
       message: async (ws, raw) => {
         const webSocket = ws as unknown as ElysiaWebSocketLike;
@@ -629,6 +654,7 @@ export const createVoiceLiveMonitorRoutes = (
               type: "error",
             }),
           );
+
           return;
         }
         const message = parseControlMessage(raw);
@@ -640,6 +666,7 @@ export const createVoiceLiveMonitorRoutes = (
               type: "error",
             }),
           );
+
           return;
         }
         const record = options.registry.get(sessionId);
@@ -651,6 +678,7 @@ export const createVoiceLiveMonitorRoutes = (
               type: message.type,
             }),
           );
+
           return;
         }
         const handler = handlers[message.type];
@@ -662,6 +690,7 @@ export const createVoiceLiveMonitorRoutes = (
               type: message.type,
             }),
           );
+
           return;
         }
         try {
@@ -692,6 +721,7 @@ export const createVoiceLiveMonitorRoutes = (
             }),
           );
           webSocket.close(4400, "missing sessionId");
+
           return;
         }
         const authed = await resolveAuthenticate(options.authenticate, {
@@ -704,6 +734,7 @@ export const createVoiceLiveMonitorRoutes = (
             JSON.stringify({ error: "unauthorized", type: "error" }),
           );
           webSocket.close(4401, "unauthorized");
+
           return;
         }
         const record = options.registry.get(sessionId);
@@ -715,6 +746,7 @@ export const createVoiceLiveMonitorRoutes = (
             }),
           );
           webSocket.close(4404, "session not found");
+
           return;
         }
         webSocket.send(
@@ -738,6 +770,7 @@ export const createVoiceLiveMonitorRoutes = (
         .map((entry) => `<li><code>${entry.sessionId}</code></li>`)
         .join("");
       const body = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>Voice Monitor</title><style>body{background:#0b1216;color:#f6f1e7;font-family:ui-sans-serif,system-ui,sans-serif;margin:0;padding:32px}main{margin:auto;max-width:960px}h1{font-size:clamp(2rem,5vw,3.2rem);letter-spacing:-.04em;margin:.2rem 0 1rem}code{background:#171f25;border:1px solid #2c3a44;border-radius:8px;padding:2px 6px}ul{margin:8px 0;padding-left:18px}p.muted{color:#9aa8b2}</style></head><body><main><h1>Voice Monitor</h1><p class="muted">Active sessions registered with this monitor registry.</p><ul>${sessions || "<li><em>None.</em></li>"}</ul><p class="muted">Open <code>${listenPath}</code> and <code>${controlPath}</code> via WebSocket per session for live listen + control.</p></main></body></html>`;
+
       return new Response(body, {
         headers: { "content-type": "text/html; charset=utf-8" },
       });

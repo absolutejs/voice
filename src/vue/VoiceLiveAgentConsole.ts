@@ -38,6 +38,7 @@ export const VoiceLiveAgentConsole = defineComponent({
 
     return () => {
       const s = state.value;
+
       return h(
         "section",
         {
@@ -130,7 +131,6 @@ export const VoiceLiveAgentConsole = defineComponent({
                 ? h(
                     "button",
                     {
-                      onClick: () => console.releaseTakeover(),
                       style: {
                         background: "rgba(255,255,255,0.08)",
                         border: "1px solid rgba(255,255,255,0.18)",
@@ -141,16 +141,13 @@ export const VoiceLiveAgentConsole = defineComponent({
                         padding: "8px 14px",
                       },
                       type: "button",
+                      onClick: () => console.releaseTakeover(),
                     },
                     "Release back to agent",
                   )
                 : h(
                     "button",
                     {
-                      onClick: () => {
-                        console.takeover(props.takeoverReason);
-                        emit("takeover", props.takeoverReason);
-                      },
                       style: {
                         background: "#ef4444",
                         border: "none",
@@ -161,6 +158,10 @@ export const VoiceLiveAgentConsole = defineComponent({
                         padding: "8px 14px",
                       },
                       type: "button",
+                      onClick: () => {
+                        console.takeover(props.takeoverReason);
+                        emit("takeover", props.takeoverReason);
+                      },
                     },
                     props.takeoverButtonLabel,
                   ),

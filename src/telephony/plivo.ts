@@ -352,6 +352,7 @@ const resolvePlivoStreamUrl = async <
 
   const origin = resolveRequestOrigin(input.request);
   const wsOrigin = origin.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+
   return `${wsOrigin}${input.streamPath}`;
 };
 
@@ -394,6 +395,7 @@ export const createPlivoVoiceResponse = (
     .join(" ");
 
   const openTag = attributes ? `<Stream ${attributes}>` : "<Stream>";
+
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${openTag}${escapeXml(options.streamUrl)}</Stream></Response>`;
 };
 
@@ -420,6 +422,7 @@ const parsePlivoExtraHeaders = (headers: string | undefined) => {
         if (separator === -1) {
           return [header, ""];
         }
+
         return [
           header.slice(0, separator).trim(),
           header.slice(separator + 1).trim(),
@@ -442,6 +445,7 @@ const plivoToTwilioMessage = (
       const customParameters = parsePlivoExtraHeaders(
         message.start?.extra_headers,
       );
+
       return {
         event: "start",
         start: {
@@ -455,6 +459,7 @@ const plivoToTwilioMessage = (
     }
     case "media": {
       const streamSid = message.streamId ?? "plivo-stream";
+
       return {
         event: "media",
         media: {
@@ -533,11 +538,7 @@ export const createPlivoMediaStreamBridge = <
   const bridge = createTwilioMediaStreamBridge(
     createPlivoTwilioSocketAdapter(socket),
     {
-      ...(options as TwilioMediaStreamBridgeOptions<
-        TContext,
-        TSession,
-        TResult
-      >),
+      ...(options),
       telephonyMediaCarrier: "plivo",
       onVoiceMessage: options.onVoiceMessage
         ? (input) =>
@@ -633,6 +634,25 @@ const headerList = (value: string | null) =>
     .map((signature) => signature.trim())
     .filter(Boolean) ?? [];
 
+export const createMemoryVoicePlivoWebhookNonceStore =
+  (): VoicePlivoWebhookNonceStore => {
+    const nonces = new Set<string>();
+
+    return {
+      claim: (nonce) => {
+        if (nonces.has(nonce)) {
+          return false;
+        }
+        nonces.add(nonce);
+
+        return true;
+      },
+      has: (nonce) => nonces.has(nonce),
+      set: (nonce) => {
+        nonces.add(nonce);
+      },
+    };
+  };
 export const verifyVoicePlivoWebhookSignature = async (input: {
   authToken?: string;
   body?: unknown;
@@ -663,25 +683,6 @@ export const verifyVoicePlivoWebhookSignature = async (input: {
     ? { ok: true }
     : { ok: false, reason: "invalid-signature" };
 };
-
-export const createMemoryVoicePlivoWebhookNonceStore =
-  (): VoicePlivoWebhookNonceStore => {
-    const nonces = new Set<string>();
-
-    return {
-      claim: (nonce) => {
-        if (nonces.has(nonce)) {
-          return false;
-        }
-        nonces.add(nonce);
-        return true;
-      },
-      has: (nonce) => nonces.has(nonce),
-      set: (nonce) => {
-        nonces.add(nonce);
-      },
-    };
-  };
 
 const normalizePlivoStoreIdentifierSegment = (value: string) =>
   value
@@ -753,6 +754,7 @@ export const createVoiceSQLitePlivoWebhookNonceStore = (
         now,
         getPlivoNonceExpiresAt(options.ttlSeconds),
       );
+
       return result.changes > 0;
     },
     has: (nonce) => Boolean(select.get(nonce, Date.now())),
@@ -776,6 +778,7 @@ const createVoicePlivoPostgresClient = async (
   }
 
   const sql = new Bun.SQL(options.connectionString);
+
   return {
     unsafe: sql.unsafe.bind(sql),
   };
@@ -792,6 +795,7 @@ const resolvePlivoNonceQualifiedTableName = (
     tableName: options.tableName,
     tablePrefix: options.tablePrefix,
   });
+
   return `${quotePlivoStoreIdentifier(schema)}.${quotePlivoStoreIdentifier(table)}`;
 };
 
@@ -837,6 +841,7 @@ export const createVoicePostgresPlivoWebhookNonceStore = (
 				 RETURNING nonce`,
         [nonce, Date.now(), getPlivoNonceExpiresAt(options.ttlSeconds)],
       );
+
       return rows.length > 0;
     },
     has: async (nonce) => {
@@ -848,6 +853,7 @@ export const createVoicePostgresPlivoWebhookNonceStore = (
 				 LIMIT 1`,
         [nonce, Date.now()],
       );
+
       return rows.length > 0;
     },
     set: async (nonce) => {
@@ -866,12 +872,63 @@ export const createVoicePostgresPlivoWebhookNonceStore = (
 const getPlivoRedisNonceKey = (keyPrefix: string, nonce: string) =>
   `${keyPrefix}:${nonce}`;
 
+export const createVoicePlivoWebhookVerifier =
+  (options: VoicePlivoWebhookVerifierOptions) =>
+  async (input: {
+    body: unknown;
+    headers: Headers;
+    query: Record<string, unknown>;
+    request: Request;
+  }): Promise<VoiceTelephonyWebhookVerificationResult> => {
+    const {verificationUrl} = options;
+    const verification = await verifyVoicePlivoWebhookSignature({
+      authToken: options.authToken,
+      body: input.body,
+      headers: input.headers,
+      url:
+        typeof verificationUrl === "function"
+          ? verificationUrl({
+              query: input.query,
+              request: input.request,
+            })
+          : (verificationUrl ?? input.request.url),
+    });
+    if (!verification.ok) {
+      return verification;
+    }
+
+    const {nonceStore} = options;
+    if (!nonceStore) {
+      return verification;
+    }
+
+    const nonce = input.headers.get("x-plivo-signature-v3-nonce");
+    if (!nonce) {
+      return { ok: false, reason: "invalid-signature" };
+    }
+
+    if (nonceStore.claim) {
+      if (!(await nonceStore.claim(nonce))) {
+        return { ok: false, reason: "invalid-signature" };
+      }
+
+      return verification;
+    }
+
+    if (await nonceStore.has(nonce)) {
+      return { ok: false, reason: "invalid-signature" };
+    }
+
+    await nonceStore.set(nonce);
+
+    return verification;
+  };
 export const createVoiceRedisPlivoWebhookNonceStore = (
   options: VoiceRedisPlivoWebhookNonceStoreOptions = {},
 ): VoicePlivoWebhookNonceStore => {
   const client = options.client ?? new Bun.RedisClient(options.url);
   const keyPrefix = options.keyPrefix?.trim() || "voice:plivo-webhook-nonce";
-  const ttlSeconds = options.ttlSeconds;
+  const {ttlSeconds} = options;
 
   const setNonce = async (nonce: string, nx: boolean) => {
     const key = getPlivoRedisNonceKey(keyPrefix, nonce);
@@ -897,56 +954,6 @@ export const createVoiceRedisPlivoWebhookNonceStore = (
     },
   };
 };
-
-export const createVoicePlivoWebhookVerifier =
-  (options: VoicePlivoWebhookVerifierOptions) =>
-  async (input: {
-    body: unknown;
-    headers: Headers;
-    query: Record<string, unknown>;
-    request: Request;
-  }): Promise<VoiceTelephonyWebhookVerificationResult> => {
-    const verificationUrl = options.verificationUrl;
-    const verification = await verifyVoicePlivoWebhookSignature({
-      authToken: options.authToken,
-      body: input.body,
-      headers: input.headers,
-      url:
-        typeof verificationUrl === "function"
-          ? verificationUrl({
-              query: input.query,
-              request: input.request,
-            })
-          : (verificationUrl ?? input.request.url),
-    });
-    if (!verification.ok) {
-      return verification;
-    }
-
-    const nonceStore = options.nonceStore;
-    if (!nonceStore) {
-      return verification;
-    }
-
-    const nonce = input.headers.get("x-plivo-signature-v3-nonce");
-    if (!nonce) {
-      return { ok: false, reason: "invalid-signature" };
-    }
-
-    if (nonceStore.claim) {
-      if (!(await nonceStore.claim(nonce))) {
-        return { ok: false, reason: "invalid-signature" };
-      }
-      return verification;
-    }
-
-    if (await nonceStore.has(nonce)) {
-      return { ok: false, reason: "invalid-signature" };
-    }
-
-    await nonceStore.set(nonce);
-    return verification;
-  };
 
 const buildPlivoVoiceSetupStatus = async <
   TContext,
@@ -1194,6 +1201,7 @@ export const createPlivoVoiceRoutes = <
         request,
         streamPath,
       });
+
       return new Response(
         createPlivoVoiceResponse({
           ...options.answer?.response,
@@ -1212,6 +1220,7 @@ export const createPlivoVoiceRoutes = <
         request,
         streamPath,
       });
+
       return new Response(
         createPlivoVoiceResponse({
           ...options.answer?.response,
@@ -1226,17 +1235,18 @@ export const createPlivoVoiceRoutes = <
     })
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
-        const bridge = bridges.get(ws as object);
-        bridges.delete(ws as object);
+        const bridge = bridges.get(ws);
+        bridges.delete(ws);
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
         if (!options.bridge) {
           ws.close(1011, "Plivo media bridge is not configured.");
+
           return;
         }
 
-        let bridge = bridges.get(ws as object);
+        let bridge = bridges.get(ws);
         if (!bridge) {
           bridge = createPlivoMediaStreamBridge(
             {
@@ -1249,7 +1259,7 @@ export const createPlivoVoiceRoutes = <
             },
             options.bridge,
           );
-          bridges.set(ws as object, bridge);
+          bridges.set(ws, bridge);
         }
 
         await bridge.handleMessage(raw as string);
@@ -1266,7 +1276,8 @@ export const createPlivoVoiceRoutes = <
         resolveSessionId:
           options.webhook?.resolveSessionId ??
           (({ event }) => {
-            const metadata = event.metadata;
+            const {metadata} = event;
+
             return typeof metadata?.SessionId === "string"
               ? metadata.SessionId
               : typeof metadata?.sessionId === "string"
@@ -1303,6 +1314,7 @@ export const createPlivoVoiceRoutes = <
             },
           );
         }
+
         return status;
       })
     : app;
@@ -1334,6 +1346,7 @@ export const createPlivoVoiceRoutes = <
         },
       );
     }
+
     return report;
   });
 };

@@ -204,6 +204,7 @@ const createVoiceAuditSinkDeliveryError = (input: {
 }) => {
   if (input.response) {
     const statusText = input.response.statusText?.trim();
+
     return `Attempt ${input.attempt} failed with audit sink response ${input.response.status}${statusText ? ` ${statusText}` : ""}.`;
   }
 
@@ -224,11 +225,13 @@ const createVoiceAuditS3ObjectKey = (
   const firstEvent = events[0];
   const safeSessionId = encodeURIComponent(firstEvent?.sessionId ?? "audit");
   const safeEventId = encodeURIComponent(firstEvent?.id ?? crypto.randomUUID());
+
   return `${prefix}/${safeSessionId}/${Date.now()}-${safeEventId}.json`;
 };
 
 const resolveVoiceS3DeliveredTo = (options: S3Options, key: string) => {
-  const bucket = (options as { bucket?: string }).bucket;
+  const {bucket} = (options as { bucket?: string });
+
   return bucket ? `s3://${bucket}/${key}` : `s3://${key}`;
 };
 
@@ -250,48 +253,14 @@ const aggregateVoiceAuditSinkDeliveryStatus = (
   return "delivered";
 };
 
-export const createVoiceAuditSinkDeliveryId = (
-  events: StoredVoiceAuditEvent[],
-) => {
-  const firstEvent = events[0];
-  return [
-    firstEvent?.sessionId ?? "audit",
-    firstEvent?.traceId ?? "sink",
-    String(firstEvent?.at ?? Date.now()),
-    crypto.randomUUID(),
-  ]
-    .map(encodeURIComponent)
-    .join(":");
-};
-
-export const createVoiceAuditSinkDeliveryRecord = (
-  input: {
-    createdAt?: number;
-    events: StoredVoiceAuditEvent[];
-    id?: string;
-  } & Partial<
-    Omit<VoiceAuditSinkDeliveryRecord, "createdAt" | "events" | "id">
-  >,
-): VoiceAuditSinkDeliveryRecord => {
-  const createdAt = input.createdAt ?? Date.now();
-  return {
-    createdAt,
-    deliveredAt: input.deliveredAt,
-    deliveryAttempts: input.deliveryAttempts,
-    deliveryError: input.deliveryError,
-    deliveryStatus: input.deliveryStatus ?? "pending",
-    events: input.events,
-    id: input.id ?? createVoiceAuditSinkDeliveryId(input.events),
-    sinkDeliveries: input.sinkDeliveries,
-    updatedAt: input.updatedAt ?? createdAt,
-  };
-};
-
 export const createVoiceAuditHTTPSink = <
   TBody extends Record<string, unknown> = Record<string, unknown>,
 >(
   options: VoiceAuditHTTPSinkOptions<TBody>,
 ): VoiceAuditSink => ({
+  eventTypes: options.eventTypes,
+  id: options.id,
+  kind: options.kind ?? "http",
   deliver: async ({ events }) => {
     const fetchImpl = options.fetch ?? globalThis.fetch;
     if (typeof fetchImpl !== "function") {
@@ -395,11 +364,7 @@ export const createVoiceAuditHTTPSink = <
       status: "failed",
     };
   },
-  eventTypes: options.eventTypes,
-  id: options.id,
-  kind: options.kind ?? "http",
 });
-
 export const createVoiceAuditS3Sink = <
   TBody extends Record<string, unknown> = Record<string, unknown>,
 >(
@@ -409,6 +374,9 @@ export const createVoiceAuditS3Sink = <
   const keyPrefix = normalizeVoiceAuditS3KeyPrefix(options.keyPrefix);
 
   return {
+    eventTypes: options.eventTypes,
+    id: options.id,
+    kind: options.kind ?? "s3",
     deliver: async ({ events }) => {
       const key = createVoiceAuditS3ObjectKey(keyPrefix, events);
       const payload = options.body
@@ -444,12 +412,108 @@ export const createVoiceAuditS3Sink = <
         };
       }
     },
-    eventTypes: options.eventTypes,
-    id: options.id,
-    kind: options.kind ?? "s3",
   };
 };
+export const createVoiceAuditSinkDeliveryId = (
+  events: StoredVoiceAuditEvent[],
+) => {
+  const firstEvent = events[0];
 
+  return [
+    firstEvent?.sessionId ?? "audit",
+    firstEvent?.traceId ?? "sink",
+    String(firstEvent?.at ?? Date.now()),
+    crypto.randomUUID(),
+  ]
+    .map(encodeURIComponent)
+    .join(":");
+};
+export const createVoiceAuditSinkDeliveryRecord = (
+  input: {
+    createdAt?: number;
+    events: StoredVoiceAuditEvent[];
+    id?: string;
+  } & Partial<
+    Omit<VoiceAuditSinkDeliveryRecord, "createdAt" | "events" | "id">
+  >,
+): VoiceAuditSinkDeliveryRecord => {
+  const createdAt = input.createdAt ?? Date.now();
+
+  return {
+    createdAt,
+    deliveredAt: input.deliveredAt,
+    deliveryAttempts: input.deliveryAttempts,
+    deliveryError: input.deliveryError,
+    deliveryStatus: input.deliveryStatus ?? "pending",
+    events: input.events,
+    id: input.id ?? createVoiceAuditSinkDeliveryId(input.events),
+    sinkDeliveries: input.sinkDeliveries,
+    updatedAt: input.updatedAt ?? createdAt,
+  };
+};
+export const createVoiceAuditSinkStore = <
+  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+>(
+  options: VoiceAuditSinkStoreOptions<TEvent>,
+): VoiceAuditEventStore<TEvent> => {
+  const deliver = async (event: TEvent) => {
+    const result = await deliverVoiceAuditEventsToSinks({
+      events: [event],
+      redact: options.redact,
+      sinks: options.sinks,
+    });
+    await options.onDelivery?.(result);
+  };
+
+  return {
+    append: async (event) => {
+      const stored = await options.store.append(event);
+
+      if (options.deliveryQueue) {
+        const delivery = createVoiceAuditSinkDeliveryRecord({
+          events: [stored],
+        });
+        await options.deliveryQueue.set(delivery.id, delivery);
+
+        return stored;
+      }
+
+      const delivery = deliver(stored);
+
+      if (options.awaitDelivery) {
+        await delivery;
+      } else {
+        delivery.catch((error) => {
+          void options.onError?.(error);
+        });
+      }
+
+      return stored;
+    },
+    get: (id) => options.store.get(id),
+    list: (filter) => options.store.list(filter),
+  };
+};
+export const createVoiceMemoryAuditSinkDeliveryStore = <
+  TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
+>(): VoiceAuditSinkDeliveryStore<TDelivery> => {
+  const deliveries = new Map<string, TDelivery>();
+
+  return {
+    get: async (id) => deliveries.get(id),
+    list: async () =>
+      [...deliveries.values()].sort(
+        (left, right) =>
+          left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+      ),
+    remove: async (id) => {
+      deliveries.delete(id);
+    },
+    set: async (id, delivery) => {
+      deliveries.set(id, delivery);
+    },
+  };
+};
 export const deliverVoiceAuditEventsToSinks = async (input: {
   events: StoredVoiceAuditEvent[];
   redact?: VoiceTraceRedactionConfig;
@@ -497,70 +561,6 @@ export const deliverVoiceAuditEventsToSinks = async (input: {
   };
 };
 
-export const createVoiceAuditSinkStore = <
-  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
->(
-  options: VoiceAuditSinkStoreOptions<TEvent>,
-): VoiceAuditEventStore<TEvent> => {
-  const deliver = async (event: TEvent) => {
-    const result = await deliverVoiceAuditEventsToSinks({
-      events: [event],
-      redact: options.redact,
-      sinks: options.sinks,
-    });
-    await options.onDelivery?.(result);
-  };
-
-  return {
-    append: async (event) => {
-      const stored = await options.store.append(event);
-
-      if (options.deliveryQueue) {
-        const delivery = createVoiceAuditSinkDeliveryRecord({
-          events: [stored],
-        });
-        await options.deliveryQueue.set(delivery.id, delivery);
-        return stored;
-      }
-
-      const delivery = deliver(stored);
-
-      if (options.awaitDelivery) {
-        await delivery;
-      } else {
-        delivery.catch((error) => {
-          void options.onError?.(error);
-        });
-      }
-
-      return stored;
-    },
-    get: (id) => options.store.get(id),
-    list: (filter) => options.store.list(filter),
-  };
-};
-
-export const createVoiceMemoryAuditSinkDeliveryStore = <
-  TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
->(): VoiceAuditSinkDeliveryStore<TDelivery> => {
-  const deliveries = new Map<string, TDelivery>();
-
-  return {
-    get: async (id) => deliveries.get(id),
-    list: async () =>
-      [...deliveries.values()].sort(
-        (left, right) =>
-          left.createdAt - right.createdAt || left.id.localeCompare(right.id),
-      ),
-    remove: async (id) => {
-      deliveries.delete(id);
-    },
-    set: async (id, delivery) => {
-      deliveries.set(id, delivery);
-    },
-  };
-};
-
 const shouldProcessAuditDeliveryStatus = (
   status: VoiceAuditSinkDeliveryQueueStatus,
   allowed: VoiceAuditSinkDeliveryQueueStatus[],
@@ -573,62 +573,6 @@ const shouldDeadLetterAuditDelivery = (
   typeof maxFailures === "number" &&
   maxFailures > 0 &&
   (delivery.deliveryAttempts ?? 0) >= maxFailures;
-
-export const summarizeVoiceAuditSinkDeliveries = <
-  TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
->(
-  deliveries: TDelivery[],
-  input: {
-    deadLetters?: VoiceAuditSinkDeliveryStore<TDelivery>;
-  } = {},
-):
-  | Promise<VoiceAuditSinkDeliveryQueueSummary>
-  | VoiceAuditSinkDeliveryQueueSummary => {
-  const buildSummary = async () => {
-    const deadLetterIds = new Set(
-      input.deadLetters
-        ? (await input.deadLetters.list()).map((delivery) => delivery.id)
-        : [],
-    );
-    const summary: VoiceAuditSinkDeliveryQueueSummary = {
-      deadLettered: 0,
-      delivered: 0,
-      failed: 0,
-      pending: 0,
-      retryEligible: 0,
-      skipped: 0,
-      total: deliveries.length,
-    };
-
-    for (const delivery of deliveries) {
-      if (deadLetterIds.has(delivery.id)) {
-        summary.deadLettered += 1;
-      }
-
-      switch (delivery.deliveryStatus) {
-        case "delivered":
-          summary.delivered += 1;
-          break;
-        case "failed":
-          summary.failed += 1;
-          if ((delivery.deliveryAttempts ?? 0) > 0) {
-            summary.retryEligible += 1;
-          }
-          break;
-        case "skipped":
-          summary.skipped += 1;
-          break;
-        case "pending":
-          summary.pending += 1;
-          break;
-      }
-    }
-
-    return summary;
-  };
-
-  return input.deadLetters ? buildSummary() : buildSummary();
-};
 
 export const createVoiceAuditSinkDeliveryWorker = <
   TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
@@ -663,8 +607,8 @@ export const createVoiceAuditSinkDeliveryWorker = <
         }
 
         if (shouldDeadLetterAuditDelivery(delivery, options.maxFailures)) {
-          await options.deadLetters?.set(delivery.id, delivery as TDelivery);
-          await options.onDeadLetter?.(delivery as TDelivery);
+          await options.deadLetters?.set(delivery.id, delivery);
+          await options.onDeadLetter?.(delivery);
           result.deadLettered += 1;
           continue;
         }
@@ -755,7 +699,6 @@ export const createVoiceAuditSinkDeliveryWorker = <
     },
   };
 };
-
 export const createVoiceAuditSinkDeliveryWorkerLoop = <
   TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
 >(
@@ -768,6 +711,7 @@ export const createVoiceAuditSinkDeliveryWorkerLoop = <
   const tick = async () => options.worker.drain();
 
   return {
+    tick,
     isRunning: () => running,
     start: () => {
       if (timer) {
@@ -788,6 +732,60 @@ export const createVoiceAuditSinkDeliveryWorkerLoop = <
       }
       running = false;
     },
-    tick,
   };
+};
+export const summarizeVoiceAuditSinkDeliveries = <
+  TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
+>(
+  deliveries: TDelivery[],
+  input: {
+    deadLetters?: VoiceAuditSinkDeliveryStore<TDelivery>;
+  } = {},
+):
+  | Promise<VoiceAuditSinkDeliveryQueueSummary>
+  | VoiceAuditSinkDeliveryQueueSummary => {
+  const buildSummary = async () => {
+    const deadLetterIds = new Set(
+      input.deadLetters
+        ? (await input.deadLetters.list()).map((delivery) => delivery.id)
+        : [],
+    );
+    const summary: VoiceAuditSinkDeliveryQueueSummary = {
+      deadLettered: 0,
+      delivered: 0,
+      failed: 0,
+      pending: 0,
+      retryEligible: 0,
+      skipped: 0,
+      total: deliveries.length,
+    };
+
+    for (const delivery of deliveries) {
+      if (deadLetterIds.has(delivery.id)) {
+        summary.deadLettered += 1;
+      }
+
+      switch (delivery.deliveryStatus) {
+        case "delivered":
+          summary.delivered += 1;
+          break;
+        case "failed":
+          summary.failed += 1;
+          if ((delivery.deliveryAttempts ?? 0) > 0) {
+            summary.retryEligible += 1;
+          }
+          break;
+        case "skipped":
+          summary.skipped += 1;
+          break;
+        case "pending":
+          summary.pending += 1;
+          break;
+      }
+    }
+
+    return summary;
+  };
+
+  return input.deadLetters ? buildSummary() : buildSummary();
 };

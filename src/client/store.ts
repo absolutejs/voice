@@ -17,11 +17,11 @@ const createInitialState = (): VoiceStreamState => ({
   call: null,
   error: null,
   isConnected: false,
-  sessionMetadata: null,
-  scenarioId: null,
   partial: "",
   reconnect: createInitialReconnectState(),
+  scenarioId: null,
   sessionId: null,
+  sessionMetadata: null,
   status: "idle",
   turns: [],
 });
@@ -168,7 +168,7 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
         state = {
           ...state,
           partial: "",
-          turns: [...state.turns, action.turn as VoiceTurnRecord<TResult>],
+          turns: [...state.turns, action.turn],
         };
         break;
     }

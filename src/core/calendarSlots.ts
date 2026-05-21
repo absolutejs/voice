@@ -36,6 +36,7 @@ export type GenerateVoiceCalendarSlotsInput = {
 const parseHHMM = (value: string): number => {
   const match = /^([0-9]{1,2}):([0-9]{2})$/u.exec(value);
   if (!match) throw new Error(`Invalid time string (expected HH:MM): ${value}`);
+
   return Number(match[1]) * 60 + Number(match[2]);
 };
 
@@ -67,6 +68,7 @@ const partsAt = (
     Wed: 3,
   };
   const hourValue = map.hour === "24" ? "00" : (map.hour ?? "0");
+
   return {
     date: `${map.year}-${map.month}-${map.day}`,
     minutes: Number(hourValue) * 60 + Number(map.minute ?? "0"),
@@ -119,6 +121,7 @@ export const generateVoiceCalendarSlots = (
     const fitsHours = dayHours.some((block) => {
       const startMin = parseHHMM(block.start);
       const endMin = parseHHMM(block.end);
+
       return (
         startParts.minutes >= startMin &&
         endParts.minutes < endMin &&
@@ -146,6 +149,7 @@ export const generateVoiceCalendarSlots = (
     }
     cursor += stepMs;
   }
+
   return slots;
 };
 
@@ -162,5 +166,6 @@ export const summarizeVoiceCalendarSlot = (
     timeZone: options.timezone,
     weekday: "long",
   });
+
   return formatter.format(new Date(slot.startMs));
 };

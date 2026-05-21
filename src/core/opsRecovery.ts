@@ -151,6 +151,7 @@ const hrefForSession = (
   if (value.includes(":sessionId")) {
     return value.replace(":sessionId", encoded);
   }
+
   return value;
 };
 
@@ -179,7 +180,8 @@ const collectFailedSessions = (
       if (event.type !== "session.error") {
         return false;
       }
-      const providerStatus = event.payload.providerStatus;
+      const {providerStatus} = event.payload;
+
       return providerStatus !== "success" && providerStatus !== "fallback";
     })
     .sort((left, right) => right.at - left.at)
@@ -265,6 +267,19 @@ const addDeliveryIssues = (
   }
 };
 
+export const buildVoiceOpsRecoveryReadinessCheck = (
+  report: VoiceOpsRecoveryReport,
+  options: { href?: string; label?: string } = {},
+): VoiceProductionReadinessCheck => ({
+  detail:
+    report.status === "pass"
+      ? `${report.providers.recoveredFallbacks} recovered fallback(s), ${report.interventions.total} operator intervention(s), and no unresolved recovery issues.`
+      : `${report.issues.length} recovery issue(s) require attention.`,
+  href: options.href,
+  label: options.label ?? "Ops recovery",
+  status: report.status,
+  value: report.issues.length,
+});
 export const buildVoiceOpsRecoveryReport = async <
   TProvider extends string = string,
 >(
@@ -299,9 +314,7 @@ export const buildVoiceOpsRecoveryReport = async <
     ? await summarizeVoiceHandoffDeliveries(
         (await options.handoffDeliveries.list()) as StoredVoiceHandoffDelivery[],
         {
-          deadLetters: options.handoffDeliveryDeadLetters as
-            | VoiceHandoffDeliveryStore<StoredVoiceHandoffDelivery>
-            | undefined,
+          deadLetters: options.handoffDeliveryDeadLetters,
         },
       )
     : undefined;
@@ -408,21 +421,6 @@ export const buildVoiceOpsRecoveryReport = async <
     traceDeliveries,
   };
 };
-
-export const buildVoiceOpsRecoveryReadinessCheck = (
-  report: VoiceOpsRecoveryReport,
-  options: { href?: string; label?: string } = {},
-): VoiceProductionReadinessCheck => ({
-  detail:
-    report.status === "pass"
-      ? `${report.providers.recoveredFallbacks} recovered fallback(s), ${report.interventions.total} operator intervention(s), and no unresolved recovery issues.`
-      : `${report.issues.length} recovery issue(s) require attention.`,
-  href: options.href,
-  label: options.label ?? "Ops recovery",
-  status: report.status,
-  value: report.issues.length,
-});
-
 export const renderVoiceOpsRecoveryMarkdown = (
   report: VoiceOpsRecoveryReport,
   options: { title?: string } = {},
@@ -491,6 +489,50 @@ const renderDeliverySummary = (
     ? `<article><span>${escapeHtml(label)}</span><strong>${String(summary.failed + summary.deadLettered)} failed</strong><small>${String(summary.pending)} pending · ${String(summary.retryEligible)} retry eligible · ${String(summary.total)} total</small></article>`
     : `<article><span>${escapeHtml(label)}</span><strong>not configured</strong></article>`;
 
+export const createVoiceOpsRecoveryRoutes = <TProvider extends string = string>(
+  options: VoiceOpsRecoveryRoutesOptions<TProvider> = {},
+) => {
+  const path = options.path ?? "/api/voice/ops-recovery";
+  const htmlPath =
+    options.htmlPath === undefined ? "/ops-recovery" : options.htmlPath;
+  const markdownPath =
+    options.markdownPath === undefined ? `${path}.md` : options.markdownPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-ops-recovery",
+  }).get(path, async () => buildVoiceOpsRecoveryReport(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, async () => {
+      const report = await buildVoiceOpsRecoveryReport(options);
+      const render = options.render ?? renderVoiceOpsRecoveryHTML;
+
+      return new Response(await render(report), {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          ...options.headers,
+        },
+      });
+    });
+  }
+
+  if (markdownPath) {
+    routes.get(markdownPath, async () => {
+      const report = await buildVoiceOpsRecoveryReport(options);
+
+      return new Response(
+        renderVoiceOpsRecoveryMarkdown(report, { title: options.title }),
+        {
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            ...options.headers,
+          },
+        },
+      );
+    });
+  }
+
+  return routes;
+};
 export const renderVoiceOpsRecoveryHTML = (
   report: VoiceOpsRecoveryReport,
   options: { title?: string } = {},
@@ -516,47 +558,4 @@ export const renderVoiceOpsRecoveryHTML = (
     .join("");
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{font-family:ui-sans-serif,system-ui,sans-serif;background:#f8fafc;color:#172033;margin:2rem;line-height:1.45}main{max-width:1180px;margin:auto}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.75rem;margin:1rem 0}article{background:white;border:1px solid #dbe3ef;border-radius:14px;padding:1rem;box-shadow:0 10px 28px rgba(15,23,42,.05)}article span{display:block;color:#64748b;font-size:.85rem}article strong{display:block;font-size:1.5rem;margin:.2rem 0}article small{color:#64748b}table{border-collapse:collapse;width:100%;background:white;border:1px solid #dbe3ef;border-radius:14px;overflow:hidden}th,td{border-bottom:1px solid #e2e8f0;padding:.7rem;text-align:left;vertical-align:top}code{font-size:.85em}.status{display:inline-flex;border-radius:999px;padding:.35rem .7rem;background:${report.status === "fail" ? "#fee2e2" : report.status === "warn" ? "#fef3c7" : "#dcfce7"};color:${report.status === "fail" ? "#991b1b" : report.status === "warn" ? "#92400e" : "#166534"};font-weight:700}</style></head><body><main><h1>${escapeHtml(title)}</h1><p><span class="status">${escapeHtml(report.status)}</span> Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}</p><section class="grid"><article><span>Recovered fallbacks</span><strong>${String(report.providers.recoveredFallbacks)}</strong></article><article><span>Unresolved providers</span><strong>${String(report.providers.unresolvedFailures)}</strong></article><article><span>Operator interventions</span><strong>${String(report.interventions.total)}</strong></article><article><span>Latency status</span><strong>${escapeHtml(report.latency?.status ?? "disabled")}</strong></article>${renderDeliverySummary("Audit delivery", report.auditDeliveries)}${renderDeliverySummary("Trace delivery", report.traceDeliveries)}${renderDeliverySummary("Handoff delivery", report.handoffDeliveries)}</section><h2>Issues</h2><table><thead><tr><th>Severity</th><th>Code</th><th>Label</th><th>Value</th><th>Detail</th></tr></thead><tbody>${issues || '<tr><td colspan="5">No recovery issues.</td></tr>'}</tbody></table><h2>Providers</h2><table><thead><tr><th>Provider</th><th>Status</th><th>Runs</th><th>Errors</th><th>Fallbacks</th><th>Last error</th></tr></thead><tbody>${providers || '<tr><td colspan="6">No provider activity.</td></tr>'}</tbody></table><h2>Failed Sessions</h2><ul>${failedSessions || "<li>None.</li>"}</ul></main></body></html>`;
-};
-
-export const createVoiceOpsRecoveryRoutes = <TProvider extends string = string>(
-  options: VoiceOpsRecoveryRoutesOptions<TProvider> = {},
-) => {
-  const path = options.path ?? "/api/voice/ops-recovery";
-  const htmlPath =
-    options.htmlPath === undefined ? "/ops-recovery" : options.htmlPath;
-  const markdownPath =
-    options.markdownPath === undefined ? `${path}.md` : options.markdownPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-ops-recovery",
-  }).get(path, async () => buildVoiceOpsRecoveryReport(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, async () => {
-      const report = await buildVoiceOpsRecoveryReport(options);
-      const render = options.render ?? renderVoiceOpsRecoveryHTML;
-      return new Response(await render(report), {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          ...options.headers,
-        },
-      });
-    });
-  }
-
-  if (markdownPath) {
-    routes.get(markdownPath, async () => {
-      const report = await buildVoiceOpsRecoveryReport(options);
-      return new Response(
-        renderVoiceOpsRecoveryMarkdown(report, { title: options.title }),
-        {
-          headers: {
-            "content-type": "text/markdown; charset=utf-8",
-            ...options.headers,
-          },
-        },
-      );
-    });
-  }
-
-  return routes;
 };

@@ -40,6 +40,7 @@ const formatBucketKey = (
   const h = padTwo(date.getUTCHours());
   if (bucketBy === "month") return `${y}-${m}`;
   if (bucketBy === "day") return `${y}-${m}-${d}`;
+
   return `${y}-${m}-${d}T${h}`;
 };
 
@@ -103,7 +104,7 @@ export const summarizeVoiceCallTraffic = (
     if (event.at < fromMs || event.at > toMs) continue;
     minMs = Math.min(minMs, event.at);
     maxMs = Math.max(maxMs, event.at);
-    const payload = event.payload;
+    const {payload} = event;
     if (isStart(payload)) {
       callStarts.set(event.sessionId, event.at);
       continue;

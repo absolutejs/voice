@@ -54,6 +54,7 @@ const contractDetail = (row: VoiceProviderContractMatrixRow) => {
   if (failing.length === 0) {
     return "Provider contract is production-ready.";
   }
+
   return failing
     .map((check) => `${check.label}: ${check.detail ?? check.status}`)
     .join(" ");
@@ -119,7 +120,68 @@ export const createVoiceProviderContractsViewModel = <
     updatedAt: snapshot.updatedAt,
   };
 };
+export const defineVoiceProviderContractsElement = (
+  tagName = "absolute-voice-provider-contracts",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceProviderContractsElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceProviderContracts>;
+
+      connectedCallback() {
+        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        this.mounted = mountVoiceProviderContracts(
+          this,
+          this.getAttribute("path") ?? "/api/provider-contracts",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const getVoiceProviderContractsCSS = () =>
+  `.absolute-voice-provider-contracts{border:1px solid #b8dcc7;border-radius:20px;background:#f7fff9;color:#09140d;padding:18px;box-shadow:0 18px 40px rgba(21,83,45,.12);font-family:inherit}.absolute-voice-provider-contracts--error,.absolute-voice-provider-contracts--warning{border-color:#f2a7a7;background:#fff7f4}.absolute-voice-provider-contracts__header,.absolute-voice-provider-contracts__row header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-provider-contracts__eyebrow{color:#166534;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-provider-contracts__label{font-size:24px;line-height:1}.absolute-voice-provider-contracts__description,.absolute-voice-provider-contracts__row p,.absolute-voice-provider-contracts__row dt,.absolute-voice-provider-contracts__empty{color:#405448}.absolute-voice-provider-contracts__rows{display:grid;gap:12px;margin-top:14px}.absolute-voice-provider-contracts__row{background:#fff;border:1px solid #d6eadb;border-radius:16px;padding:14px}.absolute-voice-provider-contracts__row--pass{border-color:#86efac}.absolute-voice-provider-contracts__row--warn,.absolute-voice-provider-contracts__row--fail{border-color:#f2a7a7}.absolute-voice-provider-contracts__row p{margin:10px 0}.absolute-voice-provider-contracts__remediations{display:grid;gap:8px;list-style:none;margin:0 0 10px;padding:0}.absolute-voice-provider-contracts__remediations li{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;display:grid;gap:3px;padding:8px}.absolute-voice-provider-contracts__remediations a,.absolute-voice-provider-contracts__remediations strong{color:#9a3412}.absolute-voice-provider-contracts__remediations span{color:#7c2d12}.absolute-voice-provider-contracts__row dl{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr));margin:0}.absolute-voice-provider-contracts__row div{background:#f7fff9;border:1px solid #d6eadb;border-radius:12px;padding:8px}.absolute-voice-provider-contracts__row dt{font-size:12px}.absolute-voice-provider-contracts__row dd{font-weight:800;margin:4px 0 0}.absolute-voice-provider-contracts__error{color:#9f1239;font-weight:700}`;
+export const mountVoiceProviderContracts = <TProvider extends string = string>(
+  element: Element,
+  path = "/api/provider-contracts",
+  options: VoiceProviderContractsWidgetOptions = {},
+) => {
+  const store = createVoiceProviderContractsStore<TProvider>(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceProviderContractsHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceProviderContractsHTML = <
   TProvider extends string = string,
 >(
@@ -170,69 +232,4 @@ export const renderVoiceProviderContractsHTML = <
   ${rows}
   ${model.error ? `<p class="absolute-voice-provider-contracts__error">${escapeHtml(model.error)}</p>` : ""}
 </section>`;
-};
-
-export const getVoiceProviderContractsCSS = () =>
-  `.absolute-voice-provider-contracts{border:1px solid #b8dcc7;border-radius:20px;background:#f7fff9;color:#09140d;padding:18px;box-shadow:0 18px 40px rgba(21,83,45,.12);font-family:inherit}.absolute-voice-provider-contracts--error,.absolute-voice-provider-contracts--warning{border-color:#f2a7a7;background:#fff7f4}.absolute-voice-provider-contracts__header,.absolute-voice-provider-contracts__row header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-provider-contracts__eyebrow{color:#166534;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-provider-contracts__label{font-size:24px;line-height:1}.absolute-voice-provider-contracts__description,.absolute-voice-provider-contracts__row p,.absolute-voice-provider-contracts__row dt,.absolute-voice-provider-contracts__empty{color:#405448}.absolute-voice-provider-contracts__rows{display:grid;gap:12px;margin-top:14px}.absolute-voice-provider-contracts__row{background:#fff;border:1px solid #d6eadb;border-radius:16px;padding:14px}.absolute-voice-provider-contracts__row--pass{border-color:#86efac}.absolute-voice-provider-contracts__row--warn,.absolute-voice-provider-contracts__row--fail{border-color:#f2a7a7}.absolute-voice-provider-contracts__row p{margin:10px 0}.absolute-voice-provider-contracts__remediations{display:grid;gap:8px;list-style:none;margin:0 0 10px;padding:0}.absolute-voice-provider-contracts__remediations li{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;display:grid;gap:3px;padding:8px}.absolute-voice-provider-contracts__remediations a,.absolute-voice-provider-contracts__remediations strong{color:#9a3412}.absolute-voice-provider-contracts__remediations span{color:#7c2d12}.absolute-voice-provider-contracts__row dl{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr));margin:0}.absolute-voice-provider-contracts__row div{background:#f7fff9;border:1px solid #d6eadb;border-radius:12px;padding:8px}.absolute-voice-provider-contracts__row dt{font-size:12px}.absolute-voice-provider-contracts__row dd{font-weight:800;margin:4px 0 0}.absolute-voice-provider-contracts__error{color:#9f1239;font-weight:700}`;
-
-export const mountVoiceProviderContracts = <TProvider extends string = string>(
-  element: Element,
-  path = "/api/provider-contracts",
-  options: VoiceProviderContractsWidgetOptions = {},
-) => {
-  const store = createVoiceProviderContractsStore<TProvider>(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceProviderContractsHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceProviderContractsElement = (
-  tagName = "absolute-voice-provider-contracts",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceProviderContractsElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceProviderContracts>;
-
-      connectedCallback() {
-        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
-        this.mounted = mountVoiceProviderContracts(
-          this,
-          this.getAttribute("path") ?? "/api/provider-contracts",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

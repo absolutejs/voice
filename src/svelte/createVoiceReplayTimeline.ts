@@ -24,6 +24,7 @@ const formatRelative = (ms: number) => {
   const seconds = Math.max(0, Math.floor(ms / 1_000));
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
+
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 };
 
@@ -42,6 +43,7 @@ export const renderVoiceReplayTimelineHTML = (
         </li>`,
     )
     .join("");
+
   return `<section aria-label="voice-replay-timeline" class="absolute-voice-replay-timeline" style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:baseline;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${escape(title)}</strong>
@@ -61,9 +63,10 @@ export const createVoiceReplayTimeline = (
 ) => {
   const buildReport = () =>
     buildReplayTimelineReport({ artifact: options.artifact });
+
   return {
+    getReport: buildReport,
     getHTML: () =>
       renderVoiceReplayTimelineHTML(buildReport(), { title: options.title }),
-    getReport: buildReport,
   };
 };

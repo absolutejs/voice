@@ -12,18 +12,6 @@ export type VoiceRoutingStatusSnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceRoutingStatus = async (
-  path = "/api/routing/latest",
-  options: Pick<VoiceRoutingStatusClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice routing status failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceRoutingDecisionSummary | null;
-};
-
 export const createVoiceRoutingStatusStore = (
   path = "/api/routing/latest",
   options: VoiceRoutingStatusClientOptions = {},
@@ -60,6 +48,7 @@ export const createVoiceRoutingStatusStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return decision;
     } catch (error) {
       snapshot = {
@@ -88,14 +77,27 @@ export const createVoiceRoutingStatusStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceRoutingStatus = async (
+  path = "/api/routing/latest",
+  options: Pick<VoiceRoutingStatusClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice routing status failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceRoutingDecisionSummary | null;
 };

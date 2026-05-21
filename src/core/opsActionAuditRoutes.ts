@@ -51,6 +51,7 @@ const readRecordBody = (body: unknown): VoiceOpsActionAuditRecord => {
   if (!record.actionId || typeof record.actionId !== "string") {
     throw new Error("Voice ops action audit requires actionId.");
   }
+
   return {
     actionId: record.actionId,
     body: record.body,
@@ -66,6 +67,61 @@ const readRecord = async (
 ): Promise<VoiceOpsActionAuditRecord> =>
   readRecordBody(await request.json().catch(() => null));
 
+export const createVoiceOpsActionAuditRoutes = (
+  options: VoiceOpsActionAuditRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/ops-actions/audit";
+  const historyPath =
+    options.historyPath === undefined
+      ? "/api/voice/ops-actions/history"
+      : options.historyPath;
+  const historyHtmlPath =
+    options.historyHtmlPath === undefined
+      ? "/voice/ops-actions"
+      : options.historyHtmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-ops-action-audit",
+  }).post(path, async ({ body, request, set }) => {
+    try {
+      const record =
+        body === undefined ? await readRecord(request) : readRecordBody(body);
+
+      return await recordVoiceOpsActionAudit(record, options);
+    } catch (error) {
+      set.status = 400;
+
+      return {
+        error: error instanceof Error ? error.message : String(error),
+        ok: false,
+      };
+    }
+  });
+
+  if (historyPath !== false) {
+    routes.get(historyPath, async () =>
+      buildVoiceOpsActionHistoryReport(options),
+    );
+  }
+
+  if (historyHtmlPath !== false) {
+    routes.get(
+      historyHtmlPath,
+      async () =>
+        new Response(
+          renderVoiceOpsActionHistoryHTML(
+            await buildVoiceOpsActionHistoryReport(options),
+          ),
+          {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+            },
+          },
+        ),
+    );
+  }
+
+  return routes;
+};
 export const recordVoiceOpsActionAudit = async (
   record: VoiceOpsActionAuditRecord,
   options: Pick<VoiceOpsActionAuditRoutesOptions, "audit" | "trace">,
@@ -125,60 +181,6 @@ export const recordVoiceOpsActionAudit = async (
     ok: true,
     trace,
   };
-};
-
-export const createVoiceOpsActionAuditRoutes = (
-  options: VoiceOpsActionAuditRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/ops-actions/audit";
-  const historyPath =
-    options.historyPath === undefined
-      ? "/api/voice/ops-actions/history"
-      : options.historyPath;
-  const historyHtmlPath =
-    options.historyHtmlPath === undefined
-      ? "/voice/ops-actions"
-      : options.historyHtmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-ops-action-audit",
-  }).post(path, async ({ body, request, set }) => {
-    try {
-      const record =
-        body === undefined ? await readRecord(request) : readRecordBody(body);
-      return await recordVoiceOpsActionAudit(record, options);
-    } catch (error) {
-      set.status = 400;
-      return {
-        error: error instanceof Error ? error.message : String(error),
-        ok: false,
-      };
-    }
-  });
-
-  if (historyPath !== false) {
-    routes.get(historyPath, async () =>
-      buildVoiceOpsActionHistoryReport(options),
-    );
-  }
-
-  if (historyHtmlPath !== false) {
-    routes.get(
-      historyHtmlPath,
-      async () =>
-        new Response(
-          renderVoiceOpsActionHistoryHTML(
-            await buildVoiceOpsActionHistoryReport(options),
-          ),
-          {
-            headers: {
-              "Content-Type": "text/html; charset=utf-8",
-            },
-          },
-        ),
-    );
-  }
-
-  return routes;
 };
 
 const toHistoryEntry = (

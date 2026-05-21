@@ -163,6 +163,7 @@ export const renderVoiceWidgetHTML = (model: VoiceWidgetViewModel): string => {
       `<button type="button" data-action="end" style="background:${t.errorAccent};border:none;border-radius:12px;color:${t.foreground};cursor:pointer;font-size:14px;font-weight:500;padding:10px 14px;">${escapeHtml(model.labels.endCall)}</button>`,
     );
   }
+
   return `<div role="region" aria-live="polite" data-agent-state="${model.agentState}" class="${escapeHtml(model.classes.container)}" style="${containerStyle}">
   <div style="align-items:center;display:flex;gap:10px;margin-bottom:12px;">
     <span aria-hidden="true" class="${escapeHtml(model.classes.dot)}" style="${dotStyle}"></span>

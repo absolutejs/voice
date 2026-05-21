@@ -10,6 +10,7 @@ export const createVoiceCallDebugger = (
   options: VoiceCallDebuggerLaunchOptions = {},
 ) => {
   const store = createVoiceCallDebuggerStore(path, options);
+
   return {
     ...store,
     getHTML: () =>

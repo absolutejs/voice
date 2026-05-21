@@ -33,6 +33,7 @@ const labelFor = (current?: VoiceAgentSquadSpecialist) => {
   if (current.status === "blocked") return "Handoff blocked";
   if (current.status === "unknown-target") return "Unknown specialist";
   if (current.targetAgentId) return `Current: ${current.targetAgentId}`;
+
   return "Specialist active";
 };
 
@@ -50,71 +51,6 @@ export const createVoiceAgentSquadStatusViewModel = (
   title: options.title ?? DEFAULT_TITLE,
   updatedAt: snapshot.updatedAt,
 });
-
-export const renderVoiceAgentSquadStatusHTML = (
-  snapshot: VoiceAgentSquadStatusSnapshot,
-  options: VoiceAgentSquadStatusWidgetOptions = {},
-) => {
-  const model = createVoiceAgentSquadStatusViewModel(snapshot, options);
-  const current = model.current;
-  const rows = model.sessions.length
-    ? model.sessions
-        .slice(0, 5)
-        .map(
-          (session) => `<li>
-  <span>${escapeHtml(session.sessionId)}</span>
-  <strong>${escapeHtml(session.targetAgentId ?? "none")}</strong>
-  <em>${escapeHtml(session.status)}</em>
-  ${session.summary || session.reason ? `<p>${escapeHtml(session.summary ?? session.reason ?? "")}</p>` : ""}
-</li>`,
-        )
-        .join("")
-    : "<li><span>No squad traces yet.</span><strong>Waiting</strong></li>";
-
-  return `<section class="absolute-voice-agent-squad-status">
-  <header>
-    <span>${escapeHtml(model.title)}</span>
-    <strong>${escapeHtml(model.label)}</strong>
-  </header>
-  <p>${escapeHtml(model.description)}</p>
-  <div>
-    <span>Session</span><strong>${escapeHtml(current?.sessionId ?? "n/a")}</strong>
-    <span>From</span><strong>${escapeHtml(current?.fromAgentId ?? "n/a")}</strong>
-    <span>Status</span><strong>${escapeHtml(current?.status ?? "idle")}</strong>
-  </div>
-  <ul>${rows}</ul>
-  ${model.error ? `<p class="absolute-voice-agent-squad-status__error">${escapeHtml(model.error)}</p>` : ""}
-</section>`;
-};
-
-export const getVoiceAgentSquadStatusCSS = () =>
-  `.absolute-voice-agent-squad-status{border:1px solid #38bdf866;border-radius:20px;background:#0f172a;color:#f8fafc;padding:18px;font-family:inherit}.absolute-voice-agent-squad-status header{display:grid;gap:4px}.absolute-voice-agent-squad-status header span{color:#7dd3fc;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-agent-squad-status header strong{font-size:20px}.absolute-voice-agent-squad-status p{color:#cbd5e1}.absolute-voice-agent-squad-status div{display:grid;gap:6px;grid-template-columns:max-content 1fr;margin:14px 0}.absolute-voice-agent-squad-status div span{color:#94a3b8}.absolute-voice-agent-squad-status ul{display:grid;gap:8px;list-style:none;margin:0;padding:0}.absolute-voice-agent-squad-status li{background:#020617;border:1px solid #1e293b;border-radius:14px;padding:10px}.absolute-voice-agent-squad-status li span{color:#94a3b8;display:block;font-size:12px}.absolute-voice-agent-squad-status li strong{display:block}.absolute-voice-agent-squad-status li em{color:#7dd3fc;font-style:normal}.absolute-voice-agent-squad-status__error{color:#fecaca;font-weight:800}`;
-
-export const mountVoiceAgentSquadStatus = (
-  element: Element | null,
-  path = "/api/voice-traces",
-  options: VoiceAgentSquadStatusWidgetOptions = {},
-) => {
-  if (!element) {
-    throw new Error("mountVoiceAgentSquadStatus requires an element.");
-  }
-  const store = createVoiceAgentSquadStatusStore(path, options);
-  const render = () => {
-    element.innerHTML = `<style>${getVoiceAgentSquadStatusCSS()}</style>${renderVoiceAgentSquadStatusHTML(store.getSnapshot(), options)}`;
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
 export const defineVoiceAgentSquadStatusElement = (
   tagName = "absolute-voice-agent-squad-status",
   options: VoiceAgentSquadStatusWidgetOptions = {},
@@ -152,4 +88,65 @@ export const defineVoiceAgentSquadStatusElement = (
       }
     },
   );
+};
+export const getVoiceAgentSquadStatusCSS = () =>
+  `.absolute-voice-agent-squad-status{border:1px solid #38bdf866;border-radius:20px;background:#0f172a;color:#f8fafc;padding:18px;font-family:inherit}.absolute-voice-agent-squad-status header{display:grid;gap:4px}.absolute-voice-agent-squad-status header span{color:#7dd3fc;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-agent-squad-status header strong{font-size:20px}.absolute-voice-agent-squad-status p{color:#cbd5e1}.absolute-voice-agent-squad-status div{display:grid;gap:6px;grid-template-columns:max-content 1fr;margin:14px 0}.absolute-voice-agent-squad-status div span{color:#94a3b8}.absolute-voice-agent-squad-status ul{display:grid;gap:8px;list-style:none;margin:0;padding:0}.absolute-voice-agent-squad-status li{background:#020617;border:1px solid #1e293b;border-radius:14px;padding:10px}.absolute-voice-agent-squad-status li span{color:#94a3b8;display:block;font-size:12px}.absolute-voice-agent-squad-status li strong{display:block}.absolute-voice-agent-squad-status li em{color:#7dd3fc;font-style:normal}.absolute-voice-agent-squad-status__error{color:#fecaca;font-weight:800}`;
+export const mountVoiceAgentSquadStatus = (
+  element: Element | null,
+  path = "/api/voice-traces",
+  options: VoiceAgentSquadStatusWidgetOptions = {},
+) => {
+  if (!element) {
+    throw new Error("mountVoiceAgentSquadStatus requires an element.");
+  }
+  const store = createVoiceAgentSquadStatusStore(path, options);
+  const render = () => {
+    element.innerHTML = `<style>${getVoiceAgentSquadStatusCSS()}</style>${renderVoiceAgentSquadStatusHTML(store.getSnapshot(), options)}`;
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
+export const renderVoiceAgentSquadStatusHTML = (
+  snapshot: VoiceAgentSquadStatusSnapshot,
+  options: VoiceAgentSquadStatusWidgetOptions = {},
+) => {
+  const model = createVoiceAgentSquadStatusViewModel(snapshot, options);
+  const {current} = model;
+  const rows = model.sessions.length
+    ? model.sessions
+        .slice(0, 5)
+        .map(
+          (session) => `<li>
+  <span>${escapeHtml(session.sessionId)}</span>
+  <strong>${escapeHtml(session.targetAgentId ?? "none")}</strong>
+  <em>${escapeHtml(session.status)}</em>
+  ${session.summary || session.reason ? `<p>${escapeHtml(session.summary ?? session.reason ?? "")}</p>` : ""}
+</li>`,
+        )
+        .join("")
+    : "<li><span>No squad traces yet.</span><strong>Waiting</strong></li>";
+
+  return `<section class="absolute-voice-agent-squad-status">
+  <header>
+    <span>${escapeHtml(model.title)}</span>
+    <strong>${escapeHtml(model.label)}</strong>
+  </header>
+  <p>${escapeHtml(model.description)}</p>
+  <div>
+    <span>Session</span><strong>${escapeHtml(current?.sessionId ?? "n/a")}</strong>
+    <span>From</span><strong>${escapeHtml(current?.fromAgentId ?? "n/a")}</strong>
+    <span>Status</span><strong>${escapeHtml(current?.status ?? "idle")}</strong>
+  </div>
+  <ul>${rows}</ul>
+  ${model.error ? `<p class="absolute-voice-agent-squad-status__error">${escapeHtml(model.error)}</p>` : ""}
+</section>`;
 };

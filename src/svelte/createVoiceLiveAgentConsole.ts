@@ -11,6 +11,22 @@ export type CreateVoiceLiveAgentConsoleSvelteOptions =
     title?: string;
   };
 
+export const createVoiceLiveAgentConsole = (
+  options: CreateVoiceLiveAgentConsoleSvelteOptions,
+) => {
+  const console = createCoreConsole(options);
+
+  return {
+    ...console,
+    getHTML: () =>
+      renderVoiceLiveAgentConsoleHTML(console.getState(), {
+        takeoverButtonLabel: options.takeoverButtonLabel,
+        title: options.title,
+      }),
+    takeoverButtonLabel: options.takeoverButtonLabel ?? "Take over",
+    title: options.title ?? "Live agent console",
+  };
+};
 export const renderVoiceLiveAgentConsoleHTML = (
   state: LiveAgentConsoleState,
   options: { takeoverButtonLabel?: string; title?: string } = {},
@@ -35,6 +51,7 @@ export const renderVoiceLiveAgentConsoleHTML = (
         </li>`,
     )
     .join("");
+
   return `<section aria-label="voice-live-agent-console" class="absolute-voice-live-agent-console" data-takeover="${state.hasTakeover ? "true" : "false"}" style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:center;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${escapeHtml(title)}</strong>
@@ -45,20 +62,4 @@ export const renderVoiceLiveAgentConsoleHTML = (
   <div style="display:flex;gap:10px;margin-bottom:12px;">${button}</div>
   <ol style="display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;max-height:260px;overflow-y:auto;padding:0;">${items}</ol>
 </section>`;
-};
-
-export const createVoiceLiveAgentConsole = (
-  options: CreateVoiceLiveAgentConsoleSvelteOptions,
-) => {
-  const console = createCoreConsole(options);
-  return {
-    ...console,
-    getHTML: () =>
-      renderVoiceLiveAgentConsoleHTML(console.getState(), {
-        takeoverButtonLabel: options.takeoverButtonLabel,
-        title: options.title,
-      }),
-    takeoverButtonLabel: options.takeoverButtonLabel ?? "Take over",
-    title: options.title ?? "Live agent console",
-  };
 };

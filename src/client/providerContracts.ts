@@ -13,20 +13,6 @@ export type VoiceProviderContractsSnapshot<TProvider extends string = string> =
     updatedAt?: number;
   };
 
-export const fetchVoiceProviderContracts = async <
-  TProvider extends string = string,
->(
-  path = "/api/provider-contracts",
-  options: Pick<VoiceProviderContractsClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice provider contracts failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceProviderContractMatrixReport<TProvider>;
-};
-
 export const createVoiceProviderContractsStore = <
   TProvider extends string = string,
 >(
@@ -63,6 +49,7 @@ export const createVoiceProviderContractsStore = <
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -91,14 +78,29 @@ export const createVoiceProviderContractsStore = <
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceProviderContracts = async <
+  TProvider extends string = string,
+>(
+  path = "/api/provider-contracts",
+  options: Pick<VoiceProviderContractsClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice provider contracts failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceProviderContractMatrixReport<TProvider>;
 };

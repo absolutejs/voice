@@ -412,10 +412,12 @@ const scoreSpeakerTurns = (
         String(previous.speaker) === String(turn.speaker)
       ) {
         previous.text = `${previous.text} ${turn.text}`.trim();
+
         return merged;
       }
 
       merged.push({ ...turn });
+
       return merged;
     },
     [],
@@ -426,8 +428,8 @@ const scoreSpeakerTurns = (
   const available = scoredTurns.every((turn) => turn.speaker !== undefined);
   if (!available) {
     return {
-      available: false,
       actualTurnCount: scoredTurns.length,
+      available: false,
       expectedTurnCount: expectedTurns.length,
       passes: false,
       patternMatchRate: 0,
@@ -455,8 +457,8 @@ const scoreSpeakerTurns = (
   const patternMatchRate = roundMetric(matches / maxLength) ?? 0;
 
   return {
-    available: true,
     actualTurnCount: scoredTurns.length,
+    available: true,
     expectedTurnCount: expectedTurns.length,
     passes:
       scoredTurns.length === expectedTurns.length && patternMatchRate === 1,
@@ -484,6 +486,7 @@ const roundMetric = (value: number | undefined, digits = 4) => {
   }
 
   const factor = 10 ** digits;
+
   return Math.round(value * factor) / factor;
 };
 
@@ -601,6 +604,192 @@ const toFixtureBenchmarkResult = (
   };
 };
 
+export const compareSTTBenchmarks = (
+  reports: VoiceSTTBenchmarkReport[],
+): VoiceSTTBenchmarkComparison => {
+  const entries = reports.map((report) => ({
+    adapterId: report.adapterId,
+    summary: report.summary,
+  }));
+
+  const bestByMetric = (
+    selectMetric: (entry: VoiceSTTBenchmarkComparisonEntry) => number,
+    direction: "max" | "min",
+  ) =>
+    entries.reduce<VoiceSTTBenchmarkComparisonEntry | undefined>(
+      (best, entry) => {
+        if (!best) {
+          return entry;
+        }
+
+        const next = selectMetric(entry);
+        const current = selectMetric(best);
+        if (direction === "max" ? next > current : next < current) {
+          return entry;
+        }
+
+        return best;
+      },
+      undefined,
+    );
+
+  return {
+    bestByPassRate: bestByMetric((entry) => entry.summary.passRate, "max"),
+    bestByTermRecall: bestByMetric(
+      (entry) => entry.summary.averageTermRecall,
+      "max",
+    ),
+    bestByWordErrorRate: bestByMetric(
+      (entry) => entry.summary.averageWordErrorRate,
+      "min",
+    ),
+    entries,
+  };
+};
+export const evaluateSTTBenchmarkAcceptance = (
+  report: VoiceSTTBenchmarkReport,
+  thresholds: VoiceSTTBenchmarkAcceptanceThresholds = {},
+): VoiceSTTBenchmarkAcceptanceResult => {
+  const failures: string[] = [];
+  const details = thresholds;
+
+  const {overallPassRate} = details;
+  if (
+    overallPassRate !== undefined &&
+    report.summary.passRate < overallPassRate
+  ) {
+    failures.push(
+      `overall passRate ${(report.summary.passRate * 100).toFixed(2)}% below ${(overallPassRate * 100).toFixed(2)}%`,
+    );
+  }
+
+  const minTermRecall = details.termRecall;
+  if (
+    minTermRecall !== undefined &&
+    report.summary.averageTermRecall < minTermRecall
+  ) {
+    failures.push(
+      `overall term recall ${report.summary.averageTermRecall.toFixed(4)} below ${minTermRecall.toFixed(4)}`,
+    );
+  }
+
+  const minWordAccuracy = details.wordAccuracyRate;
+  if (
+    minWordAccuracy !== undefined &&
+    report.summary.wordAccuracyRate < minWordAccuracy
+  ) {
+    failures.push(
+      `overall word accuracy ${(report.summary.wordAccuracyRate * 100).toFixed(2)}% below ${(minWordAccuracy * 100).toFixed(2)}%`,
+    );
+  }
+
+  const groupThresholds = details.groupPassRate;
+  if (groupThresholds) {
+    for (const groupSummary of report.summary.groupSummaries) {
+      const threshold = groupThresholds[groupSummary.group];
+      if (!threshold) {
+        continue;
+      }
+
+      if (
+        threshold.passRate !== undefined &&
+        groupSummary.passRate < threshold.passRate
+      ) {
+        failures.push(
+          `${groupSummary.group} passRate ${(groupSummary.passRate * 100).toFixed(2)}% below ${(threshold.passRate * 100).toFixed(2)}%`,
+        );
+      }
+
+      if (
+        threshold.wordAccuracyRate !== undefined &&
+        groupSummary.wordAccuracyRate < threshold.wordAccuracyRate
+      ) {
+        failures.push(
+          `${groupSummary.group} wordAccuracy ${(groupSummary.wordAccuracyRate * 100).toFixed(2)}% below ${(threshold.wordAccuracyRate * 100).toFixed(2)}%`,
+        );
+      }
+    }
+  }
+
+  const score =
+    roundMetric(
+      report.summary.passRate * 0.45 +
+        report.summary.wordAccuracyRate * 0.35 +
+        report.summary.averageTermRecall * 0.2,
+      3,
+    ) ?? 0;
+
+  return {
+    adapterId: report.adapterId,
+    failures,
+    passed: failures.length === 0,
+    score,
+  };
+};
+export const runSTTAdapterBenchmark = async ({
+  adapter,
+  adapterId,
+  fixtures,
+  options = {},
+}: {
+  adapter: STTAdapter;
+  adapterId: string;
+  fixtures: VoiceTestFixture[];
+  options?: VoiceSTTBenchmarkOptions;
+}): Promise<VoiceSTTBenchmarkReport> => {
+  const results: VoiceSTTBenchmarkFixtureResult[] = [];
+
+  for (const fixture of fixtures) {
+    const startedAt = Date.now();
+    const fixtureResult = await runSTTAdapterFixture(adapter, fixture, {
+      ...options,
+      ...(options.fixtureOptions?.[fixture.id] ?? {}),
+    });
+
+    results.push(
+      toFixtureBenchmarkResult(fixture, fixtureResult, Date.now() - startedAt),
+    );
+  }
+
+  return {
+    adapterId,
+    fixtures: results,
+    generatedAt: Date.now(),
+    summary: summarizeSTTBenchmark(adapterId, results),
+  };
+};
+export const runSTTAdapterBenchmarkSeries = async ({
+  adapter,
+  adapterId,
+  fixtures,
+  options = {},
+  runs,
+}: {
+  adapter: STTAdapter;
+  adapterId: string;
+  fixtures: VoiceTestFixture[];
+  options?: VoiceSTTBenchmarkOptions;
+  runs: number;
+}): Promise<VoiceSTTBenchmarkSeriesReport> => {
+  const reports: VoiceSTTBenchmarkReport[] = [];
+  const runCount = Math.max(1, Math.floor(runs));
+
+  for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
+    reports.push(
+      await runSTTAdapterBenchmark({
+        adapter,
+        adapterId,
+        fixtures,
+        options,
+      }),
+    );
+  }
+
+  return summarizeSTTBenchmarkSeries({
+    adapterId,
+    reports,
+  });
+};
 export const summarizeSTTBenchmark = (
   adapterId: string,
   fixtures: VoiceSTTBenchmarkFixtureResult[],
@@ -683,164 +872,6 @@ export const summarizeSTTBenchmark = (
         : 0,
   };
 };
-
-export const evaluateSTTBenchmarkAcceptance = (
-  report: VoiceSTTBenchmarkReport,
-  thresholds: VoiceSTTBenchmarkAcceptanceThresholds = {},
-): VoiceSTTBenchmarkAcceptanceResult => {
-  const failures: string[] = [];
-  const details = thresholds;
-
-  const overallPassRate = details.overallPassRate;
-  if (
-    overallPassRate !== undefined &&
-    report.summary.passRate < overallPassRate
-  ) {
-    failures.push(
-      `overall passRate ${(report.summary.passRate * 100).toFixed(2)}% below ${(overallPassRate * 100).toFixed(2)}%`,
-    );
-  }
-
-  const minTermRecall = details.termRecall;
-  if (
-    minTermRecall !== undefined &&
-    report.summary.averageTermRecall < minTermRecall
-  ) {
-    failures.push(
-      `overall term recall ${report.summary.averageTermRecall.toFixed(4)} below ${minTermRecall.toFixed(4)}`,
-    );
-  }
-
-  const minWordAccuracy = details.wordAccuracyRate;
-  if (
-    minWordAccuracy !== undefined &&
-    report.summary.wordAccuracyRate < minWordAccuracy
-  ) {
-    failures.push(
-      `overall word accuracy ${(report.summary.wordAccuracyRate * 100).toFixed(2)}% below ${(minWordAccuracy * 100).toFixed(2)}%`,
-    );
-  }
-
-  const groupThresholds = details.groupPassRate;
-  if (groupThresholds) {
-    for (const groupSummary of report.summary.groupSummaries) {
-      const threshold = groupThresholds[groupSummary.group];
-      if (!threshold) {
-        continue;
-      }
-
-      if (
-        threshold.passRate !== undefined &&
-        groupSummary.passRate < threshold.passRate
-      ) {
-        failures.push(
-          `${groupSummary.group} passRate ${(groupSummary.passRate * 100).toFixed(2)}% below ${(threshold.passRate * 100).toFixed(2)}%`,
-        );
-      }
-
-      if (
-        threshold.wordAccuracyRate !== undefined &&
-        groupSummary.wordAccuracyRate < threshold.wordAccuracyRate
-      ) {
-        failures.push(
-          `${groupSummary.group} wordAccuracy ${(groupSummary.wordAccuracyRate * 100).toFixed(2)}% below ${(threshold.wordAccuracyRate * 100).toFixed(2)}%`,
-        );
-      }
-    }
-  }
-
-  const score =
-    roundMetric(
-      report.summary.passRate * 0.45 +
-        report.summary.wordAccuracyRate * 0.35 +
-        report.summary.averageTermRecall * 0.2,
-      3,
-    ) ?? 0;
-
-  return {
-    adapterId: report.adapterId,
-    failures,
-    passed: failures.length === 0,
-    score,
-  };
-};
-
-export const compareSTTBenchmarks = (
-  reports: VoiceSTTBenchmarkReport[],
-): VoiceSTTBenchmarkComparison => {
-  const entries = reports.map((report) => ({
-    adapterId: report.adapterId,
-    summary: report.summary,
-  }));
-
-  const bestByMetric = (
-    selectMetric: (entry: VoiceSTTBenchmarkComparisonEntry) => number,
-    direction: "max" | "min",
-  ) =>
-    entries.reduce<VoiceSTTBenchmarkComparisonEntry | undefined>(
-      (best, entry) => {
-        if (!best) {
-          return entry;
-        }
-
-        const next = selectMetric(entry);
-        const current = selectMetric(best);
-        if (direction === "max" ? next > current : next < current) {
-          return entry;
-        }
-
-        return best;
-      },
-      undefined,
-    );
-
-  return {
-    bestByPassRate: bestByMetric((entry) => entry.summary.passRate, "max"),
-    bestByTermRecall: bestByMetric(
-      (entry) => entry.summary.averageTermRecall,
-      "max",
-    ),
-    bestByWordErrorRate: bestByMetric(
-      (entry) => entry.summary.averageWordErrorRate,
-      "min",
-    ),
-    entries,
-  };
-};
-
-export const runSTTAdapterBenchmark = async ({
-  adapter,
-  adapterId,
-  fixtures,
-  options = {},
-}: {
-  adapter: STTAdapter;
-  adapterId: string;
-  fixtures: VoiceTestFixture[];
-  options?: VoiceSTTBenchmarkOptions;
-}): Promise<VoiceSTTBenchmarkReport> => {
-  const results: VoiceSTTBenchmarkFixtureResult[] = [];
-
-  for (const fixture of fixtures) {
-    const startedAt = Date.now();
-    const fixtureResult = await runSTTAdapterFixture(adapter, fixture, {
-      ...options,
-      ...(options.fixtureOptions?.[fixture.id] ?? {}),
-    });
-
-    results.push(
-      toFixtureBenchmarkResult(fixture, fixtureResult, Date.now() - startedAt),
-    );
-  }
-
-  return {
-    adapterId,
-    fixtures: results,
-    generatedAt: Date.now(),
-    summary: summarizeSTTBenchmark(adapterId, results),
-  };
-};
-
 export const summarizeSTTBenchmarkSeries = (input: {
   adapterId: string;
   reports: VoiceSTTBenchmarkReport[];
@@ -931,37 +962,4 @@ export const summarizeSTTBenchmarkSeries = (input: {
       totalRunCount,
     },
   };
-};
-
-export const runSTTAdapterBenchmarkSeries = async ({
-  adapter,
-  adapterId,
-  fixtures,
-  options = {},
-  runs,
-}: {
-  adapter: STTAdapter;
-  adapterId: string;
-  fixtures: VoiceTestFixture[];
-  options?: VoiceSTTBenchmarkOptions;
-  runs: number;
-}): Promise<VoiceSTTBenchmarkSeriesReport> => {
-  const reports: VoiceSTTBenchmarkReport[] = [];
-  const runCount = Math.max(1, Math.floor(runs));
-
-  for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
-    reports.push(
-      await runSTTAdapterBenchmark({
-        adapter,
-        adapterId,
-        fixtures,
-        options,
-      }),
-    );
-  }
-
-  return summarizeSTTBenchmarkSeries({
-    adapterId,
-    reports,
-  });
 };

@@ -67,6 +67,7 @@ const flattenContent = (result: MCPToolCallResult): string => {
   if (result.structuredContent !== undefined) {
     return JSON.stringify(result.structuredContent);
   }
+
   return "";
 };
 
@@ -132,6 +133,7 @@ export const createVoiceMCPToolset = async <
               ? { structuredContent: raw.structuredContent }
               : {}),
           };
+
           return result;
         },
         name: exposedName,

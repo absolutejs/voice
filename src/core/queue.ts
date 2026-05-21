@@ -546,6 +546,7 @@ const shouldDeadLetterSinkEvent = (
   maxFailures > 0 &&
   sinks.some((sink) => {
     const delivery = event.sinkDeliveries?.[sink.id];
+
     return delivery?.status === "failed" && delivery.attempts >= maxFailures;
   });
 
@@ -583,415 +584,26 @@ const shouldDeadLetterHandoffDelivery = (
   maxFailures > 0 &&
   (delivery.deliveryAttempts ?? 0) >= maxFailures;
 
-export const summarizeVoiceIntegrationEvents = <
-  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
->(
-  events: TEvent[],
-  input: {
-    deadLetters?: VoiceIntegrationEventStore<TEvent>;
-  } = {},
-):
-  | Promise<VoiceIntegrationEventQueueSummary>
-  | VoiceIntegrationEventQueueSummary => {
-  const buildSummary = async () => {
-    const deadLetterIds = new Set(
-      input.deadLetters
-        ? (await input.deadLetters.list()).map((event) => event.id)
-        : [],
-    );
-    const byType = new Map<TEvent["type"], number>();
-    const summary: VoiceIntegrationEventQueueSummary = {
-      byType: [],
-      deadLettered: 0,
-      delivered: 0,
-      failed: 0,
-      pending: 0,
-      retryEligible: 0,
-      skipped: 0,
-      total: events.length,
-    };
-
-    for (const event of events) {
-      byType.set(event.type, (byType.get(event.type) ?? 0) + 1);
-      if (deadLetterIds.has(event.id)) {
-        summary.deadLettered += 1;
-      }
-
-      switch (event.deliveryStatus) {
-        case "delivered":
-          summary.delivered += 1;
-          break;
-        case "failed":
-          summary.failed += 1;
-          if ((event.deliveryAttempts ?? 0) > 0) {
-            summary.retryEligible += 1;
-          }
-          break;
-        case "skipped":
-          summary.skipped += 1;
-          break;
-        case "pending":
-        case undefined:
-          summary.pending += 1;
-          break;
-      }
-    }
-
-    summary.byType = [...byType.entries()].sort(
-      (left, right) => right[1] - left[1],
-    );
-    return summary;
-  };
-
-  return buildSummary();
-};
-
-export const summarizeVoiceTraceSinkDeliveries = <
-  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
->(
-  deliveries: TDelivery[],
-  input: {
-    deadLetters?: VoiceTraceSinkDeliveryStore<TDelivery>;
-  } = {},
-):
-  | Promise<VoiceTraceSinkDeliveryQueueSummary>
-  | VoiceTraceSinkDeliveryQueueSummary => {
-  const buildSummary = async () => {
-    const deadLetterIds = new Set(
-      input.deadLetters
-        ? (await input.deadLetters.list()).map((delivery) => delivery.id)
-        : [],
-    );
-    const summary: VoiceTraceSinkDeliveryQueueSummary = {
-      deadLettered: 0,
-      delivered: 0,
-      failed: 0,
-      pending: 0,
-      retryEligible: 0,
-      skipped: 0,
-      total: deliveries.length,
-    };
-
-    for (const delivery of deliveries) {
-      if (deadLetterIds.has(delivery.id)) {
-        summary.deadLettered += 1;
-      }
-
-      switch (delivery.deliveryStatus) {
-        case "delivered":
-          summary.delivered += 1;
-          break;
-        case "failed":
-          summary.failed += 1;
-          if ((delivery.deliveryAttempts ?? 0) > 0) {
-            summary.retryEligible += 1;
-          }
-          break;
-        case "skipped":
-          summary.skipped += 1;
-          break;
-        case "pending":
-          summary.pending += 1;
-          break;
-      }
-    }
-
-    return summary;
-  };
-
-  return buildSummary();
-};
-
-export const summarizeVoiceHandoffDeliveries = <
-  TDelivery extends StoredVoiceHandoffDelivery = StoredVoiceHandoffDelivery,
->(
-  deliveries: TDelivery[],
-  input: {
-    deadLetters?: VoiceHandoffDeliveryStore<TDelivery>;
-  } = {},
-):
-  | Promise<VoiceHandoffDeliveryQueueSummary>
-  | VoiceHandoffDeliveryQueueSummary => {
-  const buildSummary = async () => {
-    const deadLetterIds = new Set(
-      input.deadLetters
-        ? (await input.deadLetters.list()).map((delivery) => delivery.id)
-        : [],
-    );
-    const byAction = new Map<TDelivery["action"], number>();
-    const summary: VoiceHandoffDeliveryQueueSummary = {
-      byAction: [],
-      deadLettered: 0,
-      delivered: 0,
-      failed: 0,
-      pending: 0,
-      retryEligible: 0,
-      skipped: 0,
-      total: deliveries.length,
-    };
-
-    for (const delivery of deliveries) {
-      byAction.set(delivery.action, (byAction.get(delivery.action) ?? 0) + 1);
-      if (deadLetterIds.has(delivery.id)) {
-        summary.deadLettered += 1;
-      }
-
-      switch (delivery.deliveryStatus) {
-        case "delivered":
-          summary.delivered += 1;
-          break;
-        case "failed":
-          summary.failed += 1;
-          if ((delivery.deliveryAttempts ?? 0) > 0) {
-            summary.retryEligible += 1;
-          }
-          break;
-        case "skipped":
-          summary.skipped += 1;
-          break;
-        case "pending":
-          summary.pending += 1;
-          break;
-      }
-    }
-
-    summary.byAction = [...byAction.entries()].sort(
-      (left, right) => right[1] - left[1],
-    );
-    return summary;
-  };
-
-  return buildSummary();
-};
-
-export const summarizeVoiceOpsTaskQueue = <
-  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
->(
-  tasks: TTask[],
-  input: {
-    deadLetters?: VoiceOpsTaskStore<TTask>;
-  } = {},
-): Promise<VoiceOpsTaskQueueSummary> | VoiceOpsTaskQueueSummary => {
-  const buildSummary = async () => {
-    const deadLetterIds = new Set(
-      input.deadLetters
-        ? (await input.deadLetters.list()).map((task) => task.id)
-        : [],
-    );
-    const byAssignee = new Map<string, number>();
-    const byClaimedBy = new Map<string, number>();
-    const byKind = new Map<VoiceOpsTaskKind, number>();
-    const byPriority = new Map<VoiceOpsTaskPriority, number>();
-    const byStatus = new Map<VoiceOpsTaskStatus, number>();
-    const summary: VoiceOpsTaskQueueSummary = {
-      byAssignee: [],
-      byClaimedBy: [],
-      claimed: 0,
-      deadLettered: 0,
-      byKind: [],
-      byPriority: [],
-      byStatus: [],
-      failed: 0,
-      inProgress: 0,
-      open: 0,
-      overdue: 0,
-      retryEligible: 0,
-      total: tasks.length,
-      unclaimed: 0,
-    };
-
-    for (const task of tasks) {
-      byKind.set(task.kind, (byKind.get(task.kind) ?? 0) + 1);
-      byStatus.set(task.status, (byStatus.get(task.status) ?? 0) + 1);
-
-      if (deadLetterIds.has(task.id) || task.deadLetteredAt) {
-        summary.deadLettered += 1;
-      }
-
-      if (
-        task.claimedBy &&
-        (!task.claimExpiresAt || task.claimExpiresAt > Date.now())
-      ) {
-        summary.claimed += 1;
-        byClaimedBy.set(
-          task.claimedBy,
-          (byClaimedBy.get(task.claimedBy) ?? 0) + 1,
-        );
-      } else {
-        summary.unclaimed += 1;
-      }
-
-      if (task.processingAttempts && task.processingAttempts > 0) {
-        summary.retryEligible += 1;
-      }
-
-      if (task.processingError) {
-        summary.failed += 1;
-      }
-
-      if (task.assignee) {
-        byAssignee.set(task.assignee, (byAssignee.get(task.assignee) ?? 0) + 1);
-      }
-
-      if (task.priority) {
-        byPriority.set(task.priority, (byPriority.get(task.priority) ?? 0) + 1);
-      }
-
-      if (isVoiceOpsTaskOverdue(task)) {
-        summary.overdue += 1;
-      }
-
-      if (task.status === "open") {
-        summary.open += 1;
-      } else if (task.status === "in-progress") {
-        summary.inProgress += 1;
-      }
-    }
-
-    summary.byKind = [...byKind.entries()].sort(
-      (left, right) => right[1] - left[1],
-    );
-    summary.byAssignee = [...byAssignee.entries()].sort(
-      (left, right) => right[1] - left[1],
-    );
-    summary.byClaimedBy = [...byClaimedBy.entries()].sort(
-      (left, right) => right[1] - left[1],
-    );
-    summary.byPriority = [...byPriority.entries()].sort(
-      (left, right) => right[1] - left[1],
-    );
-    summary.byStatus = [...byStatus.entries()].sort(
-      (left, right) => right[1] - left[1],
-    );
-    return summary;
-  };
-
-  return buildSummary();
-};
-
-export const createVoiceRedisTaskLeaseCoordinator = (
-  options: VoiceRedisTaskLeaseCoordinatorOptions = {},
-): VoiceRedisTaskLeaseCoordinator => {
-  const client = options.client ?? new Bun.RedisClient(options.url);
-  const keyPrefix = options.keyPrefix?.trim() || "voice:task-lease";
-
-  return {
-    claim: async ({ leaseMs, taskId, workerId }) => {
-      const key = getLeaseKey(keyPrefix, taskId);
-      const result = await client.set(
-        key,
-        workerId,
-        "PX",
-        String(Math.max(1, leaseMs)),
-        "NX",
-      );
-      return result === "OK";
-    },
-    get: async (taskId) => {
-      const key = getLeaseKey(keyPrefix, taskId);
-      const [workerId, ttlMs] = await Promise.all([
-        client.get(key),
-        client.send("PTTL", [key]).then((value) => Number(value)),
-      ]);
-      return parseLeaseValue(taskId, workerId, ttlMs);
-    },
-    release: async ({ taskId, workerId }) => {
-      const key = getLeaseKey(keyPrefix, taskId);
-      const released = await client.send("EVAL", [
-        releaseLeaseScript,
-        "1",
-        key,
-        workerId,
-      ]);
-      return Number(released) > 0;
-    },
-    renew: async ({ leaseMs, taskId, workerId }) => {
-      const key = getLeaseKey(keyPrefix, taskId);
-      const renewed = await client.send("EVAL", [
-        renewLeaseScript,
-        "1",
-        key,
-        workerId,
-        String(Math.max(1, leaseMs)),
-      ]);
-      return Number(renewed) > 0;
-    },
-  };
-};
-
-export const createVoiceRedisIdempotencyStore = (
-  options: VoiceRedisIdempotencyStoreOptions = {},
-): VoiceIdempotencyStore => {
-  const client = options.client ?? new Bun.RedisClient(options.url);
-  const keyPrefix = options.keyPrefix?.trim() || "voice:idempotency";
-  const defaultTtlSeconds = options.ttlSeconds;
-
-  return {
-    has: async (key) =>
-      Boolean(await client.exists(getIdempotencyKey(keyPrefix, key))),
-    remove: async (key) => {
-      await client.del(getIdempotencyKey(keyPrefix, key));
-    },
-    set: async (key, input = {}) => {
-      const ttlSeconds = input.ttlSeconds ?? defaultTtlSeconds;
-      const redisKey = getIdempotencyKey(keyPrefix, key);
-      if (typeof ttlSeconds === "number" && ttlSeconds > 0) {
-        await client.set(redisKey, "1", "EX", String(Math.ceil(ttlSeconds)));
-        return;
-      }
-
-      await client.set(redisKey, "1");
-    },
-  };
-};
-
-export const createVoiceRedisTelephonyWebhookIdempotencyStore = <
+export const createVoiceHandoffDeliveryWorker = <
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TResult = unknown,
+  TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> =
+    StoredVoiceHandoffDelivery<TContext, TSession, TResult>,
 >(
-  options: VoiceRedisTelephonyWebhookIdempotencyStoreOptions = {},
-): VoiceTelephonyWebhookIdempotencyStore<TResult> => {
-  const client = options.client ?? new Bun.RedisClient(options.url);
-  const keyPrefix = options.keyPrefix?.trim() || "voice:telephony-webhook";
-  const defaultTtlSeconds = options.ttlSeconds;
-
-  return {
-    get: async (key) => {
-      const value = await client.get(
-        getTelephonyWebhookIdempotencyKey(keyPrefix, key),
-      );
-      return value
-        ? (JSON.parse(value) as StoredVoiceTelephonyWebhookDecision<TResult>)
-        : undefined;
-    },
-    set: async (key, decision) => {
-      const redisKey = getTelephonyWebhookIdempotencyKey(keyPrefix, key);
-      const value = JSON.stringify(decision);
-      if (typeof defaultTtlSeconds === "number" && defaultTtlSeconds > 0) {
-        await client.set(
-          redisKey,
-          value,
-          "EX",
-          String(Math.ceil(defaultTtlSeconds)),
-        );
-        return;
-      }
-
-      await client.set(redisKey, value);
-    },
-  };
-};
-
-export const createVoiceWebhookDeliveryWorker = <
-  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
->(
-  options: VoiceWebhookDeliveryWorkerOptions<TEvent>,
+  options: VoiceHandoffDeliveryWorkerOptions<
+    TContext,
+    TSession,
+    TResult,
+    TDelivery
+  >,
 ) => {
   const allowedStatuses = options.statuses ?? ["pending", "failed"];
   const leaseMs = Math.max(1, options.leaseMs ?? 30_000);
 
   return {
-    drain: async (): Promise<VoiceWebhookDeliveryWorkerResult> => {
-      const result: VoiceWebhookDeliveryWorkerResult = {
+    drain: async (): Promise<VoiceHandoffDeliveryWorkerResult> => {
+      const result: VoiceHandoffDeliveryWorkerResult = {
         alreadyProcessed: 0,
         attempted: 0,
         deadLettered: 0,
@@ -999,18 +611,30 @@ export const createVoiceWebhookDeliveryWorker = <
         failed: 0,
         skipped: 0,
       };
-      const events = [...(await options.events.list())].sort(
+      const deliveries = [...(await options.deliveries.list())].sort(
         (left, right) => left.createdAt - right.createdAt,
       );
 
-      for (const event of events) {
-        if (!shouldProcessEventStatus(event.deliveryStatus, allowedStatuses)) {
+      for (const delivery of deliveries) {
+        if (
+          !shouldProcessHandoffDeliveryStatus(
+            delivery.deliveryStatus,
+            allowedStatuses,
+          )
+        ) {
+          continue;
+        }
+
+        if (shouldDeadLetterHandoffDelivery(delivery, options.maxFailures)) {
+          await options.deadLetters?.set(delivery.id, delivery);
+          await options.onDeadLetter?.(delivery);
+          result.deadLettered += 1;
           continue;
         }
 
         const claimed = await options.leases.claim({
           leaseMs,
-          taskId: event.id,
+          taskId: delivery.id,
           workerId: options.workerId,
         });
         if (!claimed) {
@@ -1018,45 +642,56 @@ export const createVoiceWebhookDeliveryWorker = <
         }
 
         try {
+          const idempotencyKey = `${delivery.id}:handoff`;
           if (
             options.idempotency &&
-            (await options.idempotency.has(event.id))
+            (await options.idempotency.has(idempotencyKey))
           ) {
             result.alreadyProcessed += 1;
             continue;
           }
 
           result.attempted += 1;
-          const updatedEvent = (await deliverVoiceIntegrationEvent({
-            event,
-            webhook: options.webhook,
-          })) as TEvent;
-          await options.events.set(updatedEvent.id, updatedEvent);
+          const updatedDelivery = (await deliverVoiceHandoffDelivery({
+            adapters: options.adapters,
+            api: options.api,
+            delivery,
+            failMode: options.failMode,
+          })) as TDelivery;
+          await options.deliveries.set(updatedDelivery.id, updatedDelivery);
 
           if (
-            updatedEvent.deliveryStatus === "delivered" ||
-            updatedEvent.deliveryStatus === "skipped"
+            updatedDelivery.deliveryStatus === "delivered" ||
+            updatedDelivery.deliveryStatus === "skipped"
           ) {
-            await options.idempotency?.set(updatedEvent.id, {
+            await options.idempotency?.set(idempotencyKey, {
               ttlSeconds: options.idempotencyTtlSeconds,
             });
           }
 
-          if (updatedEvent.deliveryStatus === "delivered") {
+          if (updatedDelivery.deliveryStatus === "delivered") {
             result.delivered += 1;
-          } else if (updatedEvent.deliveryStatus === "failed") {
+          } else if (updatedDelivery.deliveryStatus === "skipped") {
+            result.skipped += 1;
+          } else if (updatedDelivery.deliveryStatus === "failed") {
             result.failed += 1;
-            if (shouldDeadLetterEvent(updatedEvent, options.maxFailures)) {
-              await options.deadLetters?.set(updatedEvent.id, updatedEvent);
-              await options.onDeadLetter?.(updatedEvent);
+            if (
+              shouldDeadLetterHandoffDelivery(
+                updatedDelivery,
+                options.maxFailures,
+              )
+            ) {
+              await options.deadLetters?.set(
+                updatedDelivery.id,
+                updatedDelivery,
+              );
+              await options.onDeadLetter?.(updatedDelivery);
               result.deadLettered += 1;
             }
-          } else if (updatedEvent.deliveryStatus === "skipped") {
-            result.skipped += 1;
           }
         } finally {
           await options.leases.release({
-            taskId: event.id,
+            taskId: delivery.id,
             workerId: options.workerId,
           });
         }
@@ -1066,12 +701,20 @@ export const createVoiceWebhookDeliveryWorker = <
     },
   };
 };
-
-export const createVoiceWebhookDeliveryWorkerLoop = <
-  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
+export const createVoiceHandoffDeliveryWorkerLoop = <
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
+  TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> =
+    StoredVoiceHandoffDelivery<TContext, TSession, TResult>,
 >(
-  options: VoiceWebhookDeliveryWorkerLoopOptions<TEvent>,
-): VoiceWebhookDeliveryWorkerLoop => {
+  options: VoiceHandoffDeliveryWorkerLoopOptions<
+    TContext,
+    TSession,
+    TResult,
+    TDelivery
+  >,
+): VoiceHandoffDeliveryWorkerLoop => {
   const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
   let timer: ReturnType<typeof setInterval> | undefined;
   let running = false;
@@ -1079,6 +722,7 @@ export const createVoiceWebhookDeliveryWorkerLoop = <
   const tick = async () => options.worker.drain();
 
   return {
+    tick,
     isRunning: () => running,
     start: () => {
       if (timer) {
@@ -1099,10 +743,8 @@ export const createVoiceWebhookDeliveryWorkerLoop = <
       }
       running = false;
     },
-    tick,
   };
 };
-
 export const createVoiceIntegrationSinkWorker = <
   TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 >(
@@ -1135,8 +777,8 @@ export const createVoiceIntegrationSinkWorker = <
           if (
             shouldDeadLetterSinkEvent(event, options.sinks, options.maxFailures)
           ) {
-            await options.deadLetters?.set(event.id, event as TEvent);
-            await options.onDeadLetter?.(event as TEvent);
+            await options.deadLetters?.set(event.id, event);
+            await options.onDeadLetter?.(event);
             result.deadLettered += 1;
           }
           continue;
@@ -1208,7 +850,6 @@ export const createVoiceIntegrationSinkWorker = <
     },
   };
 };
-
 export const createVoiceIntegrationSinkWorkerLoop = <
   TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 >(
@@ -1221,6 +862,7 @@ export const createVoiceIntegrationSinkWorkerLoop = <
   const tick = async () => options.worker.drain();
 
   return {
+    tick,
     isRunning: () => running,
     start: () => {
       if (timer) {
@@ -1241,10 +883,386 @@ export const createVoiceIntegrationSinkWorkerLoop = <
       }
       running = false;
     },
-    tick,
   };
 };
+export const createVoiceOpsTaskProcessorWorker = <
+  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
+>(
+  options: VoiceOpsTaskProcessorWorkerOptions<TTask>,
+) => ({
+  drain: async (): Promise<VoiceOpsTaskProcessorWorkerResult> => {
+    const result: VoiceOpsTaskProcessorWorkerResult = {
+      attempted: 0,
+      completed: 0,
+      deadLettered: 0,
+      failed: 0,
+      idle: 0,
+      requeued: 0,
+    };
+    const processedTaskIds = new Set<string>();
 
+    for (;;) {
+      const task = await options.worker.claimNext({
+        ...options.filters,
+        excludeTaskIds: [
+          ...(options.filters?.excludeTaskIds ?? []),
+          ...processedTaskIds,
+        ],
+      });
+      if (!task) {
+        result.idle += 1;
+
+        return result;
+      }
+
+      result.attempted += 1;
+      processedTaskIds.add(task.id);
+
+      try {
+        const handlerResult = await options.process(task);
+        const action =
+          typeof handlerResult === "string"
+            ? handlerResult
+            : (handlerResult?.action ?? "complete");
+        const detail =
+          typeof handlerResult === "object" && handlerResult
+            ? handlerResult.detail
+            : undefined;
+
+        if (action === "requeue") {
+          await options.worker.requeue(task.id, {
+            detail,
+          });
+          result.requeued += 1;
+          continue;
+        }
+
+        await options.worker.complete(task.id, {
+          detail,
+        });
+        result.completed += 1;
+      } catch (error) {
+        await options.onError?.(error, task);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const failedTask = failVoiceOpsTask(task, {
+          actor: task.claimedBy ?? "ops-worker",
+          error: errorMessage,
+        }) as TTask;
+
+        if (shouldDeadLetterTask(failedTask, options.maxFailures)) {
+          const deadLetterTask = deadLetterVoiceOpsTask(failedTask, {
+            actor: task.claimedBy ?? "ops-worker",
+            detail:
+              failedTask.processingError ?? "Task moved to dead-letter queue",
+          }) as TTask;
+          await options.tasks.set(deadLetterTask.id, deadLetterTask);
+          await options.deadLetters?.set(deadLetterTask.id, deadLetterTask);
+          await options.worker.release(task.id);
+          await options.onDeadLetter?.(deadLetterTask);
+          result.deadLettered += 1;
+          continue;
+        }
+
+        const requeuedTask = requeueVoiceOpsTask(failedTask, {
+          actor: task.claimedBy ?? "ops-worker",
+          detail:
+            failedTask.processingError ??
+            "Task requeued after processing failure",
+        }) as TTask;
+        await options.tasks.set(requeuedTask.id, requeuedTask);
+        await options.worker.release(task.id);
+        result.failed += 1;
+      }
+    }
+  },
+});
+export const createVoiceOpsTaskProcessorWorkerLoop = <
+  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
+>(
+  options: VoiceOpsTaskProcessorWorkerLoopOptions<TTask>,
+): VoiceOpsTaskProcessorWorkerLoop => {
+  const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let running = false;
+
+  const tick = async () => options.worker.drain();
+
+  return {
+    tick,
+    isRunning: () => running,
+    start: () => {
+      if (timer) {
+        return;
+      }
+
+      running = true;
+      timer = setInterval(() => {
+        void tick().catch((error) => {
+          void options.onError?.(error);
+        });
+      }, pollIntervalMs);
+    },
+    stop: () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+      running = false;
+    },
+  };
+};
+export const createVoiceOpsTaskWorker = <
+  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
+>(
+  options: VoiceOpsTaskWorkerOptions<TTask>,
+): VoiceOpsTaskWorker<TTask> => {
+  const leaseMs = Math.max(1, options.leaseMs ?? 30_000);
+
+  const getTask = async (taskId: string) => {
+    const task = await options.tasks.get(taskId);
+    if (!task) {
+      throw new Error(`Task ${taskId} was not found.`);
+    }
+
+    return task;
+  };
+
+  const ensureOwnedByWorker = (task: StoredVoiceOpsTask) => {
+    if (task.claimedBy && task.claimedBy !== options.workerId) {
+      throw new Error(
+        `Task ${task.id} is claimed by ${task.claimedBy}, not ${options.workerId}.`,
+      );
+    }
+  };
+
+  return {
+    assign: async (taskId, assignee, input = {}) => {
+      const task = await getTask(taskId);
+      const updatedTask = assignVoiceOpsTask(task, assignee, input) as TTask;
+      await options.tasks.set(updatedTask.id, updatedTask);
+
+      return updatedTask;
+    },
+    claimNext: async (filters = {}) => {
+      const now = Date.now();
+      const tasks = listVoiceOpsTasks(await options.tasks.list())
+        .filter((task) => task.status !== "done")
+        .filter((task) => !task.deadLetteredAt)
+        .filter((task) =>
+          filters.assignee ? task.assignee === filters.assignee : true,
+        )
+        .filter((task) =>
+          filters.kinds?.length ? filters.kinds.includes(task.kind) : true,
+        )
+        .filter((task) =>
+          filters.excludeTaskIds?.length
+            ? !filters.excludeTaskIds.includes(task.id)
+            : true,
+        )
+        .sort((left, right) => left.createdAt - right.createdAt);
+
+      for (const task of tasks) {
+        if (
+          task.claimedBy &&
+          task.claimExpiresAt &&
+          task.claimExpiresAt > now &&
+          task.claimedBy !== options.workerId
+        ) {
+          continue;
+        }
+
+        const claimed = await options.leases.claim({
+          leaseMs,
+          taskId: task.id,
+          workerId: options.workerId,
+        });
+        if (!claimed) {
+          continue;
+        }
+
+        const currentTask = await getTask(task.id);
+        const updatedTask = claimVoiceOpsTask(currentTask, options.workerId, {
+          at: now,
+          leaseMs,
+        }) as TTask;
+        await options.tasks.set(updatedTask.id, updatedTask);
+
+        return updatedTask;
+      }
+
+      return null;
+    },
+    complete: async (taskId, input = {}) => {
+      const task = await getTask(taskId);
+      ensureOwnedByWorker(task);
+      const updatedTask = completeVoiceOpsTask(task, input) as TTask;
+      await options.tasks.set(updatedTask.id, updatedTask);
+      await options.leases.release({
+        taskId,
+        workerId: options.workerId,
+      });
+
+      return updatedTask;
+    },
+    heartbeat: async (taskId, input = {}) => {
+      const activeLeaseMs = Math.max(1, input.leaseMs ?? leaseMs);
+      const renewed = await options.leases.renew({
+        leaseMs: activeLeaseMs,
+        taskId,
+        workerId: options.workerId,
+      });
+      if (!renewed) {
+        throw new Error(
+          `Task ${taskId} lease could not be renewed for worker ${options.workerId}.`,
+        );
+      }
+
+      const task = await getTask(taskId);
+      ensureOwnedByWorker(task);
+      const updatedTask = heartbeatVoiceOpsTask(task, options.workerId, {
+        ...input,
+        leaseMs: activeLeaseMs,
+      }) as TTask;
+      await options.tasks.set(updatedTask.id, updatedTask);
+
+      return updatedTask;
+    },
+    release: async (taskId) =>
+      options.leases.release({
+        taskId,
+        workerId: options.workerId,
+      }),
+    requeue: async (taskId, input = {}) => {
+      const task = await getTask(taskId);
+      ensureOwnedByWorker(task);
+      const updatedTask = requeueVoiceOpsTask(task, input) as TTask;
+      await options.tasks.set(updatedTask.id, updatedTask);
+      await options.leases.release({
+        taskId,
+        workerId: options.workerId,
+      });
+
+      return updatedTask;
+    },
+  };
+};
+export const createVoiceRedisIdempotencyStore = (
+  options: VoiceRedisIdempotencyStoreOptions = {},
+): VoiceIdempotencyStore => {
+  const client = options.client ?? new Bun.RedisClient(options.url);
+  const keyPrefix = options.keyPrefix?.trim() || "voice:idempotency";
+  const defaultTtlSeconds = options.ttlSeconds;
+
+  return {
+    has: async (key) =>
+      Boolean(await client.exists(getIdempotencyKey(keyPrefix, key))),
+    remove: async (key) => {
+      await client.del(getIdempotencyKey(keyPrefix, key));
+    },
+    set: async (key, input = {}) => {
+      const ttlSeconds = input.ttlSeconds ?? defaultTtlSeconds;
+      const redisKey = getIdempotencyKey(keyPrefix, key);
+      if (typeof ttlSeconds === "number" && ttlSeconds > 0) {
+        await client.set(redisKey, "1", "EX", String(Math.ceil(ttlSeconds)));
+
+        return;
+      }
+
+      await client.set(redisKey, "1");
+    },
+  };
+};
+export const createVoiceRedisTaskLeaseCoordinator = (
+  options: VoiceRedisTaskLeaseCoordinatorOptions = {},
+): VoiceRedisTaskLeaseCoordinator => {
+  const client = options.client ?? new Bun.RedisClient(options.url);
+  const keyPrefix = options.keyPrefix?.trim() || "voice:task-lease";
+
+  return {
+    claim: async ({ leaseMs, taskId, workerId }) => {
+      const key = getLeaseKey(keyPrefix, taskId);
+      const result = await client.set(
+        key,
+        workerId,
+        "PX",
+        String(Math.max(1, leaseMs)),
+        "NX",
+      );
+
+      return result === "OK";
+    },
+    get: async (taskId) => {
+      const key = getLeaseKey(keyPrefix, taskId);
+      const [workerId, ttlMs] = await Promise.all([
+        client.get(key),
+        client.send("PTTL", [key]).then((value) => Number(value)),
+      ]);
+
+      return parseLeaseValue(taskId, workerId, ttlMs);
+    },
+    release: async ({ taskId, workerId }) => {
+      const key = getLeaseKey(keyPrefix, taskId);
+      const released = await client.send("EVAL", [
+        releaseLeaseScript,
+        "1",
+        key,
+        workerId,
+      ]);
+
+      return Number(released) > 0;
+    },
+    renew: async ({ leaseMs, taskId, workerId }) => {
+      const key = getLeaseKey(keyPrefix, taskId);
+      const renewed = await client.send("EVAL", [
+        renewLeaseScript,
+        "1",
+        key,
+        workerId,
+        String(Math.max(1, leaseMs)),
+      ]);
+
+      return Number(renewed) > 0;
+    },
+  };
+};
+export const createVoiceRedisTelephonyWebhookIdempotencyStore = <
+  TResult = unknown,
+>(
+  options: VoiceRedisTelephonyWebhookIdempotencyStoreOptions = {},
+): VoiceTelephonyWebhookIdempotencyStore<TResult> => {
+  const client = options.client ?? new Bun.RedisClient(options.url);
+  const keyPrefix = options.keyPrefix?.trim() || "voice:telephony-webhook";
+  const defaultTtlSeconds = options.ttlSeconds;
+
+  return {
+    get: async (key) => {
+      const value = await client.get(
+        getTelephonyWebhookIdempotencyKey(keyPrefix, key),
+      );
+
+      return value
+        ? (JSON.parse(value) as StoredVoiceTelephonyWebhookDecision<TResult>)
+        : undefined;
+    },
+    set: async (key, decision) => {
+      const redisKey = getTelephonyWebhookIdempotencyKey(keyPrefix, key);
+      const value = JSON.stringify(decision);
+      if (typeof defaultTtlSeconds === "number" && defaultTtlSeconds > 0) {
+        await client.set(
+          redisKey,
+          value,
+          "EX",
+          String(Math.ceil(defaultTtlSeconds)),
+        );
+
+        return;
+      }
+
+      await client.set(redisKey, value);
+    },
+  };
+};
 export const createVoiceTraceSinkDeliveryWorker = <
   TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
 >(
@@ -1278,8 +1296,8 @@ export const createVoiceTraceSinkDeliveryWorker = <
         }
 
         if (shouldDeadLetterTraceDelivery(delivery, options.maxFailures)) {
-          await options.deadLetters?.set(delivery.id, delivery as TDelivery);
-          await options.onDeadLetter?.(delivery as TDelivery);
+          await options.deadLetters?.set(delivery.id, delivery);
+          await options.onDeadLetter?.(delivery);
           result.deadLettered += 1;
           continue;
         }
@@ -1370,7 +1388,6 @@ export const createVoiceTraceSinkDeliveryWorker = <
     },
   };
 };
-
 export const createVoiceTraceSinkDeliveryWorkerLoop = <
   TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
 >(
@@ -1383,6 +1400,7 @@ export const createVoiceTraceSinkDeliveryWorkerLoop = <
   const tick = async () => options.worker.drain();
 
   return {
+    tick,
     isRunning: () => running,
     start: () => {
       if (timer) {
@@ -1403,30 +1421,19 @@ export const createVoiceTraceSinkDeliveryWorkerLoop = <
       }
       running = false;
     },
-    tick,
   };
 };
-
-export const createVoiceHandoffDeliveryWorker = <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
-  TResult = unknown,
-  TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> =
-    StoredVoiceHandoffDelivery<TContext, TSession, TResult>,
+export const createVoiceWebhookDeliveryWorker = <
+  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 >(
-  options: VoiceHandoffDeliveryWorkerOptions<
-    TContext,
-    TSession,
-    TResult,
-    TDelivery
-  >,
+  options: VoiceWebhookDeliveryWorkerOptions<TEvent>,
 ) => {
   const allowedStatuses = options.statuses ?? ["pending", "failed"];
   const leaseMs = Math.max(1, options.leaseMs ?? 30_000);
 
   return {
-    drain: async (): Promise<VoiceHandoffDeliveryWorkerResult> => {
-      const result: VoiceHandoffDeliveryWorkerResult = {
+    drain: async (): Promise<VoiceWebhookDeliveryWorkerResult> => {
+      const result: VoiceWebhookDeliveryWorkerResult = {
         alreadyProcessed: 0,
         attempted: 0,
         deadLettered: 0,
@@ -1434,30 +1441,18 @@ export const createVoiceHandoffDeliveryWorker = <
         failed: 0,
         skipped: 0,
       };
-      const deliveries = [...(await options.deliveries.list())].sort(
+      const events = [...(await options.events.list())].sort(
         (left, right) => left.createdAt - right.createdAt,
       );
 
-      for (const delivery of deliveries) {
-        if (
-          !shouldProcessHandoffDeliveryStatus(
-            delivery.deliveryStatus,
-            allowedStatuses,
-          )
-        ) {
-          continue;
-        }
-
-        if (shouldDeadLetterHandoffDelivery(delivery, options.maxFailures)) {
-          await options.deadLetters?.set(delivery.id, delivery as TDelivery);
-          await options.onDeadLetter?.(delivery as TDelivery);
-          result.deadLettered += 1;
+      for (const event of events) {
+        if (!shouldProcessEventStatus(event.deliveryStatus, allowedStatuses)) {
           continue;
         }
 
         const claimed = await options.leases.claim({
           leaseMs,
-          taskId: delivery.id,
+          taskId: event.id,
           workerId: options.workerId,
         });
         if (!claimed) {
@@ -1465,56 +1460,45 @@ export const createVoiceHandoffDeliveryWorker = <
         }
 
         try {
-          const idempotencyKey = `${delivery.id}:handoff`;
           if (
             options.idempotency &&
-            (await options.idempotency.has(idempotencyKey))
+            (await options.idempotency.has(event.id))
           ) {
             result.alreadyProcessed += 1;
             continue;
           }
 
           result.attempted += 1;
-          const updatedDelivery = (await deliverVoiceHandoffDelivery({
-            adapters: options.adapters,
-            api: options.api,
-            delivery,
-            failMode: options.failMode,
-          })) as TDelivery;
-          await options.deliveries.set(updatedDelivery.id, updatedDelivery);
+          const updatedEvent = (await deliverVoiceIntegrationEvent({
+            event,
+            webhook: options.webhook,
+          })) as TEvent;
+          await options.events.set(updatedEvent.id, updatedEvent);
 
           if (
-            updatedDelivery.deliveryStatus === "delivered" ||
-            updatedDelivery.deliveryStatus === "skipped"
+            updatedEvent.deliveryStatus === "delivered" ||
+            updatedEvent.deliveryStatus === "skipped"
           ) {
-            await options.idempotency?.set(idempotencyKey, {
+            await options.idempotency?.set(updatedEvent.id, {
               ttlSeconds: options.idempotencyTtlSeconds,
             });
           }
 
-          if (updatedDelivery.deliveryStatus === "delivered") {
+          if (updatedEvent.deliveryStatus === "delivered") {
             result.delivered += 1;
-          } else if (updatedDelivery.deliveryStatus === "skipped") {
-            result.skipped += 1;
-          } else if (updatedDelivery.deliveryStatus === "failed") {
+          } else if (updatedEvent.deliveryStatus === "failed") {
             result.failed += 1;
-            if (
-              shouldDeadLetterHandoffDelivery(
-                updatedDelivery,
-                options.maxFailures,
-              )
-            ) {
-              await options.deadLetters?.set(
-                updatedDelivery.id,
-                updatedDelivery,
-              );
-              await options.onDeadLetter?.(updatedDelivery);
+            if (shouldDeadLetterEvent(updatedEvent, options.maxFailures)) {
+              await options.deadLetters?.set(updatedEvent.id, updatedEvent);
+              await options.onDeadLetter?.(updatedEvent);
               result.deadLettered += 1;
             }
+          } else if (updatedEvent.deliveryStatus === "skipped") {
+            result.skipped += 1;
           }
         } finally {
           await options.leases.release({
-            taskId: delivery.id,
+            taskId: event.id,
             workerId: options.workerId,
           });
         }
@@ -1524,21 +1508,11 @@ export const createVoiceHandoffDeliveryWorker = <
     },
   };
 };
-
-export const createVoiceHandoffDeliveryWorkerLoop = <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
-  TResult = unknown,
-  TDelivery extends StoredVoiceHandoffDelivery<TContext, TSession, TResult> =
-    StoredVoiceHandoffDelivery<TContext, TSession, TResult>,
+export const createVoiceWebhookDeliveryWorkerLoop = <
+  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
 >(
-  options: VoiceHandoffDeliveryWorkerLoopOptions<
-    TContext,
-    TSession,
-    TResult,
-    TDelivery
-  >,
-): VoiceHandoffDeliveryWorkerLoop => {
+  options: VoiceWebhookDeliveryWorkerLoopOptions<TEvent>,
+): VoiceWebhookDeliveryWorkerLoop => {
   const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
   let timer: ReturnType<typeof setInterval> | undefined;
   let running = false;
@@ -1546,6 +1520,7 @@ export const createVoiceHandoffDeliveryWorkerLoop = <
   const tick = async () => options.worker.drain();
 
   return {
+    tick,
     isRunning: () => running,
     start: () => {
       if (timer) {
@@ -1566,265 +1541,290 @@ export const createVoiceHandoffDeliveryWorkerLoop = <
       }
       running = false;
     },
-    tick,
   };
 };
-
-export const createVoiceOpsTaskWorker = <
-  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
+export const summarizeVoiceHandoffDeliveries = <
+  TDelivery extends StoredVoiceHandoffDelivery = StoredVoiceHandoffDelivery,
 >(
-  options: VoiceOpsTaskWorkerOptions<TTask>,
-): VoiceOpsTaskWorker<TTask> => {
-  const leaseMs = Math.max(1, options.leaseMs ?? 30_000);
+  deliveries: TDelivery[],
+  input: {
+    deadLetters?: VoiceHandoffDeliveryStore<TDelivery>;
+  } = {},
+):
+  | Promise<VoiceHandoffDeliveryQueueSummary>
+  | VoiceHandoffDeliveryQueueSummary => {
+  const buildSummary = async () => {
+    const deadLetterIds = new Set(
+      input.deadLetters
+        ? (await input.deadLetters.list()).map((delivery) => delivery.id)
+        : [],
+    );
+    const byAction = new Map<TDelivery["action"], number>();
+    const summary: VoiceHandoffDeliveryQueueSummary = {
+      byAction: [],
+      deadLettered: 0,
+      delivered: 0,
+      failed: 0,
+      pending: 0,
+      retryEligible: 0,
+      skipped: 0,
+      total: deliveries.length,
+    };
 
-  const getTask = async (taskId: string) => {
-    const task = await options.tasks.get(taskId);
-    if (!task) {
-      throw new Error(`Task ${taskId} was not found.`);
-    }
-
-    return task;
-  };
-
-  const ensureOwnedByWorker = (task: StoredVoiceOpsTask) => {
-    if (task.claimedBy && task.claimedBy !== options.workerId) {
-      throw new Error(
-        `Task ${task.id} is claimed by ${task.claimedBy}, not ${options.workerId}.`,
-      );
-    }
-  };
-
-  return {
-    assign: async (taskId, assignee, input = {}) => {
-      const task = await getTask(taskId);
-      const updatedTask = assignVoiceOpsTask(task, assignee, input) as TTask;
-      await options.tasks.set(updatedTask.id, updatedTask);
-      return updatedTask;
-    },
-    claimNext: async (filters = {}) => {
-      const now = Date.now();
-      const tasks = listVoiceOpsTasks(await options.tasks.list())
-        .filter((task) => task.status !== "done")
-        .filter((task) => !task.deadLetteredAt)
-        .filter((task) =>
-          filters.assignee ? task.assignee === filters.assignee : true,
-        )
-        .filter((task) =>
-          filters.kinds?.length ? filters.kinds.includes(task.kind) : true,
-        )
-        .filter((task) =>
-          filters.excludeTaskIds?.length
-            ? !filters.excludeTaskIds.includes(task.id)
-            : true,
-        )
-        .sort((left, right) => left.createdAt - right.createdAt);
-
-      for (const task of tasks) {
-        if (
-          task.claimedBy &&
-          task.claimExpiresAt &&
-          task.claimExpiresAt > now &&
-          task.claimedBy !== options.workerId
-        ) {
-          continue;
-        }
-
-        const claimed = await options.leases.claim({
-          leaseMs,
-          taskId: task.id,
-          workerId: options.workerId,
-        });
-        if (!claimed) {
-          continue;
-        }
-
-        const currentTask = await getTask(task.id);
-        const updatedTask = claimVoiceOpsTask(currentTask, options.workerId, {
-          at: now,
-          leaseMs,
-        }) as TTask;
-        await options.tasks.set(updatedTask.id, updatedTask);
-        return updatedTask;
+    for (const delivery of deliveries) {
+      byAction.set(delivery.action, (byAction.get(delivery.action) ?? 0) + 1);
+      if (deadLetterIds.has(delivery.id)) {
+        summary.deadLettered += 1;
       }
 
-      return null;
-    },
-    complete: async (taskId, input = {}) => {
-      const task = await getTask(taskId);
-      ensureOwnedByWorker(task);
-      const updatedTask = completeVoiceOpsTask(task, input) as TTask;
-      await options.tasks.set(updatedTask.id, updatedTask);
-      await options.leases.release({
-        taskId,
-        workerId: options.workerId,
-      });
-      return updatedTask;
-    },
-    heartbeat: async (taskId, input = {}) => {
-      const activeLeaseMs = Math.max(1, input.leaseMs ?? leaseMs);
-      const renewed = await options.leases.renew({
-        leaseMs: activeLeaseMs,
-        taskId,
-        workerId: options.workerId,
-      });
-      if (!renewed) {
-        throw new Error(
-          `Task ${taskId} lease could not be renewed for worker ${options.workerId}.`,
-        );
+      switch (delivery.deliveryStatus) {
+        case "delivered":
+          summary.delivered += 1;
+          break;
+        case "failed":
+          summary.failed += 1;
+          if ((delivery.deliveryAttempts ?? 0) > 0) {
+            summary.retryEligible += 1;
+          }
+          break;
+        case "skipped":
+          summary.skipped += 1;
+          break;
+        case "pending":
+          summary.pending += 1;
+          break;
       }
+    }
 
-      const task = await getTask(taskId);
-      ensureOwnedByWorker(task);
-      const updatedTask = heartbeatVoiceOpsTask(task, options.workerId, {
-        ...input,
-        leaseMs: activeLeaseMs,
-      }) as TTask;
-      await options.tasks.set(updatedTask.id, updatedTask);
-      return updatedTask;
-    },
-    requeue: async (taskId, input = {}) => {
-      const task = await getTask(taskId);
-      ensureOwnedByWorker(task);
-      const updatedTask = requeueVoiceOpsTask(task, input) as TTask;
-      await options.tasks.set(updatedTask.id, updatedTask);
-      await options.leases.release({
-        taskId,
-        workerId: options.workerId,
-      });
-      return updatedTask;
-    },
-    release: async (taskId) =>
-      options.leases.release({
-        taskId,
-        workerId: options.workerId,
-      }),
+    summary.byAction = [...byAction.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+
+    return summary;
   };
+
+  return buildSummary();
 };
+export const summarizeVoiceIntegrationEvents = <
+  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
+>(
+  events: TEvent[],
+  input: {
+    deadLetters?: VoiceIntegrationEventStore<TEvent>;
+  } = {},
+):
+  | Promise<VoiceIntegrationEventQueueSummary>
+  | VoiceIntegrationEventQueueSummary => {
+  const buildSummary = async () => {
+    const deadLetterIds = new Set(
+      input.deadLetters
+        ? (await input.deadLetters.list()).map((event) => event.id)
+        : [],
+    );
+    const byType = new Map<TEvent["type"], number>();
+    const summary: VoiceIntegrationEventQueueSummary = {
+      byType: [],
+      deadLettered: 0,
+      delivered: 0,
+      failed: 0,
+      pending: 0,
+      retryEligible: 0,
+      skipped: 0,
+      total: events.length,
+    };
 
-export const createVoiceOpsTaskProcessorWorker = <
+    for (const event of events) {
+      byType.set(event.type, (byType.get(event.type) ?? 0) + 1);
+      if (deadLetterIds.has(event.id)) {
+        summary.deadLettered += 1;
+      }
+
+      switch (event.deliveryStatus) {
+        case "delivered":
+          summary.delivered += 1;
+          break;
+        case "failed":
+          summary.failed += 1;
+          if ((event.deliveryAttempts ?? 0) > 0) {
+            summary.retryEligible += 1;
+          }
+          break;
+        case "skipped":
+          summary.skipped += 1;
+          break;
+        case "pending":
+        case undefined:
+          summary.pending += 1;
+          break;
+      }
+    }
+
+    summary.byType = [...byType.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+
+    return summary;
+  };
+
+  return buildSummary();
+};
+export const summarizeVoiceOpsTaskQueue = <
   TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 >(
-  options: VoiceOpsTaskProcessorWorkerOptions<TTask>,
-) => ({
-  drain: async (): Promise<VoiceOpsTaskProcessorWorkerResult> => {
-    const result: VoiceOpsTaskProcessorWorkerResult = {
-      attempted: 0,
-      completed: 0,
+  tasks: TTask[],
+  input: {
+    deadLetters?: VoiceOpsTaskStore<TTask>;
+  } = {},
+): Promise<VoiceOpsTaskQueueSummary> | VoiceOpsTaskQueueSummary => {
+  const buildSummary = async () => {
+    const deadLetterIds = new Set(
+      input.deadLetters
+        ? (await input.deadLetters.list()).map((task) => task.id)
+        : [],
+    );
+    const byAssignee = new Map<string, number>();
+    const byClaimedBy = new Map<string, number>();
+    const byKind = new Map<VoiceOpsTaskKind, number>();
+    const byPriority = new Map<VoiceOpsTaskPriority, number>();
+    const byStatus = new Map<VoiceOpsTaskStatus, number>();
+    const summary: VoiceOpsTaskQueueSummary = {
+      byAssignee: [],
+      byClaimedBy: [],
+      byKind: [],
+      byPriority: [],
+      byStatus: [],
+      claimed: 0,
       deadLettered: 0,
       failed: 0,
-      idle: 0,
-      requeued: 0,
+      inProgress: 0,
+      open: 0,
+      overdue: 0,
+      retryEligible: 0,
+      total: tasks.length,
+      unclaimed: 0,
     };
-    const processedTaskIds = new Set<string>();
 
-    for (;;) {
-      const task = await options.worker.claimNext({
-        ...options.filters,
-        excludeTaskIds: [
-          ...(options.filters?.excludeTaskIds ?? []),
-          ...processedTaskIds,
-        ],
-      });
-      if (!task) {
-        result.idle += 1;
-        return result;
+    for (const task of tasks) {
+      byKind.set(task.kind, (byKind.get(task.kind) ?? 0) + 1);
+      byStatus.set(task.status, (byStatus.get(task.status) ?? 0) + 1);
+
+      if (deadLetterIds.has(task.id) || task.deadLetteredAt) {
+        summary.deadLettered += 1;
       }
 
-      result.attempted += 1;
-      processedTaskIds.add(task.id);
+      if (
+        task.claimedBy &&
+        (!task.claimExpiresAt || task.claimExpiresAt > Date.now())
+      ) {
+        summary.claimed += 1;
+        byClaimedBy.set(
+          task.claimedBy,
+          (byClaimedBy.get(task.claimedBy) ?? 0) + 1,
+        );
+      } else {
+        summary.unclaimed += 1;
+      }
 
-      try {
-        const handlerResult = await options.process(task);
-        const action =
-          typeof handlerResult === "string"
-            ? handlerResult
-            : (handlerResult?.action ?? "complete");
-        const detail =
-          typeof handlerResult === "object" && handlerResult
-            ? handlerResult.detail
-            : undefined;
+      if (task.processingAttempts && task.processingAttempts > 0) {
+        summary.retryEligible += 1;
+      }
 
-        if (action === "requeue") {
-          await options.worker.requeue(task.id, {
-            detail,
-          });
-          result.requeued += 1;
-          continue;
-        }
+      if (task.processingError) {
+        summary.failed += 1;
+      }
 
-        await options.worker.complete(task.id, {
-          detail,
-        });
-        result.completed += 1;
-      } catch (error) {
-        await options.onError?.(error, task);
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const failedTask = failVoiceOpsTask(task, {
-          actor: task.claimedBy ?? "ops-worker",
-          error: errorMessage,
-        }) as TTask;
+      if (task.assignee) {
+        byAssignee.set(task.assignee, (byAssignee.get(task.assignee) ?? 0) + 1);
+      }
 
-        if (shouldDeadLetterTask(failedTask, options.maxFailures)) {
-          const deadLetterTask = deadLetterVoiceOpsTask(failedTask, {
-            actor: task.claimedBy ?? "ops-worker",
-            detail:
-              failedTask.processingError ?? "Task moved to dead-letter queue",
-          }) as TTask;
-          await options.tasks.set(deadLetterTask.id, deadLetterTask);
-          await options.deadLetters?.set(deadLetterTask.id, deadLetterTask);
-          await options.worker.release(task.id);
-          await options.onDeadLetter?.(deadLetterTask);
-          result.deadLettered += 1;
-          continue;
-        }
+      if (task.priority) {
+        byPriority.set(task.priority, (byPriority.get(task.priority) ?? 0) + 1);
+      }
 
-        const requeuedTask = requeueVoiceOpsTask(failedTask, {
-          actor: task.claimedBy ?? "ops-worker",
-          detail:
-            failedTask.processingError ??
-            "Task requeued after processing failure",
-        }) as TTask;
-        await options.tasks.set(requeuedTask.id, requeuedTask);
-        await options.worker.release(task.id);
-        result.failed += 1;
+      if (isVoiceOpsTaskOverdue(task)) {
+        summary.overdue += 1;
+      }
+
+      if (task.status === "open") {
+        summary.open += 1;
+      } else if (task.status === "in-progress") {
+        summary.inProgress += 1;
       }
     }
-  },
-});
 
-export const createVoiceOpsTaskProcessorWorkerLoop = <
-  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
->(
-  options: VoiceOpsTaskProcessorWorkerLoopOptions<TTask>,
-): VoiceOpsTaskProcessorWorkerLoop => {
-  const pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 1_000);
-  let timer: ReturnType<typeof setInterval> | undefined;
-  let running = false;
+    summary.byKind = [...byKind.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+    summary.byAssignee = [...byAssignee.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+    summary.byClaimedBy = [...byClaimedBy.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+    summary.byPriority = [...byPriority.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+    summary.byStatus = [...byStatus.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
 
-  const tick = async () => options.worker.drain();
-
-  return {
-    isRunning: () => running,
-    start: () => {
-      if (timer) {
-        return;
-      }
-
-      running = true;
-      timer = setInterval(() => {
-        void tick().catch((error) => {
-          void options.onError?.(error);
-        });
-      }, pollIntervalMs);
-    },
-    stop: () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = undefined;
-      }
-      running = false;
-    },
-    tick,
+    return summary;
   };
+
+  return buildSummary();
+};
+export const summarizeVoiceTraceSinkDeliveries = <
+  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+>(
+  deliveries: TDelivery[],
+  input: {
+    deadLetters?: VoiceTraceSinkDeliveryStore<TDelivery>;
+  } = {},
+):
+  | Promise<VoiceTraceSinkDeliveryQueueSummary>
+  | VoiceTraceSinkDeliveryQueueSummary => {
+  const buildSummary = async () => {
+    const deadLetterIds = new Set(
+      input.deadLetters
+        ? (await input.deadLetters.list()).map((delivery) => delivery.id)
+        : [],
+    );
+    const summary: VoiceTraceSinkDeliveryQueueSummary = {
+      deadLettered: 0,
+      delivered: 0,
+      failed: 0,
+      pending: 0,
+      retryEligible: 0,
+      skipped: 0,
+      total: deliveries.length,
+    };
+
+    for (const delivery of deliveries) {
+      if (deadLetterIds.has(delivery.id)) {
+        summary.deadLettered += 1;
+      }
+
+      switch (delivery.deliveryStatus) {
+        case "delivered":
+          summary.delivered += 1;
+          break;
+        case "failed":
+          summary.failed += 1;
+          if ((delivery.deliveryAttempts ?? 0) > 0) {
+            summary.retryEligible += 1;
+          }
+          break;
+        case "skipped":
+          summary.skipped += 1;
+          break;
+        case "pending":
+          summary.pending += 1;
+          break;
+      }
+    }
+
+    return summary;
+  };
+
+  return buildSummary();
 };

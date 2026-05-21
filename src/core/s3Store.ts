@@ -39,6 +39,7 @@ const decodeReviewIdFromKey = (prefix: string, key: string) => {
   const relative = key.startsWith(`${prefix}/`)
     ? key.slice(prefix.length + 1)
     : key;
+
   return decodeURIComponent(relative.replace(/\.json$/i, ""));
 };
 
@@ -199,6 +200,7 @@ export const createVoiceS3RecordingStore = (
       sessionId: artifact.sessionId,
     };
     await getFile(metadataKey).write(JSON.stringify(metadata));
+
     return {
       ...artifact,
       recordingUrl,
@@ -219,6 +221,7 @@ export const createVoiceS3RecordingStore = (
       await metadataFile.text(),
     ) as StoredRecordingMetadata;
     const wavBytes = await getFile(wavKey).bytes();
+
     return {
       audioBytes: wavBytes,
       capturedAt: meta.capturedAt,
@@ -238,6 +241,7 @@ export const createVoiceS3RecordingStore = (
     const records = await Promise.all(
       channels.map((channel) => readMetadata(sessionId, channel)),
     );
+
     return records.filter(
       (record): record is StoredVoiceRecordingArtifact => record !== undefined,
     );

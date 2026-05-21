@@ -36,7 +36,7 @@ export const createVoiceSessionSnapshotViewModel = (
   state: VoiceSessionSnapshotClientState,
   options: VoiceSessionSnapshotWidgetOptions = {},
 ): VoiceSessionSnapshotViewModel => {
-  const snapshot = state.snapshot;
+  const {snapshot} = state;
   const failedProofs = snapshot?.proofSummary.failed ?? 0;
   const mediaWarnings =
     snapshot?.media.filter((media) => media.report.status !== "pass").length ??
@@ -133,6 +133,7 @@ export const renderVoiceSessionSnapshotHTML = (
     ? `<div class="absolute-voice-session-snapshot__artifacts">${model.artifacts
         .map((artifact) => {
           const body = `<strong>${escapeHtml(artifact.label)}</strong><span>${escapeHtml(artifact.status)}</span>`;
+
           return artifact.href
             ? `<a href="${escapeHtml(artifact.href)}">${body}</a>`
             : `<div>${body}</div>`;
@@ -167,47 +168,6 @@ const downloadBlob = (blob: Blob, filename: string) => {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(href);
-};
-
-export const mountVoiceSessionSnapshot = (
-  element: Element,
-  path: string,
-  options: VoiceSessionSnapshotWidgetOptions = {},
-) => {
-  const store = createVoiceSessionSnapshotStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceSessionSnapshotHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const handleClick = (event: Event) => {
-    const target = event.target;
-    if (
-      target instanceof Element &&
-      target.closest("[data-absolute-voice-session-snapshot-download]")
-    ) {
-      const sessionId = store.getSnapshot().snapshot?.sessionId ?? "session";
-      downloadBlob(
-        store.download(),
-        `voice-session-${sessionId}.snapshot.json`,
-      );
-    }
-  };
-  const unsubscribe = store.subscribe(render);
-  element.addEventListener("click", handleClick);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      element.removeEventListener("click", handleClick);
-      unsubscribe();
-      store.close();
-    },
-    download: store.download,
-    refresh: store.refresh,
-  };
 };
 
 export const defineVoiceSessionSnapshotElement = (
@@ -247,4 +207,44 @@ export const defineVoiceSessionSnapshotElement = (
       }
     },
   );
+};
+export const mountVoiceSessionSnapshot = (
+  element: Element,
+  path: string,
+  options: VoiceSessionSnapshotWidgetOptions = {},
+) => {
+  const store = createVoiceSessionSnapshotStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceSessionSnapshotHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const handleClick = (event: Event) => {
+    const {target} = event;
+    if (
+      target instanceof Element &&
+      target.closest("[data-absolute-voice-session-snapshot-download]")
+    ) {
+      const sessionId = store.getSnapshot().snapshot?.sessionId ?? "session";
+      downloadBlob(
+        store.download(),
+        `voice-session-${sessionId}.snapshot.json`,
+      );
+    }
+  };
+  const unsubscribe = store.subscribe(render);
+  element.addEventListener("click", handleClick);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    download: store.download,
+    refresh: store.refresh,
+    close: () => {
+      element.removeEventListener("click", handleClick);
+      unsubscribe();
+      store.close();
+    },
+  };
 };

@@ -90,7 +90,79 @@ export const createVoiceTurnLatencyViewModel = (
     updatedAt: snapshot.updatedAt,
   };
 };
+export const defineVoiceTurnLatencyElement = (
+  tagName = "absolute-voice-turn-latency",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceTurnLatencyElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceTurnLatency>;
+
+      connectedCallback() {
+        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        this.mounted = mountVoiceTurnLatency(
+          this,
+          this.getAttribute("path") ?? "/api/turn-latency",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+            proofLabel: this.getAttribute("proof-label") ?? undefined,
+            proofPath: this.getAttribute("proof-path") ?? undefined,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const mountVoiceTurnLatency = (
+  element: Element,
+  path = "/api/turn-latency",
+  options: VoiceTurnLatencyWidgetOptions = {},
+) => {
+  const store = createVoiceTurnLatencyStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceTurnLatencyHTML(
+      store.getSnapshot(),
+      options,
+    );
+  };
+  const handleClick = (event: Event) => {
+    const {target} = event;
+    if (
+      target instanceof Element &&
+      target.closest("[data-absolute-voice-turn-latency-proof]")
+    ) {
+      void store.runProof().catch(() => {});
+    }
+  };
+  const unsubscribe = store.subscribe(render);
+  element.addEventListener("click", handleClick);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      element.removeEventListener("click", handleClick);
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceTurnLatencyHTML = (
   snapshot: VoiceTurnLatencySnapshot,
   options: VoiceTurnLatencyWidgetOptions = {},
@@ -133,79 +205,4 @@ export const renderVoiceTurnLatencyHTML = (
   ${turns}
   ${model.error ? `<p class="absolute-voice-turn-latency__error">${escapeHtml(model.error)}</p>` : ""}
 </section>`;
-};
-
-export const mountVoiceTurnLatency = (
-  element: Element,
-  path = "/api/turn-latency",
-  options: VoiceTurnLatencyWidgetOptions = {},
-) => {
-  const store = createVoiceTurnLatencyStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceTurnLatencyHTML(
-      store.getSnapshot(),
-      options,
-    );
-  };
-  const handleClick = (event: Event) => {
-    const target = event.target;
-    if (
-      target instanceof Element &&
-      target.closest("[data-absolute-voice-turn-latency-proof]")
-    ) {
-      void store.runProof().catch(() => {});
-    }
-  };
-  const unsubscribe = store.subscribe(render);
-  element.addEventListener("click", handleClick);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      element.removeEventListener("click", handleClick);
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceTurnLatencyElement = (
-  tagName = "absolute-voice-turn-latency",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceTurnLatencyElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceTurnLatency>;
-
-      connectedCallback() {
-        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
-        this.mounted = mountVoiceTurnLatency(
-          this,
-          this.getAttribute("path") ?? "/api/turn-latency",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
-            proofLabel: this.getAttribute("proof-label") ?? undefined,
-            proofPath: this.getAttribute("proof-path") ?? undefined,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

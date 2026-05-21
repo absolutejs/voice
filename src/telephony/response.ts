@@ -58,6 +58,7 @@ const extractLeadClause = (text: string) => {
       : normalized;
 
   const clauses = body.split(CLAUSE_BOUNDARY_PATTERN).filter(Boolean);
+
   return clauses[0] ?? body;
 };
 
@@ -77,5 +78,6 @@ export const shapeTelephonyAssistantText = (
   const lead = extractLeadClause(normalized);
   const limitedWords = clampWords(lead, options.maxWords ?? DEFAULT_MAX_WORDS);
   const limitedChars = clampChars(limitedWords, options.maxChars);
+
   return ensureTerminalPunctuation(normalizeWhitespace(limitedChars));
 };

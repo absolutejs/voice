@@ -136,6 +136,7 @@ const hasValue = (value: unknown) => {
   if (Array.isArray(value)) {
     return value.length > 0;
   }
+
   return true;
 };
 
@@ -147,6 +148,7 @@ const matchesSession = (
   event: StoredVoiceIntegrationEvent,
 ) => {
   const payloadSessionId = event.payload.sessionId;
+
   return Boolean(
     sessionId &&
     (event.id === sessionId ||
@@ -161,6 +163,7 @@ const matchesIntegrationEvent = (input: {
   sessionId?: string;
 }) => {
   const payloadReviewId = input.event.payload.reviewId;
+
   return (
     matchesReview(input.reviewId, input.event.id) ||
     payloadReviewId === input.reviewId ||
@@ -175,6 +178,7 @@ const normalizeOperationRecordHref = (
   if (!basePath || !sessionId) {
     return undefined;
   }
+
   return basePath.includes(":sessionId")
     ? basePath.replace(":sessionId", encodeURIComponent(sessionId))
     : `${basePath.replace(/\/$/, "")}/${encodeURIComponent(sessionId)}`;
@@ -225,6 +229,7 @@ export const buildVoicePostCallAnalysisReport = async (
       getPathValue(fieldSource.extractedFields, field.path) ??
       getPathValue(fieldSource, field.path);
     const required = field.required !== false;
+
     return {
       label: field.label ?? field.path,
       ok: !required || hasValue(value),
@@ -407,6 +412,7 @@ export const createVoicePostCallAnalysisRoutes = (
       sessionId:
         typeof query.sessionId === "string" ? query.sessionId : undefined,
     });
+
     return Response.json(report, { headers: options.headers });
   });
 
@@ -416,6 +422,7 @@ export const createVoicePostCallAnalysisRoutes = (
       sessionId:
         typeof query.sessionId === "string" ? query.sessionId : undefined,
     });
+
     return new Response(renderVoicePostCallAnalysisMarkdown(report), {
       headers: {
         "content-type": "text/markdown; charset=utf-8",

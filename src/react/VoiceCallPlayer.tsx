@@ -46,6 +46,7 @@ export const VoiceCallPlayer = ({
     const unsubscribe = player.subscribe(() => {
       setState(player.getState());
     });
+
     return () => {
       unsubscribe();
     };
@@ -220,17 +221,16 @@ export const VoiceCallPlayer = ({
         {player.transcripts().map((transcript) => {
           const active = transcript.id === state.activeTranscriptId;
           const startedAt = transcript.startedAtMs ?? 0;
+
           return (
             <li
-              key={transcript.id}
-              style={{
+              key={transcript.id} onClick={() => player.seekToTranscript(transcript.id)} style={{
                 background: active ? "rgba(59,130,246,0.18)" : "transparent",
                 borderRadius: 8,
                 cursor: "pointer",
                 fontSize: 13,
                 padding: "8px 12px",
               }}
-              onClick={() => player.seekToTranscript(transcript.id)}
             >
               <div style={{ color: "#cbd5e1", fontSize: 12 }}>
                 {formatVoiceCallPlayerTimestamp(startedAt)}

@@ -65,6 +65,7 @@ export const extractVoiceRAGCitations = (
       });
     }
   }
+
   return out;
 };
 
@@ -96,11 +97,13 @@ const DEFAULT_MAX_CHUNK_CHARS = 320;
 
 const truncate = (value: string, limit: number): string => {
   if (limit <= 0 || value.length <= limit) return value;
+
   return `${value.slice(0, Math.max(0, limit - 1)).trimEnd()}…`;
 };
 
 const formatScore = (score: number): string => {
   if (!Number.isFinite(score)) return "n/a";
+
   return score.toFixed(3);
 };
 
@@ -115,8 +118,10 @@ const buildDefaultCitationMessage = (
   const lines = citations.map((citation, index) => {
     const label = citation.title ?? citation.source ?? citation.chunkId;
     const text = truncate(citation.chunkText, maxChunkChars);
+
     return `${String(index + 1)}. ${label} (score ${formatScore(citation.score)}): ${text}`;
   });
+
   return [`Knowledge base results for "${args.query}":`, ...lines].join("\n");
 };
 
@@ -129,6 +134,7 @@ const filterAllowedFilterKeys = (
   const allowed = new Set(allowedKeys);
   const entries = Object.entries(filter).filter(([key]) => allowed.has(key));
   if (entries.length === 0) return undefined;
+
   return Object.fromEntries(entries);
 };
 
@@ -139,6 +145,7 @@ const mergeFilters = (
     (entry): entry is Record<string, unknown> => entry !== undefined,
   );
   if (present.length === 0) return undefined;
+
   return Object.assign({}, ...present);
 };
 
@@ -169,14 +176,15 @@ const buildVoiceRAGToolParameters = (
     properties.filter = {
       additionalProperties: false,
       description:
-        "Optional metadata filter. Only keys listed here are honored: " +
-        options.allowedFilterKeys.join(", "),
+        `Optional metadata filter. Only keys listed here are honored: ${ 
+        options.allowedFilterKeys.join(", ")}`,
       properties: Object.fromEntries(
         options.allowedFilterKeys.map((key) => [key, {}]),
       ),
       type: "object",
     };
   }
+
   return {
     additionalProperties: false,
     properties,
@@ -206,6 +214,9 @@ export const createVoiceRAGTool = <
     VoiceRAGToolResult
   >({
     description,
+    name,
+    parameters,
+    resultToMessage: options.resultToMessage ?? ((result) => result.message),
     execute: async ({ args, context }) => {
       const query = typeof args?.query === "string" ? args.query.trim() : "";
       if (query.length === 0) {
@@ -215,6 +226,7 @@ export const createVoiceRAGTool = <
           query: "",
           topK: 0,
         };
+
         return empty;
       }
       const requestedTopK =
@@ -248,6 +260,7 @@ export const createVoiceRAGTool = <
         query,
         topK: requestedTopK,
       });
+
       return {
         citations,
         message,
@@ -255,8 +268,5 @@ export const createVoiceRAGTool = <
         topK: requestedTopK,
       };
     },
-    name,
-    parameters,
-    resultToMessage: options.resultToMessage ?? ((result) => result.message),
   });
 };

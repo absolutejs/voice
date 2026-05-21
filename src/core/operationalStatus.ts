@@ -211,27 +211,6 @@ export const buildVoiceOperationalStatusReport = async (
     summary,
   };
 };
-
-export const renderVoiceOperationalStatusHTML = (
-  report: VoiceOperationalStatusReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Operational Status";
-  const checks = report.checks
-    .map(
-      (check) => `<article class="${escapeHtml(check.status)}">
-  <span>${escapeHtml(check.status.toUpperCase())}</span>
-  <h2>${escapeHtml(check.label)}</h2>
-  <strong>${escapeHtml(String(check.value ?? check.status))}</strong>
-  ${check.detail ? `<p>${escapeHtml(check.detail)}</p>` : ""}
-  ${check.href ? `<a href="${escapeHtml(check.href)}">Open surface</a>` : ""}
-</article>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10130f;color:#f8f3df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1040px;padding:32px}.hero{background:linear-gradient(135deg,rgba(132,204,22,.18),rgba(14,165,233,.13));border:1px solid #2c3a28;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}article{background:#171d15;border:1px solid #2c3a28;border-radius:22px;padding:18px}article.pass{border-color:rgba(34,197,94,.65)}article.warn{border-color:rgba(245,158,11,.75)}article.fail{border-color:rgba(239,68,68,.85)}article span{color:#bef264;font-size:.78rem;font-weight:900;letter-spacing:.08em}article.warn span{color:#fbbf24}article.fail span{color:#fca5a5}article strong{display:block;font-size:1.6rem;margin:.4rem 0}article p{color:#c5ceb9}a{color:#bef264}</style></head><body><main><section class="hero"><p class="eyebrow">Operational status</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p>${String(report.summary.pass)}/${String(report.summary.total)} checks passing. Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}.</p></section><section class="grid">${checks || '<article class="pass"><span>PASS</span><h2>No operational checks configured</h2><strong>0/0</strong></article>'}</section></main></body></html>`;
-};
-
 export const createVoiceOperationalStatusRoutes = (
   options: VoiceOperationalStatusRoutesOptions,
 ) => {
@@ -273,4 +252,23 @@ export const createVoiceOperationalStatusRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceOperationalStatusHTML = (
+  report: VoiceOperationalStatusReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Operational Status";
+  const checks = report.checks
+    .map(
+      (check) => `<article class="${escapeHtml(check.status)}">
+  <span>${escapeHtml(check.status.toUpperCase())}</span>
+  <h2>${escapeHtml(check.label)}</h2>
+  <strong>${escapeHtml(String(check.value ?? check.status))}</strong>
+  ${check.detail ? `<p>${escapeHtml(check.detail)}</p>` : ""}
+  ${check.href ? `<a href="${escapeHtml(check.href)}">Open surface</a>` : ""}
+</article>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10130f;color:#f8f3df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1040px;padding:32px}.hero{background:linear-gradient(135deg,rgba(132,204,22,.18),rgba(14,165,233,.13));border:1px solid #2c3a28;border-radius:28px;margin-bottom:18px;padding:28px}.eyebrow{color:#bef264;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}article{background:#171d15;border:1px solid #2c3a28;border-radius:22px;padding:18px}article.pass{border-color:rgba(34,197,94,.65)}article.warn{border-color:rgba(245,158,11,.75)}article.fail{border-color:rgba(239,68,68,.85)}article span{color:#bef264;font-size:.78rem;font-weight:900;letter-spacing:.08em}article.warn span{color:#fbbf24}article.fail span{color:#fca5a5}article strong{display:block;font-size:1.6rem;margin:.4rem 0}article p{color:#c5ceb9}a{color:#bef264}</style></head><body><main><section class="hero"><p class="eyebrow">Operational status</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">Overall: ${escapeHtml(report.status.toUpperCase())}</p><p>${String(report.summary.pass)}/${String(report.summary.total)} checks passing. Checked ${escapeHtml(new Date(report.checkedAt).toLocaleString())}.</p></section><section class="grid">${checks || '<article class="pass"><span>PASS</span><h2>No operational checks configured</h2><strong>0/0</strong></article>'}</section></main></body></html>`;
 };

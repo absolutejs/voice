@@ -66,6 +66,7 @@ export type CreateInMemoryVoiceCallQuotaOptions = {
 
 const monthBucketKey = (epochMs: number) => {
   const date = new Date(epochMs);
+
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 };
 
@@ -83,6 +84,7 @@ export const createInMemoryVoiceCallQuota = (
       bucket = new Map();
       monthlyUsage.set(customerId, bucket);
     }
+
     return { bucket, key };
   };
 
@@ -92,6 +94,7 @@ export const createInMemoryVoiceCallQuota = (
       if (!tier) return undefined;
       const active = activeCalls.get(customerId)?.size ?? 0;
       const { bucket, key } = usageFor(customerId);
+
       return {
         activeCalls: active,
         burstAllowance: tier.burstAllowance ?? 0,
@@ -113,6 +116,7 @@ export const createInMemoryVoiceCallQuota = (
             rejection: { customerId, reason: "customer-not-found" },
           };
         }
+
         return {
           ok: true,
           reservation: {
@@ -149,6 +153,7 @@ export const createInMemoryVoiceCallQuota = (
       }
       set.add(callId);
       activeCalls.set(customerId, set);
+
       return {
         ok: true,
         reservation: {

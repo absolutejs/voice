@@ -84,17 +84,6 @@ export type VoiceExternalObjectMap = {
 
 export type StoredVoiceExternalObjectMap = VoiceExternalObjectMap;
 
-export const createVoiceExternalObjectMapId = (input: {
-  provider: string;
-  sinkId?: string;
-  sourceId: string;
-}) =>
-  [
-    input.provider,
-    input.sinkId ?? "default",
-    encodeURIComponent(input.sourceId),
-  ].join(":");
-
 export const createVoiceExternalObjectMap = (input: {
   at?: number;
   externalId: string;
@@ -104,6 +93,7 @@ export const createVoiceExternalObjectMap = (input: {
   sourceType: VoiceExternalObjectMap["sourceType"];
 }): StoredVoiceExternalObjectMap => {
   const at = input.at ?? Date.now();
+
   return {
     createdAt: at,
     externalId: input.externalId,
@@ -115,6 +105,16 @@ export const createVoiceExternalObjectMap = (input: {
     updatedAt: at,
   };
 };
+export const createVoiceExternalObjectMapId = (input: {
+  provider: string;
+  sinkId?: string;
+  sourceId: string;
+}) =>
+  [
+    input.provider,
+    input.sinkId ?? "default",
+    encodeURIComponent(input.sourceId),
+  ].join(":");
 
 export type VoiceExternalObjectMapStore<
   TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
@@ -349,6 +349,7 @@ const createVoiceWebhookDeliveryError = (input: {
 }) => {
   if (input.response) {
     const statusText = input.response.statusText?.trim();
+
     return `Attempt ${input.attempt} failed with webhook response ${input.response.status}${statusText ? ` ${statusText}` : ""}.`;
   }
 
@@ -496,29 +497,6 @@ const ensureTaskHistory = (
   updatedAt: Date.now(),
 });
 
-export const withVoiceOpsTaskId = <
-  TTask extends Omit<VoiceOpsTask, "id"> = Omit<VoiceOpsTask, "id">,
->(
-  id: string,
-  task: TTask,
-): TTask & { id: string } => ({
-  ...task,
-  id,
-});
-
-export const withVoiceIntegrationEventId = <
-  TEvent extends Omit<VoiceIntegrationEvent, "id"> = Omit<
-    VoiceIntegrationEvent,
-    "id"
-  >,
->(
-  id: string,
-  event: TEvent,
-): TEvent & { id: string } => ({
-  ...event,
-  id,
-});
-
 export const buildVoiceOpsTaskFromReview = (
   review: StoredVoiceCallReviewArtifact,
 ): StoredVoiceOpsTask | null => {
@@ -599,6 +577,27 @@ export const buildVoiceOpsTaskFromReview = (
       return null;
   }
 };
+export const withVoiceIntegrationEventId = <
+  TEvent extends Omit<VoiceIntegrationEvent, "id"> = Omit<
+    VoiceIntegrationEvent,
+    "id"
+  >,
+>(
+  id: string,
+  event: TEvent,
+): TEvent & { id: string } => ({
+  ...event,
+  id,
+});
+export const withVoiceOpsTaskId = <
+  TTask extends Omit<VoiceOpsTask, "id"> = Omit<VoiceOpsTask, "id">,
+>(
+  id: string,
+  task: TTask,
+): TTask & { id: string } => ({
+  ...task,
+  id,
+});
 
 const DEFAULT_VOICE_OPS_TASK_POLICIES: VoiceOpsDispositionTaskPolicies = {
   escalated: {
@@ -628,73 +627,36 @@ const DEFAULT_VOICE_OPS_TASK_POLICIES: VoiceOpsDispositionTaskPolicies = {
   },
 };
 
-export const resolveVoiceOpsTaskPolicy = (input: {
-  disposition?: VoiceCallDisposition;
-  policies?: VoiceOpsDispositionTaskPolicies;
-}) => {
-  const disposition = input.disposition;
-  if (!disposition) {
-    return undefined;
-  }
-
-  const defaultPolicy = DEFAULT_VOICE_OPS_TASK_POLICIES[disposition];
-  const customPolicy = input.policies?.[disposition];
-  if (!defaultPolicy && !customPolicy) {
-    return undefined;
-  }
-
-  return {
-    ...defaultPolicy,
-    ...customPolicy,
-  } satisfies VoiceOpsTaskPolicy;
-};
-
-export const isVoiceOpsTaskOverdue = (
+export const applyVoiceOpsTaskAssignmentRule = (
   task: StoredVoiceOpsTask,
+  rule: VoiceOpsTaskAssignmentRule,
   input: {
     at?: number;
+    actor?: string;
+    detail?: string;
   } = {},
-) =>
-  typeof task.dueAt === "number" &&
-  task.status !== "done" &&
-  task.dueAt <= (input.at ?? Date.now());
+): StoredVoiceOpsTask => {
+  const updatedTask = {
+    ...task,
+    assignee: rule.assign ?? task.assignee,
+    priority: rule.priority ?? task.priority,
+    queue: rule.queue ?? task.queue,
+    recommendedAction: rule.recommendedAction ?? task.recommendedAction,
+    title: rule.title ?? task.title,
+  };
 
-export const hasVoiceOpsTaskSLABreach = (task: StoredVoiceOpsTask) =>
-  typeof task.slaBreachedAt === "number";
-
-export const resolveVoiceOpsTaskAgeBucket = (
-  task: StoredVoiceOpsTask,
-  input: VoiceOpsTaskAnalyticsOptions = {},
-): VoiceOpsTaskAgeBucket => {
-  const at = input.at ?? Date.now();
-  const freshMs = Math.max(0, input.agingMs ?? 30 * 60_000);
-  const staleMs = Math.max(freshMs, input.staleMs ?? 4 * 60 * 60_000);
-  const dueSoonMs = Math.max(0, input.dueSoonMs ?? 15 * 60_000);
-  const ageMs = Math.max(0, at - task.createdAt);
-
-  if (isVoiceOpsTaskOverdue(task, { at })) {
-    return ageMs >= staleMs ? "stale" : "overdue";
-  }
-
-  if (
-    typeof task.dueAt === "number" &&
-    task.status !== "done" &&
-    task.dueAt - at <= dueSoonMs
-  ) {
-    return "due-soon";
-  }
-
-  if (ageMs >= staleMs) {
-    return "stale";
-  }
-
-  if (ageMs >= freshMs) {
-    return "aging";
-  }
-
-  return "fresh";
+  return ensureTaskHistory(updatedTask, {
+    actor: input.actor ?? "system",
+    at: input.at,
+    detail:
+      input.detail ??
+      rule.description ??
+      (rule.name
+        ? `Applied assignment rule ${rule.name}`
+        : "Applied assignment rule"),
+    type: "assigned",
+  });
 };
-
 export const applyVoiceOpsTaskPolicy = (
   task: StoredVoiceOpsTask,
   policy: VoiceOpsTaskPolicy,
@@ -731,80 +693,6 @@ export const applyVoiceOpsTaskPolicy = (
     type: "policy-applied",
   });
 };
-
-export const matchesVoiceOpsTaskAssignmentRule = (
-  task: StoredVoiceOpsTask,
-  rule: VoiceOpsTaskAssignmentRule,
-) => {
-  const when = rule.when;
-  if (!when) {
-    return true;
-  }
-
-  if (when.assignee !== undefined && task.assignee !== when.assignee) {
-    return false;
-  }
-  if (when.kind !== undefined && task.kind !== when.kind) {
-    return false;
-  }
-  if (when.outcome !== undefined && task.outcome !== when.outcome) {
-    return false;
-  }
-  if (when.policyName !== undefined && task.policyName !== when.policyName) {
-    return false;
-  }
-  if (when.priority !== undefined && task.priority !== when.priority) {
-    return false;
-  }
-  if (when.queue !== undefined && task.queue !== when.queue) {
-    return false;
-  }
-  if (when.status !== undefined && task.status !== when.status) {
-    return false;
-  }
-
-  return true;
-};
-
-export const resolveVoiceOpsTaskAssignment = (input: {
-  rules?: VoiceOpsTaskAssignmentRules;
-  task: StoredVoiceOpsTask;
-}) =>
-  input.rules?.find((rule) =>
-    matchesVoiceOpsTaskAssignmentRule(input.task, rule),
-  );
-
-export const applyVoiceOpsTaskAssignmentRule = (
-  task: StoredVoiceOpsTask,
-  rule: VoiceOpsTaskAssignmentRule,
-  input: {
-    at?: number;
-    actor?: string;
-    detail?: string;
-  } = {},
-): StoredVoiceOpsTask => {
-  const updatedTask = {
-    ...task,
-    assignee: rule.assign ?? task.assignee,
-    priority: rule.priority ?? task.priority,
-    queue: rule.queue ?? task.queue,
-    recommendedAction: rule.recommendedAction ?? task.recommendedAction,
-    title: rule.title ?? task.title,
-  };
-
-  return ensureTaskHistory(updatedTask, {
-    actor: input.actor ?? "system",
-    at: input.at,
-    detail:
-      input.detail ??
-      rule.description ??
-      (rule.name
-        ? `Applied assignment rule ${rule.name}`
-        : "Applied assignment rule"),
-    type: "assigned",
-  });
-};
-
 export const assignVoiceOpsTask = (
   task: StoredVoiceOpsTask,
   owner: string,
@@ -828,28 +716,51 @@ export const assignVoiceOpsTask = (
     },
   );
 };
-
-export const startVoiceOpsTask = (
+export const buildVoiceOpsTaskFromSLABreach = (
   task: StoredVoiceOpsTask,
-  input: {
-    at?: number;
-    actor?: string;
-    detail?: string;
-  } = {},
-): StoredVoiceOpsTask =>
-  ensureTaskHistory(
-    {
-      ...task,
-      status: "in-progress",
-    },
-    {
-      actor: input.actor ?? task.assignee ?? "ops",
-      at: input.at,
-      detail: input.detail ?? "Work started",
-      type: "started",
-    },
-  );
+  policy: VoiceOpsSLABreachPolicy = {},
+): StoredVoiceOpsTask => {
+  const createdAt = task.slaBreachedAt ?? Date.now();
+  const followUp = withVoiceOpsTaskId(`${task.id}:sla`, {
+    assignee: policy.assignee ?? task.assignee,
+    createdAt,
+    description:
+      policy.description ??
+      `Task ${task.id} breached its SLA and needs operator follow-up.`,
+    dueAt:
+      typeof policy.dueInMs === "number"
+        ? createdAt + Math.max(0, policy.dueInMs)
+        : undefined,
+    history: [
+      {
+        actor: "system",
+        at: createdAt,
+        detail:
+          policy.name ??
+          (task.policyName
+            ? `Created from SLA breach on policy ${task.policyName}`
+            : "Created from SLA breach"),
+        type: "created" as const,
+      },
+    ],
+    kind: task.kind,
+    intakeId: task.intakeId,
+    outcome: task.outcome,
+    priority: policy.priority ?? "urgent",
+    policyName: policy.name ?? `${task.policyName ?? task.kind}:sla`,
+    queue: policy.queue ?? task.queue,
+    recommendedAction:
+      policy.recommendedAction ??
+      `Review overdue task ${task.id} and decide the next operator action.`,
+    reviewId: task.reviewId,
+    status: "open" as const,
+    target: task.target,
+    title: policy.title ?? `SLA follow-up for ${task.title}`,
+    updatedAt: createdAt,
+  });
 
+  return followUp;
+};
 export const claimVoiceOpsTask = (
   task: StoredVoiceOpsTask,
   workerId: string,
@@ -881,7 +792,214 @@ export const claimVoiceOpsTask = (
     },
   );
 };
+export const completeVoiceOpsTask = (
+  task: StoredVoiceOpsTask,
+  input: {
+    at?: number;
+    actor?: string;
+    detail?: string;
+  } = {},
+): StoredVoiceOpsTask =>
+  ensureTaskHistory(
+    {
+      ...task,
+      claimExpiresAt: undefined,
+      claimedAt: undefined,
+      claimedBy: undefined,
+      lastProcessedAt: input.at ?? Date.now(),
+      processingError: undefined,
+      status: "done",
+    },
+    {
+      actor: input.actor ?? task.assignee ?? "ops",
+      at: input.at,
+      detail: input.detail ?? "Marked done",
+      type: "completed",
+    },
+  );
+export const createVoiceCallCompletedEvent = (input: {
+  disposition?: VoiceCallDisposition;
+  session: VoiceSessionRecord;
+  sessionSummary?: VoiceSessionSummary;
+}): StoredVoiceIntegrationEvent =>
+  createVoiceIntegrationEvent(
+    "call.completed",
+    {
+      call: input.session.call,
+      disposition: input.disposition ?? input.session.call?.disposition,
+      scenarioId: input.session.scenarioId,
+      sessionId: input.session.id,
+      sessionSummary: input.sessionSummary,
+      status: input.session.status,
+      turnCount: input.session.turns.length,
+    },
+    {
+      id: `${input.session.id}:call.completed`,
+    },
+  );
+export const createVoiceIntegrationEvent = <
+  TPayload extends Record<string, unknown> = Record<string, unknown>,
+>(
+  type: VoiceIntegrationEventType,
+  payload: TPayload,
+  input: {
+    createdAt?: number;
+    id?: string;
+  } = {},
+): StoredVoiceIntegrationEvent => ({
+  createdAt: input.createdAt ?? Date.now(),
+  id: input.id ?? crypto.randomUUID(),
+  payload,
+  type,
+});
+export const createVoiceReviewSavedEvent = (
+  review: StoredVoiceCallReviewArtifact,
+): StoredVoiceIntegrationEvent =>
+  createVoiceIntegrationEvent(
+    "review.saved",
+    {
+      elapsedMs: review.summary.elapsedMs,
+      firstTurnLatencyMs: review.summary.firstTurnLatencyMs,
+      outcome: review.summary.outcome,
+      postCall: review.postCall,
+      reviewId: review.id,
+      title: review.title,
+    },
+    {
+      id: `${review.id}:review.saved`,
+    },
+  );
+export const createVoiceTaskCreatedEvent = (
+  task: StoredVoiceOpsTask,
+): StoredVoiceIntegrationEvent =>
+  createVoiceIntegrationEvent(
+    "task.created",
+    {
+      assignee: task.assignee,
+      dueAt: task.dueAt,
+      kind: task.kind,
+      outcome: task.outcome,
+      priority: task.priority,
+      queue: task.queue,
+      recommendedAction: task.recommendedAction,
+      reviewId: task.reviewId,
+      status: task.status,
+      target: task.target,
+      taskId: task.id,
+      title: task.title,
+    },
+    {
+      id: `${task.id}:task.created:${task.updatedAt}`,
+    },
+  );
+export const createVoiceTaskSLABreachedEvent = (
+  task: StoredVoiceOpsTask,
+): StoredVoiceIntegrationEvent =>
+  createVoiceIntegrationEvent(
+    "task.sla_breached",
+    {
+      assignee: task.assignee,
+      dueAt: task.dueAt,
+      kind: task.kind,
+      outcome: task.outcome,
+      priority: task.priority,
+      queue: task.queue,
+      recommendedAction: task.recommendedAction,
+      reviewId: task.reviewId,
+      slaBreachedAt: task.slaBreachedAt,
+      status: task.status,
+      target: task.target,
+      taskId: task.id,
+      title: task.title,
+    },
+    {
+      id: `${task.id}:task.sla_breached:${task.slaBreachedAt ?? task.updatedAt}`,
+    },
+  );
+export const createVoiceTaskUpdatedEvent = (
+  task: StoredVoiceOpsTask,
+): StoredVoiceIntegrationEvent =>
+  createVoiceIntegrationEvent(
+    "task.updated",
+    {
+      assignee: task.assignee,
+      dueAt: task.dueAt,
+      history: task.history,
+      kind: task.kind,
+      outcome: task.outcome,
+      priority: task.priority,
+      queue: task.queue,
+      recommendedAction: task.recommendedAction,
+      reviewId: task.reviewId,
+      slaBreachedAt: task.slaBreachedAt,
+      status: task.status,
+      target: task.target,
+      taskId: task.id,
+      title: task.title,
+      updatedAt: task.updatedAt,
+    },
+    {
+      id: `${task.id}:task.updated:${task.updatedAt}`,
+    },
+  );
+export const deadLetterVoiceOpsTask = (
+  task: StoredVoiceOpsTask,
+  input: {
+    at?: number;
+    actor?: string;
+    detail?: string;
+  } = {},
+): StoredVoiceOpsTask => {
+  const at = input.at ?? Date.now();
 
+  return ensureTaskHistory(
+    {
+      ...task,
+      claimExpiresAt: undefined,
+      claimedAt: undefined,
+      claimedBy: undefined,
+      deadLetteredAt: at,
+      lastProcessedAt: at,
+      status: "open",
+    },
+    {
+      actor: input.actor ?? task.assignee ?? "ops",
+      at,
+      detail: input.detail ?? "Task moved to dead-letter queue",
+      type: "dead-lettered",
+    },
+  );
+};
+export const failVoiceOpsTask = (
+  task: StoredVoiceOpsTask,
+  input: {
+    at?: number;
+    actor?: string;
+    detail?: string;
+    error?: string;
+  } = {},
+): StoredVoiceOpsTask => {
+  const at = input.at ?? Date.now();
+  const detail = input.detail ?? input.error ?? "Task processing failed";
+
+  return ensureTaskHistory(
+    {
+      ...task,
+      lastProcessedAt: at,
+      processingAttempts: (task.processingAttempts ?? 0) + 1,
+      processingError: input.error ?? detail,
+      status: task.status === "done" ? task.status : "open",
+    },
+    {
+      actor: input.actor ?? task.claimedBy ?? task.assignee ?? "ops",
+      at,
+      detail,
+      type: "failed",
+    },
+  );
+};
+export const hasVoiceOpsTaskSLABreach = (task: StoredVoiceOpsTask) =>
+  typeof task.slaBreachedAt === "number";
 export const heartbeatVoiceOpsTask = (
   task: StoredVoiceOpsTask,
   workerId: string,
@@ -918,65 +1036,17 @@ export const heartbeatVoiceOpsTask = (
     },
   );
 };
-
-export const failVoiceOpsTask = (
+export const isVoiceOpsTaskOverdue = (
   task: StoredVoiceOpsTask,
   input: {
     at?: number;
-    actor?: string;
-    detail?: string;
-    error?: string;
   } = {},
-): StoredVoiceOpsTask => {
-  const at = input.at ?? Date.now();
-  const detail = input.detail ?? input.error ?? "Task processing failed";
-
-  return ensureTaskHistory(
-    {
-      ...task,
-      lastProcessedAt: at,
-      processingAttempts: (task.processingAttempts ?? 0) + 1,
-      processingError: input.error ?? detail,
-      status: task.status === "done" ? task.status : "open",
-    },
-    {
-      actor: input.actor ?? task.claimedBy ?? task.assignee ?? "ops",
-      at,
-      detail,
-      type: "failed",
-    },
-  );
-};
-
-export const deadLetterVoiceOpsTask = (
-  task: StoredVoiceOpsTask,
-  input: {
-    at?: number;
-    actor?: string;
-    detail?: string;
-  } = {},
-): StoredVoiceOpsTask => {
-  const at = input.at ?? Date.now();
-
-  return ensureTaskHistory(
-    {
-      ...task,
-      claimExpiresAt: undefined,
-      claimedAt: undefined,
-      claimedBy: undefined,
-      deadLetteredAt: at,
-      lastProcessedAt: at,
-      status: "open",
-    },
-    {
-      actor: input.actor ?? task.assignee ?? "ops",
-      at,
-      detail: input.detail ?? "Task moved to dead-letter queue",
-      type: "dead-lettered",
-    },
-  );
-};
-
+) =>
+  typeof task.dueAt === "number" &&
+  task.status !== "done" &&
+  task.dueAt <= (input.at ?? Date.now());
+export const listVoiceOpsTasks = (tasks: StoredVoiceOpsTask[]) =>
+  [...tasks].sort((left, right) => right.createdAt - left.createdAt);
 export const markVoiceOpsTaskSLABreached = (
   task: StoredVoiceOpsTask,
   input: {
@@ -1003,33 +1073,39 @@ export const markVoiceOpsTaskSLABreached = (
     },
   );
 };
-
-export const completeVoiceOpsTask = (
+export const matchesVoiceOpsTaskAssignmentRule = (
   task: StoredVoiceOpsTask,
-  input: {
-    at?: number;
-    actor?: string;
-    detail?: string;
-  } = {},
-): StoredVoiceOpsTask =>
-  ensureTaskHistory(
-    {
-      ...task,
-      claimExpiresAt: undefined,
-      claimedAt: undefined,
-      claimedBy: undefined,
-      lastProcessedAt: input.at ?? Date.now(),
-      processingError: undefined,
-      status: "done",
-    },
-    {
-      actor: input.actor ?? task.assignee ?? "ops",
-      at: input.at,
-      detail: input.detail ?? "Marked done",
-      type: "completed",
-    },
-  );
+  rule: VoiceOpsTaskAssignmentRule,
+) => {
+  const {when} = rule;
+  if (!when) {
+    return true;
+  }
 
+  if (when.assignee !== undefined && task.assignee !== when.assignee) {
+    return false;
+  }
+  if (when.kind !== undefined && task.kind !== when.kind) {
+    return false;
+  }
+  if (when.outcome !== undefined && task.outcome !== when.outcome) {
+    return false;
+  }
+  if (when.policyName !== undefined && task.policyName !== when.policyName) {
+    return false;
+  }
+  if (when.priority !== undefined && task.priority !== when.priority) {
+    return false;
+  }
+  if (when.queue !== undefined && task.queue !== when.queue) {
+    return false;
+  }
+  if (when.status !== undefined && task.status !== when.status) {
+    return false;
+  }
+
+  return true;
+};
 export const reopenVoiceOpsTask = (
   task: StoredVoiceOpsTask,
   input: {
@@ -1055,7 +1131,6 @@ export const reopenVoiceOpsTask = (
       type: "reopened",
     },
   );
-
 export const requeueVoiceOpsTask = (
   task: StoredVoiceOpsTask,
   input: {
@@ -1080,130 +1155,85 @@ export const requeueVoiceOpsTask = (
       type: "requeued",
     },
   );
+export const resolveVoiceOpsTaskAgeBucket = (
+  task: StoredVoiceOpsTask,
+  input: VoiceOpsTaskAnalyticsOptions = {},
+): VoiceOpsTaskAgeBucket => {
+  const at = input.at ?? Date.now();
+  const freshMs = Math.max(0, input.agingMs ?? 30 * 60_000);
+  const staleMs = Math.max(freshMs, input.staleMs ?? 4 * 60 * 60_000);
+  const dueSoonMs = Math.max(0, input.dueSoonMs ?? 15 * 60_000);
+  const ageMs = Math.max(0, at - task.createdAt);
 
-export const listVoiceOpsTasks = (tasks: StoredVoiceOpsTask[]) =>
-  [...tasks].sort((left, right) => right.createdAt - left.createdAt);
+  if (isVoiceOpsTaskOverdue(task, { at })) {
+    return ageMs >= staleMs ? "stale" : "overdue";
+  }
 
-export const summarizeVoiceOpsTasks = (
-  tasks: StoredVoiceOpsTask[],
-): VoiceOpsTaskSummary => {
-  const summary = {
-    byClaimedBy: new Map<string, number>(),
-    byKind: new Map<VoiceOpsTaskKind, number>(),
-    byOutcome: new Map<string, number>(),
-    byPriority: new Map<VoiceOpsTaskPriority, number>(),
-    byQueue: new Map<string, number>(),
-    claimed: 0,
-    done: 0,
-    inProgress: 0,
-    open: 0,
-    overdue: 0,
-    topAssignees: new Map<string, number>(),
-    topQueues: new Map<string, number>(),
-    topTargets: new Map<string, number>(),
-    total: tasks.length,
-  };
+  if (
+    typeof task.dueAt === "number" &&
+    task.status !== "done" &&
+    task.dueAt - at <= dueSoonMs
+  ) {
+    return "due-soon";
+  }
 
-  for (const task of tasks) {
-    if (task.status === "open") {
-      summary.open += 1;
-    } else if (task.status === "in-progress") {
-      summary.inProgress += 1;
-    } else if (task.status === "done") {
-      summary.done += 1;
-    }
+  if (ageMs >= staleMs) {
+    return "stale";
+  }
 
-    if (
-      task.claimedBy &&
-      (!task.claimExpiresAt || task.claimExpiresAt > Date.now())
-    ) {
-      summary.claimed += 1;
-      summary.byClaimedBy.set(
-        task.claimedBy,
-        (summary.byClaimedBy.get(task.claimedBy) ?? 0) + 1,
-      );
-    }
+  if (ageMs >= freshMs) {
+    return "aging";
+  }
 
-    summary.byKind.set(task.kind, (summary.byKind.get(task.kind) ?? 0) + 1);
+  return "fresh";
+};
+export const resolveVoiceOpsTaskAssignment = (input: {
+  rules?: VoiceOpsTaskAssignmentRules;
+  task: StoredVoiceOpsTask;
+}) =>
+  input.rules?.find((rule) =>
+    matchesVoiceOpsTaskAssignmentRule(input.task, rule),
+  );
+export const resolveVoiceOpsTaskPolicy = (input: {
+  disposition?: VoiceCallDisposition;
+  policies?: VoiceOpsDispositionTaskPolicies;
+}) => {
+  const {disposition} = input;
+  if (!disposition) {
+    return undefined;
+  }
 
-    if (task.outcome) {
-      summary.byOutcome.set(
-        task.outcome,
-        (summary.byOutcome.get(task.outcome) ?? 0) + 1,
-      );
-    }
-
-    if (task.target) {
-      summary.topTargets.set(
-        task.target,
-        (summary.topTargets.get(task.target) ?? 0) + 1,
-      );
-    }
-
-    if (task.assignee) {
-      summary.topAssignees.set(
-        task.assignee,
-        (summary.topAssignees.get(task.assignee) ?? 0) + 1,
-      );
-    }
-
-    if (task.priority) {
-      summary.byPriority.set(
-        task.priority,
-        (summary.byPriority.get(task.priority) ?? 0) + 1,
-      );
-    }
-
-    if (task.queue) {
-      summary.byQueue.set(
-        task.queue,
-        (summary.byQueue.get(task.queue) ?? 0) + 1,
-      );
-      summary.topQueues.set(
-        task.queue,
-        (summary.topQueues.get(task.queue) ?? 0) + 1,
-      );
-    }
-
-    if (isVoiceOpsTaskOverdue(task)) {
-      summary.overdue += 1;
-    }
+  const defaultPolicy = DEFAULT_VOICE_OPS_TASK_POLICIES[disposition];
+  const customPolicy = input.policies?.[disposition];
+  if (!defaultPolicy && !customPolicy) {
+    return undefined;
   }
 
   return {
-    byClaimedBy: [...summary.byClaimedBy.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    byKind: [...summary.byKind.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    byOutcome: [...summary.byOutcome.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    byPriority: [...summary.byPriority.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    byQueue: [...summary.byQueue.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    claimed: summary.claimed,
-    done: summary.done,
-    inProgress: summary.inProgress,
-    open: summary.open,
-    overdue: summary.overdue,
-    topAssignees: [...summary.topAssignees.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    topQueues: [...summary.topQueues.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    topTargets: [...summary.topTargets.entries()].sort(
-      (left, right) => right[1] - left[1],
-    ),
-    total: summary.total,
-  };
+    ...defaultPolicy,
+    ...customPolicy,
+  } satisfies VoiceOpsTaskPolicy;
 };
-
+export const startVoiceOpsTask = (
+  task: StoredVoiceOpsTask,
+  input: {
+    at?: number;
+    actor?: string;
+    detail?: string;
+  } = {},
+): StoredVoiceOpsTask =>
+  ensureTaskHistory(
+    {
+      ...task,
+      status: "in-progress",
+    },
+    {
+      actor: input.actor ?? task.assignee ?? "ops",
+      at: input.at,
+      detail: input.detail ?? "Work started",
+      type: "started",
+    },
+  );
 export const summarizeVoiceOpsTaskAnalytics = (
   tasks: StoredVoiceOpsTask[],
   input: VoiceOpsTaskAnalyticsOptions = {},
@@ -1369,180 +1399,122 @@ export const summarizeVoiceOpsTaskAnalytics = (
       .sort((left, right) => right.totalClaims - left.totalClaims),
   };
 };
+export const summarizeVoiceOpsTasks = (
+  tasks: StoredVoiceOpsTask[],
+): VoiceOpsTaskSummary => {
+  const summary = {
+    byClaimedBy: new Map<string, number>(),
+    byKind: new Map<VoiceOpsTaskKind, number>(),
+    byOutcome: new Map<string, number>(),
+    byPriority: new Map<VoiceOpsTaskPriority, number>(),
+    byQueue: new Map<string, number>(),
+    claimed: 0,
+    done: 0,
+    inProgress: 0,
+    open: 0,
+    overdue: 0,
+    topAssignees: new Map<string, number>(),
+    topQueues: new Map<string, number>(),
+    topTargets: new Map<string, number>(),
+    total: tasks.length,
+  };
 
-export const createVoiceIntegrationEvent = <
-  TPayload extends Record<string, unknown> = Record<string, unknown>,
->(
-  type: VoiceIntegrationEventType,
-  payload: TPayload,
-  input: {
-    createdAt?: number;
-    id?: string;
-  } = {},
-): StoredVoiceIntegrationEvent => ({
-  createdAt: input.createdAt ?? Date.now(),
-  id: input.id ?? crypto.randomUUID(),
-  payload,
-  type,
-});
+  for (const task of tasks) {
+    if (task.status === "open") {
+      summary.open += 1;
+    } else if (task.status === "in-progress") {
+      summary.inProgress += 1;
+    } else if (task.status === "done") {
+      summary.done += 1;
+    }
 
-export const createVoiceCallCompletedEvent = (input: {
-  disposition?: VoiceCallDisposition;
-  session: VoiceSessionRecord;
-  sessionSummary?: VoiceSessionSummary;
-}): StoredVoiceIntegrationEvent =>
-  createVoiceIntegrationEvent(
-    "call.completed",
-    {
-      call: input.session.call,
-      disposition: input.disposition ?? input.session.call?.disposition,
-      scenarioId: input.session.scenarioId,
-      sessionId: input.session.id,
-      sessionSummary: input.sessionSummary,
-      status: input.session.status,
-      turnCount: input.session.turns.length,
-    },
-    {
-      id: `${input.session.id}:call.completed`,
-    },
-  );
+    if (
+      task.claimedBy &&
+      (!task.claimExpiresAt || task.claimExpiresAt > Date.now())
+    ) {
+      summary.claimed += 1;
+      summary.byClaimedBy.set(
+        task.claimedBy,
+        (summary.byClaimedBy.get(task.claimedBy) ?? 0) + 1,
+      );
+    }
 
-export const createVoiceReviewSavedEvent = (
-  review: StoredVoiceCallReviewArtifact,
-): StoredVoiceIntegrationEvent =>
-  createVoiceIntegrationEvent(
-    "review.saved",
-    {
-      elapsedMs: review.summary.elapsedMs,
-      firstTurnLatencyMs: review.summary.firstTurnLatencyMs,
-      outcome: review.summary.outcome,
-      postCall: review.postCall,
-      reviewId: review.id,
-      title: review.title,
-    },
-    {
-      id: `${review.id}:review.saved`,
-    },
-  );
+    summary.byKind.set(task.kind, (summary.byKind.get(task.kind) ?? 0) + 1);
 
-export const createVoiceTaskCreatedEvent = (
-  task: StoredVoiceOpsTask,
-): StoredVoiceIntegrationEvent =>
-  createVoiceIntegrationEvent(
-    "task.created",
-    {
-      assignee: task.assignee,
-      dueAt: task.dueAt,
-      kind: task.kind,
-      outcome: task.outcome,
-      priority: task.priority,
-      queue: task.queue,
-      recommendedAction: task.recommendedAction,
-      reviewId: task.reviewId,
-      status: task.status,
-      target: task.target,
-      taskId: task.id,
-      title: task.title,
-    },
-    {
-      id: `${task.id}:task.created:${task.updatedAt}`,
-    },
-  );
+    if (task.outcome) {
+      summary.byOutcome.set(
+        task.outcome,
+        (summary.byOutcome.get(task.outcome) ?? 0) + 1,
+      );
+    }
 
-export const createVoiceTaskUpdatedEvent = (
-  task: StoredVoiceOpsTask,
-): StoredVoiceIntegrationEvent =>
-  createVoiceIntegrationEvent(
-    "task.updated",
-    {
-      assignee: task.assignee,
-      dueAt: task.dueAt,
-      history: task.history,
-      kind: task.kind,
-      outcome: task.outcome,
-      priority: task.priority,
-      queue: task.queue,
-      recommendedAction: task.recommendedAction,
-      reviewId: task.reviewId,
-      slaBreachedAt: task.slaBreachedAt,
-      status: task.status,
-      target: task.target,
-      taskId: task.id,
-      title: task.title,
-      updatedAt: task.updatedAt,
-    },
-    {
-      id: `${task.id}:task.updated:${task.updatedAt}`,
-    },
-  );
+    if (task.target) {
+      summary.topTargets.set(
+        task.target,
+        (summary.topTargets.get(task.target) ?? 0) + 1,
+      );
+    }
 
-export const createVoiceTaskSLABreachedEvent = (
-  task: StoredVoiceOpsTask,
-): StoredVoiceIntegrationEvent =>
-  createVoiceIntegrationEvent(
-    "task.sla_breached",
-    {
-      assignee: task.assignee,
-      dueAt: task.dueAt,
-      kind: task.kind,
-      outcome: task.outcome,
-      priority: task.priority,
-      queue: task.queue,
-      recommendedAction: task.recommendedAction,
-      reviewId: task.reviewId,
-      slaBreachedAt: task.slaBreachedAt,
-      status: task.status,
-      target: task.target,
-      taskId: task.id,
-      title: task.title,
-    },
-    {
-      id: `${task.id}:task.sla_breached:${task.slaBreachedAt ?? task.updatedAt}`,
-    },
-  );
+    if (task.assignee) {
+      summary.topAssignees.set(
+        task.assignee,
+        (summary.topAssignees.get(task.assignee) ?? 0) + 1,
+      );
+    }
 
-export const buildVoiceOpsTaskFromSLABreach = (
-  task: StoredVoiceOpsTask,
-  policy: VoiceOpsSLABreachPolicy = {},
-): StoredVoiceOpsTask => {
-  const createdAt = task.slaBreachedAt ?? Date.now();
-  const followUp = withVoiceOpsTaskId(`${task.id}:sla`, {
-    assignee: policy.assignee ?? task.assignee,
-    createdAt,
-    description:
-      policy.description ??
-      `Task ${task.id} breached its SLA and needs operator follow-up.`,
-    dueAt:
-      typeof policy.dueInMs === "number"
-        ? createdAt + Math.max(0, policy.dueInMs)
-        : undefined,
-    history: [
-      {
-        actor: "system",
-        at: createdAt,
-        detail:
-          policy.name ??
-          (task.policyName
-            ? `Created from SLA breach on policy ${task.policyName}`
-            : "Created from SLA breach"),
-        type: "created" as const,
-      },
-    ],
-    kind: task.kind,
-    intakeId: task.intakeId,
-    outcome: task.outcome,
-    priority: policy.priority ?? "urgent",
-    policyName: policy.name ?? `${task.policyName ?? task.kind}:sla`,
-    queue: policy.queue ?? task.queue,
-    recommendedAction:
-      policy.recommendedAction ??
-      `Review overdue task ${task.id} and decide the next operator action.`,
-    reviewId: task.reviewId,
-    status: "open" as const,
-    target: task.target,
-    title: policy.title ?? `SLA follow-up for ${task.title}`,
-    updatedAt: createdAt,
-  });
+    if (task.priority) {
+      summary.byPriority.set(
+        task.priority,
+        (summary.byPriority.get(task.priority) ?? 0) + 1,
+      );
+    }
 
-  return followUp;
+    if (task.queue) {
+      summary.byQueue.set(
+        task.queue,
+        (summary.byQueue.get(task.queue) ?? 0) + 1,
+      );
+      summary.topQueues.set(
+        task.queue,
+        (summary.topQueues.get(task.queue) ?? 0) + 1,
+      );
+    }
+
+    if (isVoiceOpsTaskOverdue(task)) {
+      summary.overdue += 1;
+    }
+  }
+
+  return {
+    byClaimedBy: [...summary.byClaimedBy.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    byKind: [...summary.byKind.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    byOutcome: [...summary.byOutcome.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    byPriority: [...summary.byPriority.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    byQueue: [...summary.byQueue.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    claimed: summary.claimed,
+    done: summary.done,
+    inProgress: summary.inProgress,
+    open: summary.open,
+    overdue: summary.overdue,
+    topAssignees: [...summary.topAssignees.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    topQueues: [...summary.topQueues.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    topTargets: [...summary.topTargets.entries()].sort(
+      (left, right) => right[1] - left[1],
+    ),
+    total: summary.total,
+  };
 };

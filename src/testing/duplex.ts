@@ -71,9 +71,6 @@ const createFakeController = (scenario: VoiceDuplexBenchmarkScenario) => {
   const sentAudio: Array<Uint8Array | ArrayBuffer> = [];
 
   return {
-    get partial() {
-      return partial;
-    },
     emitPartial(next: string) {
       partial = next;
       for (const subscriber of subscribers) {
@@ -83,11 +80,15 @@ const createFakeController = (scenario: VoiceDuplexBenchmarkScenario) => {
     getSentAudio() {
       return sentAudio;
     },
+    get partial() {
+      return partial;
+    },
     sendAudio(audio: Uint8Array | ArrayBuffer) {
       sentAudio.push(audio);
     },
     subscribe(subscriber: () => void) {
       subscribers.add(subscriber);
+
       return () => {
         subscribers.delete(subscriber);
       };
@@ -101,6 +102,13 @@ const createFakePlayer = (delayMs: number) => {
   let lastInterruptLatencyMs: number | undefined;
 
   return {
+    async interrupt() {
+      const startedAt = Date.now();
+      await Bun.sleep(delayMs);
+      interruptCount += 1;
+      isPlaying = false;
+      lastInterruptLatencyMs = Date.now() - startedAt;
+    },
     get interruptCount() {
       return interruptCount;
     },
@@ -110,19 +118,27 @@ const createFakePlayer = (delayMs: number) => {
     get lastInterruptLatencyMs() {
       return lastInterruptLatencyMs;
     },
-    async interrupt() {
-      const startedAt = Date.now();
-      await Bun.sleep(delayMs);
-      interruptCount += 1;
-      isPlaying = false;
-      lastInterruptLatencyMs = Date.now() - startedAt;
-    },
   };
 };
 
 export const getDefaultVoiceDuplexBenchmarkScenarios = () =>
   DEFAULT_SCENARIOS.map((scenario) => ({ ...scenario }));
+export const runVoiceDuplexBenchmark = async (
+  scenarios = getDefaultVoiceDuplexBenchmarkScenarios(),
+  options: VoiceDuplexBenchmarkOptions = {},
+): Promise<VoiceDuplexBenchmarkReport> => {
+  const fixtures: VoiceDuplexBenchmarkScenarioResult[] = [];
 
+  for (const scenario of scenarios) {
+    fixtures.push(await runVoiceDuplexBenchmarkScenario(scenario, options));
+  }
+
+  return {
+    fixtures,
+    generatedAt: Date.now(),
+    summary: summarizeVoiceDuplexBenchmark(fixtures),
+  };
+};
 export const runVoiceDuplexBenchmarkScenario = async (
   scenario: VoiceDuplexBenchmarkScenario,
   options: VoiceDuplexBenchmarkOptions = {},
@@ -169,7 +185,6 @@ export const runVoiceDuplexBenchmarkScenario = async (
     title: scenario.title,
   };
 };
-
 export const summarizeVoiceDuplexBenchmark = (
   fixtures: VoiceDuplexBenchmarkScenarioResult[],
 ): VoiceDuplexBenchmarkSummary => {
@@ -195,22 +210,5 @@ export const summarizeVoiceDuplexBenchmark = (
     passCount,
     passRate: scenarioCount > 0 ? passCount / scenarioCount : 0,
     scenarioCount,
-  };
-};
-
-export const runVoiceDuplexBenchmark = async (
-  scenarios = getDefaultVoiceDuplexBenchmarkScenarios(),
-  options: VoiceDuplexBenchmarkOptions = {},
-): Promise<VoiceDuplexBenchmarkReport> => {
-  const fixtures: VoiceDuplexBenchmarkScenarioResult[] = [];
-
-  for (const scenario of scenarios) {
-    fixtures.push(await runVoiceDuplexBenchmarkScenario(scenario, options));
-  }
-
-  return {
-    fixtures,
-    generatedAt: Date.now(),
-    summary: summarizeVoiceDuplexBenchmark(fixtures),
   };
 };

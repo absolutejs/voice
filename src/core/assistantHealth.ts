@@ -100,8 +100,8 @@ const getRecentFailures = (
     .slice(0, maxFailures)
     .map((event) => {
       const failure: Omit<VoiceAssistantHealthFailure, "replayHref"> = {
-        at: event.at,
         assistantId: getString(event.payload.assistantId),
+        at: event.at,
         error: getString(event.payload.error),
         provider: getString(event.payload.provider),
         rateLimited: event.payload.rateLimited === true ? true : undefined,
@@ -123,27 +123,46 @@ const getRecentFailures = (
       };
     });
 
-export const summarizeVoiceAssistantHealth = async <
+export const createVoiceAssistantHealthHTMLHandler =
+  <TProvider extends string = string>(
+    options: VoiceAssistantHealthHTMLHandlerOptions<TProvider>,
+  ) =>
+  async () => {
+    const summary = await summarizeVoiceAssistantHealth(options);
+    const render = options.render ?? renderVoiceAssistantHealthHTML;
+    const body = await render(summary);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  };
+export const createVoiceAssistantHealthJSONHandler =
+  <TProvider extends string = string>(
+    options: VoiceAssistantHealthSummaryOptions<TProvider>,
+  ) =>
+  async () =>
+    summarizeVoiceAssistantHealth(options);
+export const createVoiceAssistantHealthRoutes = <
   TProvider extends string = string,
 >(
-  options: VoiceAssistantHealthSummaryOptions<TProvider>,
-): Promise<VoiceAssistantHealthSummary<TProvider>> => {
-  const events = options.events ?? (await options.store?.list()) ?? [];
+  options: VoiceAssistantHealthRoutesOptions<TProvider>,
+) => {
+  const path = options.path ?? "/api/assistant-health";
+  const htmlPath =
+    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-assistant-health",
+  }).get(path, createVoiceAssistantHealthJSONHandler(options));
 
-  return {
-    assistantRuns: await summarizeVoiceAssistantRuns({ events }),
-    providerHealth: await summarizeVoiceProviderHealth({
-      events,
-      providers: options.providers,
-    }),
-    recentFailures: getRecentFailures(
-      events,
-      options.maxFailures ?? 8,
-      options.replayHref,
-    ),
-  };
+  if (htmlPath) {
+    routes.get(htmlPath, createVoiceAssistantHealthHTMLHandler(options));
+  }
+
+  return routes;
 };
-
 export const renderVoiceAssistantHealthHTML = <
   TProvider extends string = string,
 >(
@@ -195,46 +214,23 @@ export const renderVoiceAssistantHealthHTML = <
     "</div>",
   ].join("");
 };
-
-export const createVoiceAssistantHealthJSONHandler =
-  <TProvider extends string = string>(
-    options: VoiceAssistantHealthSummaryOptions<TProvider>,
-  ) =>
-  async () =>
-    summarizeVoiceAssistantHealth(options);
-
-export const createVoiceAssistantHealthHTMLHandler =
-  <TProvider extends string = string>(
-    options: VoiceAssistantHealthHTMLHandlerOptions<TProvider>,
-  ) =>
-  async () => {
-    const summary = await summarizeVoiceAssistantHealth(options);
-    const render = options.render ?? renderVoiceAssistantHealthHTML;
-    const body = await render(summary);
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  };
-
-export const createVoiceAssistantHealthRoutes = <
+export const summarizeVoiceAssistantHealth = async <
   TProvider extends string = string,
 >(
-  options: VoiceAssistantHealthRoutesOptions<TProvider>,
-) => {
-  const path = options.path ?? "/api/assistant-health";
-  const htmlPath =
-    options.htmlPath === undefined ? `${path}/htmx` : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-assistant-health",
-  }).get(path, createVoiceAssistantHealthJSONHandler(options));
+  options: VoiceAssistantHealthSummaryOptions<TProvider>,
+): Promise<VoiceAssistantHealthSummary<TProvider>> => {
+  const events = options.events ?? (await options.store?.list()) ?? [];
 
-  if (htmlPath) {
-    routes.get(htmlPath, createVoiceAssistantHealthHTMLHandler(options));
-  }
-
-  return routes;
+  return {
+    assistantRuns: await summarizeVoiceAssistantRuns({ events }),
+    providerHealth: await summarizeVoiceProviderHealth({
+      events,
+      providers: options.providers,
+    }),
+    recentFailures: getRecentFailures(
+      events,
+      options.maxFailures ?? 8,
+      options.replayHref,
+    ),
+  };
 };

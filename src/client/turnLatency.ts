@@ -13,30 +13,6 @@ export type VoiceTurnLatencySnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceTurnLatency = async (
-  path = "/api/turn-latency",
-  options: Pick<VoiceTurnLatencyClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice turn latency failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceTurnLatencyReport;
-};
-
-export const runVoiceTurnLatencyProof = async (
-  path: string,
-  options: Pick<VoiceTurnLatencyClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path, { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`Voice turn latency proof failed: HTTP ${response.status}`);
-  }
-  return response.json() as Promise<unknown>;
-};
-
 export const createVoiceTurnLatencyStore = (
   path = "/api/turn-latency",
   options: VoiceTurnLatencyClientOptions = {},
@@ -68,6 +44,7 @@ export const createVoiceTurnLatencyStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -87,6 +64,7 @@ export const createVoiceTurnLatencyStore = (
     emit();
     try {
       await runVoiceTurnLatencyProof(options.proofPath, options);
+
       return await refresh();
     } catch (error) {
       snapshot = {
@@ -115,15 +93,40 @@ export const createVoiceTurnLatencyStore = (
 
   return {
     close,
-    getServerSnapshot: () => snapshot,
-    getSnapshot: () => snapshot,
     refresh,
     runProof,
+    getServerSnapshot: () => snapshot,
+    getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceTurnLatency = async (
+  path = "/api/turn-latency",
+  options: Pick<VoiceTurnLatencyClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice turn latency failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceTurnLatencyReport;
+};
+export const runVoiceTurnLatencyProof = async (
+  path: string,
+  options: Pick<VoiceTurnLatencyClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Voice turn latency proof failed: HTTP ${response.status}`);
+  }
+
+  return response.json() as Promise<unknown>;
 };

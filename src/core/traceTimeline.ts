@@ -87,6 +87,7 @@ const firstString = (payload: Record<string, unknown>, keys: string[]) => {
       return value;
     }
   }
+
   return undefined;
 };
 
@@ -97,6 +98,7 @@ const firstNumber = (payload: Record<string, unknown>, keys: string[]) => {
       return value;
     }
   }
+
   return undefined;
 };
 
@@ -132,10 +134,12 @@ const resolveSessionHref = (
   }
   if (typeof value === "string") {
     const encoded = encodeURIComponent(sessionId);
+
     return value.includes(":sessionId")
       ? value.replace(":sessionId", encoded)
       : `${value.replace(/\/$/, "")}/${encoded}`;
   }
+
   return undefined;
 };
 
@@ -206,6 +210,7 @@ const summarizeProviders = (
       timeoutCount: 0,
     };
     entries.set(provider, entry);
+
     return entry;
   };
 
@@ -362,6 +367,7 @@ export const renderVoiceTraceTimelineSessionHTML = (
   const supportLinks = session.operationsRecordHref
     ? `<p><a href="${escapeHtml(session.operationsRecordHref)}">Open operations record</a></p>`
     : "";
+
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? "Voice Trace Timeline")}</title><style>${timelineCSS}</style></head><body><main><a href="/traces">Back to traces</a><header><p class="eyebrow">Call timeline</p><h1>${escapeHtml(session.sessionId)}</h1><p class="status ${escapeHtml(session.status)}">${escapeHtml(session.status)}</p>${supportLinks}</header><section class="metrics"><article><span>Events</span><strong>${String(session.summary.eventCount)}</strong></article><article><span>Turns</span><strong>${String(session.summary.turnCount)}</strong></article><article><span>Errors</span><strong>${String(session.summary.errorCount)}</strong></article><article><span>Duration</span><strong>${formatMs(session.summary.callDurationMs)}</strong></article></section><section><h2>Providers</h2>${renderProviderCards(session)}</section><section><h2>Issues</h2><ul>${issues}</ul></section><section><h2>Timeline</h2><table><thead><tr><th>Offset</th><th>Type</th><th>Event</th><th>Provider</th><th>Status</th><th>Latency</th></tr></thead><tbody>${events}</tbody></table></section></main></body></html>`;
 };
 
@@ -378,6 +384,86 @@ const renderSessionRows = (report: VoiceTraceTimelineReport) =>
 const timelineCSS =
   "body{background:#0f1318;color:#f6f2e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}a{color:#fbbf24}.eyebrow{color:#fbbf24;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,4.5rem);line-height:.92;margin:.2rem 0 1rem}.status{border:1px solid #475569;border-radius:999px;display:inline-flex;padding:8px 12px}.healthy{color:#86efac}.warning{color:#fbbf24}.failed,.error{color:#fca5a5}.metrics,.providers{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:20px 0}.metrics article,.providers article{background:#181f27;border:1px solid #2b3642;border-radius:20px;padding:16px}.metrics span,dt,.muted{color:#a8b0b8}.metrics strong{display:block;font-size:2rem}dl{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr));margin:12px 0 0}dd{font-weight:800;margin:4px 0 0}table{background:#181f27;border-collapse:collapse;border-radius:18px;overflow:hidden;width:100%}td,th{border-bottom:1px solid #2b3642;padding:12px;text-align:left}section{margin-top:28px}@media(max-width:760px){main{padding:20px}table{font-size:.9rem}}";
 
+export const createVoiceTraceTimelineRoutes = (
+  options: VoiceTraceTimelineRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice-traces";
+  const htmlPath = options.htmlPath ?? "/traces";
+  const title = options.title ?? "AbsoluteJS Voice Trace Timelines";
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-trace-timelines",
+  });
+
+  const buildReport = async () =>
+    summarizeVoiceTraceTimeline(await options.store.list(), {
+      evaluation: options.evaluation,
+      limit: options.limit,
+      operationsRecordHref: options.operationsRecordHref,
+      redact: options.redact,
+    });
+
+  const findSession = async (sessionId: string) => {
+    const report = summarizeVoiceTraceTimeline(
+      await options.store.list({ sessionId }),
+      {
+        evaluation: options.evaluation,
+        limit: 1,
+        operationsRecordHref: options.operationsRecordHref,
+        redact: options.redact,
+      },
+    );
+
+    return report.sessions[0];
+  };
+
+  routes.get(path, async () => Response.json(await buildReport()));
+  routes.get(`${path}/:sessionId`, async ({ params }) => {
+    const session = await findSession(params.sessionId);
+
+    return session
+      ? Response.json(session)
+      : Response.json(
+          { error: "Voice trace session not found." },
+          { status: 404 },
+        );
+  });
+  routes.get(htmlPath, async () => {
+    const report = await buildReport();
+    const body = await (
+      options.render ??
+      ((input) => renderVoiceTraceTimelineHTML(input, { title }))
+    )(report);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  });
+  routes.get(`${htmlPath}/:sessionId`, async ({ params }) => {
+    const session = await findSession(params.sessionId);
+    if (!session) {
+      return Response.json(
+        { error: "Voice trace session not found." },
+        { status: 404 },
+      );
+    }
+    const body = await (
+      options.renderSession ??
+      ((input) => renderVoiceTraceTimelineSessionHTML(input, { title }))
+    )(session);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...options.headers,
+      },
+    });
+  });
+
+  return routes;
+};
 export const renderVoiceTraceTimelineHTML = (
   report: VoiceTraceTimelineReport,
   options: { title?: string } = {},
@@ -410,81 +496,4 @@ app.use(
 );`);
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(options.title ?? "Voice Trace Timelines")}</title><style>${timelineCSS}.primitive{background:#181f27;border:1px solid #334155;border-radius:20px;margin:20px 0;padding:18px}.primitive p{line-height:1.55}.primitive pre{background:#0b1118;border:1px solid #2b3642;border-radius:16px;color:#dbeafe;overflow:auto;padding:14px}.primitive code{color:#bfdbfe}</style></head><body><main><header><p class="eyebrow">Self-hosted voice debugging</p><h1>${escapeHtml(options.title ?? "Voice Trace Timelines")}</h1><p class="muted">Per-call event timelines with provider latency, fallback, timeout, handoff, and error context.</p></header><section class="metrics"><article><span>Sessions</span><strong>${String(report.total)}</strong></article><article><span>Failed</span><strong>${String(report.failed)}</strong></article><article><span>Warnings</span><strong>${String(report.warnings)}</strong></article></section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceTraceTimelineRoutes(...)</code> makes traces the proof backbone</h2><p class="muted">Mount trace timelines from the same trace store used by readiness, simulations, provider recovery, delivery sinks, and phone-agent smoke proof.</p><pre><code>${snippet}</code></pre></section><table><thead><tr><th>Session</th><th>Status</th><th>Events</th><th>Turns</th><th>Errors</th><th>Duration</th><th>Providers</th></tr></thead><tbody>${renderSessionRows(report)}</tbody></table></main></body></html>`;
-};
-
-export const createVoiceTraceTimelineRoutes = (
-  options: VoiceTraceTimelineRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice-traces";
-  const htmlPath = options.htmlPath ?? "/traces";
-  const title = options.title ?? "AbsoluteJS Voice Trace Timelines";
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-trace-timelines",
-  });
-
-  const buildReport = async () =>
-    summarizeVoiceTraceTimeline(await options.store.list(), {
-      evaluation: options.evaluation,
-      limit: options.limit,
-      operationsRecordHref: options.operationsRecordHref,
-      redact: options.redact,
-    });
-
-  const findSession = async (sessionId: string) => {
-    const report = summarizeVoiceTraceTimeline(
-      await options.store.list({ sessionId }),
-      {
-        evaluation: options.evaluation,
-        limit: 1,
-        operationsRecordHref: options.operationsRecordHref,
-        redact: options.redact,
-      },
-    );
-    return report.sessions[0];
-  };
-
-  routes.get(path, async () => Response.json(await buildReport()));
-  routes.get(`${path}/:sessionId`, async ({ params }) => {
-    const session = await findSession(params.sessionId);
-    return session
-      ? Response.json(session)
-      : Response.json(
-          { error: "Voice trace session not found." },
-          { status: 404 },
-        );
-  });
-  routes.get(htmlPath, async () => {
-    const report = await buildReport();
-    const body = await (
-      options.render ??
-      ((input) => renderVoiceTraceTimelineHTML(input, { title }))
-    )(report);
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  });
-  routes.get(`${htmlPath}/:sessionId`, async ({ params }) => {
-    const session = await findSession(params.sessionId);
-    if (!session) {
-      return Response.json(
-        { error: "Voice trace session not found." },
-        { status: 404 },
-      );
-    }
-    const body = await (
-      options.renderSession ??
-      ((input) => renderVoiceTraceTimelineSessionHTML(input, { title }))
-    )(session);
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        ...options.headers,
-      },
-    });
-  });
-
-  return routes;
 };

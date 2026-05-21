@@ -9,6 +9,19 @@ import type {
   VoiceTurnCorrectionHandler,
 } from "./types";
 
+export const createVoiceSTTRoutingCorrectionHandler = (
+  mode: VoiceSTTRoutingCorrectionMode = "generic",
+): VoiceTurnCorrectionHandler | undefined => {
+  if (mode === "none") {
+    return undefined;
+  }
+
+  if (mode === "risky-turn") {
+    return createRiskyTurnCorrectionHandler();
+  }
+
+  return createPhraseHintCorrectionHandler();
+};
 export const resolveVoiceSTTRoutingStrategy = (
   goal: VoiceSTTRoutingGoal = "best",
 ): VoiceSTTRoutingStrategy => {
@@ -37,18 +50,4 @@ export const resolveVoiceSTTRoutingStrategy = (
     preset: "reliability",
     sttLifecycle: "continuous",
   };
-};
-
-export const createVoiceSTTRoutingCorrectionHandler = (
-  mode: VoiceSTTRoutingCorrectionMode = "generic",
-): VoiceTurnCorrectionHandler | undefined => {
-  if (mode === "none") {
-    return undefined;
-  }
-
-  if (mode === "risky-turn") {
-    return createRiskyTurnCorrectionHandler();
-  }
-
-  return createPhraseHintCorrectionHandler();
 };

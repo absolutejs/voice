@@ -66,6 +66,7 @@ export const createVoiceWhisperChannel = (
         type: "ducked",
       });
     }
+
     return entry;
   };
 
@@ -73,6 +74,7 @@ export const createVoiceWhisperChannel = (
     if (!active.has(supervisorId)) return false;
     active.delete(supervisorId);
     broadcast({ at: now(), supervisorId, type: "stopped" });
+
     return true;
   };
 
@@ -81,26 +83,29 @@ export const createVoiceWhisperChannel = (
     if (!entry) return "drop";
     if (entry.route === "drop") return "drop";
     broadcast({ frame, type: "frame" });
+
     return entry.route;
   };
 
   return {
+    pushFrame,
+    sessionId: options.sessionId,
+    start,
+    stop,
     activeSupervisors: () => Array.from(active.keys()),
     isWhispering: (supervisorId: string) => active.has(supervisorId),
-    pushFrame,
     routeFor: (supervisorId: string): VoiceWhisperRoute | null =>
       active.get(supervisorId)?.route ?? null,
-    sessionId: options.sessionId,
     setRoute(supervisorId: string, route: VoiceWhisperRoute) {
       const entry = active.get(supervisorId);
       if (!entry) return false;
       entry.route = route;
+
       return true;
     },
-    start,
-    stop,
     subscribe(listener: (event: VoiceWhisperEvent) => void) {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };

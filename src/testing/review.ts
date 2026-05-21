@@ -190,6 +190,7 @@ const formatTimelineText = (entry: VoiceCallReviewTimelineEvent) => {
   if (entry.name) {
     parts.push(`name=${entry.name}`);
   }
+
   return parts.join(" ");
 };
 
@@ -292,16 +293,6 @@ const compactTimeline = (timeline: VoiceCallReviewTimelineEvent[]) => {
 
   return rows;
 };
-
-export const withVoiceCallReviewId = <
-  TArtifact extends VoiceCallReviewArtifact = VoiceCallReviewArtifact,
->(
-  id: string,
-  artifact: TArtifact,
-): TArtifact & { id: string } => ({
-  ...artifact,
-  id,
-});
 
 export const createVoiceCallReviewFromLiveTelephonyReport = (
   report: LiveTelephonyReviewInput,
@@ -429,6 +420,15 @@ export const createVoiceCallReviewFromLiveTelephonyReport = (
     },
   };
 };
+export const withVoiceCallReviewId = <
+  TArtifact extends VoiceCallReviewArtifact = VoiceCallReviewArtifact,
+>(
+  id: string,
+  artifact: TArtifact,
+): TArtifact & { id: string } => ({
+  ...artifact,
+  id,
+});
 
 const toErrorMessage = (error: unknown) => {
   if (typeof error === "string" && error.trim().length > 0) {
@@ -615,11 +615,13 @@ export const createVoiceCallReviewRecorder = (
             confidence: message.transcript.confidence,
             text: message.transcript.text,
           });
+
           return;
         case "assistant":
           push("turn", "assistant", {
             text: message.text,
           });
+
           return;
         case "audio":
           push(
@@ -631,6 +633,7 @@ export const createVoiceCallReviewRecorder = (
               bytes: Math.floor((message.chunkBase64.length * 3) / 4),
             },
           );
+
           return;
         case "turn":
           if (committedTurnIds.has(message.turn.id)) {
@@ -642,27 +645,31 @@ export const createVoiceCallReviewRecorder = (
             confidence: message.turn.quality?.averageConfidence,
             text: message.turn.text,
           });
+
           return;
         case "error":
           errors.push(message.message);
           push("turn", "error", {
             reason: message.message,
           });
+
           return;
         case "complete":
           push("turn", "complete", {
             text: message.sessionId,
           });
+
           return;
         case "session":
           push("turn", "session", {
             reason: message.status,
             text: message.sessionId,
           });
+
           return;
         case "pong":
           push("benchmark", "pong");
-          return;
+          
       }
     },
   };
@@ -712,6 +719,7 @@ const renderTransportSummary = (timeline: VoiceCallReviewTimelineEvent[]) => {
       if ((summary.audioMs ?? 0) > 0) {
         parts.push(`${roundMetric(summary.audioMs)}ms audio`);
       }
+
       return parts.join(", ");
     }),
   ].join("\n");
@@ -731,76 +739,6 @@ const renderLatencyBreakdown = (
       (entry) => `- ${entry.label}: ${roundMetric(entry.valueMs)}ms`,
     ),
   ].join("\n");
-};
-
-export const renderVoiceCallReviewMarkdown = (
-  artifact: VoiceCallReviewArtifact,
-) => {
-  const summaryLines = [
-    `- pass: ${artifact.summary.pass ? "yes" : "no"}`,
-    formatMetric("first turn", artifact.summary.firstTurnLatencyMs),
-    formatMetric(
-      "first outbound media",
-      artifact.summary.firstOutboundMediaLatencyMs,
-    ),
-    formatMetric("mark", artifact.summary.markLatencyMs),
-    formatMetric("clear", artifact.summary.clearLatencyMs),
-    formatMetric("elapsed", artifact.summary.elapsedMs),
-    typeof artifact.summary.wordErrorRate === "number"
-      ? `- word error rate: ${artifact.summary.wordErrorRate}`
-      : undefined,
-    typeof artifact.summary.termRecall === "number"
-      ? `- term recall: ${artifact.summary.termRecall}`
-      : undefined,
-    typeof artifact.summary.turnCount === "number"
-      ? `- turn count: ${artifact.summary.turnCount}`
-      : undefined,
-    typeof artifact.summary.outboundMediaCount === "number"
-      ? `- outbound media count: ${artifact.summary.outboundMediaCount}`
-      : undefined,
-  ].filter((value): value is string => typeof value === "string");
-
-  const notes = artifact.notes.length
-    ? ["## Notes", "", ...artifact.notes.map((note) => `- ${note}`)].join("\n")
-    : "";
-
-  const errors = artifact.errors.length
-    ? ["## Errors", "", ...artifact.errors.map((error) => `- ${error}`)].join(
-        "\n",
-      )
-    : "";
-  const latency = renderLatencyBreakdown(artifact.latencyBreakdown);
-  const transportSummary = renderTransportSummary(artifact.timeline);
-
-  return [
-    `# ${artifact.title}`,
-    "",
-    artifact.path ? `Source: \`${artifact.path}\`` : undefined,
-    artifact.fixtureId ? `Fixture: \`${artifact.fixtureId}\`` : undefined,
-    "",
-    "## Summary",
-    "",
-    ...summaryLines,
-    "",
-    "## Transcript",
-    "",
-    `- expected: ${artifact.transcript.expected ?? "_n/a_"}`,
-    `- actual: ${artifact.transcript.actual}`,
-    "",
-    notes,
-    notes ? "" : undefined,
-    latency,
-    latency ? "" : undefined,
-    transportSummary,
-    transportSummary ? "" : undefined,
-    errors,
-    errors ? "" : undefined,
-    renderConfigSection(artifact.config),
-    renderConfigSection(artifact.config) ? "" : undefined,
-    renderTimeline(artifact.timeline),
-  ]
-    .filter((value): value is string => typeof value === "string")
-    .join("\n");
 };
 
 export const renderVoiceCallReviewHTML = (
@@ -824,6 +762,7 @@ export const renderVoiceCallReviewHTML = (
       if ((summary.audioMs ?? 0) > 0) {
         parts.push(`${roundMetric(summary.audioMs)}ms audio`);
       }
+
       return `<li><strong>${escapeHtml(summary.label)}:</strong> ${escapeHtml(
         parts.join(", "),
       )}</li>`;
@@ -897,4 +836,73 @@ export const renderVoiceCallReviewHTML = (
   </main>
 </body>
 </html>`;
+};
+export const renderVoiceCallReviewMarkdown = (
+  artifact: VoiceCallReviewArtifact,
+) => {
+  const summaryLines = [
+    `- pass: ${artifact.summary.pass ? "yes" : "no"}`,
+    formatMetric("first turn", artifact.summary.firstTurnLatencyMs),
+    formatMetric(
+      "first outbound media",
+      artifact.summary.firstOutboundMediaLatencyMs,
+    ),
+    formatMetric("mark", artifact.summary.markLatencyMs),
+    formatMetric("clear", artifact.summary.clearLatencyMs),
+    formatMetric("elapsed", artifact.summary.elapsedMs),
+    typeof artifact.summary.wordErrorRate === "number"
+      ? `- word error rate: ${artifact.summary.wordErrorRate}`
+      : undefined,
+    typeof artifact.summary.termRecall === "number"
+      ? `- term recall: ${artifact.summary.termRecall}`
+      : undefined,
+    typeof artifact.summary.turnCount === "number"
+      ? `- turn count: ${artifact.summary.turnCount}`
+      : undefined,
+    typeof artifact.summary.outboundMediaCount === "number"
+      ? `- outbound media count: ${artifact.summary.outboundMediaCount}`
+      : undefined,
+  ].filter((value): value is string => typeof value === "string");
+
+  const notes = artifact.notes.length
+    ? ["## Notes", "", ...artifact.notes.map((note) => `- ${note}`)].join("\n")
+    : "";
+
+  const errors = artifact.errors.length
+    ? ["## Errors", "", ...artifact.errors.map((error) => `- ${error}`)].join(
+        "\n",
+      )
+    : "";
+  const latency = renderLatencyBreakdown(artifact.latencyBreakdown);
+  const transportSummary = renderTransportSummary(artifact.timeline);
+
+  return [
+    `# ${artifact.title}`,
+    "",
+    artifact.path ? `Source: \`${artifact.path}\`` : undefined,
+    artifact.fixtureId ? `Fixture: \`${artifact.fixtureId}\`` : undefined,
+    "",
+    "## Summary",
+    "",
+    ...summaryLines,
+    "",
+    "## Transcript",
+    "",
+    `- expected: ${artifact.transcript.expected ?? "_n/a_"}`,
+    `- actual: ${artifact.transcript.actual}`,
+    "",
+    notes,
+    notes ? "" : undefined,
+    latency,
+    latency ? "" : undefined,
+    transportSummary,
+    transportSummary ? "" : undefined,
+    errors,
+    errors ? "" : undefined,
+    renderConfigSection(artifact.config),
+    renderConfigSection(artifact.config) ? "" : undefined,
+    renderTimeline(artifact.timeline),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join("\n");
 };

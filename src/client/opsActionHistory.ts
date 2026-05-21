@@ -12,18 +12,6 @@ export type VoiceOpsActionHistorySnapshot = {
   updatedAt?: number;
 };
 
-export const fetchVoiceOpsActionHistory = async (
-  path = "/api/voice/ops-actions/history",
-  options: Pick<VoiceOpsActionHistoryClientOptions, "fetch"> = {},
-) => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(path);
-  if (!response.ok) {
-    throw new Error(`Voice ops action history failed: HTTP ${response.status}`);
-  }
-  return (await response.json()) as VoiceOpsActionHistoryReport;
-};
-
 export const createVoiceOpsActionHistoryStore = (
   path = "/api/voice/ops-actions/history",
   options: VoiceOpsActionHistoryClientOptions = {},
@@ -55,6 +43,7 @@ export const createVoiceOpsActionHistoryStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return report;
     } catch (error) {
       snapshot = {
@@ -83,14 +72,27 @@ export const createVoiceOpsActionHistoryStore = (
 
   return {
     close,
+    refresh,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    refresh,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const fetchVoiceOpsActionHistory = async (
+  path = "/api/voice/ops-actions/history",
+  options: Pick<VoiceOpsActionHistoryClientOptions, "fetch"> = {},
+) => {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(path);
+  if (!response.ok) {
+    throw new Error(`Voice ops action history failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as VoiceOpsActionHistoryReport;
 };

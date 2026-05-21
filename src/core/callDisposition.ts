@@ -150,6 +150,7 @@ export const createVoiceCallDispositionTagger = (
     } else {
       tags.set(sessionId, [...existing, entry]);
     }
+
     return entry;
   };
 
@@ -158,12 +159,14 @@ export const createVoiceCallDispositionTagger = (
     if (!existing) return 0;
     if (code === undefined) {
       tags.delete(sessionId);
+
       return existing.length;
     }
     const filtered = existing.filter((t) => t.code !== code);
     const removed = existing.length - filtered.length;
     if (filtered.length === 0) tags.delete(sessionId);
     else tags.set(sessionId, filtered);
+
     return removed;
   };
 
@@ -173,6 +176,7 @@ export const createVoiceCallDispositionTagger = (
   const listAll = (): VoiceCallDispositionTag[] => {
     const flat: VoiceCallDispositionTag[] = [];
     for (const list of tags.values()) flat.push(...list);
+
     return flat;
   };
 
@@ -194,6 +198,7 @@ export const createVoiceCallDispositionTagger = (
         if (def.retryable) retryableTagged += 1;
       }
     }
+
     return {
       byCode: Object.fromEntries(byCodeCount),
       byOutcome: byOutcomeCount,
@@ -204,13 +209,13 @@ export const createVoiceCallDispositionTagger = (
   };
 
   return {
-    definitionFor: (code: string) => byCode.get(code) ?? null,
     definitions,
     listAll,
     listForSession,
     summarize,
     tag,
     untag,
+    definitionFor: (code: string) => byCode.get(code) ?? null,
   };
 };
 

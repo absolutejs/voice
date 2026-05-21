@@ -38,6 +38,7 @@ const lookupPath = (
     if (typeof cursor !== "object") return undefined;
     cursor = (cursor as Record<string, unknown>)[part];
   }
+
   return cursor as VoiceCampaignTemplateValue | undefined;
 };
 
@@ -65,6 +66,7 @@ const formatPhone = (phone: string): string => {
   if (digits.length === 11 && digits.startsWith("1")) {
     return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   }
+
   return phone;
 };
 
@@ -75,6 +77,7 @@ const formatDate = (
   if (value === null || value === undefined) return "";
   const date = new Date(typeof value === "number" ? value : String(value));
   if (Number.isNaN(date.getTime())) return String(value);
+
   return date.toLocaleDateString(locale ?? "en-US", {
     day: "numeric",
     month: "long",
@@ -90,10 +93,12 @@ export const DEFAULT_VOICE_CAMPAIGN_TEMPLATE_FILTERS: Record<
     if (value === null || value === undefined || value === "")
       return value ?? "";
     const text = String(value);
+
     return text.charAt(0).toUpperCase() + text.slice(1);
   },
   currency: (value, currency = "USD") => {
     if (typeof value !== "number") return String(value ?? "");
+
     return new Intl.NumberFormat("en-US", {
       currency,
       style: "currency",
@@ -131,9 +136,23 @@ const renderValue = (
     cursor = filter(cursor, ...args);
   }
   if (cursor === null || cursor === undefined) return "";
+
   return String(cursor);
 };
 
+export const collectVoiceCampaignTemplateVariables = (
+  template: string,
+): string[] => {
+  const set = new Set<string>();
+  const matches = template.matchAll(/\{\{([^{}]+)\}\}/gu);
+  for (const match of matches) {
+    const expression = match[1] ?? "";
+    const path = (expression.split("|")[0] ?? "").trim();
+    if (path) set.add(path);
+  }
+
+  return Array.from(set);
+};
 export const resolveVoiceCampaignTemplate = (
   template: string,
   options: ResolveVoiceCampaignTemplateOptions,
@@ -154,23 +173,13 @@ export const resolveVoiceCampaignTemplate = (
         if (options.strict) {
           throw new Error(`Missing template variable: ${path}`);
         }
+
         return options.fallback ?? "";
       }
+
       return renderValue(value, filters, segments.slice(1));
     },
   );
-  return { missingVariables: Array.from(missing), output };
-};
 
-export const collectVoiceCampaignTemplateVariables = (
-  template: string,
-): string[] => {
-  const set = new Set<string>();
-  const matches = template.matchAll(/\{\{([^{}]+)\}\}/gu);
-  for (const match of matches) {
-    const expression = match[1] ?? "";
-    const path = (expression.split("|")[0] ?? "").trim();
-    if (path) set.add(path);
-  }
-  return Array.from(set);
+  return { missingVariables: Array.from(missing), output };
 };

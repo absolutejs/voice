@@ -110,6 +110,7 @@ const listJsonFiles = async (directory: string) => {
     const entries = await readdir(directory, {
       withFileTypes: true,
     });
+
     return entries
       .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
       .map((entry) => join(directory, entry.name));
@@ -153,6 +154,7 @@ const nextRecentIndexTimestamp = () => {
   const now = Date.now();
   lastRecentIndexTimestamp =
     now > lastRecentIndexTimestamp ? now : lastRecentIndexTimestamp + 1;
+
   return lastRecentIndexTimestamp;
 };
 
@@ -169,6 +171,7 @@ const readRecentJsonFileIndex = async (directory: string) => {
       files?: RecentJsonFileIndexEntry[];
       version?: number;
     }>(recentJsonFileIndexPath(directory))) ?? { files: [] };
+
     return sortRecentJsonFileIndexEntries(
       Array.isArray(payload.files) ? payload.files : [],
     );
@@ -226,6 +229,7 @@ const rebuildRecentJsonFileIndex = async (directory: string) => {
     ),
   );
   await writeRecentJsonFileIndex(directory, entries);
+
   return entries;
 };
 
@@ -265,6 +269,7 @@ const readRecentJsonFiles = async <T>(directory: string, limit: number) => {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         missingPaths.add(file);
+
         return undefined;
       }
 
@@ -303,6 +308,7 @@ const readRecentJsonFiles = async <T>(directory: string, limit: number) => {
   const rebuiltRecords: Array<T | undefined> = await Promise.all(
     rebuiltFiles.map((file) => readRecentFile(file)),
   );
+
   return rebuiltRecords.filter(isDefined<T>);
 };
 
@@ -318,6 +324,7 @@ const omitReadWindow = <TFilter extends { readWindow?: string }>(
   filter: TFilter,
 ) => {
   const { readWindow: _readWindow, ...next } = filter;
+
   return next;
 };
 
@@ -351,512 +358,43 @@ const writeJsonFile = async (
   await rename(tempPath, path);
 };
 
-export const createVoiceFileSessionStore = <
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+export const createStoredVoiceCallReviewArtifact = <
+  TArtifact extends VoiceCallReviewArtifact = VoiceCallReviewArtifact,
 >(
-  options: VoiceFileStoreOptions,
-): VoiceSessionStore<TSession> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TSession>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const getOrCreate = async (id: string) => {
-    const existing = await get(id);
-    if (existing) {
-      return existing;
-    }
-
-    const session = createVoiceSessionRecord<TSession>(id);
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      session,
-      options,
-    );
-    return session;
-  };
-
-  const set = async (id: string, value: TSession) => {
-    await writeJsonFile(resolveFilePath(options.directory, id), value, options);
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const sessions = await Promise.all(
-      files.map((file) => readJsonFile<TSession>(file)),
-    );
-
-    return sessions
-      .map((session) => toVoiceSessionSummary(session))
-      .sort(
-        (first, second) =>
-          (second.lastActivityAt ?? second.createdAt) -
-          (first.lastActivityAt ?? first.createdAt),
-      );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  return { get, getOrCreate, list, remove, set };
-};
-
-export const createVoiceFileReviewStore = <
-  TArtifact extends StoredVoiceCallReviewArtifact =
-    StoredVoiceCallReviewArtifact,
+  id: string,
+  artifact: TArtifact,
+) => withVoiceCallReviewId(id, artifact);
+export const createStoredVoiceExternalObjectMap = <
+  TMapping extends Omit<
+    VoiceExternalObjectMap,
+    "id" | "createdAt" | "updatedAt"
+  > = Omit<VoiceExternalObjectMap, "id" | "createdAt" | "updatedAt">,
 >(
-  options: VoiceFileStoreOptions,
-): VoiceCallReviewStore<TArtifact> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TArtifact>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const reviews = await Promise.all(
-      files.map((file) => readJsonFile<TArtifact>(file)),
-    );
-
-    return reviews.sort(
-      (left, right) => (right.generatedAt ?? 0) - (left.generatedAt ?? 0),
-    );
-  };
-
-  const set = async (id: string, artifact: TArtifact) => {
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      withVoiceCallReviewId(id, artifact),
-      options,
-    );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  return { get, list, remove, set };
-};
-
-export const createVoiceFileTaskStore = <
-  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
+  mapping: TMapping & { at?: number },
+) =>
+  createVoiceExternalObjectMap({
+    at: mapping.at,
+    externalId: mapping.externalId,
+    provider: mapping.provider,
+    sinkId: mapping.sinkId,
+    sourceId: mapping.sourceId,
+    sourceType: mapping.sourceType,
+  });
+export const createStoredVoiceIntegrationEvent = <
+  TEvent extends Omit<VoiceIntegrationEvent, "id"> = Omit<
+    VoiceIntegrationEvent,
+    "id"
+  >,
 >(
-  options: VoiceFileStoreOptions,
-): VoiceOpsTaskStore<TTask> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TTask>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const tasks = await Promise.all(
-      files.map((file) => readJsonFile<TTask>(file)),
-    );
-
-    return tasks.sort((left, right) => right.createdAt - left.createdAt);
-  };
-
-  const set = async (id: string, task: TTask) => {
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      withVoiceOpsTaskId(id, task as TTask & Omit<VoiceOpsTask, "id">),
-      options,
-    );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  return { get, list, remove, set };
-};
-
-export const createVoiceFileCampaignStore = (
-  options: VoiceFileStoreOptions,
-): VoiceCampaignStore => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<VoiceCampaignRecord>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const campaigns = await Promise.all(
-      files.map((file) => readJsonFile<VoiceCampaignRecord>(file)),
-    );
-
-    return campaigns.sort(
-      (left, right) => right.campaign.createdAt - left.campaign.createdAt,
-    );
-  };
-
-  const set = async (id: string, record: VoiceCampaignRecord) => {
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      record,
-      options,
-    );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  return { get, list, remove, set };
-};
-
-export const createVoiceFileIntegrationEventStore = <
-  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
+  id: string,
+  event: TEvent,
+) => withVoiceIntegrationEventId(id, event);
+export const createStoredVoiceOpsTask = <
+  TTask extends Omit<VoiceOpsTask, "id"> = Omit<VoiceOpsTask, "id">,
 >(
-  options: VoiceFileStoreOptions,
-): VoiceIntegrationEventStore<TEvent> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TEvent>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const events = await Promise.all(
-      files.map((file) => readJsonFile<TEvent>(file)),
-    );
-
-    return events.sort((left, right) => right.createdAt - left.createdAt);
-  };
-
-  const set = async (id: string, event: TEvent) => {
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      withVoiceIntegrationEventId(
-        id,
-        event as TEvent & Omit<VoiceIntegrationEvent, "id">,
-      ),
-      options,
-    );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  return { get, list, remove, set };
-};
-
-export const createVoiceFileExternalObjectMapStore = <
-  TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
->(
-  options: VoiceFileStoreOptions,
-): VoiceExternalObjectMapStore<TMapping> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TMapping>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const mappings = await Promise.all(
-      files.map((file) => readJsonFile<TMapping>(file)),
-    );
-
-    return mappings.sort((left, right) => right.updatedAt - left.updatedAt);
-  };
-
-  const set = async (id: string, mapping: TMapping) => {
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      {
-        ...mapping,
-        id,
-      },
-      options,
-    );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  const find: VoiceExternalObjectMapStore<TMapping>["find"] = async (input) => {
-    const mappings = await list();
-    return mappings.find(
-      (mapping) =>
-        mapping.provider === input.provider &&
-        mapping.sourceId === input.sourceId &&
-        (input.sinkId === undefined || mapping.sinkId === input.sinkId) &&
-        (input.sourceType === undefined ||
-          mapping.sourceType === input.sourceType),
-    );
-  };
-
-  return { find, get, list, remove, set };
-};
-
-export const createVoiceFileTraceEventStore = <
-  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
->(
-  options: VoiceFileStoreOptions,
-): VoiceTraceEventStore<TEvent> => {
-  const append: VoiceTraceEventStore<TEvent>["append"] = async (event) => {
-    const stored = createVoiceTraceEvent(event as VoiceTraceEvent) as TEvent;
-    const path = resolveFilePath(options.directory, stored.id);
-    await writeJsonFile(path, stored, options);
-    await updateRecentJsonFileIndex(options.directory, path);
-    return stored;
-  };
-
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TEvent>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list: VoiceTraceEventStore<TEvent>["list"] = async (filter = {}) => {
-    const events = shouldUseRecentReadWindow(filter)
-      ? await readRecentJsonFiles<TEvent>(options.directory, filter.limit)
-      : await Promise.all(
-          (await listJsonFiles(options.directory)).map((file) =>
-            readJsonFile<TEvent>(file),
-          ),
-        );
-
-    return filterVoiceTraceEvents(events, omitReadWindow(filter));
-  };
-
-  const remove = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-    await rm(path, {
-      force: true,
-    });
-    await removeRecentJsonFileIndexEntry(options.directory, path);
-  };
-
-  return { append, get, list, remove };
-};
-
-export const createVoiceFileTraceSinkDeliveryStore = <
-  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
->(
-  options: VoiceFileStoreOptions,
-): VoiceTraceSinkDeliveryStore<TDelivery> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TDelivery>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const deliveries = await Promise.all(
-      files.map((file) => readJsonFile<TDelivery>(file)),
-    );
-
-    return deliveries.sort(
-      (left, right) =>
-        left.createdAt - right.createdAt || left.id.localeCompare(right.id),
-    );
-  };
-
-  const set = async (id: string, delivery: TDelivery) => {
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      {
-        ...delivery,
-        id,
-      },
-      options,
-    );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  return { get, list, remove, set };
-};
-
-export const createVoiceFileAuditEventStore = <
-  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
->(
-  options: VoiceFileStoreOptions,
-): VoiceAuditEventStore<TEvent> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TEvent>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const append = async (event: VoiceAuditEvent | TEvent) => {
-    const stored = createVoiceAuditEvent(event) as TEvent;
-    const path = resolveFilePath(options.directory, stored.id);
-    await writeJsonFile(path, stored, options);
-    await updateRecentJsonFileIndex(options.directory, path);
-    return stored;
-  };
-
-  const list = async (filter?: Parameters<VoiceAuditEventStore["list"]>[0]) => {
-    const resolvedFilter = filter ?? {};
-    const events = shouldUseRecentReadWindow(resolvedFilter)
-      ? await readRecentJsonFiles<TEvent>(
-          options.directory,
-          resolvedFilter.limit,
-        )
-      : await Promise.all(
-          (await listJsonFiles(options.directory)).map((file) =>
-            readJsonFile<TEvent>(file),
-          ),
-        );
-
-    return filterVoiceAuditEvents(events, omitReadWindow(resolvedFilter));
-  };
-
-  return { append, get, list };
-};
-
-export const createVoiceFileAuditSinkDeliveryStore = <
-  TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
->(
-  options: VoiceFileStoreOptions,
-): VoiceAuditSinkDeliveryStore<TDelivery> => {
-  const get = async (id: string) => {
-    const path = resolveFilePath(options.directory, id);
-
-    try {
-      return await readJsonFile<TDelivery>(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
-  };
-
-  const list = async () => {
-    const files = await listJsonFiles(options.directory);
-    const deliveries = await Promise.all(
-      files.map((file) => readJsonFile<TDelivery>(file)),
-    );
-
-    return deliveries.sort(
-      (left, right) =>
-        left.createdAt - right.createdAt || left.id.localeCompare(right.id),
-    );
-  };
-
-  const set = async (id: string, delivery: TDelivery) => {
-    await writeJsonFile(
-      resolveFilePath(options.directory, id),
-      {
-        ...delivery,
-        id,
-      },
-      options,
-    );
-  };
-
-  const remove = async (id: string) => {
-    await rm(resolveFilePath(options.directory, id), {
-      force: true,
-    });
-  };
-
-  return { get, list, remove, set };
-};
-
+  id: string,
+  task: TTask,
+) => withVoiceOpsTaskId(id, task);
 export const createVoiceFileAssistantMemoryStore = <
   TRecord extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord,
 >(
@@ -908,6 +446,7 @@ export const createVoiceFileAssistantMemoryStore = <
       record,
       options,
     );
+
     return record;
   };
 
@@ -921,7 +460,206 @@ export const createVoiceFileAssistantMemoryStore = <
 
   return { delete: remove, get, list, set };
 };
+export const createVoiceFileAuditEventStore = <
+  TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+>(
+  options: VoiceFileStoreOptions,
+): VoiceAuditEventStore<TEvent> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
 
+    try {
+      return await readJsonFile<TEvent>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const append = async (event: VoiceAuditEvent | TEvent) => {
+    const stored = createVoiceAuditEvent(event) as TEvent;
+    const path = resolveFilePath(options.directory, stored.id);
+    await writeJsonFile(path, stored, options);
+    await updateRecentJsonFileIndex(options.directory, path);
+
+    return stored;
+  };
+
+  const list = async (filter?: Parameters<VoiceAuditEventStore["list"]>[0]) => {
+    const resolvedFilter = filter ?? {};
+    const events = shouldUseRecentReadWindow(resolvedFilter)
+      ? await readRecentJsonFiles<TEvent>(
+          options.directory,
+          resolvedFilter.limit,
+        )
+      : await Promise.all(
+          (await listJsonFiles(options.directory)).map((file) =>
+            readJsonFile<TEvent>(file),
+          ),
+        );
+
+    return filterVoiceAuditEvents(events, omitReadWindow(resolvedFilter));
+  };
+
+  return { append, get, list };
+};
+export const createVoiceFileAuditSinkDeliveryStore = <
+  TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
+>(
+  options: VoiceFileStoreOptions,
+): VoiceAuditSinkDeliveryStore<TDelivery> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+
+    try {
+      return await readJsonFile<TDelivery>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const deliveries = await Promise.all(
+      files.map((file) => readJsonFile<TDelivery>(file)),
+    );
+
+    return deliveries.sort(
+      (left, right) =>
+        left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+    );
+  };
+
+  const set = async (id: string, delivery: TDelivery) => {
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      {
+        ...delivery,
+        id,
+      },
+      options,
+    );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  return { get, list, remove, set };
+};
+export const createVoiceFileCampaignStore = (
+  options: VoiceFileStoreOptions,
+): VoiceCampaignStore => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+
+    try {
+      return await readJsonFile<VoiceCampaignRecord>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const campaigns = await Promise.all(
+      files.map((file) => readJsonFile<VoiceCampaignRecord>(file)),
+    );
+
+    return campaigns.sort(
+      (left, right) => right.campaign.createdAt - left.campaign.createdAt,
+    );
+  };
+
+  const set = async (id: string, record: VoiceCampaignRecord) => {
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      record,
+      options,
+    );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  return { get, list, remove, set };
+};
+export const createVoiceFileExternalObjectMapStore = <
+  TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
+>(
+  options: VoiceFileStoreOptions,
+): VoiceExternalObjectMapStore<TMapping> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+
+    try {
+      return await readJsonFile<TMapping>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const mappings = await Promise.all(
+      files.map((file) => readJsonFile<TMapping>(file)),
+    );
+
+    return mappings.sort((left, right) => right.updatedAt - left.updatedAt);
+  };
+
+  const set = async (id: string, mapping: TMapping) => {
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      {
+        ...mapping,
+        id,
+      },
+      options,
+    );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  const find: VoiceExternalObjectMapStore<TMapping>["find"] = async (input) => {
+    const mappings = await list();
+
+    return mappings.find(
+      (mapping) =>
+        mapping.provider === input.provider &&
+        mapping.sourceId === input.sourceId &&
+        (input.sinkId === undefined || mapping.sinkId === input.sinkId) &&
+        (input.sourceType === undefined ||
+          mapping.sourceType === input.sourceType),
+    );
+  };
+
+  return { find, get, list, remove, set };
+};
 export const createVoiceFileIncidentBundleStore = <
   TArtifact extends StoredVoiceIncidentBundleArtifact =
     StoredVoiceIncidentBundleArtifact,
@@ -962,6 +700,7 @@ export const createVoiceFileIncidentBundleStore = <
         ) {
           return false;
         }
+
         return true;
       })
       .sort(
@@ -989,7 +728,100 @@ export const createVoiceFileIncidentBundleStore = <
 
   return { get, list, remove, set };
 };
+export const createVoiceFileIntegrationEventStore = <
+  TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
+>(
+  options: VoiceFileStoreOptions,
+): VoiceIntegrationEventStore<TEvent> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
 
+    try {
+      return await readJsonFile<TEvent>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const events = await Promise.all(
+      files.map((file) => readJsonFile<TEvent>(file)),
+    );
+
+    return events.sort((left, right) => right.createdAt - left.createdAt);
+  };
+
+  const set = async (id: string, event: TEvent) => {
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      withVoiceIntegrationEventId(
+        id,
+        event as TEvent & Omit<VoiceIntegrationEvent, "id">,
+      ),
+      options,
+    );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  return { get, list, remove, set };
+};
+export const createVoiceFileReviewStore = <
+  TArtifact extends StoredVoiceCallReviewArtifact =
+    StoredVoiceCallReviewArtifact,
+>(
+  options: VoiceFileStoreOptions,
+): VoiceCallReviewStore<TArtifact> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+
+    try {
+      return await readJsonFile<TArtifact>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const reviews = await Promise.all(
+      files.map((file) => readJsonFile<TArtifact>(file)),
+    );
+
+    return reviews.sort(
+      (left, right) => (right.generatedAt ?? 0) - (left.generatedAt ?? 0),
+    );
+  };
+
+  const set = async (id: string, artifact: TArtifact) => {
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      withVoiceCallReviewId(id, artifact),
+      options,
+    );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  return { get, list, remove, set };
+};
 export const createVoiceFileRuntimeStorage = <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TReview extends StoredVoiceCallReviewArtifact = StoredVoiceCallReviewArtifact,
@@ -1069,47 +901,212 @@ export const createVoiceFileRuntimeStorage = <
     directory: join(options.directory, "traces"),
   }),
 });
-
-export const createStoredVoiceCallReviewArtifact = <
-  TArtifact extends VoiceCallReviewArtifact = VoiceCallReviewArtifact,
+export const createVoiceFileSessionStore = <
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
 >(
-  id: string,
-  artifact: TArtifact,
-) => withVoiceCallReviewId(id, artifact);
+  options: VoiceFileStoreOptions,
+): VoiceSessionStore<TSession> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
 
-export const createStoredVoiceOpsTask = <
-  TTask extends Omit<VoiceOpsTask, "id"> = Omit<VoiceOpsTask, "id">,
->(
-  id: string,
-  task: TTask,
-) => withVoiceOpsTaskId(id, task);
+    try {
+      return await readJsonFile<TSession>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
 
-export const createStoredVoiceIntegrationEvent = <
-  TEvent extends Omit<VoiceIntegrationEvent, "id"> = Omit<
-    VoiceIntegrationEvent,
-    "id"
-  >,
->(
-  id: string,
-  event: TEvent,
-) => withVoiceIntegrationEventId(id, event);
+      throw error;
+    }
+  };
 
-export const createStoredVoiceExternalObjectMap = <
-  TMapping extends Omit<
-    VoiceExternalObjectMap,
-    "id" | "createdAt" | "updatedAt"
-  > = Omit<VoiceExternalObjectMap, "id" | "createdAt" | "updatedAt">,
+  const getOrCreate = async (id: string) => {
+    const existing = await get(id);
+    if (existing) {
+      return existing;
+    }
+
+    const session = createVoiceSessionRecord<TSession>(id);
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      session,
+      options,
+    );
+
+    return session;
+  };
+
+  const set = async (id: string, value: TSession) => {
+    await writeJsonFile(resolveFilePath(options.directory, id), value, options);
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const sessions = await Promise.all(
+      files.map((file) => readJsonFile<TSession>(file)),
+    );
+
+    return sessions
+      .map((session) => toVoiceSessionSummary(session))
+      .sort(
+        (first, second) =>
+          (second.lastActivityAt ?? second.createdAt) -
+          (first.lastActivityAt ?? first.createdAt),
+      );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  return { get, getOrCreate, list, remove, set };
+};
+export const createVoiceFileTaskStore = <
+  TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
 >(
-  mapping: TMapping & { at?: number },
-) =>
-  createVoiceExternalObjectMap({
-    at: mapping.at,
-    externalId: mapping.externalId,
-    provider: mapping.provider,
-    sinkId: mapping.sinkId,
-    sourceId: mapping.sourceId,
-    sourceType: mapping.sourceType,
-  });
+  options: VoiceFileStoreOptions,
+): VoiceOpsTaskStore<TTask> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+
+    try {
+      return await readJsonFile<TTask>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const tasks = await Promise.all(
+      files.map((file) => readJsonFile<TTask>(file)),
+    );
+
+    return tasks.sort((left, right) => right.createdAt - left.createdAt);
+  };
+
+  const set = async (id: string, task: TTask) => {
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      withVoiceOpsTaskId(id, task as TTask & Omit<VoiceOpsTask, "id">),
+      options,
+    );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  return { get, list, remove, set };
+};
+export const createVoiceFileTraceEventStore = <
+  TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+>(
+  options: VoiceFileStoreOptions,
+): VoiceTraceEventStore<TEvent> => {
+  const append: VoiceTraceEventStore<TEvent>["append"] = async (event) => {
+    const stored = createVoiceTraceEvent(event) as TEvent;
+    const path = resolveFilePath(options.directory, stored.id);
+    await writeJsonFile(path, stored, options);
+    await updateRecentJsonFileIndex(options.directory, path);
+
+    return stored;
+  };
+
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+
+    try {
+      return await readJsonFile<TEvent>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list: VoiceTraceEventStore<TEvent>["list"] = async (filter = {}) => {
+    const events = shouldUseRecentReadWindow(filter)
+      ? await readRecentJsonFiles<TEvent>(options.directory, filter.limit)
+      : await Promise.all(
+          (await listJsonFiles(options.directory)).map((file) =>
+            readJsonFile<TEvent>(file),
+          ),
+        );
+
+    return filterVoiceTraceEvents(events, omitReadWindow(filter));
+  };
+
+  const remove = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+    await rm(path, {
+      force: true,
+    });
+    await removeRecentJsonFileIndexEntry(options.directory, path);
+  };
+
+  return { append, get, list, remove };
+};
+export const createVoiceFileTraceSinkDeliveryStore = <
+  TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+>(
+  options: VoiceFileStoreOptions,
+): VoiceTraceSinkDeliveryStore<TDelivery> => {
+  const get = async (id: string) => {
+    const path = resolveFilePath(options.directory, id);
+
+    try {
+      return await readJsonFile<TDelivery>(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const list = async () => {
+    const files = await listJsonFiles(options.directory);
+    const deliveries = await Promise.all(
+      files.map((file) => readJsonFile<TDelivery>(file)),
+    );
+
+    return deliveries.sort(
+      (left, right) =>
+        left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+    );
+  };
+
+  const set = async (id: string, delivery: TDelivery) => {
+    await writeJsonFile(
+      resolveFilePath(options.directory, id),
+      {
+        ...delivery,
+        id,
+      },
+      options,
+    );
+  };
+
+  const remove = async (id: string) => {
+    await rm(resolveFilePath(options.directory, id), {
+      force: true,
+    });
+  };
+
+  return { get, list, remove, set };
+};
 
 const recordingFileName = (sessionId: string, channel: VoiceRecordingChannel) =>
   `${encodeURIComponent(sessionId)}_${channel}.wav`;
@@ -1162,6 +1159,7 @@ export const createVoiceFileRecordingStore = (
         ? JSON.stringify(metadata, null, 2)
         : JSON.stringify(metadata),
     );
+
     return {
       ...artifact,
       recordingUrl,
@@ -1186,6 +1184,7 @@ export const createVoiceFileRecordingStore = (
         readFile(wavPath),
       ]);
       const meta = JSON.parse(metaText) as StoredRecordingMetadata;
+
       return {
         audioBytes: new Uint8Array(
           wavBytes.buffer,
@@ -1215,6 +1214,7 @@ export const createVoiceFileRecordingStore = (
     const records = await Promise.all(
       channels.map((channel) => readMetadata(sessionId, channel)),
     );
+
     return records.filter(
       (record): record is StoredVoiceRecordingArtifact => record !== undefined,
     );

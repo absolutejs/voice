@@ -18,38 +18,6 @@ export type VoiceLiveOpsSnapshot = {
   updatedAt?: number;
 };
 
-export const postVoiceLiveOpsAction = async (
-  input: VoiceLiveOpsActionInput,
-  options: VoiceLiveOpsClientOptions = {},
-): Promise<VoiceLiveOpsActionResult> => {
-  if (!input.sessionId) {
-    throw new Error("Start a voice session before running live ops actions.");
-  }
-
-  const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(
-    options.actionPath ?? "/api/voice/live-ops/action",
-    {
-      body: JSON.stringify(input),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    },
-  );
-  const payload = await response.json().catch(() => null);
-
-  if (!response.ok || !payload?.ok) {
-    const message =
-      payload && typeof payload === "object" && "error" in payload
-        ? String((payload as { error: unknown }).error)
-        : `Voice live ops action failed: HTTP ${response.status}`;
-    throw new Error(message);
-  }
-
-  return payload as VoiceLiveOpsActionResult;
-};
-
 export const createVoiceLiveOpsStore = (
   options: VoiceLiveOpsClientOptions = {},
 ) => {
@@ -88,6 +56,7 @@ export const createVoiceLiveOpsStore = (
         updatedAt: Date.now(),
       };
       emit();
+
       return result;
     } catch (error) {
       snapshot = {
@@ -108,16 +77,48 @@ export const createVoiceLiveOpsStore = (
 
   return {
     close,
+    run,
     getServerSnapshot: () => snapshot,
     getSnapshot: () => snapshot,
-    run,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
   };
+};
+export const postVoiceLiveOpsAction = async (
+  input: VoiceLiveOpsActionInput,
+  options: VoiceLiveOpsClientOptions = {},
+): Promise<VoiceLiveOpsActionResult> => {
+  if (!input.sessionId) {
+    throw new Error("Start a voice session before running live ops actions.");
+  }
+
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(
+    options.actionPath ?? "/api/voice/live-ops/action",
+    {
+      body: JSON.stringify(input),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    },
+  );
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.ok) {
+    const message =
+      payload && typeof payload === "object" && "error" in payload
+        ? String((payload as { error: unknown }).error)
+        : `Voice live ops action failed: HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return payload as VoiceLiveOpsActionResult;
 };
 
 export type {

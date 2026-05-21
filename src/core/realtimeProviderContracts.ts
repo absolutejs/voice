@@ -160,9 +160,9 @@ const defaultProviderEnv: Record<string, string[]> = {
 const defaultRealtimeProviders = ["openai-realtime", "gemini-live"] as const;
 
 const statusRank: Record<VoiceRealtimeProviderContractStatus, number> = {
+  fail: 2,
   pass: 0,
   warn: 1,
-  fail: 2,
 };
 
 const statusExceeds = (
@@ -180,53 +180,15 @@ const resolveProviderHref = <TProvider extends string>(
   provider: TProvider,
 ) => (typeof value === "string" ? value : value?.[provider]);
 
-export const createVoiceRealtimeProviderContractMatrixPreset = <
-  TProvider extends string = VoiceRealtimeProviderPresetProvider,
+export const assertVoiceRealtimeProviderContractEvidence = <
+  TProvider extends string = string,
 >(
-  options: VoiceRealtimeProviderContractMatrixPresetOptions<TProvider> = {},
-): VoiceRealtimeProviderContractMatrixInput<TProvider> => {
-  const providers =
-    options.providers ??
-    (defaultRealtimeProviders as readonly unknown[] as readonly TProvider[]);
-  const selected = options.selected ?? providers[0];
-
-  return {
-    contracts: providers.map((provider) => {
-      const providerKey = String(provider);
-      const requiredEnv =
-        options.requiredEnv?.[providerKey] ??
-        defaultProviderEnv[providerKey] ??
-        [];
-      const implementationStatus =
-        options.implementationStatus?.[providerKey] ?? "available";
-      const configured =
-        options.configured?.[providerKey] ??
-        (implementationStatus === "planned"
-          ? false
-          : requiredEnv.every((name) => Boolean(options.env?.[name])));
-
-      return {
-        capabilities:
-          options.capabilities?.[providerKey] ?? defaultRequiredCapabilities,
-        configured,
-        env: options.env,
-        fallbackProviders: options.fallbackProviders?.[providerKey],
-        implementationStatus,
-        latencyBudgetMs: options.latencyBudgets?.[providerKey],
-        provider,
-        readinessHref: resolveProviderHref(options.readinessHref, provider),
-        realtimeChannel: options.realtimeChannels?.[providerKey],
-        requiredCapabilities:
-          options.requiredCapabilities?.[providerKey] ??
-          defaultRequiredCapabilities,
-        requiredEnv,
-        selected: provider === selected,
-        traceHref: resolveProviderHref(options.traceHref, provider),
-      } satisfies VoiceRealtimeProviderContractDefinition<TProvider>;
-    }),
-  };
-};
-
+  report: VoiceRealtimeProviderContractMatrixReport<TProvider>,
+  input: VoiceRealtimeProviderContractAssertionInput<TProvider> = {},
+): VoiceRealtimeProviderContractAssertionReport<TProvider> => assertVoiceEvidence(
+    "Voice realtime provider contract assertion failed",
+    evaluateVoiceRealtimeProviderContractEvidence(report, input),
+  );
 export const buildVoiceRealtimeProviderContractMatrix = <
   TProvider extends string = string,
 >(
@@ -244,7 +206,7 @@ export const buildVoiceRealtimeProviderContractMatrix = <
     const missingCapabilities = requiredCapabilities.filter(
       (capability) => !presentCapabilities.has(capability),
     );
-    const realtimeChannel = contract.realtimeChannel;
+    const {realtimeChannel} = contract;
     const checks: VoiceRealtimeProviderContractCheck[] = [
       {
         detail: planned
@@ -345,7 +307,52 @@ export const buildVoiceRealtimeProviderContractMatrix = <
     warned,
   };
 };
+export const createVoiceRealtimeProviderContractMatrixPreset = <
+  TProvider extends string = VoiceRealtimeProviderPresetProvider,
+>(
+  options: VoiceRealtimeProviderContractMatrixPresetOptions<TProvider> = {},
+): VoiceRealtimeProviderContractMatrixInput<TProvider> => {
+  const providers =
+    options.providers ??
+    (defaultRealtimeProviders as readonly unknown[] as readonly TProvider[]);
+  const selected = options.selected ?? providers[0];
 
+  return {
+    contracts: providers.map((provider) => {
+      const providerKey = String(provider);
+      const requiredEnv =
+        options.requiredEnv?.[providerKey] ??
+        defaultProviderEnv[providerKey] ??
+        [];
+      const implementationStatus =
+        options.implementationStatus?.[providerKey] ?? "available";
+      const configured =
+        options.configured?.[providerKey] ??
+        (implementationStatus === "planned"
+          ? false
+          : requiredEnv.every((name) => Boolean(options.env?.[name])));
+
+      return {
+        capabilities:
+          options.capabilities?.[providerKey] ?? defaultRequiredCapabilities,
+        configured,
+        env: options.env,
+        fallbackProviders: options.fallbackProviders?.[providerKey],
+        implementationStatus,
+        latencyBudgetMs: options.latencyBudgets?.[providerKey],
+        provider,
+        readinessHref: resolveProviderHref(options.readinessHref, provider),
+        realtimeChannel: options.realtimeChannels?.[providerKey],
+        requiredCapabilities:
+          options.requiredCapabilities?.[providerKey] ??
+          defaultRequiredCapabilities,
+        requiredEnv,
+        selected: provider === selected,
+        traceHref: resolveProviderHref(options.traceHref, provider),
+      } satisfies VoiceRealtimeProviderContractDefinition<TProvider>;
+    }),
+  };
+};
 export const evaluateVoiceRealtimeProviderContractEvidence = <
   TProvider extends string = string,
 >(
@@ -404,6 +411,7 @@ export const evaluateVoiceRealtimeProviderContractEvidence = <
       const capabilityCheck = row.checks.find(
         (check) => check.key === "capabilities",
       );
+
       return capabilityCheck?.detail?.includes(capability) === true;
     }).length;
     if (missingRows > 0) {
@@ -428,42 +436,9 @@ export const evaluateVoiceRealtimeProviderContractEvidence = <
   };
 };
 
-export const assertVoiceRealtimeProviderContractEvidence = <
-  TProvider extends string = string,
->(
-  report: VoiceRealtimeProviderContractMatrixReport<TProvider>,
-  input: VoiceRealtimeProviderContractAssertionInput<TProvider> = {},
-): VoiceRealtimeProviderContractAssertionReport<TProvider> => {
-  return assertVoiceEvidence(
-    "Voice realtime provider contract assertion failed",
-    evaluateVoiceRealtimeProviderContractEvidence(report, input),
-  );
-};
-
 const resolveMatrix = async <TProvider extends string = string>(
   matrix: VoiceRealtimeProviderContractRoutesOptions<TProvider>["matrix"],
 ) => (typeof matrix === "function" ? await matrix() : matrix);
-
-export const renderVoiceRealtimeProviderContractHTML = <
-  TProvider extends string = string,
->(
-  report: VoiceRealtimeProviderContractMatrixReport<TProvider>,
-  title = "Voice Realtime Provider Contracts",
-) => {
-  const rows = report.rows
-    .map((row) => {
-      const checks = row.checks
-        .map(
-          (check) =>
-            `<li class="${escapeHtml(check.status)}"><strong>${escapeHtml(check.label)}</strong><span>${escapeHtml(check.detail ?? check.status)}</span></li>`,
-        )
-        .join("");
-      return `<article class="row ${escapeHtml(row.status)}"><div><p class="eyebrow">${row.selected ? "selected" : "available"}</p><h2>${escapeHtml(row.provider)}</h2><p class="status ${escapeHtml(row.status)}">${escapeHtml(row.status)}</p></div><ul>${checks}</ul></article>`;
-    })
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,.row{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.1))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill,.status{border:1px solid #3f4f45;border-radius:999px;display:inline-flex;padding:8px 12px}.row{display:grid;gap:18px;grid-template-columns:minmax(190px,.4fr) 1fr}.row ul{display:grid;gap:10px;list-style:none;margin:0;padding:0}.row li{background:#101814;border:1px solid #2e3d36;border-radius:16px;display:grid;gap:4px;padding:12px}.row li span{color:#b8c2ba}.pass{color:#86efac}.warn{color:#fde68a}.fail{color:#fecaca}@media(max-width:760px){main{padding:18px}.row{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Realtime provider contracts</p><h1>${escapeHtml(title)}</h1><p>Provider-level proof for duplex audio, browser format negotiation, turn commit, latency, reconnect, barge-in, trace evidence, fallback, and readiness gates.</p><div class="summary"><span class="pill">${String(report.passed)} passing</span><span class="pill">${String(report.warned)} warning</span><span class="pill">${String(report.failed)} failing</span><span class="pill">${String(report.total)} total</span></div></section>${rows || '<article class="row"><p>No realtime provider contracts configured.</p></article>'}</main></body></html>`;
-};
 
 export const createVoiceRealtimeProviderContractRoutes = <
   TProvider extends string = string,
@@ -479,14 +454,12 @@ export const createVoiceRealtimeProviderContractRoutes = <
     );
   const routes = new Elysia({
     name: options.name ?? "voice-realtime-provider-contracts",
-  }).get(path, async () => {
-    return new Response(JSON.stringify(await report(), null, 2), {
+  }).get(path, async () => new Response(JSON.stringify(await report(), null, 2), {
       headers: {
         "content-type": "application/json; charset=utf-8",
         ...options.headers,
       },
-    });
-  });
+    }));
 
   if (htmlPath !== false) {
     routes.get(htmlPath, async () => {
@@ -494,6 +467,7 @@ export const createVoiceRealtimeProviderContractRoutes = <
       const body = options.render
         ? await options.render(current)
         : renderVoiceRealtimeProviderContractHTML(current, title);
+
       return new Response(body, {
         headers: {
           "content-type": "text/html; charset=utf-8",
@@ -504,4 +478,25 @@ export const createVoiceRealtimeProviderContractRoutes = <
   }
 
   return routes;
+};
+export const renderVoiceRealtimeProviderContractHTML = <
+  TProvider extends string = string,
+>(
+  report: VoiceRealtimeProviderContractMatrixReport<TProvider>,
+  title = "Voice Realtime Provider Contracts",
+) => {
+  const rows = report.rows
+    .map((row) => {
+      const checks = row.checks
+        .map(
+          (check) =>
+            `<li class="${escapeHtml(check.status)}"><strong>${escapeHtml(check.label)}</strong><span>${escapeHtml(check.detail ?? check.status)}</span></li>`,
+        )
+        .join("");
+
+      return `<article class="row ${escapeHtml(row.status)}"><div><p class="eyebrow">${row.selected ? "selected" : "available"}</p><h2>${escapeHtml(row.provider)}</h2><p class="status ${escapeHtml(row.status)}">${escapeHtml(row.status)}</p></div><ul>${checks}</ul></article>`;
+    })
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101418;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1120px;padding:32px}.hero,.row{background:#17201d;border:1px solid #2e3d36;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.18),rgba(245,158,11,.1))}.eyebrow{color:#5eead4;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.8rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill,.status{border:1px solid #3f4f45;border-radius:999px;display:inline-flex;padding:8px 12px}.row{display:grid;gap:18px;grid-template-columns:minmax(190px,.4fr) 1fr}.row ul{display:grid;gap:10px;list-style:none;margin:0;padding:0}.row li{background:#101814;border:1px solid #2e3d36;border-radius:16px;display:grid;gap:4px;padding:12px}.row li span{color:#b8c2ba}.pass{color:#86efac}.warn{color:#fde68a}.fail{color:#fecaca}@media(max-width:760px){main{padding:18px}.row{grid-template-columns:1fr}}</style></head><body><main><section class="hero"><p class="eyebrow">Realtime provider contracts</p><h1>${escapeHtml(title)}</h1><p>Provider-level proof for duplex audio, browser format negotiation, turn commit, latency, reconnect, barge-in, trace evidence, fallback, and readiness gates.</p><div class="summary"><span class="pill">${String(report.passed)} passing</span><span class="pill">${String(report.warned)} warning</span><span class="pill">${String(report.failed)} failing</span><span class="pill">${String(report.total)} total</span></div></section>${rows || '<article class="row"><p>No realtime provider contracts configured.</p></article>'}</main></body></html>`;
 };

@@ -156,9 +156,23 @@ const resolveSurfaceStatus = (
   if ((surface.evidence ?? []).some((evidence) => evidence.status === "warn")) {
     return "warn";
   }
+
   return "pass";
 };
 
+export const assertVoiceCompetitiveCoverage = (
+  report: VoiceCompetitiveCoverageReport,
+  input: VoiceCompetitiveCoverageAssertionInput = {},
+): VoiceCompetitiveCoverageAssertionReport => {
+  const assertion = evaluateVoiceCompetitiveCoverage(report, input);
+  if (!assertion.ok) {
+    throw new Error(
+      `Voice competitive coverage assertion failed: ${assertion.issues.join(" ")}`,
+    );
+  }
+
+  return assertion;
+};
 export const buildVoiceCompetitiveCoverageReport = (
   input: VoiceCompetitiveCoverageReportInput,
 ): VoiceCompetitiveCoverageReport => {
@@ -232,15 +246,14 @@ export const buildVoiceCompetitiveCoverageReport = (
     vapiCoverageEstimate: input.vapiCoverageEstimate ?? "99.8%",
   };
 };
-
 export const evaluateVoiceCompetitiveCoverage = (
   report: VoiceCompetitiveCoverageReport,
   input: VoiceCompetitiveCoverageAssertionInput = {},
 ): VoiceCompetitiveCoverageAssertionReport => {
   const issues: string[] = [];
   const surfaces = report.surfaces.map((surface) => surface.surface).sort();
-  const missing = report.summary.missing;
-  const failed = report.summary.failed;
+  const {missing} = report.summary;
+  const {failed} = report.summary;
   const evidenceNames = new Set(
     report.surfaces.flatMap((surface) =>
       (surface.evidence ?? []).map((evidence) => evidence.name),
@@ -332,20 +345,43 @@ export const evaluateVoiceCompetitiveCoverage = (
     total: report.summary.surfaces,
   };
 };
-
-export const assertVoiceCompetitiveCoverage = (
+export const renderVoiceCompetitiveCoverageHTML = (
   report: VoiceCompetitiveCoverageReport,
-  input: VoiceCompetitiveCoverageAssertionInput = {},
-): VoiceCompetitiveCoverageAssertionReport => {
-  const assertion = evaluateVoiceCompetitiveCoverage(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice competitive coverage assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
-};
+  title = "Voice Competitive Coverage",
+) => {
+  const surfaceCards = report.surfaces
+    .map((surface) => {
+      const evidence = (surface.evidence ?? [])
+        .map(
+          (item) =>
+            `<li><strong>${escapeHtml(item.name)}</strong>${item.kind ? ` <span>${escapeHtml(item.kind)}</span>` : ""}${item.status ? ` <em>${escapeHtml(item.status)}</em>` : ""}${item.href ? ` <a href="${escapeHtml(item.href)}">open</a>` : ""}</li>`,
+        )
+        .join("");
 
+      return `<article class="surface ${escapeHtml(surface.status)} ${escapeHtml(surface.depth)}">
+<header><div><p class="eyebrow">${escapeHtml(surface.coverage)} · ${escapeHtml(surface.depth)}</p><h2>${escapeHtml(surface.surface)}</h2></div><strong>${escapeHtml(surface.status)}</strong></header>
+<p>${escapeHtml(surface.why)}</p>
+<dl>
+<div><dt>Competitors</dt><dd>${escapeHtml((surface.competitors ?? []).join(", ") || "n/a")}</dd></div>
+<div><dt>Operations record</dt><dd>${escapeHtml(surface.operationsRecord ?? "unknown")}</dd></div>
+<div><dt>Readiness gate</dt><dd>${escapeHtml(surface.readinessGate ?? "unknown")}</dd></div>
+<div><dt>Frameworks</dt><dd>${escapeHtml((surface.frameworkPrimitives ?? []).join(", ") || "n/a")}</dd></div>
+</dl>
+${surface.remainingGap ? `<p class="gap"><strong>Gap:</strong> ${escapeHtml(surface.remainingGap)}</p>` : ""}
+${surface.nextMove ? `<p class="next"><strong>Next:</strong> ${escapeHtml(surface.nextMove)}</p>` : ""}
+${evidence ? `<h3>Evidence</h3><ul>${evidence}</ul>` : '<p class="muted">No evidence links configured.</p>'}
+</article>`;
+    })
+    .join("\n");
+  const issueList = report.issues
+    .map(
+      (issue) =>
+        `<li class="${escapeHtml(issue.severity)}"><strong>${escapeHtml(issue.code)}</strong>${issue.surface ? ` ${escapeHtml(issue.surface)}` : ""}: ${escapeHtml(issue.message)}</li>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0e1412;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.surface,.issues{background:#17201c;border:1px solid #2e3c35;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.16),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-size:.78rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.surfaces{display:grid;gap:14px}.surface header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.surface.pass{border-color:rgba(34,197,94,.55)}.surface.warn{border-color:rgba(245,158,11,.72)}.surface.fail{border-color:rgba(239,68,68,.75)}.surface.advantage h2{color:#bbf7d0}.surface.intentional-gap h2{color:#cbd5e1}dl{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}dt{color:#9fb0a8;font-size:.8rem;font-weight:800}dd{margin:0;overflow-wrap:anywhere}.gap{color:#fde68a}.next{color:#bfdbfe}.muted{color:#a8b5ad}a{color:#5eead4}.issues li{margin:.4rem 0}.issues .error{color:#fecaca}.issues .warning{color:#fde68a}@media(max-width:760px){main{padding:18px}.surface header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted market proof</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)}. This report scores whether AbsoluteJS Voice merely covers a hosted-platform buyer surface or beats it for a code-owned/self-hosted buyer.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Vapi-style ${escapeHtml(report.vapiCoverageEstimate)}</span><span class="pill">Market ${escapeHtml(report.marketCoverageEstimate)}</span><span class="pill">${String(report.summary.surfaces)} surfaces</span><span class="pill">${String(report.summary.advantage)} advantage</span><span class="pill">${String(report.summary.intentionalGaps)} intentional gaps</span></div></section><section class="issues"><h2>Issues</h2><ul>${issueList || "<li>No issues.</li>"}</ul></section><section class="surfaces">${surfaceCards || '<article class="surface"><p>No competitive surfaces configured.</p></article>'}</section></main></body></html>`;
+};
 export const renderVoiceCompetitiveCoverageMarkdown = (
   report: VoiceCompetitiveCoverageReport,
   title = "Voice Competitive Coverage",
@@ -384,43 +420,6 @@ export const renderVoiceCompetitiveCoverageMarkdown = (
       : ["- None"]),
   ].join("\n");
 
-export const renderVoiceCompetitiveCoverageHTML = (
-  report: VoiceCompetitiveCoverageReport,
-  title = "Voice Competitive Coverage",
-) => {
-  const surfaceCards = report.surfaces
-    .map((surface) => {
-      const evidence = (surface.evidence ?? [])
-        .map(
-          (item) =>
-            `<li><strong>${escapeHtml(item.name)}</strong>${item.kind ? ` <span>${escapeHtml(item.kind)}</span>` : ""}${item.status ? ` <em>${escapeHtml(item.status)}</em>` : ""}${item.href ? ` <a href="${escapeHtml(item.href)}">open</a>` : ""}</li>`,
-        )
-        .join("");
-      return `<article class="surface ${escapeHtml(surface.status)} ${escapeHtml(surface.depth)}">
-<header><div><p class="eyebrow">${escapeHtml(surface.coverage)} · ${escapeHtml(surface.depth)}</p><h2>${escapeHtml(surface.surface)}</h2></div><strong>${escapeHtml(surface.status)}</strong></header>
-<p>${escapeHtml(surface.why)}</p>
-<dl>
-<div><dt>Competitors</dt><dd>${escapeHtml((surface.competitors ?? []).join(", ") || "n/a")}</dd></div>
-<div><dt>Operations record</dt><dd>${escapeHtml(surface.operationsRecord ?? "unknown")}</dd></div>
-<div><dt>Readiness gate</dt><dd>${escapeHtml(surface.readinessGate ?? "unknown")}</dd></div>
-<div><dt>Frameworks</dt><dd>${escapeHtml((surface.frameworkPrimitives ?? []).join(", ") || "n/a")}</dd></div>
-</dl>
-${surface.remainingGap ? `<p class="gap"><strong>Gap:</strong> ${escapeHtml(surface.remainingGap)}</p>` : ""}
-${surface.nextMove ? `<p class="next"><strong>Next:</strong> ${escapeHtml(surface.nextMove)}</p>` : ""}
-${evidence ? `<h3>Evidence</h3><ul>${evidence}</ul>` : '<p class="muted">No evidence links configured.</p>'}
-</article>`;
-    })
-    .join("\n");
-  const issueList = report.issues
-    .map(
-      (issue) =>
-        `<li class="${escapeHtml(issue.severity)}"><strong>${escapeHtml(issue.code)}</strong>${issue.surface ? ` ${escapeHtml(issue.surface)}` : ""}: ${escapeHtml(issue.message)}</li>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#0e1412;color:#f7f3e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,.surface,.issues{background:#17201c;border:1px solid #2e3c35;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(20,184,166,.16),rgba(245,158,11,.12))}.eyebrow{color:#5eead4;font-size:.78rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(2.4rem,6vw,5rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}h2{margin:.2rem 0}.summary{display:flex;flex-wrap:wrap;gap:10px}.pill{border:1px solid #42534a;border-radius:999px;padding:8px 12px}.surfaces{display:grid;gap:14px}.surface header{align-items:flex-start;display:flex;gap:16px;justify-content:space-between}.surface.pass{border-color:rgba(34,197,94,.55)}.surface.warn{border-color:rgba(245,158,11,.72)}.surface.fail{border-color:rgba(239,68,68,.75)}.surface.advantage h2{color:#bbf7d0}.surface.intentional-gap h2{color:#cbd5e1}dl{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}dt{color:#9fb0a8;font-size:.8rem;font-weight:800}dd{margin:0;overflow-wrap:anywhere}.gap{color:#fde68a}.next{color:#bfdbfe}.muted{color:#a8b5ad}a{color:#5eead4}.issues li{margin:.4rem 0}.issues .error{color:#fecaca}.issues .warning{color:#fde68a}@media(max-width:760px){main{padding:18px}.surface header{display:block}}</style></head><body><main><section class="hero"><p class="eyebrow">Self-hosted market proof</p><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(report.generatedAt)}. This report scores whether AbsoluteJS Voice merely covers a hosted-platform buyer surface or beats it for a code-owned/self-hosted buyer.</p><div class="summary"><span class="pill">Status ${escapeHtml(report.status)}</span><span class="pill">Vapi-style ${escapeHtml(report.vapiCoverageEstimate)}</span><span class="pill">Market ${escapeHtml(report.marketCoverageEstimate)}</span><span class="pill">${String(report.summary.surfaces)} surfaces</span><span class="pill">${String(report.summary.advantage)} advantage</span><span class="pill">${String(report.summary.intentionalGaps)} intentional gaps</span></div></section><section class="issues"><h2>Issues</h2><ul>${issueList || "<li>No issues.</li>"}</ul></section><section class="surfaces">${surfaceCards || '<article class="surface"><p>No competitive surfaces configured.</p></article>'}</section></main></body></html>`;
-};
-
 const normalizeCompetitiveCoverageReport = (
   value: VoiceCompetitiveCoverageReport | VoiceCompetitiveCoverageReportInput,
 ) =>
@@ -441,6 +440,7 @@ export const createVoiceCompetitiveCoverageRoutes = (
       typeof options.source === "function"
         ? await options.source()
         : options.source;
+
     return normalizeCompetitiveCoverageReport(value);
   };
   const app = new Elysia({
@@ -462,6 +462,7 @@ export const createVoiceCompetitiveCoverageRoutes = (
       const body = options.render
         ? await options.render(current)
         : renderVoiceCompetitiveCoverageHTML(current, title);
+
       return new Response(body, {
         headers: {
           "content-type": "text/html; charset=utf-8",

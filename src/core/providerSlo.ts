@@ -162,9 +162,9 @@ const defaultThresholds: Record<
 const providerKinds: VoiceRoutingEventKind[] = ["llm", "stt", "tts"];
 
 const statusRank: Record<VoiceProviderSloStatus, number> = {
+  fail: 2,
   pass: 0,
   warn: 1,
-  fail: 2,
 };
 
 const roundMetric = (value: number) => Math.round(value * 10_000) / 10_000;
@@ -188,6 +188,7 @@ const percentile = (values: number[], rank: number) => {
     sorted.length - 1,
     Math.max(0, Math.ceil((rank / 100) * sorted.length) - 1),
   );
+
   return sorted[index] ?? 0;
 };
 
@@ -228,8 +229,8 @@ const normalizeEvents = (
   events: StoredVoiceTraceEvent[] | VoiceRoutingEvent[],
 ): VoiceRoutingEvent[] =>
   events.every(isRoutingEvent)
-    ? [...(events as VoiceRoutingEvent[])]
-    : listVoiceRoutingEvents(events as StoredVoiceTraceEvent[]);
+    ? [...(events)]
+    : listVoiceRoutingEvents(events);
 
 const issueFromMetric = (
   kind: VoiceRoutingEventKind,
@@ -411,6 +412,13 @@ const summarizeSessions = (
   );
 };
 
+export const assertVoiceProviderSloEvidence = (
+  report: VoiceProviderSloReport,
+  input: VoiceProviderSloAssertionInput = {},
+): VoiceProviderSloAssertionReport => assertVoiceEvidence(
+    "Voice provider SLO assertion failed",
+    evaluateVoiceProviderSloEvidence(report, input),
+  );
 export const buildVoiceProviderSloReport = async (
   options: VoiceProviderSloReportOptions = {},
 ): Promise<VoiceProviderSloReport> => {
@@ -463,7 +471,6 @@ export const buildVoiceProviderSloReport = async (
     thresholds,
   };
 };
-
 export const evaluateVoiceProviderSloEvidence = (
   report: VoiceProviderSloReport,
   input: VoiceProviderSloAssertionInput = {},
@@ -580,16 +587,6 @@ export const evaluateVoiceProviderSloEvidence = (
   };
 };
 
-export const assertVoiceProviderSloEvidence = (
-  report: VoiceProviderSloReport,
-  input: VoiceProviderSloAssertionInput = {},
-): VoiceProviderSloAssertionReport => {
-  return assertVoiceEvidence(
-    "Voice provider SLO assertion failed",
-    evaluateVoiceProviderSloEvidence(report, input),
-  );
-};
-
 const formatMetricValue = (metric: VoiceProviderSloMetric) =>
   metric.unit === "rate"
     ? `${(metric.actual * 100).toFixed(2)}%`
@@ -609,12 +606,107 @@ const getMetric = (
   key: keyof VoiceProviderSloKindReport["metrics"],
 ) => report.metrics[key] as VoiceProviderSloMetric;
 
+export const createVoiceProviderSloRoutes = (
+  options: VoiceProviderSloRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/provider-slos";
+  const htmlPath = options.htmlPath ?? "/voice/provider-slos";
+  const markdownPath = options.markdownPath ?? "/voice/provider-slos.md";
+  const headers = {
+    "cache-control": "no-store",
+    ...(options.headers ?? {}),
+  };
+  const buildReport = () => buildVoiceProviderSloReport(options);
+  const app = new Elysia({
+    name: options.name ?? "absolute-voice-provider-slos",
+  });
+
+  app.get(path, async () => Response.json(await buildReport(), { headers }));
+
+  if (markdownPath !== false) {
+    app.get(markdownPath, async () => {
+      const report = await buildReport();
+
+      return new Response(renderVoiceProviderSloMarkdown(report), {
+        headers: {
+          ...headers,
+          "content-type": "text/markdown; charset=utf-8",
+        },
+      });
+    });
+  }
+
+  if (htmlPath !== false) {
+    app.get(htmlPath, async () => {
+      const report = await buildReport();
+      const html = options.render
+        ? await options.render(report)
+        : renderVoiceProviderSloHTML(report, {
+            title: options.title,
+          });
+
+      return new Response(html, {
+        headers: {
+          ...headers,
+          "content-type": "text/html; charset=utf-8",
+        },
+      });
+    });
+  }
+
+  return app;
+};
+export const renderVoiceProviderSloHTML = (
+  report: VoiceProviderSloReport,
+  options: {
+    title?: string;
+  } = {},
+) => {
+  const title = options.title ?? "AbsoluteJS Voice Provider SLOs";
+  const kindCards = providerKinds
+    .map((kind) => {
+      const kindReport = report.kinds[kind];
+      const metrics = Object.values(kindReport.metrics)
+        .map(
+          (metric) =>
+            `<div><dt>${escapeHtml(metric.label)}</dt><dd>${escapeHtml(formatMetricValue(metric))}</dd><small>budget ${escapeHtml(formatMetricThreshold(metric))}</small></div>`,
+        )
+        .join("");
+      const providers = kindReport.providers.length
+        ? kindReport.providers.join(", ")
+        : "none recorded";
+
+      return `<article class="${escapeHtml(kindReport.status)}"><h2>${kind.toUpperCase()} <span>${escapeHtml(kindReport.status)}</span></h2><p>${kindReport.events} routing event(s), ${kindReport.eventsWithLatency} latency sample(s), providers: ${escapeHtml(providers)}.</p><dl>${metrics}</dl></article>`;
+    })
+    .join("");
+  const issues =
+    report.issues.length > 0
+      ? `<ul>${report.issues
+          .map(
+            (issue) =>
+              `<li class="${escapeHtml(issue.status)}"><strong>${escapeHtml(issue.kind ? `${issue.kind.toUpperCase()} ${issue.label}` : issue.label)}</strong><span>${escapeHtml(issue.detail ?? "")}</span></li>`,
+          )
+          .join("")}</ul>`
+      : "<p>No provider SLO issues.</p>";
+  const snippet = `createVoiceProviderSloRoutes({
+	store: runtimeStorage.traces,
+	requiredKinds: ['llm', 'stt', 'tts'],
+	thresholds: {
+		llm: { maxAverageElapsedMs: 2500, maxP95ElapsedMs: 4500 },
+		stt: { maxAverageElapsedMs: 800, maxP95ElapsedMs: 1500 },
+		tts: { maxAverageElapsedMs: 1200, maxP95ElapsedMs: 2200 }
+	}
+})`;
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101318;color:#f8f4e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,article,.primitive{background:#171b22;border:1px solid #2c3340;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(14,165,233,.2),rgba(245,158,11,.12))}.eyebrow{color:#7dd3fc;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.9rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.status,article h2 span{border:1px solid #475569;border-radius:999px;display:inline-flex;font-size:.85rem;padding:6px 10px}.pass{border-color:rgba(34,197,94,.65)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}dl{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}dt{color:#cbd5e1;font-size:.78rem;text-transform:uppercase}dd{font-size:1.7rem;font-weight:900;margin:0}small{color:#a8b3c2}ul{display:grid;gap:10px;list-style:none;padding:0}li{background:#101318;border:1px solid #2c3340;border-radius:16px;padding:12px}li span{color:#cbd5e1;display:block;margin-top:4px}.primitive{background:#11161d}.primitive code{color:#bae6fd}.primitive pre{background:#070b10;border:1px solid #243041;border-radius:16px;color:#e0f2fe;overflow:auto;padding:16px}</style></head><body><main><section class="hero"><p class="eyebrow">Provider latency and fallback proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${report.events} provider routing event(s), ${report.eventsWithLatency} latency sample(s).</p></section><section class="grid">${kindCards}</section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceProviderSloRoutes(...)</code> turns provider speed into release evidence</h2><p>Pair this report with production readiness so LLM/STT/TTS latency, timeout, fallback, and unresolved error regressions block deploys.</p><pre><code>${escapeHtml(snippet)}</code></pre></section><section><h2>Issues</h2>${issues}</section></main></body></html>`;
+};
 export const renderVoiceProviderSloMarkdown = (
   report: VoiceProviderSloReport,
 ) => {
   const rows = providerKinds
     .map((kind) => {
       const kindReport = report.kinds[kind];
+
       return `| ${kind.toUpperCase()} | ${kindReport.status} | ${kindReport.events} | ${kindReport.eventsWithLatency} | ${formatMetricValue(getMetric(kindReport, "averageElapsedMs"))} | ${formatMetricValue(getMetric(kindReport, "p95ElapsedMs"))} | ${formatMetricValue(getMetric(kindReport, "errorRate"))} | ${formatMetricValue(getMetric(kindReport, "timeoutRate"))} | ${formatMetricValue(getMetric(kindReport, "fallbackRate"))} |`;
     })
     .join("\n");
@@ -644,97 +736,4 @@ ${rows}
 
 ${issues}
 `;
-};
-
-export const renderVoiceProviderSloHTML = (
-  report: VoiceProviderSloReport,
-  options: {
-    title?: string;
-  } = {},
-) => {
-  const title = options.title ?? "AbsoluteJS Voice Provider SLOs";
-  const kindCards = providerKinds
-    .map((kind) => {
-      const kindReport = report.kinds[kind];
-      const metrics = Object.values(kindReport.metrics)
-        .map(
-          (metric) =>
-            `<div><dt>${escapeHtml(metric.label)}</dt><dd>${escapeHtml(formatMetricValue(metric))}</dd><small>budget ${escapeHtml(formatMetricThreshold(metric))}</small></div>`,
-        )
-        .join("");
-      const providers = kindReport.providers.length
-        ? kindReport.providers.join(", ")
-        : "none recorded";
-      return `<article class="${escapeHtml(kindReport.status)}"><h2>${kind.toUpperCase()} <span>${escapeHtml(kindReport.status)}</span></h2><p>${kindReport.events} routing event(s), ${kindReport.eventsWithLatency} latency sample(s), providers: ${escapeHtml(providers)}.</p><dl>${metrics}</dl></article>`;
-    })
-    .join("");
-  const issues =
-    report.issues.length > 0
-      ? `<ul>${report.issues
-          .map(
-            (issue) =>
-              `<li class="${escapeHtml(issue.status)}"><strong>${escapeHtml(issue.kind ? `${issue.kind.toUpperCase()} ${issue.label}` : issue.label)}</strong><span>${escapeHtml(issue.detail ?? "")}</span></li>`,
-          )
-          .join("")}</ul>`
-      : "<p>No provider SLO issues.</p>";
-  const snippet = `createVoiceProviderSloRoutes({
-	store: runtimeStorage.traces,
-	requiredKinds: ['llm', 'stt', 'tts'],
-	thresholds: {
-		llm: { maxAverageElapsedMs: 2500, maxP95ElapsedMs: 4500 },
-		stt: { maxAverageElapsedMs: 800, maxP95ElapsedMs: 1500 },
-		tts: { maxAverageElapsedMs: 1200, maxP95ElapsedMs: 2200 }
-	}
-})`;
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#101318;color:#f8f4e8;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1180px;padding:32px}.hero,article,.primitive{background:#171b22;border:1px solid #2c3340;border-radius:24px;margin-bottom:16px;padding:22px}.hero{background:linear-gradient(135deg,rgba(14,165,233,.2),rgba(245,158,11,.12))}.eyebrow{color:#7dd3fc;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.9rem);letter-spacing:-.06em;line-height:.9;margin:.2rem 0 1rem}.status,article h2 span{border:1px solid #475569;border-radius:999px;display:inline-flex;font-size:.85rem;padding:6px 10px}.pass{border-color:rgba(34,197,94,.65)}.warn{border-color:rgba(245,158,11,.7)}.fail{border-color:rgba(239,68,68,.75)}.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}dl{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}dt{color:#cbd5e1;font-size:.78rem;text-transform:uppercase}dd{font-size:1.7rem;font-weight:900;margin:0}small{color:#a8b3c2}ul{display:grid;gap:10px;list-style:none;padding:0}li{background:#101318;border:1px solid #2c3340;border-radius:16px;padding:12px}li span{color:#cbd5e1;display:block;margin-top:4px}.primitive{background:#11161d}.primitive code{color:#bae6fd}.primitive pre{background:#070b10;border:1px solid #243041;border-radius:16px;color:#e0f2fe;overflow:auto;padding:16px}</style></head><body><main><section class="hero"><p class="eyebrow">Provider latency and fallback proof</p><h1>${escapeHtml(title)}</h1><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status)}</p><p>${report.events} provider routing event(s), ${report.eventsWithLatency} latency sample(s).</p></section><section class="grid">${kindCards}</section><section class="primitive"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceProviderSloRoutes(...)</code> turns provider speed into release evidence</h2><p>Pair this report with production readiness so LLM/STT/TTS latency, timeout, fallback, and unresolved error regressions block deploys.</p><pre><code>${escapeHtml(snippet)}</code></pre></section><section><h2>Issues</h2>${issues}</section></main></body></html>`;
-};
-
-export const createVoiceProviderSloRoutes = (
-  options: VoiceProviderSloRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/provider-slos";
-  const htmlPath = options.htmlPath ?? "/voice/provider-slos";
-  const markdownPath = options.markdownPath ?? "/voice/provider-slos.md";
-  const headers = {
-    "cache-control": "no-store",
-    ...(options.headers ?? {}),
-  };
-  const buildReport = () => buildVoiceProviderSloReport(options);
-  const app = new Elysia({
-    name: options.name ?? "absolute-voice-provider-slos",
-  });
-
-  app.get(path, async () => Response.json(await buildReport(), { headers }));
-
-  if (markdownPath !== false) {
-    app.get(markdownPath, async () => {
-      const report = await buildReport();
-      return new Response(renderVoiceProviderSloMarkdown(report), {
-        headers: {
-          ...headers,
-          "content-type": "text/markdown; charset=utf-8",
-        },
-      });
-    });
-  }
-
-  if (htmlPath !== false) {
-    app.get(htmlPath, async () => {
-      const report = await buildReport();
-      const html = options.render
-        ? await options.render(report)
-        : renderVoiceProviderSloHTML(report, {
-            title: options.title,
-          });
-      return new Response(html, {
-        headers: {
-          ...headers,
-          "content-type": "text/html; charset=utf-8",
-        },
-      });
-    });
-  }
-
-  return app;
 };

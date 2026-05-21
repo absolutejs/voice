@@ -51,7 +51,9 @@ export const createMonologueAMDDetector = <
   const minMonologueMs = options.minMonologueMs ?? 8_000;
   const reason = options.reason ?? "monologue-suspected-voicemail";
   const requireFirstAudio = options.requireFirstAudio ?? true;
+
   return {
+    intervalMs: options.intervalMs ?? 1_000,
     evaluate: ({
       elapsedSinceFirstAudioMs,
       elapsedSinceLastTurnCommitMs,
@@ -67,6 +69,7 @@ export const createMonologueAMDDetector = <
       if (monologueElapsed < minMonologueMs) {
         return undefined;
       }
+
       return {
         metadata: {
           detector: "monologue",
@@ -75,6 +78,5 @@ export const createMonologueAMDDetector = <
         reason,
       };
     },
-    intervalMs: options.intervalMs ?? 1_000,
   };
 };

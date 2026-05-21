@@ -227,58 +227,16 @@ const issueIdForRun = (run: VoiceMonitorRun) =>
 const rollupStatus = (runs: VoiceMonitorRun[]): VoiceMonitorStatus =>
   worstVoiceStatus(runs.map((run) => run.status));
 
-export const createVoiceMemoryMonitorIssueStore = (
-  initial: readonly VoiceMonitorIssue[] = [],
-): VoiceMonitorIssueStore => {
-  const issues = new Map(initial.map((issue) => [issue.id, { ...issue }]));
-
-  return {
-    list: () => Array.from(issues.values()).map((issue) => ({ ...issue })),
-    upsert: (issue) => {
-      const previous = issues.get(issue.id);
-      const next = previous
-        ? {
-            ...previous,
-            ...issue,
-            createdAt: previous.createdAt,
-            status:
-              previous.status === "resolved" || previous.status === "muted"
-                ? previous.status
-                : issue.status,
-          }
-        : issue;
-      issues.set(issue.id, { ...next });
-      return { ...next };
-    },
-    update: (id, patch) => {
-      const previous = issues.get(id);
-      if (!previous) {
-        return undefined;
-      }
-      const next = { ...previous, ...patch };
-      issues.set(id, next);
-      return { ...next };
-    },
-  };
-};
-
-export const createVoiceMemoryMonitorNotifierDeliveryReceiptStore = (
-  initial: readonly VoiceMonitorNotifierDeliveryReceipt[] = [],
-): VoiceMonitorNotifierDeliveryReceiptStore => {
-  const receipts = new Map(
-    initial.map((receipt) => [receipt.id, { ...receipt }]),
-  );
-
-  return {
-    list: () =>
-      Array.from(receipts.values()).map((receipt) => ({ ...receipt })),
-    set: (id, receipt) => {
-      receipts.set(id, { ...receipt });
-      return { ...receipt };
-    },
-  };
-};
-
+export const acknowledgeVoiceMonitorIssue = async (
+  store: VoiceMonitorIssueStore,
+  id: string,
+  input: { actorId?: string; now?: number } = {},
+) =>
+  store.update(id, {
+    acknowledgedAt: input.now ?? Date.now(),
+    acknowledgedBy: input.actorId,
+    status: "acknowledged",
+  });
 export const buildVoiceMonitorRunReport = async <TEvidence = unknown>(
   options: VoiceMonitorRunOptions<TEvidence>,
 ): Promise<VoiceMonitorRunReport> => {
@@ -290,6 +248,7 @@ export const buildVoiceMonitorRunReport = async <TEvidence = unknown>(
         evidence: options.evidence,
         now: checkedAt,
       });
+
       return {
         ...evaluation,
         checkedAt,
@@ -353,40 +312,126 @@ export const buildVoiceMonitorRunReport = async <TEvidence = unknown>(
     },
   };
 };
+export const createVoiceMemoryMonitorIssueStore = (
+  initial: readonly VoiceMonitorIssue[] = [],
+): VoiceMonitorIssueStore => {
+  const issues = new Map(initial.map((issue) => [issue.id, { ...issue }]));
 
-export const acknowledgeVoiceMonitorIssue = async (
-  store: VoiceMonitorIssueStore,
-  id: string,
-  input: { actorId?: string; now?: number } = {},
-) =>
-  store.update(id, {
-    acknowledgedAt: input.now ?? Date.now(),
-    acknowledgedBy: input.actorId,
-    status: "acknowledged",
-  });
+  return {
+    list: () => Array.from(issues.values()).map((issue) => ({ ...issue })),
+    update: (id, patch) => {
+      const previous = issues.get(id);
+      if (!previous) {
+        return undefined;
+      }
+      const next = { ...previous, ...patch };
+      issues.set(id, next);
 
-export const resolveVoiceMonitorIssue = async (
-  store: VoiceMonitorIssueStore,
-  id: string,
-  input: { actorId?: string; now?: number } = {},
-) =>
-  store.update(id, {
-    resolvedAt: input.now ?? Date.now(),
-    resolvedBy: input.actorId,
-    status: "resolved",
-  });
+      return { ...next };
+    },
+    upsert: (issue) => {
+      const previous = issues.get(issue.id);
+      const next = previous
+        ? {
+            ...previous,
+            ...issue,
+            createdAt: previous.createdAt,
+            status:
+              previous.status === "resolved" || previous.status === "muted"
+                ? previous.status
+                : issue.status,
+          }
+        : issue;
+      issues.set(issue.id, { ...next });
 
-export const muteVoiceMonitorIssue = async (
-  store: VoiceMonitorIssueStore,
-  id: string,
-  input: { actorId?: string; now?: number } = {},
-) =>
-  store.update(id, {
-    mutedAt: input.now ?? Date.now(),
-    mutedBy: input.actorId,
-    status: "muted",
-  });
+      return { ...next };
+    },
+  };
+};
+export const createVoiceMemoryMonitorNotifierDeliveryReceiptStore = (
+  initial: readonly VoiceMonitorNotifierDeliveryReceipt[] = [],
+): VoiceMonitorNotifierDeliveryReceiptStore => {
+  const receipts = new Map(
+    initial.map((receipt) => [receipt.id, { ...receipt }]),
+  );
 
+  return {
+    list: () =>
+      Array.from(receipts.values()).map((receipt) => ({ ...receipt })),
+    set: (id, receipt) => {
+      receipts.set(id, { ...receipt });
+
+      return { ...receipt };
+    },
+  };
+};
+export const createVoiceMonitorRunner = <TEvidence = unknown>(
+  options: VoiceMonitorRunnerOptions<TEvidence>,
+): VoiceMonitorRunner => {
+  const issueStore = options.issueStore ?? createVoiceMemoryMonitorIssueStore();
+  const receiptStore =
+    options.receiptStore ??
+    createVoiceMemoryMonitorNotifierDeliveryReceiptStore();
+  const pollIntervalMs = options.pollIntervalMs ?? 60_000;
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  const loadEvidence = async () => {
+    if (options.loadEvidence) {
+      return options.loadEvidence();
+    }
+    if (options.evidence !== undefined) {
+      return options.evidence;
+    }
+    throw new Error(
+      "createVoiceMonitorRunner requires evidence or loadEvidence.",
+    );
+  };
+
+  const tick = async () => {
+    const startedAt = options.now?.() ?? Date.now();
+    const monitoring = await buildVoiceMonitorRunReport({
+      evidence: await loadEvidence(),
+      issueStore,
+      monitors: options.monitors,
+      now: startedAt,
+    });
+    const notifierDelivery = options.notifiers
+      ? await deliverVoiceMonitorIssueNotifications({
+          issueStore,
+          notifiers: options.notifiers,
+          now: options.now?.() ?? Date.now(),
+          receiptStore,
+        })
+      : undefined;
+
+    return {
+      completedAt: options.now?.() ?? Date.now(),
+      monitoring,
+      notifierDelivery,
+      startedAt,
+    };
+  };
+
+  return {
+    tick,
+    isRunning: () => timer !== undefined,
+    start: () => {
+      if (timer) {
+        return;
+      }
+      timer = setInterval(() => {
+        void tick();
+      }, pollIntervalMs);
+    },
+    stop: () => {
+      if (!timer) {
+        return;
+      }
+      clearInterval(timer);
+      timer = undefined;
+    },
+  };
+};
 export const createVoiceMonitorWebhookNotifier = (
   options: VoiceMonitorWebhookNotifierOptions,
 ): VoiceMonitorNotifier => ({
@@ -420,7 +465,6 @@ export const createVoiceMonitorWebhookNotifier = (
     };
   },
 });
-
 export const deliverVoiceMonitorIssueNotifications = async (
   options: VoiceMonitorNotifierDeliveryOptions,
 ): Promise<VoiceMonitorNotifierDeliveryReport> => {
@@ -476,95 +520,16 @@ export const deliverVoiceMonitorIssueNotifications = async (
     },
   };
 };
-
-export const createVoiceMonitorRunner = <TEvidence = unknown>(
-  options: VoiceMonitorRunnerOptions<TEvidence>,
-): VoiceMonitorRunner => {
-  const issueStore = options.issueStore ?? createVoiceMemoryMonitorIssueStore();
-  const receiptStore =
-    options.receiptStore ??
-    createVoiceMemoryMonitorNotifierDeliveryReceiptStore();
-  const pollIntervalMs = options.pollIntervalMs ?? 60_000;
-  let timer: ReturnType<typeof setInterval> | undefined;
-
-  const loadEvidence = async () => {
-    if (options.loadEvidence) {
-      return options.loadEvidence();
-    }
-    if (options.evidence !== undefined) {
-      return options.evidence;
-    }
-    throw new Error(
-      "createVoiceMonitorRunner requires evidence or loadEvidence.",
-    );
-  };
-
-  const tick = async () => {
-    const startedAt = options.now?.() ?? Date.now();
-    const monitoring = await buildVoiceMonitorRunReport({
-      evidence: await loadEvidence(),
-      issueStore,
-      monitors: options.monitors,
-      now: startedAt,
-    });
-    const notifierDelivery = options.notifiers
-      ? await deliverVoiceMonitorIssueNotifications({
-          issueStore,
-          notifiers: options.notifiers,
-          now: options.now?.() ?? Date.now(),
-          receiptStore,
-        })
-      : undefined;
-
-    return {
-      completedAt: options.now?.() ?? Date.now(),
-      monitoring,
-      notifierDelivery,
-      startedAt,
-    };
-  };
-
-  return {
-    isRunning: () => timer !== undefined,
-    start: () => {
-      if (timer) {
-        return;
-      }
-      timer = setInterval(() => {
-        void tick();
-      }, pollIntervalMs);
-    },
-    stop: () => {
-      if (!timer) {
-        return;
-      }
-      clearInterval(timer);
-      timer = undefined;
-    },
-    tick,
-  };
-};
-
-export const renderVoiceMonitorMarkdown = (report: VoiceMonitorRunReport) => {
-  const rows = report.runs
-    .map(
-      (run) =>
-        `| ${run.id} | ${run.status} | ${run.severity} | ${run.value ?? ""} | ${run.threshold ?? ""} | ${run.detail ?? ""} |`,
-    )
-    .join("\n");
-  return `# Voice Monitor Report
-
-- Status: ${report.status}
-- Checks: ${report.summary.passed}/${report.summary.total} passing
-- Open issues: ${report.summary.open}
-- Critical open issues: ${report.summary.criticalOpen}
-
-| Monitor | Status | Severity | Value | Threshold | Detail |
-| --- | --- | --- | --- | --- | --- |
-${rows || "| none | pass | info | | | No monitors configured. |"}
-`;
-};
-
+export const muteVoiceMonitorIssue = async (
+  store: VoiceMonitorIssueStore,
+  id: string,
+  input: { actorId?: string; now?: number } = {},
+) =>
+  store.update(id, {
+    mutedAt: input.now ?? Date.now(),
+    mutedBy: input.actorId,
+    status: "muted",
+  });
 export const renderVoiceMonitorHTML = (
   report: VoiceMonitorRunReport,
   options: { title?: string } = {},
@@ -590,6 +555,36 @@ export const renderVoiceMonitorHTML = (
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>body{background:#10141b;color:#f8f2df;font-family:ui-sans-serif,system-ui,sans-serif;margin:0}main{margin:auto;max-width:1100px;padding:32px}.hero,.card{background:#171f2b;border:1px solid #2e3a4b;border-radius:24px;margin-bottom:16px;padding:22px}.eyebrow{color:#93c5fd;font-weight:900;letter-spacing:.12em;text-transform:uppercase}h1{font-size:clamp(2.2rem,6vw,4.7rem);line-height:.92;margin:.2rem 0 1rem}.pill{border:1px solid #64748b;border-radius:999px;display:inline-flex;font-weight:900;margin-right:8px;padding:8px 12px}.pass{color:#86efac}.warn,.acknowledged{color:#fde68a}.fail,.open{color:#fca5a5}.resolved,.muted{color:#cbd5e1}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2e3a4b;padding:12px;text-align:left;vertical-align:top}pre{background:#0c1118;border:1px solid #2e3a4b;border-radius:16px;color:#dbeafe;overflow:auto;padding:16px}</style></head><body><main><section class="hero"><p class="eyebrow">Code-owned monitoring</p><h1>${escapeHtml(title)}</h1><p class="pill ${escapeHtml(report.status)}">Status: ${escapeHtml(report.status)}</p><p class="pill">Open issues: ${String(report.summary.open)}</p><p class="pill">Critical: ${String(report.summary.criticalOpen)}</p></section><section class="card"><h2>Monitor Runs</h2><table><thead><tr><th>Monitor</th><th>Status</th><th>Severity</th><th>Value</th><th>Threshold</th><th>Detail</th></tr></thead><tbody>${runs}</tbody></table></section><section class="card"><h2>Issues</h2>${issues ? `<ul>${issues}</ul>` : '<p class="pass">No monitor issues.</p>'}</section><section class="card"><p class="eyebrow">Copy into your app</p><h2><code>createVoiceMonitorRoutes(...)</code></h2><pre><code>${snippet}</code></pre></section></main></body></html>`;
 };
+export const renderVoiceMonitorMarkdown = (report: VoiceMonitorRunReport) => {
+  const rows = report.runs
+    .map(
+      (run) =>
+        `| ${run.id} | ${run.status} | ${run.severity} | ${run.value ?? ""} | ${run.threshold ?? ""} | ${run.detail ?? ""} |`,
+    )
+    .join("\n");
+
+  return `# Voice Monitor Report
+
+- Status: ${report.status}
+- Checks: ${report.summary.passed}/${report.summary.total} passing
+- Open issues: ${report.summary.open}
+- Critical open issues: ${report.summary.criticalOpen}
+
+| Monitor | Status | Severity | Value | Threshold | Detail |
+| --- | --- | --- | --- | --- | --- |
+${rows || "| none | pass | info | | | No monitors configured. |"}
+`;
+};
+export const resolveVoiceMonitorIssue = async (
+  store: VoiceMonitorIssueStore,
+  id: string,
+  input: { actorId?: string; now?: number } = {},
+) =>
+  store.update(id, {
+    resolvedAt: input.now ?? Date.now(),
+    resolvedBy: input.actorId,
+    status: "resolved",
+  });
 
 const actorFromRequest = async (request: Request) => {
   if (!request.headers.get("content-type")?.includes("application/json")) {
@@ -598,6 +593,7 @@ const actorFromRequest = async (request: Request) => {
   const body = (await request.json().catch(() => undefined)) as
     | { actorId?: unknown }
     | undefined;
+
   return typeof body?.actorId === "string" ? body.actorId : undefined;
 };
 
@@ -627,32 +623,33 @@ export const createVoiceMonitorRoutes = <TEvidence = unknown>(
     name: options.name ?? "absolutejs-voice-monitoring",
   })
     .get(path, report)
-    .get(`${path}.md`, async () => {
-      return new Response(renderVoiceMonitorMarkdown(await report()), {
+    .get(`${path}.md`, async () => new Response(renderVoiceMonitorMarkdown(await report()), {
         headers: {
           "Content-Type": "text/markdown; charset=utf-8",
           ...options.headers,
         },
-      });
-    })
+      }))
     .get(issuePath, () => issueStore.list())
     .get(`${issuePath}/notifications`, () => receiptStore.list())
     .post(`${issuePath}/:id/acknowledge`, async ({ params, request }) => {
       const issue = await acknowledgeVoiceMonitorIssue(issueStore, params.id, {
         actorId: await actorFromRequest(request),
       });
+
       return issue ?? new Response("Issue not found", { status: 404 });
     })
     .post(`${issuePath}/:id/resolve`, async ({ params, request }) => {
       const issue = await resolveVoiceMonitorIssue(issueStore, params.id, {
         actorId: await actorFromRequest(request),
       });
+
       return issue ?? new Response("Issue not found", { status: 404 });
     })
     .post(`${issuePath}/:id/mute`, async ({ params, request }) => {
       const issue = await muteVoiceMonitorIssue(issueStore, params.id, {
         actorId: await actorFromRequest(request),
       });
+
       return issue ?? new Response("Issue not found", { status: 404 });
     });
 
@@ -672,6 +669,7 @@ export const createVoiceMonitorRoutes = <TEvidence = unknown>(
         await report(),
         { title: options.title },
       );
+
       return new Response(body, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
@@ -688,6 +686,7 @@ export const createVoiceMonitorRunnerRoutes = (
   options: VoiceMonitorRunnerRoutesOptions,
 ) => {
   const path = options.path ?? "/api/voice/monitor-runner";
+
   return new Elysia({
     name: options.name ?? "absolutejs-voice-monitor-runner",
   })
@@ -697,12 +696,14 @@ export const createVoiceMonitorRunnerRoutes = (
     .post(`${path}/tick`, async () => options.runner.tick())
     .post(`${path}/start`, () => {
       options.runner.start();
+
       return {
         isRunning: options.runner.isRunning(),
       };
     })
     .post(`${path}/stop`, () => {
       options.runner.stop();
+
       return {
         isRunning: options.runner.isRunning(),
       };

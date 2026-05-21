@@ -28,6 +28,20 @@ const formatUsd = (value: number, currency = "USD") =>
 const formatInteger = (value: number) =>
   new Intl.NumberFormat("en-US").format(value);
 
+export const createVoiceCostDashboard = (
+  options: CreateVoiceCostDashboardOptions,
+) => {
+  const buildReport = () => buildVoiceCostDashboardReport(options);
+
+  return {
+    getReport: buildReport,
+    getHTML: () =>
+      renderVoiceCostDashboardHTML(buildReport(), {
+        currency: options.currency,
+        title: options.title,
+      }),
+  };
+};
 export const renderVoiceCostDashboardHTML = (
   report: VoiceCostDashboardReport,
   options: { currency?: string; title?: string } = {},
@@ -77,6 +91,7 @@ export const renderVoiceCostDashboardHTML = (
     report.grandTotal.totalUsd,
     true,
   );
+
   return `<section aria-label="voice-cost-dashboard" class="absolute-voice-cost-dashboard" style="background:#0f172a;border-radius:16px;color:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;padding:20px;">
   <header style="align-items:baseline;display:flex;gap:12px;margin-bottom:12px;">
     <strong style="font-size:16px;">${escape(title)}</strong>
@@ -95,18 +110,4 @@ export const renderVoiceCostDashboardHTML = (
     <tbody>${bodyRows}${totalRow}</tbody>
   </table>
 </section>`;
-};
-
-export const createVoiceCostDashboard = (
-  options: CreateVoiceCostDashboardOptions,
-) => {
-  const buildReport = () => buildVoiceCostDashboardReport(options);
-  return {
-    getHTML: () =>
-      renderVoiceCostDashboardHTML(buildReport(), {
-        currency: options.currency,
-        title: options.title,
-      }),
-    getReport: buildReport,
-  };
 };

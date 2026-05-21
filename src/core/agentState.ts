@@ -9,6 +9,12 @@ export type VoiceAgentUIInput = {
   lastTranscriptAt?: number;
 };
 
+export const voiceAgentUIStateOrder: ReadonlyArray<VoiceAgentUIState> = [
+  "idle",
+  "listening",
+  "thinking",
+  "speaking",
+];
 export const deriveVoiceAgentUIState = (
   input: VoiceAgentUIInput,
 ): VoiceAgentUIState => {
@@ -34,9 +40,9 @@ export const deriveVoiceAgentUIState = (
   ) {
     return "thinking";
   }
+
   return "idle";
 };
-
 export const describeVoiceAgentUIState = (state: VoiceAgentUIState): string => {
   switch (state) {
     case "idle":
@@ -49,10 +55,3 @@ export const describeVoiceAgentUIState = (state: VoiceAgentUIState): string => {
       return "Thinking";
   }
 };
-
-export const voiceAgentUIStateOrder: ReadonlyArray<VoiceAgentUIState> = [
-  "idle",
-  "listening",
-  "thinking",
-  "speaking",
-];

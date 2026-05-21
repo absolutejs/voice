@@ -120,6 +120,7 @@ export const createOpenAIVoiceTTS = (
         },
         on: (event, handler) => {
           listeners[event].add(handler as never);
+
           return () => {
             listeners[event].delete(handler as never);
           };
@@ -172,6 +173,7 @@ export const createOpenAIVoiceTTS = (
                   type: "audio",
                 });
               }
+
               return;
             }
 

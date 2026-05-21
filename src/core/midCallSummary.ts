@@ -46,12 +46,14 @@ const buildPrompt = (
       const lines = [`Turn ${index + 1}:`];
       if (user) lines.push(`  user: ${user}`);
       if (assistant) lines.push(`  agent: ${assistant}`);
+
       return lines.join("\n");
     })
     .join("\n");
   const previousBlock = previous
     ? `Previous summary:\n${previous.summary.slice(0, maxChars)}\n\n`
     : "";
+
   return `${previousBlock}Latest turns:\n${transcript}\n\nReturn one updated summary, plain text only.`;
 };
 
@@ -80,12 +82,13 @@ export const createMidCallSummarizer = (
       summary: trimmed,
       turnCount: turns.length,
     };
+
     return summary;
   };
 
   return {
     evaluate: async ({ session }) => {
-      const turns = session.turns;
+      const {turns} = session;
       if (turns.length === 0) return undefined;
       const turnsSince = turns.length - lastTurnCount;
       if (turnsSince < everyTurns) return undefined;
@@ -106,6 +109,7 @@ export const createMidCallSummarizer = (
       })();
       inFlight = promise;
       await promise;
+
       return lastSummary;
     },
     latest: () => lastSummary,

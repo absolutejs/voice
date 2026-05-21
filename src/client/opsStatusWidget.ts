@@ -70,27 +70,15 @@ const surfaceDetail = (surface: unknown) => {
   if (failed > 0) {
     return `${failed} failing of ${total}${source}`;
   }
-  return total > 0 ? `${total} passing${source}` : `No failures${source}`;
-};
 
-export const getVoiceOpsStatusLabel = (
-  report?: VoiceOpsStatusReport | null,
-  error?: string | null,
-) => {
-  if (error) {
-    return "Unavailable";
-  }
-  if (!report) {
-    return "Checking";
-  }
-  return report.status === "pass" ? "Passing" : "Needs attention";
+  return total > 0 ? `${total} passing${source}` : `No failures${source}`;
 };
 
 export const createVoiceOpsStatusViewModel = (
   snapshot: VoiceOpsStatusSnapshot,
   options: VoiceOpsStatusWidgetOptions = {},
 ): VoiceOpsStatusViewModel => {
-  const report = snapshot.report;
+  const {report} = snapshot;
   const surfaces = Object.entries(report?.surfaces ?? {}).map(
     ([id, surface]) => {
       const failed =
@@ -132,7 +120,79 @@ export const createVoiceOpsStatusViewModel = (
     updatedAt: snapshot.updatedAt,
   };
 };
+export const defineVoiceOpsStatusElement = (
+  tagName = "absolute-voice-ops-status",
+) => {
+  if (
+    typeof window === "undefined" ||
+    typeof customElements === "undefined" ||
+    customElements.get(tagName)
+  ) {
+    return;
+  }
 
+  customElements.define(
+    tagName,
+    class AbsoluteVoiceOpsStatusElement extends HTMLElement {
+      private mounted?: ReturnType<typeof mountVoiceOpsStatus>;
+
+      connectedCallback() {
+        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        this.mounted = mountVoiceOpsStatus(
+          this,
+          this.getAttribute("path") ?? "/api/voice/ops-status",
+          {
+            description: this.getAttribute("description") ?? undefined,
+            includeLinks: this.getAttribute("include-links") !== "false",
+            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+            title: this.getAttribute("title") ?? undefined,
+          },
+        );
+      }
+
+      disconnectedCallback() {
+        this.mounted?.close();
+        this.mounted = undefined;
+      }
+    },
+  );
+};
+export const getVoiceOpsStatusCSS = () =>
+  `.absolute-voice-ops-status{border:1px solid #d8d2c4;border-radius:20px;background:#fffaf0;color:#16130d;padding:18px;box-shadow:0 18px 40px rgba(47,37,18,.12);font-family:inherit}.absolute-voice-ops-status--fail,.absolute-voice-ops-status--error{border-color:#f2a7a7;background:#fff5f3}.absolute-voice-ops-status__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-ops-status__eyebrow{color:#73664f;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-ops-status__label{font-size:28px;line-height:1}.absolute-voice-ops-status__description{color:#514733;margin:12px 0 0}.absolute-voice-ops-status__summary,.absolute-voice-ops-status__links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.absolute-voice-ops-status__summary span,.absolute-voice-ops-status__links a{border:1px solid #e6ddca;border-radius:999px;color:inherit;padding:6px 10px;text-decoration:none}.absolute-voice-ops-status__surfaces{display:grid;gap:8px;list-style:none;margin:16px 0 0;padding:0}.absolute-voice-ops-status__surface{align-items:center;background:#fff;border:1px solid #eee4d2;border-radius:14px;display:flex;gap:12px;justify-content:space-between;padding:10px 12px}.absolute-voice-ops-status__surface--fail{border-color:#f2a7a7}.absolute-voice-ops-status__surface span{color:#655944}.absolute-voice-ops-status__error{color:#9f1239;font-weight:700}`;
+export const getVoiceOpsStatusLabel = (
+  report?: VoiceOpsStatusReport | null,
+  error?: string | null,
+) => {
+  if (error) {
+    return "Unavailable";
+  }
+  if (!report) {
+    return "Checking";
+  }
+
+  return report.status === "pass" ? "Passing" : "Needs attention";
+};
+export const mountVoiceOpsStatus = (
+  element: Element,
+  path = "/api/voice/ops-status",
+  options: VoiceOpsStatusWidgetOptions = {},
+) => {
+  const store = createVoiceOpsStatusStore(path, options);
+  const render = () => {
+    element.innerHTML = renderVoiceOpsStatusHTML(store.getSnapshot(), options);
+  };
+  const unsubscribe = store.subscribe(render);
+  render();
+  void store.refresh().catch(() => {});
+
+  return {
+    refresh: store.refresh,
+    close: () => {
+      unsubscribe();
+      store.close();
+    },
+  };
+};
 export const renderVoiceOpsStatusHTML = (
   snapshot: VoiceOpsStatusSnapshot,
   options: VoiceOpsStatusWidgetOptions = {},
@@ -175,67 +235,4 @@ export const renderVoiceOpsStatusHTML = (
   ${model.error ? `<p class="absolute-voice-ops-status__error">${escapeHtml(model.error)}</p>` : ""}
   ${links}
 </section>`;
-};
-
-export const getVoiceOpsStatusCSS = () =>
-  `.absolute-voice-ops-status{border:1px solid #d8d2c4;border-radius:20px;background:#fffaf0;color:#16130d;padding:18px;box-shadow:0 18px 40px rgba(47,37,18,.12);font-family:inherit}.absolute-voice-ops-status--fail,.absolute-voice-ops-status--error{border-color:#f2a7a7;background:#fff5f3}.absolute-voice-ops-status__header{align-items:start;display:flex;gap:12px;justify-content:space-between}.absolute-voice-ops-status__eyebrow{color:#73664f;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.absolute-voice-ops-status__label{font-size:28px;line-height:1}.absolute-voice-ops-status__description{color:#514733;margin:12px 0 0}.absolute-voice-ops-status__summary,.absolute-voice-ops-status__links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.absolute-voice-ops-status__summary span,.absolute-voice-ops-status__links a{border:1px solid #e6ddca;border-radius:999px;color:inherit;padding:6px 10px;text-decoration:none}.absolute-voice-ops-status__surfaces{display:grid;gap:8px;list-style:none;margin:16px 0 0;padding:0}.absolute-voice-ops-status__surface{align-items:center;background:#fff;border:1px solid #eee4d2;border-radius:14px;display:flex;gap:12px;justify-content:space-between;padding:10px 12px}.absolute-voice-ops-status__surface--fail{border-color:#f2a7a7}.absolute-voice-ops-status__surface span{color:#655944}.absolute-voice-ops-status__error{color:#9f1239;font-weight:700}`;
-
-export const mountVoiceOpsStatus = (
-  element: Element,
-  path = "/api/voice/ops-status",
-  options: VoiceOpsStatusWidgetOptions = {},
-) => {
-  const store = createVoiceOpsStatusStore(path, options);
-  const render = () => {
-    element.innerHTML = renderVoiceOpsStatusHTML(store.getSnapshot(), options);
-  };
-  const unsubscribe = store.subscribe(render);
-  render();
-  void store.refresh().catch(() => {});
-
-  return {
-    close: () => {
-      unsubscribe();
-      store.close();
-    },
-    refresh: store.refresh,
-  };
-};
-
-export const defineVoiceOpsStatusElement = (
-  tagName = "absolute-voice-ops-status",
-) => {
-  if (
-    typeof window === "undefined" ||
-    typeof customElements === "undefined" ||
-    customElements.get(tagName)
-  ) {
-    return;
-  }
-
-  customElements.define(
-    tagName,
-    class AbsoluteVoiceOpsStatusElement extends HTMLElement {
-      private mounted?: ReturnType<typeof mountVoiceOpsStatus>;
-
-      connectedCallback() {
-        const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
-        this.mounted = mountVoiceOpsStatus(
-          this,
-          this.getAttribute("path") ?? "/api/voice/ops-status",
-          {
-            description: this.getAttribute("description") ?? undefined,
-            includeLinks: this.getAttribute("include-links") !== "false",
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
-            title: this.getAttribute("title") ?? undefined,
-          },
-        );
-      }
-
-      disconnectedCallback() {
-        this.mounted?.close();
-        this.mounted = undefined;
-      }
-    },
-  );
 };

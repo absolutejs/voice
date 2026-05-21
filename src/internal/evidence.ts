@@ -12,5 +12,6 @@ export const assertVoiceEvidence = <A extends VoiceEvidenceAssertion>(
   if (!assertion.ok) {
     throw new Error(`${failureMessage}: ${assertion.issues.join(" ")}`);
   }
+
   return assertion;
 };

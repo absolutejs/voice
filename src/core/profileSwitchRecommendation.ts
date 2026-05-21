@@ -294,7 +294,7 @@ const scoreProfile = (
   profile: VoiceRealCallProfileDefault,
   observed: VoiceProfileSwitchObservedSignals,
 ) => {
-  const evidence = profile.evidence;
+  const {evidence} = profile;
   const live = evidence.liveP95Ms ?? observed.liveP95Ms ?? 0;
   const provider = evidence.providerP95Ms ?? observed.providerP95Ms ?? 0;
   const turn = evidence.turnP95Ms ?? observed.turnP95Ms ?? 0;
@@ -305,6 +305,7 @@ const scoreProfile = (
     /noisy|phone/i.test(`${profile.profileId} ${profile.label ?? ""}`)
       ? -1_000
       : 0;
+
   return live + provider + turn + statusPenalty + noisyBonus;
 };
 
@@ -318,7 +319,7 @@ const estimateSwitchConfidence = (
     return recommendation.status === "stay" && recommendation.ok ? 0.99 : 0;
   }
 
-  const observed = recommendation.observed;
+  const {observed} = recommendation;
   const currentStatus = recommendation.currentProfile?.status;
   const recommendedStatus = recommendation.recommendedProfile?.status;
   let confidence = 0.58;
@@ -344,124 +345,6 @@ const estimateSwitchConfidence = (
   }
 
   return clampConfidence(confidence);
-};
-
-export const recommendVoiceProfileSwitch = (
-  options: VoiceProfileSwitchRecommendationOptions,
-): VoiceProfileSwitchRecommendation => {
-  const defaults = readDefaults(options.defaults);
-  const observed = options.observed ?? {};
-  const currentProfileId =
-    observed.currentProfileId ??
-    options.defaultProfileId ??
-    defaults.profiles[0]?.profileId;
-  const currentProfile = defaults.profiles.find(
-    (profile) => profile.profileId === currentProfileId,
-  );
-  const candidates = defaults.profiles.filter(
-    (profile) => profile.status !== "fail",
-  );
-  const recommended = candidates
-    .slice()
-    .sort(
-      (left, right) =>
-        scoreProfile(left, observed) - scoreProfile(right, observed),
-    )[0];
-  const issues = [
-    ...(defaults.profiles.length === 0
-      ? ["No measured profile defaults are available."]
-      : []),
-    ...(!currentProfile && currentProfileId
-      ? [
-          `Current profile ${currentProfileId} is not present in measured defaults.`,
-        ]
-      : []),
-    ...(!recommended
-      ? ["No non-failing measured profile can be recommended."]
-      : []),
-  ];
-  const currentOverBudget = currentProfile
-    ? [
-        exceeds(observed.liveP95Ms, currentProfile.latencyBudgets.maxLiveP95Ms)
-          ? "live p95 exceeds this profile budget"
-          : undefined,
-        exceeds(
-          observed.providerP95Ms,
-          currentProfile.latencyBudgets.maxProviderP95Ms,
-        )
-          ? "provider p95 exceeds this profile budget"
-          : undefined,
-        exceeds(observed.turnP95Ms, currentProfile.latencyBudgets.maxTurnP95Ms)
-          ? "turn p95 exceeds this profile budget"
-          : undefined,
-      ].filter((reason): reason is string => Boolean(reason))
-    : [];
-  const minImprovementMs = options.minImprovementMs ?? 250;
-  const currentScore = currentProfile
-    ? scoreProfile(currentProfile, observed)
-    : Number.POSITIVE_INFINITY;
-  const recommendedScore = recommended
-    ? scoreProfile(recommended, observed)
-    : Number.POSITIVE_INFINITY;
-  const shouldSwitch =
-    Boolean(recommended) &&
-    recommended?.profileId !== currentProfile?.profileId &&
-    (!currentProfile ||
-      currentProfile.status !== "pass" ||
-      currentOverBudget.length > 0 ||
-      currentScore - recommendedScore >= minImprovementMs);
-  const reasons = [
-    ...currentOverBudget,
-    ...(currentProfile?.status && currentProfile.status !== "pass"
-      ? [`current profile is ${currentProfile.status}`]
-      : []),
-    ...(observed.fallbackUsed
-      ? ["current session used provider fallback"]
-      : []),
-    ...((observed.turnWarnings ?? 0) > 0
-      ? [`${observed.turnWarnings} turn quality warning(s) observed`]
-      : []),
-    ...(shouldSwitch && recommended
-      ? [
-          `${recommended.label ?? recommended.profileId} has the strongest measured fit for these signals`,
-        ]
-      : []),
-  ];
-
-  return {
-    currentProfile: currentProfile
-      ? {
-          label: currentProfile.label,
-          profileId: currentProfile.profileId,
-          status: currentProfile.status,
-        }
-      : undefined,
-    generatedAt: new Date().toISOString(),
-    issues,
-    nextMove:
-      issues.length > 0
-        ? "Collect fresh real-call profile evidence before switching automatically."
-        : shouldSwitch && recommended
-          ? `Switch to ${recommended.label ?? recommended.profileId} for this session profile.`
-          : "Keep the current measured profile unless new session evidence drifts.",
-    ok: issues.length === 0,
-    observed,
-    reasons:
-      reasons.length > 0
-        ? reasons
-        : ["current profile matches measured defaults and observed budgets"],
-    recommendedProfile: recommended
-      ? {
-          evidence: recommended.evidence,
-          label: recommended.label,
-          latencyBudgets: recommended.latencyBudgets,
-          profileId: recommended.profileId,
-          providerRoutes: recommended.providerRoutes,
-          status: recommended.status,
-        }
-      : undefined,
-    status: issues.length > 0 ? "warn" : shouldSwitch ? "switch" : "stay",
-  };
 };
 
 export const applyVoiceProfileSwitchGuard = async (
@@ -587,6 +470,123 @@ export const applyVoiceProfileSwitchGuard = async (
 
   return decision;
 };
+export const recommendVoiceProfileSwitch = (
+  options: VoiceProfileSwitchRecommendationOptions,
+): VoiceProfileSwitchRecommendation => {
+  const defaults = readDefaults(options.defaults);
+  const observed = options.observed ?? {};
+  const currentProfileId =
+    observed.currentProfileId ??
+    options.defaultProfileId ??
+    defaults.profiles[0]?.profileId;
+  const currentProfile = defaults.profiles.find(
+    (profile) => profile.profileId === currentProfileId,
+  );
+  const candidates = defaults.profiles.filter(
+    (profile) => profile.status !== "fail",
+  );
+  const recommended = candidates
+    .slice()
+    .sort(
+      (left, right) =>
+        scoreProfile(left, observed) - scoreProfile(right, observed),
+    )[0];
+  const issues = [
+    ...(defaults.profiles.length === 0
+      ? ["No measured profile defaults are available."]
+      : []),
+    ...(!currentProfile && currentProfileId
+      ? [
+          `Current profile ${currentProfileId} is not present in measured defaults.`,
+        ]
+      : []),
+    ...(!recommended
+      ? ["No non-failing measured profile can be recommended."]
+      : []),
+  ];
+  const currentOverBudget = currentProfile
+    ? [
+        exceeds(observed.liveP95Ms, currentProfile.latencyBudgets.maxLiveP95Ms)
+          ? "live p95 exceeds this profile budget"
+          : undefined,
+        exceeds(
+          observed.providerP95Ms,
+          currentProfile.latencyBudgets.maxProviderP95Ms,
+        )
+          ? "provider p95 exceeds this profile budget"
+          : undefined,
+        exceeds(observed.turnP95Ms, currentProfile.latencyBudgets.maxTurnP95Ms)
+          ? "turn p95 exceeds this profile budget"
+          : undefined,
+      ].filter((reason): reason is string => Boolean(reason))
+    : [];
+  const minImprovementMs = options.minImprovementMs ?? 250;
+  const currentScore = currentProfile
+    ? scoreProfile(currentProfile, observed)
+    : Number.POSITIVE_INFINITY;
+  const recommendedScore = recommended
+    ? scoreProfile(recommended, observed)
+    : Number.POSITIVE_INFINITY;
+  const shouldSwitch =
+    Boolean(recommended) &&
+    recommended?.profileId !== currentProfile?.profileId &&
+    (!currentProfile ||
+      currentProfile.status !== "pass" ||
+      currentOverBudget.length > 0 ||
+      currentScore - recommendedScore >= minImprovementMs);
+  const reasons = [
+    ...currentOverBudget,
+    ...(currentProfile?.status && currentProfile.status !== "pass"
+      ? [`current profile is ${currentProfile.status}`]
+      : []),
+    ...(observed.fallbackUsed
+      ? ["current session used provider fallback"]
+      : []),
+    ...((observed.turnWarnings ?? 0) > 0
+      ? [`${observed.turnWarnings} turn quality warning(s) observed`]
+      : []),
+    ...(shouldSwitch && recommended
+      ? [
+          `${recommended.label ?? recommended.profileId} has the strongest measured fit for these signals`,
+        ]
+      : []),
+  ];
+
+  return {
+    currentProfile: currentProfile
+      ? {
+          label: currentProfile.label,
+          profileId: currentProfile.profileId,
+          status: currentProfile.status,
+        }
+      : undefined,
+    generatedAt: new Date().toISOString(),
+    issues,
+    nextMove:
+      issues.length > 0
+        ? "Collect fresh real-call profile evidence before switching automatically."
+        : shouldSwitch && recommended
+          ? `Switch to ${recommended.label ?? recommended.profileId} for this session profile.`
+          : "Keep the current measured profile unless new session evidence drifts.",
+    ok: issues.length === 0,
+    observed,
+    reasons:
+      reasons.length > 0
+        ? reasons
+        : ["current profile matches measured defaults and observed budgets"],
+    recommendedProfile: recommended
+      ? {
+          evidence: recommended.evidence,
+          label: recommended.label,
+          latencyBudgets: recommended.latencyBudgets,
+          profileId: recommended.profileId,
+          providerRoutes: recommended.providerRoutes,
+          status: recommended.status,
+        }
+      : undefined,
+    status: issues.length > 0 ? "warn" : shouldSwitch ? "switch" : "stay",
+  };
+};
 
 const resolvePolicyProofDefaults = async (
   defaults: VoiceProfileSwitchPolicyProofOptions["defaults"],
@@ -656,6 +656,57 @@ const createDefaultPolicyProofCases = (input: {
   },
 ];
 
+export const createVoiceProfileSwitchPolicyProofRoutes = (
+  options: VoiceProfileSwitchPolicyProofRoutesOptions,
+) => {
+  const path = options.path ?? "/api/voice/profile-switch-policy-proof";
+  const htmlPath =
+    options.htmlPath === undefined
+      ? "/voice/profile-switch-policy"
+      : options.htmlPath;
+  const routes = new Elysia({
+    name: options.name ?? "absolutejs-voice-profile-switch-policy-proof",
+  }).get(path, async () => runVoiceProfileSwitchPolicyProof(options));
+
+  if (htmlPath) {
+    routes.get(htmlPath, async () => {
+      const report = await runVoiceProfileSwitchPolicyProof(options);
+      const render =
+        options.render ??
+        ((input: VoiceProfileSwitchPolicyProofReport) =>
+          renderVoiceProfileSwitchPolicyProofHTML(input, {
+            title: options.title,
+          }));
+
+      return new Response(await render(report), {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    });
+  }
+
+  return routes;
+};
+export const renderVoiceProfileSwitchPolicyProofHTML = (
+  report: VoiceProfileSwitchPolicyProofReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Voice Profile Switch Policy Proof";
+  const rows = report.results
+    .map(
+      (result) => `<tr>
+  <td><strong>${escapeHtml(result.label ?? result.id)}</strong><p>${escapeHtml(result.description ?? "")}</p></td>
+  <td>${escapeHtml(result.expectedAction ?? "n/a")}</td>
+  <td>${escapeHtml(result.decision.action)}</td>
+  <td>${escapeHtml(result.decision.selectedProfileId ?? "none")}</td>
+  <td>${escapeHtml(result.decision.blockedByPolicy ?? "none")}</td>
+  <td>${Math.round(result.decision.confidence * 100)}%</td>
+  <td><span class="status ${result.ok ? "pass" : "fail"}">${result.ok ? "PASS" : "FAIL"}</span></td>
+</tr>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#07110e;color:#e8fff5;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top left,rgba(45,212,191,.2),transparent 34%),#07110e}main{max-width:1120px;margin:0 auto}a{color:#67e8f9}.hero,.card{border:1px solid rgba(148,163,184,.24);border-radius:24px;background:rgba(15,23,42,.72);box-shadow:0 24px 90px rgba(0,0,0,.24);padding:24px;margin-bottom:18px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.metric{border:1px solid rgba(148,163,184,.2);border-radius:18px;padding:16px;background:rgba(8,47,73,.34)}.metric span{display:block;color:#9ca3af;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;margin-top:8px;font-size:1.6rem}table{width:100%;border-collapse:collapse;overflow:hidden;border-radius:18px}th,td{padding:14px;text-align:left;border-bottom:1px solid rgba(148,163,184,.18);vertical-align:top}th{color:#a7f3d0;text-transform:uppercase;font-size:.75rem;letter-spacing:.08em}td p{margin:.4rem 0 0;color:#a7b5ae}pre{white-space:pre-wrap;overflow:auto;border-radius:18px;background:#020617;padding:18px;color:#d1fae5}.status{display:inline-flex;border-radius:999px;padding:5px 10px;font-weight:800;font-size:.75rem}.pass{background:rgba(34,197,94,.18);color:#bbf7d0}.fail{background:rgba(239,68,68,.18);color:#fecaca}</style></head><body><main><section class="hero"><p><a href="#raw-report">Raw report</a></p><h1>${escapeHtml(title)}</h1><p>This page proves profile switching is production-bounded: teams can disable it, run recommend-only, auto-apply with confidence, restrict allowed targets, block unsafe targets, and cap automatic switches per session.</p><div class="metric-grid"><div class="metric"><span>Status</span><strong>${report.ok ? "PASS" : "FAIL"}</strong></div><div class="metric"><span>Cases</span><strong>${report.summary.passed}/${report.summary.total}</strong></div><div class="metric"><span>Generated</span><strong>${escapeHtml(report.generatedAt)}</strong></div></div></section><section class="card"><h2>Policy Cases</h2><table><thead><tr><th>Case</th><th>Expected</th><th>Actual</th><th>Selected</th><th>Blocked by</th><th>Confidence</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></section><section class="card" id="raw-report"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
+};
 export const runVoiceProfileSwitchPolicyProof = async (
   options: VoiceProfileSwitchPolicyProofOptions,
 ): Promise<VoiceProfileSwitchPolicyProofReport> => {
@@ -726,58 +777,6 @@ export const runVoiceProfileSwitchPolicyProof = async (
   };
 };
 
-export const renderVoiceProfileSwitchPolicyProofHTML = (
-  report: VoiceProfileSwitchPolicyProofReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Voice Profile Switch Policy Proof";
-  const rows = report.results
-    .map(
-      (result) => `<tr>
-  <td><strong>${escapeHtml(result.label ?? result.id)}</strong><p>${escapeHtml(result.description ?? "")}</p></td>
-  <td>${escapeHtml(result.expectedAction ?? "n/a")}</td>
-  <td>${escapeHtml(result.decision.action)}</td>
-  <td>${escapeHtml(result.decision.selectedProfileId ?? "none")}</td>
-  <td>${escapeHtml(result.decision.blockedByPolicy ?? "none")}</td>
-  <td>${Math.round(result.decision.confidence * 100)}%</td>
-  <td><span class="status ${result.ok ? "pass" : "fail"}">${result.ok ? "PASS" : "FAIL"}</span></td>
-</tr>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#07110e;color:#e8fff5;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top left,rgba(45,212,191,.2),transparent 34%),#07110e}main{max-width:1120px;margin:0 auto}a{color:#67e8f9}.hero,.card{border:1px solid rgba(148,163,184,.24);border-radius:24px;background:rgba(15,23,42,.72);box-shadow:0 24px 90px rgba(0,0,0,.24);padding:24px;margin-bottom:18px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.metric{border:1px solid rgba(148,163,184,.2);border-radius:18px;padding:16px;background:rgba(8,47,73,.34)}.metric span{display:block;color:#9ca3af;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;margin-top:8px;font-size:1.6rem}table{width:100%;border-collapse:collapse;overflow:hidden;border-radius:18px}th,td{padding:14px;text-align:left;border-bottom:1px solid rgba(148,163,184,.18);vertical-align:top}th{color:#a7f3d0;text-transform:uppercase;font-size:.75rem;letter-spacing:.08em}td p{margin:.4rem 0 0;color:#a7b5ae}pre{white-space:pre-wrap;overflow:auto;border-radius:18px;background:#020617;padding:18px;color:#d1fae5}.status{display:inline-flex;border-radius:999px;padding:5px 10px;font-weight:800;font-size:.75rem}.pass{background:rgba(34,197,94,.18);color:#bbf7d0}.fail{background:rgba(239,68,68,.18);color:#fecaca}</style></head><body><main><section class="hero"><p><a href="#raw-report">Raw report</a></p><h1>${escapeHtml(title)}</h1><p>This page proves profile switching is production-bounded: teams can disable it, run recommend-only, auto-apply with confidence, restrict allowed targets, block unsafe targets, and cap automatic switches per session.</p><div class="metric-grid"><div class="metric"><span>Status</span><strong>${report.ok ? "PASS" : "FAIL"}</strong></div><div class="metric"><span>Cases</span><strong>${report.summary.passed}/${report.summary.total}</strong></div><div class="metric"><span>Generated</span><strong>${escapeHtml(report.generatedAt)}</strong></div></div></section><section class="card"><h2>Policy Cases</h2><table><thead><tr><th>Case</th><th>Expected</th><th>Actual</th><th>Selected</th><th>Blocked by</th><th>Confidence</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></section><section class="card" id="raw-report"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
-};
-
-export const createVoiceProfileSwitchPolicyProofRoutes = (
-  options: VoiceProfileSwitchPolicyProofRoutesOptions,
-) => {
-  const path = options.path ?? "/api/voice/profile-switch-policy-proof";
-  const htmlPath =
-    options.htmlPath === undefined
-      ? "/voice/profile-switch-policy"
-      : options.htmlPath;
-  const routes = new Elysia({
-    name: options.name ?? "absolutejs-voice-profile-switch-policy-proof",
-  }).get(path, async () => runVoiceProfileSwitchPolicyProof(options));
-
-  if (htmlPath) {
-    routes.get(htmlPath, async () => {
-      const report = await runVoiceProfileSwitchPolicyProof(options);
-      const render =
-        options.render ??
-        ((input: VoiceProfileSwitchPolicyProofReport) =>
-          renderVoiceProfileSwitchPolicyProofHTML(input, {
-            title: options.title,
-          }));
-      return new Response(await render(report), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-    });
-  }
-
-  return routes;
-};
-
 const readStringField = (
   record: Record<string, unknown> | undefined,
   key: string,
@@ -802,7 +801,8 @@ const auditEventToLiveDecision = (
   if (event.type !== "profile.switch" || !event.sessionId) {
     return undefined;
   }
-  const payload = event.payload;
+  const {payload} = event;
+
   return {
     action:
       readStringField(payload, "action") ??
@@ -840,7 +840,8 @@ const traceEventToLiveDecision = (
   ) {
     return undefined;
   }
-  const payload = event.payload;
+  const {payload} = event;
+
   return {
     action: readStringField(payload, "action"),
     at: event.at,
@@ -927,6 +928,7 @@ export const buildVoiceProfileSwitchLiveDecisionReport = async (
         existing.blockedByPolicy.push(decision.blockedByPolicy);
       }
       map.set(decision.sessionId, existing);
+
       return map;
     }, new Map<string, VoiceProfileSwitchLiveDecisionSession>()),
   ).map(([, session]) => ({
@@ -958,31 +960,6 @@ export const buildVoiceProfileSwitchLiveDecisionReport = async (
     },
   };
 };
-
-export const renderVoiceProfileSwitchLiveDecisionHTML = (
-  report: VoiceProfileSwitchLiveDecisionReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Voice Profile Switch Live Decisions";
-  const rows = report.sessions
-    .flatMap((session) =>
-      session.decisions.map(
-        (decision) => `<tr>
-  <td><strong>${escapeHtml(decision.sessionId)}</strong><p>${escapeHtml(new Date(decision.at).toISOString())}</p></td>
-  <td>${escapeHtml(decision.source)}</td>
-  <td>${escapeHtml(decision.action ?? "unknown")}</td>
-  <td>${escapeHtml(decision.selectedProfileId ?? "none")}</td>
-  <td>${escapeHtml(decision.blockedByPolicy ?? "none")}</td>
-  <td>${typeof decision.confidence === "number" ? `${Math.round(decision.confidence * 100)}%` : "n/a"}</td>
-  <td>${escapeHtml(decision.reason ?? decision.outcome ?? "recorded")}</td>
-</tr>`,
-      ),
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#11100b;color:#fff7ed;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top right,rgba(251,146,60,.18),transparent 34%),#11100b}main{max-width:1180px;margin:0 auto}.hero,.card{border:1px solid rgba(251,191,36,.24);border-radius:24px;background:rgba(28,25,23,.78);box-shadow:0 24px 90px rgba(0,0,0,.24);padding:24px;margin-bottom:18px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.metric{border:1px solid rgba(251,191,36,.22);border-radius:18px;padding:16px;background:rgba(120,53,15,.26)}.metric span{display:block;color:#fed7aa;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;margin-top:8px;font-size:1.7rem}table{width:100%;border-collapse:collapse}th,td{padding:13px;text-align:left;border-bottom:1px solid rgba(251,191,36,.18);vertical-align:top}th{color:#fde68a;text-transform:uppercase;font-size:.74rem;letter-spacing:.08em}td p{margin:.35rem 0 0;color:#fdba74}pre{white-space:pre-wrap;overflow:auto;border-radius:18px;background:#020617;padding:18px;color:#ffedd5}.empty{color:#fdba74}</style></head><body><main><section class="hero"><h1>${escapeHtml(title)}</h1><p>This page summarizes real profile switch guard evidence from audit and trace stores. Use it beside policy proof to show bounded policy plus actual session decisions.</p><div class="metric-grid"><div class="metric"><span>Sessions</span><strong>${String(report.summary.sessions)}</strong></div><div class="metric"><span>Decisions</span><strong>${String(report.summary.decisions)}</strong></div><div class="metric"><span>Switches</span><strong>${String(report.summary.switches)}</strong></div><div class="metric"><span>Blocked</span><strong>${String(report.summary.blocked)}</strong></div><div class="metric"><span>Auto applied</span><strong>${String(report.summary.autoApplied)}</strong></div></div></section><section class="card"><h2>Live Guard Decisions</h2>${rows ? `<table><thead><tr><th>Session</th><th>Source</th><th>Action</th><th>Selected</th><th>Blocked by</th><th>Confidence</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No profile switch guard decisions recorded yet. Start a voice session with profileSwitchGuard enabled.</p>'}</section><section class="card"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
-};
-
 export const createVoiceProfileSwitchLiveDecisionRoutes = (
   options: VoiceProfileSwitchLiveDecisionRoutesOptions,
 ) => {
@@ -1029,6 +1006,7 @@ export const createVoiceProfileSwitchLiveDecisionRoutes = (
           renderVoiceProfileSwitchLiveDecisionHTML(input, {
             title: options.title,
           }));
+
       return new Response(await render(report), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
@@ -1036,6 +1014,29 @@ export const createVoiceProfileSwitchLiveDecisionRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceProfileSwitchLiveDecisionHTML = (
+  report: VoiceProfileSwitchLiveDecisionReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Voice Profile Switch Live Decisions";
+  const rows = report.sessions
+    .flatMap((session) =>
+      session.decisions.map(
+        (decision) => `<tr>
+  <td><strong>${escapeHtml(decision.sessionId)}</strong><p>${escapeHtml(new Date(decision.at).toISOString())}</p></td>
+  <td>${escapeHtml(decision.source)}</td>
+  <td>${escapeHtml(decision.action ?? "unknown")}</td>
+  <td>${escapeHtml(decision.selectedProfileId ?? "none")}</td>
+  <td>${escapeHtml(decision.blockedByPolicy ?? "none")}</td>
+  <td>${typeof decision.confidence === "number" ? `${Math.round(decision.confidence * 100)}%` : "n/a"}</td>
+  <td>${escapeHtml(decision.reason ?? decision.outcome ?? "recorded")}</td>
+</tr>`,
+      ),
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#11100b;color:#fff7ed;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top right,rgba(251,146,60,.18),transparent 34%),#11100b}main{max-width:1180px;margin:0 auto}.hero,.card{border:1px solid rgba(251,191,36,.24);border-radius:24px;background:rgba(28,25,23,.78);box-shadow:0 24px 90px rgba(0,0,0,.24);padding:24px;margin-bottom:18px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.metric{border:1px solid rgba(251,191,36,.22);border-radius:18px;padding:16px;background:rgba(120,53,15,.26)}.metric span{display:block;color:#fed7aa;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;margin-top:8px;font-size:1.7rem}table{width:100%;border-collapse:collapse}th,td{padding:13px;text-align:left;border-bottom:1px solid rgba(251,191,36,.18);vertical-align:top}th{color:#fde68a;text-transform:uppercase;font-size:.74rem;letter-spacing:.08em}td p{margin:.35rem 0 0;color:#fdba74}pre{white-space:pre-wrap;overflow:auto;border-radius:18px;background:#020617;padding:18px;color:#ffedd5}.empty{color:#fdba74}</style></head><body><main><section class="hero"><h1>${escapeHtml(title)}</h1><p>This page summarizes real profile switch guard evidence from audit and trace stores. Use it beside policy proof to show bounded policy plus actual session decisions.</p><div class="metric-grid"><div class="metric"><span>Sessions</span><strong>${String(report.summary.sessions)}</strong></div><div class="metric"><span>Decisions</span><strong>${String(report.summary.decisions)}</strong></div><div class="metric"><span>Switches</span><strong>${String(report.summary.switches)}</strong></div><div class="metric"><span>Blocked</span><strong>${String(report.summary.blocked)}</strong></div><div class="metric"><span>Auto applied</span><strong>${String(report.summary.autoApplied)}</strong></div></div></section><section class="card"><h2>Live Guard Decisions</h2>${rows ? `<table><thead><tr><th>Session</th><th>Source</th><th>Action</th><th>Selected</th><th>Blocked by</th><th>Confidence</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No profile switch guard decisions recorded yet. Start a voice session with profileSwitchGuard enabled.</p>'}</section><section class="card"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
 };
 
 const statusFromIssues = (
@@ -1065,7 +1066,7 @@ export const buildVoiceProfileSwitchReadinessReport = async (
     options.requireAllowedProfilePolicy ?? Boolean(options.autoMode);
   const maxBlockedRatio = options.maxBlockedRatio ?? 0.5;
   const maxAutoAppliedRatio = options.maxAutoAppliedRatio ?? 0.75;
-  const decisions = live.summary.decisions;
+  const {decisions} = live.summary;
   const blockedRatio = decisions > 0 ? live.summary.blocked / decisions : 0;
   const autoAppliedRatio =
     decisions > 0 ? live.summary.autoApplied / decisions : 0;
@@ -1151,28 +1152,6 @@ export const buildVoiceProfileSwitchReadinessReport = async (
     },
   };
 };
-
-export const renderVoiceProfileSwitchReadinessHTML = (
-  report: VoiceProfileSwitchReadinessReport,
-  options: { title?: string } = {},
-) => {
-  const title = options.title ?? "Voice Profile Switch Readiness";
-  const issues = report.issues
-    .map(
-      (issue) =>
-        `<li class="${escapeHtml(issue.status)}"><strong>${escapeHtml(issue.code)}</strong><p>${escapeHtml(issue.message)}</p></li>`,
-    )
-    .join("");
-  const sessions = report.live.sessions
-    .map(
-      (session) =>
-        `<tr><td>${escapeHtml(session.sessionId)}</td><td>${escapeHtml(session.actions.join(", ") || "none")}</td><td>${String(session.decisions.length)}</td><td>${String(session.autoApplied)}</td><td>${escapeHtml(session.blockedByPolicy.join(", ") || "none")}</td></tr>`,
-    )
-    .join("");
-
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#0b1020;color:#eff6ff;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top left,rgba(59,130,246,.2),transparent 34%),#0b1020}main{max-width:1140px;margin:0 auto}.hero,.card{background:rgba(15,23,42,.82);border:1px solid rgba(147,197,253,.24);border-radius:24px;margin-bottom:18px;padding:24px}.status{border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{background:rgba(34,197,94,.18);color:#bbf7d0}.warn{background:rgba(245,158,11,.18);color:#fde68a}.fail{background:rgba(239,68,68,.18);color:#fecaca}.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:16px}.metric{background:#0f172a;border:1px solid rgba(147,197,253,.2);border-radius:18px;padding:16px}.metric span{color:#93c5fd;display:block;font-size:.75rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.metric strong{display:block;font-size:1.8rem;margin-top:8px}ul{display:grid;gap:10px;list-style:none;padding:0}li{border-radius:16px;padding:14px}li p{margin:.35rem 0 0}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid rgba(147,197,253,.18);padding:12px;text-align:left}pre{background:#020617;border-radius:18px;color:#dbeafe;overflow:auto;padding:18px}</style></head><body><main><section class="hero"><h1>${escapeHtml(title)}</h1><p>Deploy-facing readiness for profile switching: policy proof, audit evidence, trace evidence, and live session behavior.</p><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status.toUpperCase())}</p><div class="grid"><div class="metric"><span>Sessions</span><strong>${String(report.summary.sessions)}</strong></div><div class="metric"><span>Decisions</span><strong>${String(report.summary.decisions)}</strong></div><div class="metric"><span>Policy cases</span><strong>${String(report.summary.policyCases ?? 0)}</strong></div><div class="metric"><span>Audit</span><strong>${String(report.summary.auditEvents)}</strong></div><div class="metric"><span>Trace</span><strong>${String(report.summary.traceEvents)}</strong></div></div></section><section class="card"><h2>Issues</h2>${issues ? `<ul>${issues}</ul>` : '<p class="pass status">No readiness issues.</p>'}</section><section class="card"><h2>Live Sessions</h2>${sessions ? `<table><thead><tr><th>Session</th><th>Actions</th><th>Decisions</th><th>Auto applied</th><th>Blocked by</th></tr></thead><tbody>${sessions}</tbody></table>` : "<p>No live guard sessions found.</p>"}</section><section class="card"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
-};
-
 export const createVoiceProfileSwitchReadinessRoutes = (
   options: VoiceProfileSwitchReadinessRoutesOptions,
 ) => {
@@ -1217,6 +1196,7 @@ export const createVoiceProfileSwitchReadinessRoutes = (
           renderVoiceProfileSwitchReadinessHTML(input, {
             title: options.title,
           }));
+
       return new Response(await render(report), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
@@ -1224,4 +1204,24 @@ export const createVoiceProfileSwitchReadinessRoutes = (
   }
 
   return routes;
+};
+export const renderVoiceProfileSwitchReadinessHTML = (
+  report: VoiceProfileSwitchReadinessReport,
+  options: { title?: string } = {},
+) => {
+  const title = options.title ?? "Voice Profile Switch Readiness";
+  const issues = report.issues
+    .map(
+      (issue) =>
+        `<li class="${escapeHtml(issue.status)}"><strong>${escapeHtml(issue.code)}</strong><p>${escapeHtml(issue.message)}</p></li>`,
+    )
+    .join("");
+  const sessions = report.live.sessions
+    .map(
+      (session) =>
+        `<tr><td>${escapeHtml(session.sessionId)}</td><td>${escapeHtml(session.actions.join(", ") || "none")}</td><td>${String(session.decisions.length)}</td><td>${String(session.autoApplied)}</td><td>${escapeHtml(session.blockedByPolicy.join(", ") || "none")}</td></tr>`,
+    )
+    .join("");
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(title)}</title><style>:root{color-scheme:dark;background:#0b1020;color:#eff6ff;font-family:ui-sans-serif,system-ui,sans-serif}body{margin:0;padding:32px;background:radial-gradient(circle at top left,rgba(59,130,246,.2),transparent 34%),#0b1020}main{max-width:1140px;margin:0 auto}.hero,.card{background:rgba(15,23,42,.82);border:1px solid rgba(147,197,253,.24);border-radius:24px;margin-bottom:18px;padding:24px}.status{border-radius:999px;display:inline-flex;font-weight:900;padding:8px 12px}.pass{background:rgba(34,197,94,.18);color:#bbf7d0}.warn{background:rgba(245,158,11,.18);color:#fde68a}.fail{background:rgba(239,68,68,.18);color:#fecaca}.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:16px}.metric{background:#0f172a;border:1px solid rgba(147,197,253,.2);border-radius:18px;padding:16px}.metric span{color:#93c5fd;display:block;font-size:.75rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.metric strong{display:block;font-size:1.8rem;margin-top:8px}ul{display:grid;gap:10px;list-style:none;padding:0}li{border-radius:16px;padding:14px}li p{margin:.35rem 0 0}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid rgba(147,197,253,.18);padding:12px;text-align:left}pre{background:#020617;border-radius:18px;color:#dbeafe;overflow:auto;padding:18px}</style></head><body><main><section class="hero"><h1>${escapeHtml(title)}</h1><p>Deploy-facing readiness for profile switching: policy proof, audit evidence, trace evidence, and live session behavior.</p><p class="status ${escapeHtml(report.status)}">${escapeHtml(report.status.toUpperCase())}</p><div class="grid"><div class="metric"><span>Sessions</span><strong>${String(report.summary.sessions)}</strong></div><div class="metric"><span>Decisions</span><strong>${String(report.summary.decisions)}</strong></div><div class="metric"><span>Policy cases</span><strong>${String(report.summary.policyCases ?? 0)}</strong></div><div class="metric"><span>Audit</span><strong>${String(report.summary.auditEvents)}</strong></div><div class="metric"><span>Trace</span><strong>${String(report.summary.traceEvents)}</strong></div></div></section><section class="card"><h2>Issues</h2>${issues ? `<ul>${issues}</ul>` : '<p class="pass status">No readiness issues.</p>'}</section><section class="card"><h2>Live Sessions</h2>${sessions ? `<table><thead><tr><th>Session</th><th>Actions</th><th>Decisions</th><th>Auto applied</th><th>Blocked by</th></tr></thead><tbody>${sessions}</tbody></table>` : "<p>No live guard sessions found.</p>"}</section><section class="card"><h2>Raw Report</h2><pre>${stringifyForHtml(report)}</pre></section></main></body></html>`;
 };
