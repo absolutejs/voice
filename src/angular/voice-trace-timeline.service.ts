@@ -3,7 +3,7 @@ import {
   createVoiceTraceTimelineStore,
   type VoiceTraceTimelineClientOptions,
 } from "../client/traceTimeline";
-import type { VoiceTraceTimelineReport } from "../traceTimeline";
+import type { VoiceTraceTimelineReport } from "../core/traceTimeline";
 
 @Injectable({ providedIn: "root" })
 export class VoiceTraceTimelineService {

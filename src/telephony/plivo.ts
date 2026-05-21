@@ -16,9 +16,9 @@ import {
   type VoiceTelephonyOutcomePolicy,
   type VoiceTelephonyWebhookRoutesOptions,
   type VoiceTelephonyWebhookVerificationResult,
-} from "../telephonyOutcome";
-import type { VoiceServerMessage, VoiceSessionRecord } from "../types";
-import type { VoicePostgresClient } from "../postgresStore";
+} from "../core/telephonyOutcome";
+import type { VoiceServerMessage, VoiceSessionRecord } from "../core/types";
+import type { VoicePostgresClient } from "../core/postgresStore";
 import {
   createTwilioMediaStreamBridge,
   type TwilioInboundMessage,

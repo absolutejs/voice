@@ -10,7 +10,7 @@ import type {
   RealtimeSessionEventMap,
   TTSAdapter,
   TTSSessionEventMap,
-} from "../src/types";
+} from "../src/core/types";
 
 type TTSListenerMap = {
   [K in keyof TTSSessionEventMap]: Array<

@@ -6,7 +6,7 @@ import {
   type VoiceCallPlayerOptions,
   type VoiceCallPlayerState,
 } from "../client/callPlayer";
-import type { Transcript } from "../types";
+import type { Transcript } from "../core/types";
 
 export type VoiceCallPlayerProps = VoiceCallPlayerOptions & {
   audioUrl?: string;
@@ -185,7 +185,9 @@ export const VoiceCallPlayer = ({
         />
         <select
           aria-label="playback rate"
-          onChange={(event) => player.setPlaybackRate(Number(event.target.value))}
+          onChange={(event) =>
+            player.setPlaybackRate(Number(event.target.value))
+          }
           style={{
             background: "rgba(255,255,255,0.08)",
             border: "1px solid rgba(255,255,255,0.18)",

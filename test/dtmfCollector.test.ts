@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   collectVoiceDTMFInput,
   validateVoiceDTMFLuhn,
-} from "../src/dtmfCollector";
+} from "../src/core/dtmfCollector";
 
 describe("collectVoiceDTMFInput", () => {
   test("completes when max length is reached", () => {

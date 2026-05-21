@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   scoreVoiceNoShowRisk,
   summarizeVoiceNoShowVerdict,
-} from "../src/noShowPredictor";
+} from "../src/core/noShowPredictor";
 
 const utc = (iso: string) => new Date(`${iso}Z`).getTime();
 
@@ -64,9 +64,9 @@ describe("scoreVoiceNoShowRisk", () => {
       bookedAtMs: utc("2026-05-19T08:00:00"),
       weatherDisruption: true,
     });
-    expect(
-      verdict.drivers.some((d) => d.kind === "weather-disruption"),
-    ).toBe(true);
+    expect(verdict.drivers.some((d) => d.kind === "weather-disruption")).toBe(
+      true,
+    );
   });
 
   test("score clamps to [0,1]", () => {

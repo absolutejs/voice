@@ -3,7 +3,7 @@ import {
   compareVoiceCostScenarios,
   predictVoiceCallCost,
   type VoiceCostProfile,
-} from "../src/costPredictor";
+} from "../src/core/costPredictor";
 
 const baseProfile: VoiceCostProfile = {
   inboundPerDay: 50,
@@ -89,7 +89,9 @@ describe("compareVoiceCostScenarios", () => {
         },
       ],
     });
-    const premium = result.scenarios.find((s) => s.scenarioId === "premium-llm");
+    const premium = result.scenarios.find(
+      (s) => s.scenarioId === "premium-llm",
+    );
     expect(premium?.delta.perCallUsd).toBeGreaterThan(0);
     expect(premium?.delta.monthlyUsd).toBeCloseTo(
       premium!.delta.perCallUsd * 50 * 30,

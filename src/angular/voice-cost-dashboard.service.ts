@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from "@angular/core";
-import type { StoredVoiceTraceEvent } from "../trace";
+import type { StoredVoiceTraceEvent } from "../core/trace";
 import {
   buildVoiceCostDashboardReport,
   type VoiceCostDashboardOptions,

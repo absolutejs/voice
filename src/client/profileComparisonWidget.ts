@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceRealCallProfileDefault } from "../proofTrends";
+import type { VoiceRealCallProfileDefault } from "../core/proofTrends";
 import {
   createVoiceProfileComparisonStore,
   type VoiceProfileComparisonClientOptions,

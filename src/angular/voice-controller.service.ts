@@ -1,6 +1,6 @@
 import { computed, Injectable, signal } from "@angular/core";
 import { createVoiceController } from "../client/controller";
-import type { VoiceControllerOptions, VoiceTurnRecord } from "../types";
+import type { VoiceControllerOptions, VoiceTurnRecord } from "../core/types";
 
 @Injectable({ providedIn: "root" })
 export class VoiceControllerService {

@@ -6,8 +6,8 @@ import {
   normalizePhoneNumber,
   shouldRetryCampaignAttempt,
   summarizeVoiceCampaignDispositions,
-} from "../src/campaignControls";
-import type { VoiceCampaignRecord } from "../src/campaign";
+} from "../src/core/campaignControls";
+import type { VoiceCampaignRecord } from "../src/core/campaign";
 
 describe("normalizePhoneNumber + createInMemoryDNCList", () => {
   test("normalizes spaces/dashes/parens before matching", async () => {

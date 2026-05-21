@@ -1,5 +1,5 @@
-import { buildTurnText } from "../turnDetection";
-import type { Transcript } from "../types";
+import { buildTurnText } from "../core/turnDetection";
+import type { Transcript } from "../core/types";
 
 export type VoiceTranscriptAccuracy = {
   actualText: string;

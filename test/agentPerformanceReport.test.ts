@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   buildVoiceCallScorecard,
   DEFAULT_VOICE_SALES_RUBRIC,
-} from "../src/callScorecard";
-import { buildVoiceAgentPerformanceReport } from "../src/agentPerformanceReport";
+} from "../src/core/callScorecard";
+import { buildVoiceAgentPerformanceReport } from "../src/core/agentPerformanceReport";
 
 const utc = (iso: string) => new Date(`${iso}Z`).getTime();
 
@@ -19,7 +19,9 @@ const card = (
     reviewer: "llm",
     rubric: DEFAULT_VOICE_SALES_RUBRIC,
     scores: {
-      "close-or-next-step": { score: overrides["close-or-next-step"] ?? scores },
+      "close-or-next-step": {
+        score: overrides["close-or-next-step"] ?? scores,
+      },
       "compliance-disclosure": {
         score: overrides["compliance-disclosure"] ?? scores,
       },

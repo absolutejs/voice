@@ -3,7 +3,7 @@ import {
   createVoiceDeliveryRuntimeStore,
   type VoiceDeliveryRuntimeClientOptions,
 } from "../client/deliveryRuntime";
-import type { VoiceDeliveryRuntimeReport } from "../deliveryRuntime";
+import type { VoiceDeliveryRuntimeReport } from "../core/deliveryRuntime";
 
 export function useVoiceDeliveryRuntime(
   path = "/api/voice-delivery-runtime",

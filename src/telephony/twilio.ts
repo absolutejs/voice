@@ -1,10 +1,10 @@
 import { escapeHtml } from "../internal/html";
 import { Buffer } from "node:buffer";
 import { Elysia } from "elysia";
-import { resolveAudioConditioningConfig } from "../audioConditioning";
-import { resolveLogger } from "../logger";
-import { resolveVoiceRuntimePreset } from "../presets";
-import { createVoiceSession } from "../session";
+import { resolveAudioConditioningConfig } from "../core/audioConditioning";
+import { resolveLogger } from "../core/logger";
+import { resolveVoiceRuntimePreset } from "../core/presets";
+import { createVoiceSession } from "../core/session";
 import type {
   VoiceTelephonySetupStatus,
   VoiceTelephonySmokeCheck,
@@ -16,15 +16,15 @@ import {
   signVoiceTwilioWebhook,
   type VoiceTelephonyOutcomePolicy,
   type VoiceTelephonyWebhookRoutesOptions,
-} from "../telephonyOutcome";
+} from "../core/telephonyOutcome";
 import {
   createVoiceCallReviewRecorder,
   type VoiceCallReviewArtifact,
   type VoiceCallReviewConfig,
   type VoiceCallReviewRecorder,
 } from "../testing/review";
-import { resolveTurnDetectionConfig } from "../turnProfiles";
-import type { VoiceTraceEventStore } from "../trace";
+import { resolveTurnDetectionConfig } from "../core/turnProfiles";
+import type { VoiceTraceEventStore } from "../core/trace";
 import type {
   AudioChunk,
   AudioFormat,
@@ -55,7 +55,7 @@ import type {
   VoiceTurnDetectionConfig,
   VoiceTurnRecord,
   VoiceServerMessage,
-} from "../types";
+} from "../core/types";
 
 const TWILIO_MULAW_SAMPLE_RATE = 8_000;
 const VOICE_PCM_SAMPLE_RATE = 16_000;

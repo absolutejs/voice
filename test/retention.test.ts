@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceRetentionScheduler,
   purgeVoiceRetentionStore,
-} from "../src/retention";
+} from "../src/core/retention";
 
 type Record = { at: number; id: string };
 
@@ -41,7 +41,10 @@ describe("purgeVoiceRetentionStore", () => {
 
   test("counts failures separately from successes", async () => {
     const failingStore = {
-      list: async () => [{ at: 0, id: "a" }, { at: 0, id: "b" }],
+      list: async () => [
+        { at: 0, id: "a" },
+        { at: 0, id: "b" },
+      ],
       remove: async (id: string) => {
         if (id === "b") throw new Error("nope");
       },

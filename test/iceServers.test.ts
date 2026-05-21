@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createCoturnIceServers,
   createTwilioNTSIceServers,
-} from "../src/iceServers";
+} from "../src/core/iceServers";
 
 describe("createCoturnIceServers", () => {
   test("returns stun + turn entries with HMAC-derived ephemeral credentials", async () => {
@@ -46,7 +46,10 @@ describe("createTwilioNTSIceServers", () => {
       new Response(
         JSON.stringify({
           ice_servers: [
-            { url: "stun:global.stun.twilio.com:3478", urls: "stun:global.stun.twilio.com:3478" },
+            {
+              url: "stun:global.stun.twilio.com:3478",
+              urls: "stun:global.stun.twilio.com:3478",
+            },
             {
               credential: "secret-pass",
               urls: "turn:global.turn.twilio.com:3478?transport=udp",

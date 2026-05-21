@@ -5,17 +5,17 @@ import {
   type VoiceTelephonyWebhookIdempotencyStore,
   type VoiceTelephonyWebhookProvider,
   type VoiceTelephonyWebhookVerificationResult,
-} from "../telephonyOutcome";
+} from "../core/telephonyOutcome";
 import { Elysia } from "elysia";
 import {
   createVoicePostgresTelephonyWebhookIdempotencyStore,
   type VoicePostgresClient,
-} from "../postgresStore";
-import { createVoiceSQLiteTelephonyWebhookIdempotencyStore } from "../sqliteStore";
+} from "../core/postgresStore";
+import { createVoiceSQLiteTelephonyWebhookIdempotencyStore } from "../core/sqliteStore";
 import {
   createVoiceRedisTelephonyWebhookIdempotencyStore,
   type VoiceRedisTelephonyWebhookIdempotencyClient,
-} from "../queue";
+} from "../core/queue";
 import {
   createMemoryVoicePlivoWebhookNonceStore,
   createVoicePlivoWebhookVerifier,

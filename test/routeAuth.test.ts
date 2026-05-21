@@ -4,8 +4,8 @@ import {
   createVoiceBearerAuthVerifier,
   createVoiceHMACAuthVerifier,
   createVoiceRouteAuth,
-} from "../src/routeAuth";
-import { signVoiceWebhookBody } from "../src/webhookVerification";
+} from "../src/core/routeAuth";
+import { signVoiceWebhookBody } from "../src/core/webhookVerification";
 
 const buildApp = (verify: ReturnType<typeof createVoiceBearerAuthVerifier>) =>
   new Elysia()

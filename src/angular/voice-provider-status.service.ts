@@ -3,7 +3,7 @@ import {
   createVoiceProviderStatusStore,
   type VoiceProviderStatusClientOptions,
 } from "../client/providerStatus";
-import type { VoiceProviderHealthSummary } from "../providerHealth";
+import type { VoiceProviderHealthSummary } from "../core/providerHealth";
 
 @Injectable({ providedIn: "root" })
 export class VoiceProviderStatusService {

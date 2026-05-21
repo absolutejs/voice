@@ -2,7 +2,7 @@ import { escapeHtml } from "../internal/html";
 import type {
   VoiceProviderCapabilityKind,
   VoiceProviderCapabilitySummary,
-} from "../providerCapabilities";
+} from "../core/providerCapabilities";
 import {
   createVoiceProviderCapabilitiesStore,
   type VoiceProviderCapabilitiesClientOptions,

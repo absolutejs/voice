@@ -4,7 +4,7 @@ import {
   createVoiceCostDashboardHTMXRoute,
   createVoiceLiveCallViewerHTMXRoute,
   createVoiceReplayTimelineHTMXRoute,
-} from "../src/htmxDashboardRoutes";
+} from "../src/core/htmxDashboardRoutes";
 import {
   renderVoiceCostDashboardHTMX,
   renderVoiceLiveCallViewerHTMX,
@@ -12,14 +12,19 @@ import {
   resolveVoiceDashboardRenderers,
 } from "../src/client/htmxDashboardRenderers";
 import { createLiveCallViewer } from "../src/client/liveCallViewer";
-import type { StoredVoiceTraceEvent } from "../src/trace";
+import type { StoredVoiceTraceEvent } from "../src/core/trace";
 import type { VoiceCallReviewArtifact } from "../src/testing/review";
 
 const costEvent = (at: number, totalUsd: number): StoredVoiceTraceEvent => ({
   at,
   id: `cost-${at}`,
   payload: {
-    llm: { cachedInputTokens: 0, inputTokens: 100, outputTokens: 50, usd: totalUsd * 0.6 },
+    llm: {
+      cachedInputTokens: 0,
+      inputTokens: 100,
+      outputTokens: 50,
+      usd: totalUsd * 0.6,
+    },
     sessionId: "s",
     stt: { audioMs: 30_000, usd: totalUsd * 0.1 },
     telephony: { minutes: 1, usd: totalUsd * 0.1 },
@@ -112,7 +117,9 @@ describe("renderVoiceLiveCallViewerHTMX", () => {
     const viewer = createLiveCallViewer({ sessionId: "abc" });
     viewer.notePartial("hello", 100);
     const html = renderVoiceLiveCallViewerHTMX({ state: viewer.getState() });
-    expect(html).toMatch(/data-agent-state="(idle|listening|thinking|speaking)"/);
+    expect(html).toMatch(
+      /data-agent-state="(idle|listening|thinking|speaking)"/,
+    );
     expect(html).toContain("hello");
   });
 });
@@ -169,7 +176,9 @@ describe("createVoiceReplayTimelineHTMXRoute", () => {
       latencyBreakdown: [],
       notes: [],
       summary: { pass: true },
-      timeline: [{ atMs: 0, event: "call.lifecycle.start", source: "voice-runtime" }],
+      timeline: [
+        { atMs: 0, event: "call.lifecycle.start", source: "voice-runtime" },
+      ],
       title: "Run",
       transcript: { actual: "hi" },
     };
@@ -206,6 +215,6 @@ describe("createVoiceLiveCallViewerHTMXRoute", () => {
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("voice-live-call-viewer");
-    expect(body).toContain("hx-trigger=\"every 3s\"");
+    expect(body).toContain('hx-trigger="every 3s"');
   });
 });

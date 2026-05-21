@@ -3,7 +3,7 @@ import {
   VOICE_LIVE_OPS_ACTIONS,
   type VoiceLiveOpsAction,
   type VoiceLiveOpsActionInput,
-} from "../liveOps";
+} from "../core/liveOps";
 import {
   createVoiceLiveOpsStore,
   type VoiceLiveOpsClientOptions,

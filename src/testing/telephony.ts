@@ -1,8 +1,8 @@
-import { createVoiceMemoryStore } from "../memoryStore";
+import { createVoiceMemoryStore } from "../core/memoryStore";
 import {
   buildVoiceOperationsRecord,
   type VoiceOperationsRecord,
-} from "../operationsRecord";
+} from "../core/operationsRecord";
 import {
   createTwilioMediaStreamBridge,
   encodeTwilioMulawBase64,
@@ -10,7 +10,7 @@ import {
 import {
   createVoiceMemoryTraceEventStore,
   type VoiceTraceEventStore,
-} from "../trace";
+} from "../core/trace";
 import type {
   AudioChunk,
   AudioFormat,
@@ -20,7 +20,7 @@ import type {
   TTSAdapter,
   TTSAdapterSession,
   Transcript,
-} from "../types";
+} from "../core/types";
 
 const DEFAULT_PCM16_FORMAT: AudioFormat = {
   channels: 1,

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceSupervisorPresence,
   type VoiceSupervisorPresenceEvent,
-} from "../src/supervisorPresence";
+} from "../src/core/supervisorPresence";
 
 describe("createVoiceSupervisorPresence", () => {
   test("join emits join event and adds watcher", () => {

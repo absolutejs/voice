@@ -1,4 +1,4 @@
-import type { STTAdapter, STTAdapterOpenOptions } from "../types";
+import type { STTAdapter, STTAdapterOpenOptions } from "../core/types";
 import {
   runSTTAdapterFixture,
   type VoiceSTTAdapterHarnessOptions,

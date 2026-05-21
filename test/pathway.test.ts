@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validateVoicePathway, type VoicePathway } from "../src/pathway";
+import { validateVoicePathway, type VoicePathway } from "../src/core/pathway";
 
 const goodPathway: VoicePathway = {
   entryStateId: "greet",
@@ -43,9 +43,7 @@ describe("validateVoicePathway", () => {
   test("happy path returns valid with no errors", () => {
     const report = validateVoicePathway(goodPathway);
     expect(report.valid).toBe(true);
-    expect(
-      report.issues.filter((i) => i.severity === "error"),
-    ).toHaveLength(0);
+    expect(report.issues.filter((i) => i.severity === "error")).toHaveLength(0);
   });
 
   test("detects unknown entry state", () => {
@@ -144,9 +142,9 @@ describe("validateVoicePathway", () => {
         },
       ],
     });
-    expect(
-      report.issues.some((i) => i.code === "no-terminal-reachable"),
-    ).toBe(true);
+    expect(report.issues.some((i) => i.code === "no-terminal-reachable")).toBe(
+      true,
+    );
   });
 
   test("detects duplicate state ids", () => {

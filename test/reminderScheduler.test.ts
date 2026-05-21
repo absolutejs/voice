@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceReminderScheduler,
   DEFAULT_VOICE_REMINDER_TRIGGERS,
-} from "../src/reminderScheduler";
+} from "../src/core/reminderScheduler";
 
 describe("createVoiceReminderScheduler", () => {
   test("schedules jobs from default triggers", () => {

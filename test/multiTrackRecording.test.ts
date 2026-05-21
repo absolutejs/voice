@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   encodeStereoWav,
   interleaveStereoPcm,
-} from "../src/recordingStore";
-import type { AudioFormat } from "../src/types";
+} from "../src/core/recordingStore";
+import type { AudioFormat } from "../src/core/types";
 
 const MONO_FORMAT: AudioFormat = {
   channels: 1,
@@ -22,7 +22,11 @@ describe("interleaveStereoPcm", () => {
     const left = buildMonoPcm([1, 2, 3]);
     const right = buildMonoPcm([4, 5, 6]);
     const out = interleaveStereoPcm({ left, right });
-    const samples = new Int16Array(out.buffer, out.byteOffset, out.byteLength / 2);
+    const samples = new Int16Array(
+      out.buffer,
+      out.byteOffset,
+      out.byteLength / 2,
+    );
     expect(Array.from(samples)).toEqual([1, 4, 2, 5, 3, 6]);
   });
 
@@ -30,7 +34,11 @@ describe("interleaveStereoPcm", () => {
     const left = buildMonoPcm([1, 2, 3, 4]);
     const right = buildMonoPcm([5, 6]);
     const out = interleaveStereoPcm({ left, right });
-    const samples = new Int16Array(out.buffer, out.byteOffset, out.byteLength / 2);
+    const samples = new Int16Array(
+      out.buffer,
+      out.byteOffset,
+      out.byteLength / 2,
+    );
     expect(Array.from(samples)).toEqual([1, 5, 2, 6, 3, 0, 4, 0]);
   });
 });

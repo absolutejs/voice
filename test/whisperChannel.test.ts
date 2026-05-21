@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceWhisperChannel,
   type VoiceWhisperEvent,
-} from "../src/whisperChannel";
+} from "../src/core/whisperChannel";
 
 describe("createVoiceWhisperChannel", () => {
   test("start emits started + ducked events for agent-only route", () => {

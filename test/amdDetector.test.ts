@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createMonologueAMDDetector } from "../src/amdDetector";
-import type { VoiceSessionRecord } from "../src/types";
+import { createMonologueAMDDetector } from "../src/core/amdDetector";
+import type { VoiceSessionRecord } from "../src/core/types";
 
 const baseSession: VoiceSessionRecord = {
   committedTurnIds: [],

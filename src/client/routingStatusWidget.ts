@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceRoutingDecisionSummary } from "../resilienceRoutes";
+import type { VoiceRoutingDecisionSummary } from "../core/resilienceRoutes";
 import {
   createVoiceRoutingStatusStore,
   type VoiceRoutingStatusClientOptions,

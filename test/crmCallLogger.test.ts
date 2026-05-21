@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceCRMCallLogger } from "../src/crmCallLogger";
+import { createVoiceCRMCallLogger } from "../src/core/crmCallLogger";
 import type {
   VoiceCRMCallActivityInput,
   VoiceCRMContract,
-} from "../src/crmContract";
+} from "../src/core/crmContract";
 
 const buildContract = (
   overrides: Partial<VoiceCRMContract> = {},

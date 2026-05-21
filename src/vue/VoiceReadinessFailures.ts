@@ -3,7 +3,7 @@ import {
   createVoiceReadinessFailuresViewModel,
   type VoiceReadinessFailuresWidgetOptions,
 } from "../client/readinessFailuresWidget";
-import type { VoiceProductionReadinessReport } from "../productionReadiness";
+import type { VoiceProductionReadinessReport } from "../core/productionReadiness";
 import { useVoiceReadinessFailures } from "./useVoiceReadinessFailures";
 
 export const VoiceReadinessFailures = defineComponent({

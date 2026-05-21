@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceTurnQualityItem } from "../turnQuality";
+import type { VoiceTurnQualityItem } from "../core/turnQuality";
 import {
   createVoiceTurnQualityStore,
   type VoiceTurnQualityClientOptions,

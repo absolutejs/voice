@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceInMemoryCalendarAdapter } from "../src/calendarAdapter";
+import { createVoiceInMemoryCalendarAdapter } from "../src/core/calendarAdapter";
 
 const utc = (iso: string) => new Date(`${iso}Z`).getTime();
 

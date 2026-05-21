@@ -2,14 +2,12 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceSupervisorPermissions,
   VOICE_SUPERVISOR_TIER_CAPABILITIES,
-} from "../src/supervisorPermissions";
+} from "../src/core/supervisorPermissions";
 
 describe("createVoiceSupervisorPermissions", () => {
   test("monitor-only tier blocks coach + takeover", () => {
     const perms = createVoiceSupervisorPermissions({
-      permissions: [
-        { supervisorId: "sup_1", tier: "monitor-only" },
-      ],
+      permissions: [{ supervisorId: "sup_1", tier: "monitor-only" }],
     });
     expect(perms.can("sup_1", "monitor").allowed).toBe(true);
     expect(perms.can("sup_1", "coach").allowed).toBe(false);
@@ -45,9 +43,7 @@ describe("createVoiceSupervisorPermissions", () => {
     let t = 0;
     const perms = createVoiceSupervisorPermissions({
       now: () => t,
-      permissions: [
-        { expiresAt: 1_000, supervisorId: "sup_1", tier: "coach" },
-      ],
+      permissions: [{ expiresAt: 1_000, supervisorId: "sup_1", tier: "coach" }],
     });
     expect(perms.can("sup_1", "coach").allowed).toBe(true);
     t = 2_000;

@@ -5,7 +5,7 @@ import type {
   VoiceAudioPlayerSource,
   VoiceAudioPlayerState,
   VoiceStreamState,
-} from "../types";
+} from "../core/types";
 
 const DEFAULT_LOOKAHEAD_MS = 15;
 

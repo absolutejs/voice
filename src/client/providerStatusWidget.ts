@@ -2,7 +2,7 @@ import { escapeHtml } from "../internal/html";
 import type {
   VoiceProviderHealthStatus,
   VoiceProviderHealthSummary,
-} from "../providerHealth";
+} from "../core/providerHealth";
 import {
   createVoiceProviderStatusStore,
   type VoiceProviderStatusClientOptions,

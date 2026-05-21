@@ -1,4 +1,4 @@
-import type { VoiceProofTrendReport } from "../proofTrends";
+import type { VoiceProofTrendReport } from "../core/proofTrends";
 
 export type VoiceProofTrendsClientOptions = {
   fetch?: typeof fetch;

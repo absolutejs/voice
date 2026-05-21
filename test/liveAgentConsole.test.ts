@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createLiveAgentConsole } from "../src/client/liveAgentConsole";
-import type { VoiceCallerMemorySnapshot } from "../src/callerMemory";
+import type { VoiceCallerMemorySnapshot } from "../src/core/callerMemory";
 
 const snapshot: VoiceCallerMemorySnapshot = {
   facts: { plan: "Pro" },

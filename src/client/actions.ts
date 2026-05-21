@@ -1,4 +1,4 @@
-import type { VoiceServerMessage } from "../types";
+import type { VoiceServerMessage } from "../core/types";
 
 const normalizeErrorMessage = (value: unknown): string => {
   if (typeof value === "string" && value.trim()) {

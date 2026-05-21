@@ -4,8 +4,8 @@ import {
   appendVoiceProviderRouterTraceEvent,
   buildVoiceIOProviderRouterTraceEvent,
   buildVoiceProviderRouterTraceEvent,
-} from "../src/providerRouterTraces";
-import { createVoiceMemoryTraceEventStore } from "../src/trace";
+} from "../src/core/providerRouterTraces";
+import { createVoiceMemoryTraceEventStore } from "../src/core/trace";
 
 test("buildVoiceProviderRouterTraceEvent maps model router events to session error traces", () => {
   const trace = buildVoiceProviderRouterTraceEvent({

@@ -1,5 +1,5 @@
 import { bindVoiceBargeIn } from "../client/duplex";
-import type { VoiceBargeInOptions } from "../types";
+import type { VoiceBargeInOptions } from "../core/types";
 
 export type VoiceDuplexBenchmarkScenario = {
   expectedInterruptCount: number;

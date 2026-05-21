@@ -1,4 +1,4 @@
-import type { VoiceProductionReadinessReport } from "../productionReadiness";
+import type { VoiceProductionReadinessReport } from "../core/productionReadiness";
 
 export type VoiceReadinessFailuresClientOptions = {
   fetch?: typeof fetch;

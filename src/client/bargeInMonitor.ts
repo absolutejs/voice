@@ -3,7 +3,7 @@ import type {
   VoiceBargeInMonitorEvent,
   VoiceBargeInMonitorSnapshot,
   VoiceBargeInTriggerReason,
-} from "../types";
+} from "../core/types";
 
 export type VoiceBargeInMonitorOptions = {
   fetch?: typeof fetch;

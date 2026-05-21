@@ -3,7 +3,7 @@ import {
   createVoiceTurnLatencyStore,
   type VoiceTurnLatencyClientOptions,
 } from "../client/turnLatency";
-import type { VoiceTurnLatencyReport } from "../turnLatency";
+import type { VoiceTurnLatencyReport } from "../core/turnLatency";
 
 export function useVoiceTurnLatency(
   path = "/api/turn-latency",

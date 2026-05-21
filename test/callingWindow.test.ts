@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceCallingWindow } from "../src/callingWindow";
+import { createVoiceCallingWindow } from "../src/core/callingWindow";
 
 const utc = (iso: string) => new Date(`${iso}Z`);
 

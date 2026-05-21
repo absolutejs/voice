@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceWebhookFanout } from "../src/webhookFanout";
+import { createVoiceWebhookFanout } from "../src/core/webhookFanout";
 
 const captureFetch = (
   responses: Array<{ ok?: boolean; status: number; body?: unknown }>,
 ) => {
   let index = 0;
-  const requests: Array<{ body?: unknown; headers?: Headers; url: string }> = [];
+  const requests: Array<{ body?: unknown; headers?: Headers; url: string }> =
+    [];
   const fetchImpl = (async (
     url: string | URL,
     init?: RequestInit,

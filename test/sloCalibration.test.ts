@@ -10,8 +10,8 @@ import {
   renderVoiceSloCalibrationMarkdown,
   renderVoiceSloReadinessThresholdHTML,
   renderVoiceSloReadinessThresholdMarkdown,
-} from "../src/sloCalibration";
-import { buildVoiceProofTrendReport } from "../src/proofTrends";
+} from "../src/core/sloCalibration";
+import { buildVoiceProofTrendReport } from "../src/core/proofTrends";
 
 describe("SLO calibration", () => {
   test("buildVoiceSloCalibrationReport recommends thresholds from proof trends", () => {

@@ -3,7 +3,7 @@ import {
   createVoiceProviderContractsStore,
   type VoiceProviderContractsClientOptions,
 } from "../client/providerContracts";
-import type { VoiceProviderContractMatrixReport } from "../providerStackRecommendations";
+import type { VoiceProviderContractMatrixReport } from "../core/providerStackRecommendations";
 
 export function useVoiceProviderContracts<TProvider extends string = string>(
   path = "/api/provider-contracts",

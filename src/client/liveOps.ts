@@ -2,7 +2,7 @@ import type {
   VoiceLiveOpsAction,
   VoiceLiveOpsActionInput,
   VoiceLiveOpsActionResult,
-} from "../liveOps";
+} from "../core/liveOps";
 
 export type VoiceLiveOpsClientOptions = {
   actionPath?: string;

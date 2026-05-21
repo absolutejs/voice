@@ -1,7 +1,7 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceAgentUIState } from "../agentState";
-import { deriveVoiceAgentUIState } from "../agentState";
-import type { VoiceControllerState } from "../types";
+import type { VoiceAgentUIState } from "../core/agentState";
+import { deriveVoiceAgentUIState } from "../core/agentState";
+import type { VoiceControllerState } from "../core/types";
 
 export type VoiceWidgetTheme = {
   accent?: string;

@@ -6,7 +6,7 @@ import {
 import type {
   VoiceCampaignDialerProofReport,
   VoiceCampaignDialerProofStatus,
-} from "../campaignDialers";
+} from "../core/campaignDialers";
 
 export function useVoiceCampaignDialerProof(
   path = "/api/voice/campaigns/dialer-proof",

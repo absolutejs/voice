@@ -3,9 +3,9 @@ import {
   buildVoiceCallerMemoryNamespace,
   createVoiceCallerMemoryNamespace,
   summarizeVoiceCallerTranscript,
-} from "../src/callerMemory";
-import type { VoiceCallerMemoryCompletion } from "../src/callerMemory";
-import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/types";
+} from "../src/core/callerMemory";
+import type { VoiceCallerMemoryCompletion } from "../src/core/callerMemory";
+import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/core/types";
 
 const baseSession: VoiceSessionRecord = {
   committedTurnIds: [],
@@ -28,7 +28,8 @@ const turn = (text: string, assistantText?: string): VoiceTurnRecord => ({
 
 const fakeCompletion =
   (response: string): VoiceCallerMemoryCompletion =>
-  async () => response;
+  async () =>
+    response;
 
 describe("buildVoiceCallerMemoryNamespace", () => {
   test("prefers externalId, then phone, then email", () => {
@@ -45,9 +46,9 @@ describe("buildVoiceCallerMemoryNamespace", () => {
         phone: "+14155551212",
       }),
     ).toBe("caller:+14155551212");
-    expect(
-      buildVoiceCallerMemoryNamespace({ email: "Alex@Example.com" }),
-    ).toBe("caller:alex@example.com");
+    expect(buildVoiceCallerMemoryNamespace({ email: "Alex@Example.com" })).toBe(
+      "caller:alex@example.com",
+    );
   });
 
   test("returns anonymous for missing identity", () => {
@@ -55,9 +56,9 @@ describe("buildVoiceCallerMemoryNamespace", () => {
   });
 
   test("honors prefix override", () => {
-    expect(
-      buildVoiceCallerMemoryNamespace({ phone: "+1" }, "support"),
-    ).toBe("support:+1");
+    expect(buildVoiceCallerMemoryNamespace({ phone: "+1" }, "support")).toBe(
+      "support:+1",
+    );
   });
 });
 

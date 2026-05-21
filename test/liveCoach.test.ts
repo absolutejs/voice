@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceLiveCoach } from "../src/liveCoach";
+import { createVoiceLiveCoach } from "../src/core/liveCoach";
 
 describe("createVoiceLiveCoach", () => {
   test("push enqueues a nudge that shows up in pending", () => {
@@ -8,7 +8,11 @@ describe("createVoiceLiveCoach", () => {
       now: () => 1_000,
       sessionId: "call_1",
     });
-    coach.push({ kind: "hint", supervisorId: "sup_1", text: "Ask about budget" });
+    coach.push({
+      kind: "hint",
+      supervisorId: "sup_1",
+      text: "Ask about budget",
+    });
     expect(coach.pending()).toHaveLength(1);
     expect(coach.pending()[0]?.id).toBe("n1");
   });
@@ -19,7 +23,11 @@ describe("createVoiceLiveCoach", () => {
       now: () => 1_000,
       sessionId: "call_1",
     });
-    coach.push({ kind: "hint", supervisorId: "sup_1", text: "Ask about budget" });
+    coach.push({
+      kind: "hint",
+      supervisorId: "sup_1",
+      text: "Ask about budget",
+    });
     const messages = coach.consumeForInjection();
     expect(messages).toHaveLength(1);
     expect(messages[0]?.role).toBe("system");

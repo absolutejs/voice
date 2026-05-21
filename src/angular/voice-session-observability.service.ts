@@ -3,7 +3,7 @@ import {
   createVoiceSessionObservabilityStore,
   type VoiceSessionObservabilityClientOptions,
 } from "../client/sessionObservability";
-import type { VoiceSessionObservabilityReport } from "../sessionObservability";
+import type { VoiceSessionObservabilityReport } from "../core/sessionObservability";
 
 @Injectable({ providedIn: "root" })
 export class VoiceSessionObservabilityService {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createVoiceController } from "../client/controller";
-import type { VoiceControllerOptions } from "../types";
+import type { VoiceControllerOptions } from "../core/types";
 
 const EMPTY_SNAPSHOT = {
   assistantAudio: [],

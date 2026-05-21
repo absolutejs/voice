@@ -3,12 +3,13 @@ import {
   createVoiceLLMJudge,
   type VoiceLLMJudgeCompletion,
   type VoiceLLMJudgeRubric,
-} from "../src/llmJudge";
+} from "../src/core/llmJudge";
 
 const rubric: VoiceLLMJudgeRubric = {
   criteria: [
     {
-      description: "Agent verifies the caller's identity before discussing account details.",
+      description:
+        "Agent verifies the caller's identity before discussing account details.",
       id: "identity-verified",
       required: true,
     },
@@ -24,8 +25,10 @@ const rubric: VoiceLLMJudgeRubric = {
   ],
 };
 
-const fakeCompletion = (response: string): VoiceLLMJudgeCompletion =>
-  async () => response;
+const fakeCompletion =
+  (response: string): VoiceLLMJudgeCompletion =>
+  async () =>
+    response;
 
 describe("createVoiceLLMJudge", () => {
   test("returns pass=true when all required + min-score criteria pass", async () => {
@@ -168,9 +171,9 @@ describe("createVoiceLLMJudge", () => {
       rubric,
     });
     const verdict = await judge.evaluate({ transcript: "..." });
-    expect(verdict.criteria.find((c) => c.criterionId === "refund-offered")?.passed).toBe(
-      false,
-    );
+    expect(
+      verdict.criteria.find((c) => c.criterionId === "refund-offered")?.passed,
+    ).toBe(false);
     expect(verdict.passed).toBe(false);
   });
 

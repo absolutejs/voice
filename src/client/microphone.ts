@@ -1,4 +1,4 @@
-import type { VoiceCaptureOptions } from "../types";
+import type { VoiceCaptureOptions } from "../core/types";
 
 type MicrophoneCaptureOptions = {
   channelCount?: VoiceCaptureOptions["channelCount"];

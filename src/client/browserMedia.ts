@@ -7,7 +7,7 @@ import type { MediaWebRTCStatsSample } from "@absolutejs/media";
 import type {
   VoiceBrowserMediaReporterOptions,
   VoiceBrowserMediaReportPayload,
-} from "../types";
+} from "../core/types";
 
 const DEFAULT_BROWSER_MEDIA_PATH = "/api/voice/browser-media";
 const DEFAULT_BROWSER_MEDIA_INTERVAL_MS = 5_000;

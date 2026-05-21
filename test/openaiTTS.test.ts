@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createOpenAIVoiceTTS } from "../src/openaiTTS";
+import { createOpenAIVoiceTTS } from "../src/core/openaiTTS";
 
 test("createOpenAIVoiceTTS streams OpenAI PCM speech chunks as TTS audio events", async () => {
   const requests: Array<{ body: Record<string, unknown>; url: string }> = [];

@@ -5,7 +5,7 @@ import type {
   TTSAdapter,
   TTSAdapterOpenOptions,
   TTSSessionEventMap,
-} from "../types";
+} from "../core/types";
 
 export type VoiceTTSBenchmarkFixture = {
   id: string;

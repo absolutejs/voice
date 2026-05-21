@@ -3,7 +3,7 @@ import {
   createVoiceReconnectProfileEvidenceStore,
   type VoiceReconnectProfileEvidenceClientOptions,
 } from "../client/reconnectProfileEvidence";
-import type { VoiceReconnectProfileEvidenceSummary } from "../proofTrends";
+import type { VoiceReconnectProfileEvidenceSummary } from "../core/proofTrends";
 
 @Injectable({ providedIn: "root" })
 export class VoiceReconnectProfileEvidenceService {

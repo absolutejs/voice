@@ -3,7 +3,7 @@ import {
   createVoiceReadinessFailuresStore,
   type VoiceReadinessFailuresClientOptions,
 } from "../client/readinessFailures";
-import type { VoiceProductionReadinessReport } from "../productionReadiness";
+import type { VoiceProductionReadinessReport } from "../core/productionReadiness";
 
 export const useVoiceReadinessFailures = (
   path = "/api/production-readiness",

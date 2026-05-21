@@ -7,8 +7,8 @@ import {
   summarizeVoiceReconnectProofSessions,
   summarizeVoiceReconnectContractSnapshots,
   runVoiceReconnectContract,
-} from "../src/reconnectContract";
-import { createVoiceSessionRecord } from "../src/store";
+} from "../src/core/reconnectContract";
+import { createVoiceSessionRecord } from "../src/core/store";
 
 test("runVoiceReconnectContract passes resumed reconnect with replay-safe turns", () => {
   const report = runVoiceReconnectContract({

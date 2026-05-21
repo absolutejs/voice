@@ -1353,7 +1353,7 @@ test("evaluateVoiceAgentSquadContractEvidence reports missing squad proof", () =
 });
 
 test("createVoiceAgent surfaces RAG citations from the knowledge-base tool", async () => {
-  const { createVoiceRAGTool } = await import("../src/ragTool");
+  const { createVoiceRAGTool } = await import("../src/core/ragTool");
   const collection = {
     search: async () => [
       {

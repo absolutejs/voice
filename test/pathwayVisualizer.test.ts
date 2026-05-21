@@ -1,18 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import type { VoicePathway } from "../src/pathway";
+import type { VoicePathway } from "../src/core/pathway";
 import {
   renderVoicePathwayMermaid,
   renderVoicePathwayText,
   visualizeVoicePathway,
-} from "../src/pathwayVisualizer";
+} from "../src/core/pathwayVisualizer";
 
 const sample: VoicePathway = {
   entryStateId: "greet",
   id: "support",
   label: "Support pathway",
-  slots: [
-    { id: "issue", prompt: "Issue?", required: true, type: "string" },
-  ],
+  slots: [{ id: "issue", prompt: "Issue?", required: true, type: "string" }],
   states: [
     {
       id: "greet",

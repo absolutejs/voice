@@ -3,7 +3,7 @@ import {
   createVoiceProfileComparisonStore,
   type VoiceProfileComparisonClientOptions,
 } from "../client/profileComparison";
-import type { VoiceRealCallProfileHistoryReport } from "../proofTrends";
+import type { VoiceRealCallProfileHistoryReport } from "../core/proofTrends";
 
 export function useVoiceProfileComparison(
   path = "/api/voice/real-call-profile-history",

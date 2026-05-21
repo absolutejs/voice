@@ -1,4 +1,4 @@
-import type { VoiceHTMXBindingOptions, VoiceStream } from "../types";
+import type { VoiceHTMXBindingOptions, VoiceStream } from "../core/types";
 
 type HtmxWindow = Window & {
   htmx?: {

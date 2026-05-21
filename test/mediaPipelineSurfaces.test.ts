@@ -135,7 +135,9 @@ describe("voice media pipeline summarize + surfaces", () => {
     const entries = extractVoiceMediaPipelineIssueEntries(report);
     const codes = entries.map((entry) => entry.code);
     expect(codes).toContain("media.transport_backpressure");
-    expect(entries.every((entry) => entry.surface === "burst-surface")).toBe(true);
+    expect(entries.every((entry) => entry.surface === "burst-surface")).toBe(
+      true,
+    );
   });
 
   test("readiness checks expose status per category", () => {
@@ -144,12 +146,16 @@ describe("voice media pipeline summarize + surfaces", () => {
     const labels = checks.map((check) => check.label);
     expect(labels).toContain("Media pipeline: overall");
     expect(labels).toContain("Media pipeline: media quality");
-    expect(checks.every((check) => check.href === "/voice/media-pipeline")).toBe(
-      true,
-    );
+    expect(
+      checks.every((check) => check.href === "/voice/media-pipeline"),
+    ).toBe(true);
     const overall = checks.find((check) => check.label.endsWith("overall"));
-    const quality = checks.find((check) => check.label.endsWith("media quality"));
-    expect(overall?.status).toBe(report.status === "pass" ? "pass" : overall?.status);
+    const quality = checks.find((check) =>
+      check.label.endsWith("media quality"),
+    );
+    expect(overall?.status).toBe(
+      report.status === "pass" ? "pass" : overall?.status,
+    );
     expect(quality?.status).toBe("pass");
   });
 

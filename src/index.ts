@@ -1,4 +1,4 @@
-export { voice } from "./plugin";
+export { voice } from "./core/plugin";
 export {
   applyVoiceCampaignTelephonyOutcome,
   assertVoiceCampaignReadinessEvidence,
@@ -17,7 +17,7 @@ export {
   runVoiceCampaignProof,
   runVoiceCampaignReadinessProof,
   summarizeVoiceCampaigns,
-} from "./campaign";
+} from "./core/campaign";
 export {
   assertVoiceCampaignDialerProofEvidence,
   createVoicePlivoCampaignDialer,
@@ -26,19 +26,19 @@ export {
   evaluateVoiceCampaignDialerProofEvidence,
   getVoiceCampaignDialerProofStatus,
   runVoiceCampaignDialerProof,
-} from "./campaignDialers";
+} from "./core/campaignDialers";
 export {
   createVoiceAssistant,
   createVoiceExperiment,
   summarizeVoiceAssistantRuns,
-} from "./assistant";
+} from "./core/assistant";
 export {
   createVoiceAssistantHealthHTMLHandler,
   createVoiceAssistantHealthJSONHandler,
   createVoiceAssistantHealthRoutes,
   renderVoiceAssistantHealthHTML,
   summarizeVoiceAssistantHealth,
-} from "./assistantHealth";
+} from "./core/assistantHealth";
 export {
   createVoiceAuditEvent,
   createVoiceAuditLogger,
@@ -51,14 +51,14 @@ export {
   recordVoiceProviderAuditEvent,
   recordVoiceRetentionAuditEvent,
   recordVoiceToolAuditEvent,
-} from "./audit";
+} from "./core/audit";
 export {
   buildVoiceAuditTrailReport,
   createVoiceAuditTrailRoutes,
   renderVoiceAuditTrailHTML,
   resolveVoiceAuditTrailFilter,
   summarizeVoiceAuditTrail,
-} from "./auditRoutes";
+} from "./core/auditRoutes";
 export {
   buildVoiceAuditExport,
   exportVoiceAuditTrail,
@@ -66,7 +66,7 @@ export {
   redactVoiceAuditEvents,
   renderVoiceAuditHTML,
   renderVoiceAuditMarkdown,
-} from "./auditExport";
+} from "./core/auditExport";
 export {
   createVoiceAuditHTTPSink,
   createVoiceAuditS3Sink,
@@ -78,7 +78,7 @@ export {
   createVoiceMemoryAuditSinkDeliveryStore,
   deliverVoiceAuditEventsToSinks,
   summarizeVoiceAuditSinkDeliveries,
-} from "./auditSinks";
+} from "./core/auditSinks";
 export {
   buildVoiceAuditDeliveryReport,
   createVoiceAuditDeliveryHTMLHandler,
@@ -86,12 +86,12 @@ export {
   createVoiceAuditDeliveryRoutes,
   renderVoiceAuditDeliveryHTML,
   resolveVoiceAuditDeliveryFilter,
-} from "./auditDeliveryRoutes";
+} from "./core/auditDeliveryRoutes";
 export {
   createVoiceBargeInRoutes,
   renderVoiceBargeInHTML,
   summarizeVoiceBargeIn,
-} from "./bargeInRoutes";
+} from "./core/bargeInRoutes";
 export {
   buildVoiceReconnectProofReport,
   createVoiceReconnectContractRoutes,
@@ -100,13 +100,13 @@ export {
   summarizeVoiceReconnectProofSessions,
   summarizeVoiceReconnectContractSnapshots,
   runVoiceReconnectContract,
-} from "./reconnectContract";
+} from "./core/reconnectContract";
 export type {
   VoiceReconnectProofOptions,
   VoiceReconnectProofReport,
   VoiceReconnectProofRoutesOptions,
   VoiceReconnectProofStatus,
-} from "./reconnectContract";
+} from "./core/reconnectContract";
 export {
   assertVoiceRealtimeChannelEvidence,
   buildVoiceRealtimeChannelRuntimeSamplesFromTrace,
@@ -115,7 +115,7 @@ export {
   evaluateVoiceRealtimeChannelEvidence,
   renderVoiceRealtimeChannelHTML,
   renderVoiceRealtimeChannelMarkdown,
-} from "./realtimeChannel";
+} from "./core/realtimeChannel";
 export type {
   VoiceRealtimeChannelAssertionInput,
   VoiceRealtimeChannelAssertionReport,
@@ -126,7 +126,7 @@ export type {
   VoiceRealtimeChannelRoutesOptions,
   VoiceRealtimeChannelRuntimeSample,
   VoiceRealtimeChannelStatus,
-} from "./realtimeChannel";
+} from "./core/realtimeChannel";
 export {
   assertVoiceRealtimeProviderContractEvidence,
   buildVoiceRealtimeProviderContractMatrix,
@@ -134,7 +134,7 @@ export {
   createVoiceRealtimeProviderContractRoutes,
   evaluateVoiceRealtimeProviderContractEvidence,
   renderVoiceRealtimeProviderContractHTML,
-} from "./realtimeProviderContracts";
+} from "./core/realtimeProviderContracts";
 export type {
   VoiceRealtimeProviderContractAssertionInput,
   VoiceRealtimeProviderContractAssertionReport,
@@ -148,12 +148,12 @@ export type {
   VoiceRealtimeProviderContractRow,
   VoiceRealtimeProviderPresetProvider,
   VoiceRealtimeProviderContractStatus,
-} from "./realtimeProviderContracts";
+} from "./core/realtimeProviderContracts";
 export {
   buildVoiceDiagnosticsMarkdown,
   createVoiceDiagnosticsRoutes,
   resolveVoiceDiagnosticsTraceFilter,
-} from "./diagnosticsRoutes";
+} from "./core/diagnosticsRoutes";
 export {
   assertVoiceMediaPipelineEvidence,
   buildVoiceMediaPipelineReport,
@@ -162,19 +162,19 @@ export {
   renderVoiceMediaPipelineHTML,
   renderVoiceMediaPipelineMarkdown,
   summarizeVoiceMediaPipelineReport,
-} from "./mediaPipelineRoutes";
+} from "./core/mediaPipelineRoutes";
 export {
   buildVoiceTelephonyMediaReport,
   createVoiceTelephonyMediaRoutes,
   getLatestVoiceTelephonyMediaReport,
   renderVoiceTelephonyMediaHTML,
-} from "./telephonyMediaRoutes";
+} from "./core/telephonyMediaRoutes";
 export {
   createVoiceBrowserMediaRoutes,
   getLatestVoiceBrowserMediaReport,
   renderVoiceBrowserMediaHTML,
   summarizeVoiceBrowserMedia,
-} from "./browserMediaRoutes";
+} from "./core/browserMediaRoutes";
 export {
   assertVoiceBrowserCallProfileEvidence,
   buildVoiceBrowserCallProfileReport,
@@ -182,7 +182,7 @@ export {
   evaluateVoiceBrowserCallProfileEvidence,
   renderVoiceBrowserCallProfileHTML,
   renderVoiceBrowserCallProfileMarkdown,
-} from "./browserCallProfiles";
+} from "./core/browserCallProfiles";
 export type {
   VoiceMediaPipelineAssertionInput,
   VoiceMediaPipelineAssertionReport,
@@ -193,13 +193,13 @@ export type {
   VoiceMediaPipelineReport,
   VoiceMediaPipelineReportOptions,
   VoiceMediaPipelineRoutesOptions,
-} from "./mediaPipelineRoutes";
+} from "./core/mediaPipelineRoutes";
 export {
   buildVoiceMediaPipelineIncidentEvents,
   buildVoiceMediaPipelineReadinessChecks,
   extractVoiceMediaPipelineIssueEntries,
   writeVoiceMediaPipelineArtifacts,
-} from "./mediaPipelineSurfaces";
+} from "./core/mediaPipelineSurfaces";
 export type {
   VoiceMediaPipelineArtifactKind,
   VoiceMediaPipelineArtifactRecord,
@@ -209,7 +209,7 @@ export type {
   VoiceMediaPipelineIssueEntry,
   VoiceMediaPipelineIssueSource,
   VoiceMediaPipelineReadinessOptions,
-} from "./mediaPipelineSurfaces";
+} from "./core/mediaPipelineSurfaces";
 export type {
   VoiceTelephonyMediaCarrierInput,
   VoiceTelephonyMediaCarrierReport,
@@ -217,13 +217,13 @@ export type {
   VoiceTelephonyMediaRoutesOptions,
   VoiceTelephonyMediaTraceReportOptions,
   VoiceTelephonyMediaStatus,
-} from "./telephonyMediaRoutes";
+} from "./core/telephonyMediaRoutes";
 export type {
   VoiceBrowserMediaReport,
   VoiceBrowserMediaRoutesOptions,
   VoiceBrowserMediaSample,
   VoiceBrowserMediaStatus,
-} from "./browserMediaRoutes";
+} from "./core/browserMediaRoutes";
 export type {
   VoiceBrowserCallProfileAssertionInput,
   VoiceBrowserCallProfileAssertionReport,
@@ -234,12 +234,12 @@ export type {
   VoiceBrowserCallProfileRoutesOptions,
   VoiceBrowserCallProfileStatus,
   VoiceBrowserCallProfileSummary,
-} from "./browserCallProfiles";
+} from "./core/browserCallProfiles";
 export {
   buildVoiceDemoReadyReport,
   createVoiceDemoReadyRoutes,
   renderVoiceDemoReadyHTML,
-} from "./demoReadyRoutes";
+} from "./core/demoReadyRoutes";
 export {
   buildVoiceDeliverySinkReport,
   createVoiceDeliverySinkDescriptor,
@@ -251,19 +251,19 @@ export {
   createVoiceSQLiteDeliverySink,
   createVoiceWebhookDeliverySink,
   renderVoiceDeliverySinkHTML,
-} from "./deliverySinkRoutes";
+} from "./core/deliverySinkRoutes";
 export {
   buildVoiceOpsActionHistoryReport,
   createVoiceOpsActionAuditRoutes,
   recordVoiceOpsActionAudit,
   renderVoiceOpsActionHistoryHTML,
-} from "./opsActionAuditRoutes";
+} from "./core/opsActionAuditRoutes";
 export {
   assertVoicePlatformCoverage,
   buildVoicePlatformCoverageSummary,
   createVoicePlatformCoverageRoutes,
   evaluateVoicePlatformCoverage,
-} from "./platformCoverage";
+} from "./core/platformCoverage";
 export {
   assertVoiceCompetitiveCoverage,
   buildVoiceCompetitiveCoverageReport,
@@ -271,7 +271,7 @@ export {
   evaluateVoiceCompetitiveCoverage,
   renderVoiceCompetitiveCoverageHTML,
   renderVoiceCompetitiveCoverageMarkdown,
-} from "./competitiveCoverage";
+} from "./core/competitiveCoverage";
 export type {
   VoiceCompetitiveCoverageAssertionInput,
   VoiceCompetitiveCoverageAssertionReport,
@@ -285,7 +285,7 @@ export type {
   VoiceCompetitiveDepthLevel,
   VoiceCompetitiveEvidence,
   VoiceCompetitiveSurface,
-} from "./competitiveCoverage";
+} from "./core/competitiveCoverage";
 export type {
   VoicePlatformCoverageAssertionInput,
   VoicePlatformCoverageAssertionReport,
@@ -295,7 +295,7 @@ export type {
   VoicePlatformCoverageSummary,
   VoicePlatformCoverageSummaryInput,
   VoicePlatformCoverageSurface,
-} from "./platformCoverage";
+} from "./core/platformCoverage";
 export {
   assertVoiceProofTrendEvidence,
   appendVoiceRealCallProfileRecoveryEvidence,
@@ -345,30 +345,30 @@ export {
   renderVoiceRealCallProfileHistoryMarkdown,
   runVoiceRealCallProfileRecoveryLoop,
   resolveVoiceRealCallProfileProviderRoute,
-} from "./proofTrends";
+} from "./core/proofTrends";
 export {
   createVoiceEvidenceAssertion,
   createVoiceProofAssertion,
   summarizeVoiceProofAssertions,
-} from "./proofAssertions";
+} from "./core/proofAssertions";
 export {
   buildVoiceSessionSnapshot,
   buildVoiceSessionSnapshotStatus,
   createVoiceSessionSnapshotRoutes,
   parseVoiceSessionSnapshot,
-} from "./sessionSnapshot";
+} from "./core/sessionSnapshot";
 export {
   buildVoiceCallDebuggerReport,
   createVoiceCallDebuggerRoutes,
   renderVoiceCallDebuggerHTML,
   resolveLatestVoiceCallDebuggerSessionId,
-} from "./callDebugger";
+} from "./core/callDebugger";
 export type {
   VoiceEvidenceAssertionInput,
   VoiceProofAssertionInput,
   VoiceProofAssertionResult,
   VoiceProofAssertionSummary,
-} from "./proofAssertions";
+} from "./core/proofAssertions";
 export type {
   VoiceSessionSnapshot,
   VoiceSessionSnapshotArtifact,
@@ -379,11 +379,11 @@ export type {
   VoiceSessionSnapshotRouteSource,
   VoiceSessionSnapshotRouteSourceInput,
   VoiceSessionSnapshotStatus,
-} from "./sessionSnapshot";
+} from "./core/sessionSnapshot";
 export type {
   VoiceCallDebuggerReport,
   VoiceCallDebuggerRoutesOptions,
-} from "./callDebugger";
+} from "./core/callDebugger";
 export {
   fetchVoiceProofTarget,
   getVoiceProofTargetLogicalFailure,
@@ -391,7 +391,7 @@ export {
   runVoiceCommandProofTarget,
   runVoiceCommandProofTargets,
   runVoiceProofTargets,
-} from "./proofRunner";
+} from "./core/proofRunner";
 export type {
   VoiceCommandProofExecutionResult,
   VoiceCommandProofTarget,
@@ -403,7 +403,7 @@ export type {
   VoiceProofTargetResult,
   VoiceProofTargetRunnerOptions,
   VoiceProofTargetRunOptions,
-} from "./proofRunner";
+} from "./core/proofRunner";
 export {
   applyVoiceProfileSwitchGuard,
   buildVoiceProfileSwitchReadinessReport,
@@ -416,7 +416,7 @@ export {
   renderVoiceProfileSwitchPolicyProofHTML,
   renderVoiceProfileSwitchReadinessHTML,
   runVoiceProfileSwitchPolicyProof,
-} from "./profileSwitchRecommendation";
+} from "./core/profileSwitchRecommendation";
 export type {
   VoiceProfileSwitchGuardAction,
   VoiceProfileSwitchGuardDecision,
@@ -440,7 +440,7 @@ export type {
   VoiceProfileSwitchReadinessStatus,
   VoiceProfileSwitchRecommendation,
   VoiceProfileSwitchRecommendationOptions,
-} from "./profileSwitchRecommendation";
+} from "./core/profileSwitchRecommendation";
 export {
   buildVoiceProviderDecisionTraceReport,
   createVoiceProviderDecisionTraceEvent,
@@ -448,7 +448,7 @@ export {
   listVoiceProviderDecisionTraces,
   renderVoiceProviderDecisionTraceHTML,
   renderVoiceProviderDecisionTraceMarkdown,
-} from "./providerDecisionTraces";
+} from "./core/providerDecisionTraces";
 export type {
   VoiceProviderDecisionStatus,
   VoiceProviderDecisionSurfaceReport,
@@ -458,19 +458,19 @@ export type {
   VoiceProviderDecisionTraceReport,
   VoiceProviderDecisionTraceReportOptions,
   VoiceProviderDecisionTraceRoutesOptions,
-} from "./providerDecisionTraces";
+} from "./core/providerDecisionTraces";
 export {
   appendVoiceIOProviderRouterTraceEvent,
   appendVoiceProviderRouterTraceEvent,
   buildVoiceIOProviderRouterTraceEvent,
   buildVoiceProviderRouterTraceEvent,
-} from "./providerRouterTraces";
+} from "./core/providerRouterTraces";
 export type {
   VoiceIOProviderRouterTraceAppendOptions,
   VoiceIOProviderRouterTraceEventOptions,
   VoiceProviderRouterTraceAppendOptions,
   VoiceProviderRouterTraceEventOptions,
-} from "./providerRouterTraces";
+} from "./core/providerRouterTraces";
 export type {
   VoiceProofTrendAssertionInput,
   VoiceProofTrendAssertionReport,
@@ -560,7 +560,7 @@ export type {
   VoiceRealCallEvidenceRuntimeWorkerReadinessCheckOptions,
   VoiceRealCallEvidenceRuntimeWorkerStatus,
   VoiceSQLiteRealCallProfileEvidenceStoreOptions,
-} from "./proofTrends";
+} from "./core/proofTrends";
 export {
   assertVoiceSloCalibration,
   buildVoiceSloCalibrationReport,
@@ -572,7 +572,7 @@ export {
   renderVoiceSloCalibrationMarkdown,
   renderVoiceSloReadinessThresholdHTML,
   renderVoiceSloReadinessThresholdMarkdown,
-} from "./sloCalibration";
+} from "./core/sloCalibration";
 export type {
   VoiceSloCalibrationMetricKey,
   VoiceSloCalibrationOptions,
@@ -587,7 +587,7 @@ export type {
   VoiceSloReadinessThresholdOptions,
   VoiceSloReadinessThresholdRoutesOptions,
   VoiceSloThresholdProfile,
-} from "./sloCalibration";
+} from "./core/sloCalibration";
 export {
   assertVoiceLiveOpsControlEvidence,
   assertVoiceLiveOpsEvidence,
@@ -599,7 +599,7 @@ export {
   evaluateVoiceLiveOpsEvidence,
   getVoiceLiveOpsControlStatus,
   VOICE_LIVE_OPS_ACTIONS,
-} from "./liveOps";
+} from "./core/liveOps";
 export type {
   VoiceLiveOpsAction,
   VoiceLiveOpsActionInput,
@@ -613,19 +613,19 @@ export type {
   VoiceLiveOpsEvidenceInput,
   VoiceLiveOpsEvidenceReport,
   VoiceLiveOpsRoutesOptions,
-} from "./liveOps";
+} from "./core/liveOps";
 export {
   buildVoiceDeliveryRuntimeReport,
   createVoiceDeliveryRuntime,
   createVoiceDeliveryRuntimePresetConfig,
   createVoiceDeliveryRuntimeRoutes,
   renderVoiceDeliveryRuntimeHTML,
-} from "./deliveryRuntime";
+} from "./core/deliveryRuntime";
 export {
   buildVoiceOperationalStatusReport,
   createVoiceOperationalStatusRoutes,
   renderVoiceOperationalStatusHTML,
-} from "./operationalStatus";
+} from "./core/operationalStatus";
 export {
   buildVoiceIncidentRecoveryOutcomeReport,
   buildVoiceIncidentRecoveryOutcomeReadinessCheck,
@@ -638,7 +638,7 @@ export {
   renderVoiceIncidentRecoveryTrendMarkdown,
   renderVoiceIncidentTimelineHTML,
   renderVoiceIncidentTimelineMarkdown,
-} from "./incidentTimeline";
+} from "./core/incidentTimeline";
 export {
   applyVoiceDataRetentionPolicy,
   assertVoiceDataControlEvidence,
@@ -650,7 +650,7 @@ export {
   renderVoiceDataControlHTML,
   renderVoiceDataControlMarkdown,
   voiceComplianceRedactionDefaults,
-} from "./dataControl";
+} from "./core/dataControl";
 export type {
   VoiceDataControlAssertionInput,
   VoiceDataControlAssertionReport,
@@ -663,13 +663,13 @@ export type {
   VoiceDataRetentionScope,
   VoiceDataRetentionScopeReport,
   VoiceDataRetentionStores,
-} from "./dataControl";
+} from "./core/dataControl";
 export type {
   VoiceDemoReadyReport,
   VoiceDemoReadyRoutesOptions,
   VoiceDemoReadySection,
   VoiceDemoReadyStatus,
-} from "./demoReadyRoutes";
+} from "./core/demoReadyRoutes";
 export type {
   VoiceDeliverySinkDescriptor,
   VoiceDeliverySinkDescriptorInput,
@@ -678,13 +678,13 @@ export type {
   VoiceDeliverySinkReport,
   VoiceDeliverySinkRoutesOptions,
   VoiceTraceDeliverySinkSurface,
-} from "./deliverySinkRoutes";
+} from "./core/deliverySinkRoutes";
 export type {
   VoiceOpsActionAuditRecord,
   VoiceOpsActionAuditRoutesOptions,
   VoiceOpsActionHistoryEntry,
   VoiceOpsActionHistoryReport,
-} from "./opsActionAuditRoutes";
+} from "./core/opsActionAuditRoutes";
 export type {
   VoiceDeliveryRuntime,
   VoiceDeliveryRuntimeAuditConfig,
@@ -700,7 +700,7 @@ export type {
   VoiceDeliveryRuntimeTickResult,
   VoiceDeliveryRuntimeTraceConfig,
   VoiceDeliveryRuntimeWebhookPresetOptions,
-} from "./deliveryRuntime";
+} from "./core/deliveryRuntime";
 export type {
   VoiceOperationalStatus,
   VoiceOperationalStatusCheck,
@@ -708,7 +708,7 @@ export type {
   VoiceOperationalStatusReport,
   VoiceOperationalStatusRoutesOptions,
   VoiceOperationalStatusValue,
-} from "./operationalStatus";
+} from "./core/operationalStatus";
 export type {
   VoiceIncidentRecoveryAction,
   VoiceIncidentRecoveryActionHandler,
@@ -733,7 +733,7 @@ export type {
   VoiceIncidentTimelineSeverity,
   VoiceIncidentTimelineStatus,
   VoiceIncidentTimelineValue,
-} from "./incidentTimeline";
+} from "./core/incidentTimeline";
 export {
   compareVoiceEvalBaseline,
   createVoiceFileEvalBaselineStore,
@@ -746,14 +746,14 @@ export {
   runVoiceScenarioEvals,
   runVoiceScenarioFixtureEvals,
   runVoiceSessionEvals,
-} from "./evalRoutes";
+} from "./core/evalRoutes";
 export {
   assertVoiceSimulationSuiteEvidence,
   createVoiceSimulationSuiteRoutes,
   evaluateVoiceSimulationSuiteEvidence,
   renderVoiceSimulationSuiteHTML,
   runVoiceSimulationSuite,
-} from "./simulationSuite";
+} from "./core/simulationSuite";
 export {
   createVoiceWorkflowContract,
   createVoiceWorkflowContractHandler,
@@ -761,7 +761,7 @@ export {
   createVoiceWorkflowScenario,
   recordVoiceWorkflowContractTrace,
   validateVoiceWorkflowRouteResult,
-} from "./workflowContract";
+} from "./core/workflowContract";
 export {
   createVoiceSessionListRoutes,
   createVoiceSessionReplayHTMLHandler,
@@ -773,18 +773,18 @@ export {
   summarizeVoiceProviderFallbackRecovery,
   summarizeVoiceSessions,
   summarizeVoiceSessionReplay,
-} from "./sessionReplay";
+} from "./core/sessionReplay";
 export {
   createVoiceAgent,
   createVoiceAgentSquad,
   createVoiceAgentTool,
-} from "./agent";
+} from "./core/agent";
 export {
   createPersonaVoiceCaller,
   createScriptedVoiceCaller,
   renderVoiceSimulationTranscript,
   runVoiceConversationSimulation,
-} from "./conversationSimulator";
+} from "./core/conversationSimulator";
 export type {
   RunVoiceConversationSimulationInput,
   VoiceConversationSimulationEndedReason,
@@ -796,8 +796,8 @@ export type {
   VoiceSimulatorCaller,
   VoiceSimulatorCallerModel,
   VoiceSimulatorCallerReply,
-} from "./conversationSimulator";
-export { createVoiceMCPToolset } from "./mcpToolset";
+} from "./core/conversationSimulator";
+export { createVoiceMCPToolset } from "./core/mcpToolset";
 export type {
   CreateVoiceMCPToolsetOptions,
   MCPClientLike,
@@ -805,10 +805,13 @@ export type {
   MCPToolContentBlock,
   MCPToolDefinition,
   VoiceMCPToolResult,
-} from "./mcpToolset";
-export { createAIVoiceModel } from "./aiVoiceModel";
-export type { CreateAIVoiceModelOptions } from "./aiVoiceModel";
-export { createVoiceAIJudgeCompletion, createVoiceLLMJudge } from "./llmJudge";
+} from "./core/mcpToolset";
+export { createAIVoiceModel } from "./core/aiVoiceModel";
+export type { CreateAIVoiceModelOptions } from "./core/aiVoiceModel";
+export {
+  createVoiceAIJudgeCompletion,
+  createVoiceLLMJudge,
+} from "./core/llmJudge";
 export type {
   CreateVoiceAIJudgeCompletionOptions,
   CreateVoiceLLMJudgeOptions,
@@ -819,28 +822,28 @@ export type {
   VoiceLLMJudgeRubric,
   VoiceLLMJudgeRubricCriterion,
   VoiceLLMJudgeVerdict,
-} from "./llmJudge";
+} from "./core/llmJudge";
 export {
   DEFAULT_VOICE_REDACTION_PATTERNS,
   createVoiceTranscriptRedactor,
   redactVoiceTranscript,
-} from "./redaction";
+} from "./core/redaction";
 export type {
   CreateVoiceTranscriptRedactorOptions,
   VoiceRedactionPattern,
   VoiceTranscriptRedactor,
-} from "./redaction";
+} from "./core/redaction";
 export {
   deriveVoiceRecordingRedactionRanges,
   redactVoiceRecording,
-} from "./recordingRedaction";
+} from "./core/recordingRedaction";
 export type {
   DeriveVoiceRecordingRedactionRangesInput,
   RedactVoiceRecordingInput,
   RedactVoiceRecordingResult,
   VoiceRecordingRedactionRange,
-} from "./recordingRedaction";
-export { buildVoiceVariableAnalytics } from "./variableAnalytics";
+} from "./core/recordingRedaction";
+export { buildVoiceVariableAnalytics } from "./core/variableAnalytics";
 export type {
   BuildVoiceVariableAnalyticsInput,
   VoiceAnalyticsCall,
@@ -848,7 +851,7 @@ export type {
   VoiceVariableAnalyticsReport,
   VoiceVariableBreakdown,
   VoiceVariableValueStats,
-} from "./variableAnalytics";
+} from "./core/variableAnalytics";
 export {
   VOICE_ZERO_DATA_RETENTION_REDACTION_MARKER,
   createVoiceZeroDataRetentionPolicy,
@@ -857,17 +860,17 @@ export {
   scrubVoiceTurnForZeroDataRetention,
   shouldRetainVoiceRecording,
   shouldRetainVoiceTranscript,
-} from "./zeroDataRetention";
+} from "./core/zeroDataRetention";
 export type {
   CreateVoiceZeroDataRetentionPolicyOptions,
   VoiceZeroDataRetentionMode,
   VoiceZeroDataRetentionPolicy,
   VoiceZeroDataRetentionRetainFlags,
-} from "./zeroDataRetention";
+} from "./core/zeroDataRetention";
 export {
   DEFAULT_VOICE_PRICE_BOOK,
   createVoiceCostAccountant,
-} from "./costAccounting";
+} from "./core/costAccounting";
 export type {
   CreateVoiceCostAccountantOptions,
   VoiceCostAccountant,
@@ -878,34 +881,34 @@ export type {
   VoiceCostTelephonyRecord,
   VoicePriceBook,
   VoiceProviderRates,
-} from "./costAccounting";
+} from "./core/costAccounting";
 export {
   describeVoiceAssistantMode,
   resolveVoiceAssistantMode,
-} from "./assistantMode";
+} from "./core/assistantMode";
 export type {
   VoiceAssistantMode,
   VoiceAssistantModality,
   VoiceAssistantModeDescriptor,
   VoiceSemanticVADConfig,
-} from "./assistantMode";
+} from "./core/assistantMode";
 export {
   createPunctuationSemanticTurnDetector,
   createRegexSemanticTurnDetector,
-} from "./semanticTurn";
+} from "./core/semanticTurn";
 export {
   VOICE_WEBHOOK_SIGNATURE_HEADER,
   VOICE_WEBHOOK_TIMESTAMP_HEADER,
   extractVoiceWebhookSignatureFromHeaders,
   signVoiceWebhookBody,
   verifyVoiceWebhookSignature,
-} from "./webhookVerification";
+} from "./core/webhookVerification";
 export {
   describeVoiceAgentUIState,
   deriveVoiceAgentUIState,
   voiceAgentUIStateOrder,
-} from "./agentState";
-export type { VoiceAgentUIInput, VoiceAgentUIState } from "./agentState";
+} from "./core/agentState";
+export type { VoiceAgentUIInput, VoiceAgentUIState } from "./core/agentState";
 export {
   createInMemoryDNCList,
   isPhoneOnDNC,
@@ -913,7 +916,7 @@ export {
   normalizePhoneNumber,
   shouldRetryCampaignAttempt,
   summarizeVoiceCampaignDispositions,
-} from "./campaignControls";
+} from "./core/campaignControls";
 export type {
   VoiceCampaignDisposition,
   VoiceCampaignDispositionRetryPolicy,
@@ -921,24 +924,24 @@ export type {
   VoiceCampaignDispositionSummary,
   VoiceCampaignWindowCheckInput,
   VoiceDNCList,
-} from "./campaignControls";
-export { createVoiceBackchannelDriver } from "./backchannel";
-export { createVoiceOAuth2TokenSource } from "./oauth2TokenSource";
+} from "./core/campaignControls";
+export { createVoiceBackchannelDriver } from "./core/backchannel";
+export { createVoiceOAuth2TokenSource } from "./core/oauth2TokenSource";
 export type {
   CreateVoiceOAuth2TokenSourceOptions,
   VoiceOAuth2TokenResponse,
   VoiceOAuth2TokenSource,
-} from "./oauth2TokenSource";
+} from "./core/oauth2TokenSource";
 export type {
   VoiceBackchannelCue,
   VoiceBackchannelDriver,
   VoiceBackchannelDriverOptions,
-} from "./backchannel";
+} from "./core/backchannel";
 export {
   createVoiceIVRSession,
   describeVoiceIVRPlan,
   evaluateVoiceIVRPlan,
-} from "./ivrPlan";
+} from "./core/ivrPlan";
 export type {
   VoiceIVRBranch,
   VoiceIVRDecision,
@@ -946,13 +949,13 @@ export type {
   VoiceIVRMatch,
   VoiceIVRPlan,
   VoiceIVRSession,
-} from "./ivrPlan";
+} from "./core/ivrPlan";
 export {
   VOICE_CALLER_MEMORY_KEY,
   buildVoiceCallerMemoryNamespace,
   createVoiceCallerMemoryNamespace,
   summarizeVoiceCallerTranscript,
-} from "./callerMemory";
+} from "./core/callerMemory";
 export type {
   CreateVoiceCallerMemoryNamespaceOptions,
   SummarizeVoiceCallerTranscriptOptions,
@@ -960,14 +963,14 @@ export type {
   VoiceCallerMemoryCompletion,
   VoiceCallerMemorySnapshot,
   VoiceCallerMemorySummarizerInput,
-} from "./callerMemory";
+} from "./core/callerMemory";
 export {
   aggregateVoiceTurnLatencySpans,
   buildOTELSpanId,
   buildOTELTraceId,
   buildVoiceOTELPayload,
   createVoiceOTELHTTPExporter,
-} from "./otelExporter";
+} from "./core/otelExporter";
 export type {
   VoiceOTELAttribute,
   VoiceOTELExporter,
@@ -977,27 +980,27 @@ export type {
   VoiceOTELSpan,
   VoiceTurnLatencySpanSet,
   VoiceTurnLatencySpanStage,
-} from "./otelExporter";
+} from "./core/otelExporter";
 export type {
   VoiceWebhookVerificationInput,
   VoiceWebhookVerificationReason,
   VoiceWebhookVerificationResult,
-} from "./webhookVerification";
+} from "./core/webhookVerification";
 export type {
   CreatePunctuationSemanticTurnDetectorOptions,
   CreateRegexSemanticTurnDetectorOptions,
   VoiceSemanticTurnDetector,
   VoiceSemanticTurnInput,
   VoiceSemanticTurnVerdict,
-} from "./semanticTurn";
-export { createMonologueAMDDetector } from "./amdDetector";
+} from "./core/semanticTurn";
+export { createMonologueAMDDetector } from "./core/amdDetector";
 export type {
   MonologueAMDDetectorOptions,
   VoiceAMDDetector,
   VoiceAMDDetectorInput,
   VoiceAMDVerdict,
-} from "./amdDetector";
-export { createVoiceRAGTool, extractVoiceRAGCitations } from "./ragTool";
+} from "./core/amdDetector";
+export { createVoiceRAGTool, extractVoiceRAGCitations } from "./core/ragTool";
 export type {
   VoiceRAGCitationSummary,
   VoiceRAGCollectionLike,
@@ -1006,24 +1009,24 @@ export type {
   VoiceRAGToolArgs,
   VoiceRAGToolOptions,
   VoiceRAGToolResult,
-} from "./ragTool";
+} from "./core/ragTool";
 export {
   createVoiceApiRequestTool,
   createVoiceDTMFTool,
   createVoiceEndCallTool,
   createVoiceTransferCallTool,
   createVoiceVoicemailDetectionTool,
-} from "./agentTools";
-export { createVoiceConfiguration } from "./voiceConfiguration";
-export { defineVoiceAssistant } from "./defineVoiceAssistant";
+} from "./core/agentTools";
+export { createVoiceConfiguration } from "./core/voiceConfiguration";
+export { defineVoiceAssistant } from "./core/defineVoiceAssistant";
 export type {
   DefinedVoiceAssistant,
   VoiceAssistantDefinition,
   VoiceAssistantObservabilityConfig,
   VoiceAssistantSessionInput,
   VoiceAssistantVoiceConfig,
-} from "./defineVoiceAssistant";
-export { createInMemoryVoiceCallQuota } from "./callQuota";
+} from "./core/defineVoiceAssistant";
+export { createInMemoryVoiceCallQuota } from "./core/callQuota";
 export type {
   CreateInMemoryVoiceCallQuotaOptions,
   VoiceCallQuota,
@@ -1031,18 +1034,18 @@ export type {
   VoiceCallQuotaResult,
   VoiceCallQuotaTier,
   VoiceCallReservation,
-} from "./callQuota";
+} from "./core/callQuota";
 export {
   createVoiceBearerAuthVerifier,
   createVoiceHMACAuthVerifier,
   createVoiceRouteAuth,
-} from "./routeAuth";
+} from "./core/routeAuth";
 export type {
   VoiceRouteAuthDecision,
   VoiceRouteAuthInput,
   VoiceRouteAuthOptions,
   VoiceRouteAuthVerifier,
-} from "./routeAuth";
+} from "./core/routeAuth";
 export {
   createVoiceCallPlayer,
   formatVoiceCallPlayerTimestamp,
@@ -1055,13 +1058,13 @@ export type {
 export {
   provisionTelnyxPhoneNumber,
   provisionTwilioPhoneNumber,
-} from "./phoneProvisioning";
+} from "./core/phoneProvisioning";
 export type {
   TelnyxProvisionInput,
   TwilioProvisionInput,
   VoicePhoneNumber,
-} from "./phoneProvisioning";
-export { createVoiceWebhookFanout } from "./webhookFanout";
+} from "./core/phoneProvisioning";
+export { createVoiceWebhookFanout } from "./core/webhookFanout";
 export type {
   VoiceWebhookFanout,
   VoiceWebhookFanoutEvent,
@@ -1069,7 +1072,7 @@ export type {
   VoiceWebhookFanoutReport,
   VoiceWebhookSink,
   VoiceWebhookSinkDeliveryResult,
-} from "./webhookFanout";
+} from "./core/webhookFanout";
 export {
   BROWSER_NOISE_SUPPRESSOR_PRESETS,
   applyBrowserNoiseSuppression,
@@ -1113,14 +1116,14 @@ export {
   createVoiceHTMXDashboardRoutesFromStores,
   createVoiceLiveCallViewerHTMXRoute,
   createVoiceReplayTimelineHTMXRoute,
-} from "./htmxDashboardRoutes";
+} from "./core/htmxDashboardRoutes";
 export type {
   CreateVoiceHTMXDashboardRoutesFromStoresOptions,
   VoiceHTMXCostDashboardRoutesOptions,
   VoiceHTMXDashboardRoutesOptions,
   VoiceHTMXLiveCallViewerRoutesOptions,
   VoiceHTMXReplayTimelineRoutesOptions,
-} from "./htmxDashboardRoutes";
+} from "./core/htmxDashboardRoutes";
 export { buildVoiceCostDashboardReport } from "./client/costDashboard";
 export type {
   VoiceCostDashboardBucket,
@@ -1144,15 +1147,15 @@ export type {
 export {
   createVoiceRetentionScheduler,
   purgeVoiceRetentionStore,
-} from "./retention";
+} from "./core/retention";
 export type {
   CreateVoiceRetentionSchedulerOptions,
   VoicePurgeReport,
   VoiceRetentionPolicyOptions,
   VoiceRetentionScheduler,
   VoiceRetentionStore,
-} from "./retention";
-export { fromVapiAssistantConfig } from "./vapiAdapter";
+} from "./core/retention";
+export { fromVapiAssistantConfig } from "./core/vapiAdapter";
 export type {
   VapiAssistantConfig,
   VapiAssistantConfigModel,
@@ -1171,7 +1174,7 @@ export type {
   VoiceFromVapiModelFactoryInput,
   VoiceFromVapiRouteHints,
   VoiceFromVapiUnsupportedReason,
-} from "./vapiAdapter";
+} from "./core/vapiAdapter";
 export type {
   VoiceApiRequestToolArgs,
   VoiceApiRequestToolFetch,
@@ -1191,17 +1194,17 @@ export type {
   VoiceVoicemailDetectionToolArgs,
   VoiceVoicemailDetectionToolOptions,
   VoiceVoicemailDetectionToolResult,
-} from "./agentTools";
+} from "./core/agentTools";
 export {
   assertVoiceAgentSquadContractEvidence,
   assertVoiceAgentSquadContract,
   evaluateVoiceAgentSquadContractEvidence,
   runVoiceAgentSquadContract,
-} from "./agentSquadContract";
+} from "./core/agentSquadContract";
 export {
   createVoiceToolIdempotencyKey,
   createVoiceToolRuntime,
-} from "./toolRuntime";
+} from "./core/toolRuntime";
 export {
   assertVoiceToolContractEvidence,
   createVoiceToolContract,
@@ -1213,31 +1216,31 @@ export {
   renderVoiceToolContractHTML,
   runVoiceToolContractSuite,
   runVoiceToolContract,
-} from "./toolContract";
+} from "./core/toolContract";
 export {
   createVoiceTurnLatencyHTMLHandler,
   createVoiceTurnLatencyJSONHandler,
   createVoiceTurnLatencyRoutes,
   renderVoiceTurnLatencyHTML,
   summarizeVoiceTurnLatency,
-} from "./turnLatency";
+} from "./core/turnLatency";
 export {
   createVoiceLiveLatencyRoutes,
   renderVoiceLiveLatencyHTML,
   summarizeVoiceLiveLatency,
-} from "./liveLatency";
+} from "./core/liveLatency";
 export {
   assertVoiceLatencySLOGate,
   buildVoiceLatencySLOGate,
   renderVoiceLatencySLOMarkdown,
-} from "./latencySlo";
+} from "./core/latencySlo";
 export {
   createVoiceTurnQualityHTMLHandler,
   createVoiceTurnQualityJSONHandler,
   createVoiceTurnQualityRoutes,
   renderVoiceTurnQualityHTML,
   summarizeVoiceTurnQuality,
-} from "./turnQuality";
+} from "./core/turnQuality";
 export {
   assertVoiceOutcomeContractEvidence,
   createVoiceOutcomeContractHTMLHandler,
@@ -1246,7 +1249,7 @@ export {
   evaluateVoiceOutcomeContractEvidence,
   renderVoiceOutcomeContractHTML,
   runVoiceOutcomeContractSuite,
-} from "./outcomeContract";
+} from "./core/outcomeContract";
 export {
   applyVoiceTelephonyOutcome,
   assertVoiceTelephonyWebhookNormalizationEvidence,
@@ -1260,14 +1263,14 @@ export {
   signVoiceTwilioWebhook,
   verifyVoiceTwilioWebhookSignature,
   voiceTelephonyOutcomeToRouteResult,
-} from "./telephonyOutcome";
+} from "./core/telephonyOutcome";
 export {
   assertVoicePhoneCallControlEvidence,
   assertVoicePhoneAssistantEvidence,
   createVoicePhoneAgent,
   evaluateVoicePhoneCallControlEvidence,
   evaluateVoicePhoneAssistantEvidence,
-} from "./phoneAgent";
+} from "./core/phoneAgent";
 export {
   createStoredVoiceCallReviewArtifact,
   createStoredVoiceExternalObjectMap,
@@ -1287,7 +1290,7 @@ export {
   createVoiceFileTaskStore,
   createVoiceFileTraceSinkDeliveryStore,
   createVoiceFileTraceEventStore,
-} from "./fileStore";
+} from "./core/fileStore";
 export {
   computePcmDurationMs,
   createVoiceMemoryRecordingStore,
@@ -1295,7 +1298,7 @@ export {
   encodePcmAsWav,
   encodeStereoWav,
   interleaveStereoPcm,
-} from "./recordingStore";
+} from "./core/recordingStore";
 export type {
   EncodeStereoWavInput,
   InterleavePcmInput,
@@ -1306,13 +1309,13 @@ export type {
   VoiceRecordingEncoderInput,
   VoiceRecordingEncoderResult,
   VoiceRecordingStore,
-} from "./recordingStore";
+} from "./core/recordingStore";
 export {
   createVoiceAssistantMemoryHandle,
   createVoiceAssistantMemoryRecord,
   createVoiceMemoryAssistantMemoryStore,
   resolveVoiceAssistantMemoryNamespace,
-} from "./assistantMemory";
+} from "./core/assistantMemory";
 export {
   createAnthropicVoiceAssistantModel,
   createGeminiVoiceAssistantModel,
@@ -1321,34 +1324,34 @@ export {
   createVoiceProviderOrchestrationProfile,
   resolveVoiceProviderRoutingPolicyPreset,
   createVoiceProviderRouter,
-} from "./modelAdapters";
-export { createOpenAIVoiceTTS } from "./openaiTTS";
+} from "./core/modelAdapters";
+export { createOpenAIVoiceTTS } from "./core/openaiTTS";
 export {
   createVoiceProviderHealthHTMLHandler,
   createVoiceProviderHealthJSONHandler,
   createVoiceProviderHealthRoutes,
   renderVoiceProviderHealthHTML,
   summarizeVoiceProviderHealth,
-} from "./providerHealth";
+} from "./core/providerHealth";
 export {
   createVoiceProviderCapabilityHTMLHandler,
   createVoiceProviderCapabilityJSONHandler,
   createVoiceProviderCapabilityRoutes,
   renderVoiceProviderCapabilityHTML,
   summarizeVoiceProviderCapabilities,
-} from "./providerCapabilities";
+} from "./core/providerCapabilities";
 export {
   buildVoiceProviderOrchestrationReport,
   createVoiceProviderOrchestrationRoutes,
   renderVoiceProviderOrchestrationHTML,
   renderVoiceProviderOrchestrationMarkdown,
-} from "./providerOrchestration";
+} from "./core/providerOrchestration";
 export {
   assertVoiceProviderRoutingContractEvidence,
   assertVoiceProviderRoutingContract,
   evaluateVoiceProviderRoutingContractEvidence,
   runVoiceProviderRoutingContract,
-} from "./providerRoutingContract";
+} from "./core/providerRoutingContract";
 export {
   assertVoiceProviderSloEvidence,
   buildVoiceProviderSloReport,
@@ -1356,14 +1359,14 @@ export {
   evaluateVoiceProviderSloEvidence,
   renderVoiceProviderSloHTML,
   renderVoiceProviderSloMarkdown,
-} from "./providerSlo";
+} from "./core/providerSlo";
 export {
   createVoicePhoneAgentProductionSmokeHTMLHandler,
   createVoicePhoneAgentProductionSmokeJSONHandler,
   createVoicePhoneAgentProductionSmokeRoutes,
   renderVoicePhoneAgentProductionSmokeHTML,
   runVoicePhoneAgentProductionSmokeContract,
-} from "./phoneAgentProductionSmoke";
+} from "./core/phoneAgentProductionSmoke";
 export {
   assertVoiceProductionReadinessEvidence,
   buildVoiceProductionReadinessGate,
@@ -1374,7 +1377,7 @@ export {
   evaluateVoiceProductionReadinessEvidence,
   renderVoiceProductionReadinessHTML,
   summarizeVoiceProductionReadinessGate,
-} from "./productionReadiness";
+} from "./core/productionReadiness";
 export {
   acknowledgeVoiceMonitorIssue,
   buildVoiceMonitorRunReport,
@@ -1389,11 +1392,11 @@ export {
   renderVoiceMonitorHTML,
   renderVoiceMonitorMarkdown,
   resolveVoiceMonitorIssue,
-} from "./voiceMonitoring";
+} from "./core/voiceMonitoring";
 export {
   createVoiceReadinessProfile,
   recommendVoiceReadinessProfile,
-} from "./readinessProfiles";
+} from "./core/readinessProfiles";
 export {
   assertVoiceProviderContractMatrixEvidence,
   assertVoiceProviderStackEvidence,
@@ -1407,12 +1410,12 @@ export {
   evaluateVoiceProviderStackGaps,
   renderVoiceProviderContractMatrixHTML,
   recommendVoiceProviderStack,
-} from "./providerStackRecommendations";
+} from "./core/providerStackRecommendations";
 export {
   buildVoiceOpsConsoleReport,
   createVoiceOpsConsoleRoutes,
   renderVoiceOpsConsoleHTML,
-} from "./opsConsoleRoutes";
+} from "./core/opsConsoleRoutes";
 export {
   assertVoiceOperationsRecordGuardrails,
   assertVoiceOperationsRecordProviderRecovery,
@@ -1425,7 +1428,7 @@ export {
   renderVoiceOperationsRecordGuardrailMarkdown,
   renderVoiceOperationsRecordHTML,
   renderVoiceOperationsRecordIncidentMarkdown,
-} from "./operationsRecord";
+} from "./core/operationsRecord";
 export {
   buildVoiceSessionObservabilityReport,
   createVoiceSessionObservabilityRoutes,
@@ -1433,7 +1436,7 @@ export {
   evaluateVoiceSessionObservabilityEvidence,
   renderVoiceSessionObservabilityHTML,
   renderVoiceSessionObservabilityMarkdown,
-} from "./sessionObservability";
+} from "./core/sessionObservability";
 export type {
   VoiceSessionObservabilityLink,
   VoiceSessionObservabilityEvidenceInput,
@@ -1445,7 +1448,7 @@ export type {
   VoiceSessionObservabilityStage,
   VoiceSessionObservabilityStatus,
   VoiceSessionObservabilityTurn,
-} from "./sessionObservability";
+} from "./core/sessionObservability";
 export {
   assertVoiceObservabilityExportDeliveryEvidence,
   assertVoiceObservabilityExportRecord,
@@ -1470,14 +1473,14 @@ export {
   validateVoiceObservabilityExportRecord,
   voiceObservabilityExportSchemaId,
   voiceObservabilityExportSchemaVersion,
-} from "./observabilityExport";
+} from "./core/observabilityExport";
 export {
   buildVoiceOpsRecoveryReadinessCheck,
   buildVoiceOpsRecoveryReport,
   createVoiceOpsRecoveryRoutes,
   renderVoiceOpsRecoveryHTML,
   renderVoiceOpsRecoveryMarkdown,
-} from "./opsRecovery";
+} from "./core/opsRecovery";
 export {
   buildVoiceIncidentBundle,
   createStoredVoiceIncidentBundleArtifact,
@@ -1485,17 +1488,17 @@ export {
   createVoiceMemoryIncidentBundleStore,
   pruneVoiceIncidentBundleArtifacts,
   saveVoiceIncidentBundleArtifact,
-} from "./incidentBundle";
-export { summarizeVoiceOpsStatus } from "./opsStatus";
+} from "./core/incidentBundle";
+export { summarizeVoiceOpsStatus } from "./core/opsStatus";
 export {
   createVoiceOpsStatusRoutes,
   renderVoiceOpsStatusHTML,
-} from "./opsStatusRoutes";
+} from "./core/opsStatusRoutes";
 export {
   createVoiceQualityRoutes,
   evaluateVoiceQuality,
   renderVoiceQualityHTML,
-} from "./qualityRoutes";
+} from "./core/qualityRoutes";
 export {
   createVoiceResilienceRoutes,
   createVoiceRoutingDecisionSummary,
@@ -1503,11 +1506,11 @@ export {
   renderVoiceResilienceHTML,
   summarizeVoiceRoutingDecision,
   summarizeVoiceRoutingSessions,
-} from "./resilienceRoutes";
+} from "./core/resilienceRoutes";
 export {
   createVoiceSTTProviderRouter,
   createVoiceTTSProviderRouter,
-} from "./providerAdapters";
+} from "./core/providerAdapters";
 export {
   buildVoiceTraceReplay,
   createVoiceMemoryTraceSinkDeliveryStore,
@@ -1535,7 +1538,7 @@ export {
   resolveVoiceTraceRedactionOptions,
   selectVoiceTraceEventsForPrune,
   summarizeVoiceTrace,
-} from "./trace";
+} from "./core/trace";
 export {
   buildVoiceTraceDeliveryReport,
   createVoiceTraceDeliveryHTMLHandler,
@@ -1543,13 +1546,13 @@ export {
   createVoiceTraceDeliveryRoutes,
   renderVoiceTraceDeliveryHTML,
   resolveVoiceTraceDeliveryFilter,
-} from "./traceDeliveryRoutes";
+} from "./core/traceDeliveryRoutes";
 export {
   createVoiceTraceTimelineRoutes,
   renderVoiceTraceTimelineHTML,
   renderVoiceTraceTimelineSessionHTML,
   summarizeVoiceTraceTimeline,
-} from "./traceTimeline";
+} from "./core/traceTimeline";
 export {
   createVoiceSQLiteAuditEventStore,
   createVoiceSQLiteAuditSinkDeliveryStore,
@@ -1563,7 +1566,7 @@ export {
   createVoiceSQLiteTelephonyWebhookIdempotencyStore,
   createVoiceSQLiteTraceSinkDeliveryStore,
   createVoiceSQLiteTraceEventStore,
-} from "./sqliteStore";
+} from "./core/sqliteStore";
 export {
   createVoicePostgresAuditEventStore,
   createVoicePostgresAuditSinkDeliveryStore,
@@ -1577,12 +1580,12 @@ export {
   createVoicePostgresTelephonyWebhookIdempotencyStore,
   createVoicePostgresTraceSinkDeliveryStore,
   createVoicePostgresTraceEventStore,
-} from "./postgresStore";
+} from "./core/postgresStore";
 export {
   createVoiceS3RecordingStore,
   createVoiceS3ReviewStore,
-} from "./s3Store";
-export { createVoiceMemoryStore } from "./memoryStore";
+} from "./core/s3Store";
+export { createVoiceMemoryStore } from "./core/memoryStore";
 export {
   createVoiceCRMActivitySink,
   createVoiceHelpdeskTicketSink,
@@ -1597,13 +1600,13 @@ export {
   createVoiceZendeskTicketSyncSinks,
   createVoiceZendeskTicketUpdateSink,
   deliverVoiceIntegrationEventToSinks,
-} from "./opsSinks";
+} from "./core/opsSinks";
 export {
   createVoiceOpsWebhookEnvelope,
   createVoiceOpsWebhookReceiverRoutes,
   createVoiceOpsWebhookSink,
   verifyVoiceOpsWebhookSignature,
-} from "./opsWebhook";
+} from "./core/opsWebhook";
 export {
   applyVoiceHandoffDeliveryResult,
   createVoiceHandoffDeliveryRecord,
@@ -1612,14 +1615,14 @@ export {
   createVoiceWebhookHandoffAdapter,
   deliverVoiceHandoff,
   deliverVoiceHandoffDelivery,
-} from "./handoff";
+} from "./core/handoff";
 export {
   createVoiceHandoffHealthHTMLHandler,
   createVoiceHandoffHealthJSONHandler,
   createVoiceHandoffHealthRoutes,
   renderVoiceHandoffHealthHTML,
   summarizeVoiceHandoffHealth,
-} from "./handoffHealth";
+} from "./core/handoffHealth";
 export {
   createVoiceHandoffDeliveryWorker,
   createVoiceHandoffDeliveryWorkerLoop,
@@ -1639,7 +1642,7 @@ export {
   summarizeVoiceTraceSinkDeliveries,
   summarizeVoiceOpsTaskQueue,
   summarizeVoiceIntegrationEvents,
-} from "./queue";
+} from "./core/queue";
 export {
   assignVoiceOpsTask,
   applyVoiceOpsTaskAssignmentRule,
@@ -1675,20 +1678,20 @@ export {
   summarizeVoiceOpsTasks,
   withVoiceIntegrationEventId,
   withVoiceOpsTaskId,
-} from "./ops";
-export { createVoiceSession } from "./session";
+} from "./core/ops";
+export { createVoiceSession } from "./core/session";
 export {
   createVoiceCallReviewFromSession,
   recordVoiceRuntimeOps,
-} from "./runtimeOps";
-export { createVoiceOpsRuntime } from "./opsRuntime";
-export { resolveVoiceOpsPreset } from "./opsPresets";
-export { resolveVoiceOutcomeRecipe } from "./outcomeRecipes";
+} from "./core/runtimeOps";
+export { createVoiceOpsRuntime } from "./core/opsRuntime";
+export { resolveVoiceOpsPreset } from "./core/opsPresets";
+export { resolveVoiceOutcomeRecipe } from "./core/outcomeRecipes";
 export {
   buildVoicePostCallAnalysisReport,
   createVoicePostCallAnalysisRoutes,
   renderVoicePostCallAnalysisMarkdown,
-} from "./postCallAnalysis";
+} from "./core/postCallAnalysis";
 export {
   buildVoiceGuardrailReport,
   createVoiceGuardrailPolicy,
@@ -1697,12 +1700,12 @@ export {
   evaluateVoiceGuardrailPolicy,
   renderVoiceGuardrailMarkdown,
   voiceGuardrailPolicyPresets,
-} from "./guardrails";
-export { createId, createVoiceSessionRecord } from "./store";
+} from "./core/guardrails";
+export { createId, createVoiceSessionRecord } from "./core/store";
 export {
   createVoiceSTTRoutingCorrectionHandler,
   resolveVoiceSTTRoutingStrategy,
-} from "./routing";
+} from "./core/routing";
 export {
   applyLexiconCorrections,
   applyRiskTieredPhraseHintCorrections,
@@ -1711,16 +1714,16 @@ export {
   createDomainPhraseHints,
   createPhraseHintCorrectionHandler,
   createRiskyTurnCorrectionHandler,
-} from "./correction";
+} from "./core/correction";
 export {
   conditionAudioChunk,
   resolveAudioConditioningConfig,
-} from "./audioConditioning";
-export { resolveVoiceRuntimePreset } from "./presets";
+} from "./core/audioConditioning";
+export { resolveVoiceRuntimePreset } from "./core/presets";
 export {
   resolveTurnDetectionConfig,
   TURN_PROFILE_DEFAULTS,
-} from "./turnProfiles";
+} from "./core/turnProfiles";
 // Call-review + telephony-benchmark helpers are test/benchmark utilities,
 // exposed via the "@absolutejs/voice/testing" subpath only.
 export type {
@@ -1767,7 +1770,7 @@ export type {
   VoiceCampaignTelephonyOutcomeStatus,
   VoiceCampaignTimeWindow,
   VoiceCampaignTickResult,
-} from "./campaign";
+} from "./core/campaign";
 export type {
   VoiceCampaignDialerProofAssertionInput,
   VoiceCampaignDialerProofAssertionReport,
@@ -1780,11 +1783,11 @@ export type {
   VoicePlivoCampaignDialerOptions,
   VoiceTelnyxCampaignDialerOptions,
   VoiceTwilioCampaignDialerOptions,
-} from "./campaignDialers";
+} from "./core/campaignDialers";
 export type {
   VoiceBargeInReport,
   VoiceBargeInRoutesOptions,
-} from "./bargeInRoutes";
+} from "./core/bargeInRoutes";
 export type {
   VoiceAssistant,
   VoiceAssistantArtifactPlan,
@@ -1800,22 +1803,22 @@ export type {
   VoiceAssistantRunsSummary,
   VoiceAssistantRunSummary,
   VoiceAssistantVariant,
-} from "./assistant";
+} from "./core/assistant";
 export type {
   VoiceAssistantHealthFailure,
   VoiceAssistantHealthHTMLHandlerOptions,
   VoiceAssistantHealthRoutesOptions,
   VoiceAssistantHealthSummary,
   VoiceAssistantHealthSummaryOptions,
-} from "./assistantHealth";
+} from "./core/assistantHealth";
 export type {
   VoiceAssistantMemoryBinding,
   VoiceAssistantMemoryHandle,
   VoiceAssistantMemoryOptions,
   VoiceAssistantMemoryRecord,
   VoiceAssistantMemoryStore,
-} from "./assistantMemory";
-export type { VoiceDiagnosticsRoutesOptions } from "./diagnosticsRoutes";
+} from "./core/assistantMemory";
+export type { VoiceDiagnosticsRoutesOptions } from "./core/diagnosticsRoutes";
 export type {
   VoiceEvalBaselineComparison,
   VoiceEvalBaselineComparisonOptions,
@@ -1835,7 +1838,7 @@ export type {
   VoiceScenarioFixtureEvalReport,
   VoiceScenarioFixtureEvalResult,
   VoiceScenarioFixtureStore,
-} from "./evalRoutes";
+} from "./core/evalRoutes";
 export type {
   VoiceSimulationSuiteAssertionInput,
   VoiceSimulationSuiteAssertionReport,
@@ -1846,7 +1849,7 @@ export type {
   VoiceSimulationSuiteSection,
   VoiceSimulationSuiteSectionSummary,
   VoiceSimulationSuiteStatus,
-} from "./simulationSuite";
+} from "./core/simulationSuite";
 export type {
   VoiceWorkflowContract,
   VoiceWorkflowContractDefinition,
@@ -1858,7 +1861,7 @@ export type {
   VoiceWorkflowContractValidation,
   VoiceWorkflowContractValidationIssue,
   VoiceWorkflowOutcome,
-} from "./workflowContract";
+} from "./core/workflowContract";
 export type {
   VoiceSessionListHTMLHandlerOptions,
   VoiceSessionListItem,
@@ -1871,7 +1874,7 @@ export type {
   VoiceSessionReplayOptions,
   VoiceSessionReplayRoutesOptions,
   VoiceSessionReplayTurn,
-} from "./sessionReplay";
+} from "./core/sessionReplay";
 export type {
   AnthropicVoiceAssistantModelOptions,
   GeminiVoiceAssistantModelOptions,
@@ -1892,13 +1895,16 @@ export type {
   VoiceProviderRouterStrategy,
   VoiceJSONAssistantModelHandler,
   VoiceJSONAssistantModelOptions,
-} from "./modelAdapters";
-export type { OpenAIVoiceTTSOptions, OpenAIVoiceTTSVoice } from "./openaiTTS";
+} from "./core/modelAdapters";
+export type {
+  OpenAIVoiceTTSOptions,
+  OpenAIVoiceTTSVoice,
+} from "./core/openaiTTS";
 export type {
   VoiceProviderHealthStatus,
   VoiceProviderHealthSummary,
   VoiceProviderHealthSummaryOptions,
-} from "./providerHealth";
+} from "./core/providerHealth";
 export type {
   VoiceProviderCapabilityDefinition,
   VoiceProviderCapabilityHandlerOptions,
@@ -1908,7 +1914,7 @@ export type {
   VoiceProviderCapabilityReport,
   VoiceProviderCapabilityRoutesOptions,
   VoiceProviderCapabilitySummary,
-} from "./providerCapabilities";
+} from "./core/providerCapabilities";
 export type {
   VoiceProviderOrchestrationIssue,
   VoiceProviderOrchestrationReport,
@@ -1917,7 +1923,7 @@ export type {
   VoiceProviderOrchestrationRoutesOptions,
   VoiceProviderOrchestrationStatus,
   VoiceProviderOrchestrationSurfaceReport,
-} from "./providerOrchestration";
+} from "./core/providerOrchestration";
 export type {
   VoiceProviderRoutingContractAssertionInput,
   VoiceProviderRoutingContractAssertionReport,
@@ -1927,7 +1933,7 @@ export type {
   VoiceProviderRoutingContractRunOptions,
   VoiceProviderRoutingExpectation,
   VoiceProviderRoutingStatus,
-} from "./providerRoutingContract";
+} from "./core/providerRoutingContract";
 export type {
   VoiceProviderSloAssertionInput,
   VoiceProviderSloAssertionReport,
@@ -1941,7 +1947,7 @@ export type {
   VoiceProviderSloStatus,
   VoiceProviderSloThresholdConfig,
   VoiceProviderSloThresholds,
-} from "./providerSlo";
+} from "./core/providerSlo";
 export type {
   VoiceTurnLatencyHTMLHandlerOptions,
   VoiceTurnLatencyItem,
@@ -1950,14 +1956,14 @@ export type {
   VoiceTurnLatencyRoutesOptions,
   VoiceTurnLatencyStage,
   VoiceTurnLatencyStatus,
-} from "./turnLatency";
+} from "./core/turnLatency";
 export type {
   VoiceLiveLatencyOptions,
   VoiceLiveLatencyReport,
   VoiceLiveLatencyRoutesOptions,
   VoiceLiveLatencySample,
   VoiceLiveLatencyStatus,
-} from "./liveLatency";
+} from "./core/liveLatency";
 export type {
   VoiceLatencySLOBudget,
   VoiceLatencySLOGateError,
@@ -1967,7 +1973,7 @@ export type {
   VoiceLatencySLOStage,
   VoiceLatencySLOStageSummary,
   VoiceLatencySLOStatus,
-} from "./latencySlo";
+} from "./core/latencySlo";
 export type {
   VoiceTurnQualityHTMLHandlerOptions,
   VoiceTurnQualityItem,
@@ -1975,7 +1981,7 @@ export type {
   VoiceTurnQualityReport,
   VoiceTurnQualityRoutesOptions,
   VoiceTurnQualityStatus,
-} from "./turnQuality";
+} from "./core/turnQuality";
 export type {
   VoiceOutcomeContractAssertionInput,
   VoiceOutcomeContractAssertionReport,
@@ -1987,7 +1993,7 @@ export type {
   VoiceOutcomeContractRoutesOptions,
   VoiceOutcomeContractStatus,
   VoiceOutcomeContractSuiteReport,
-} from "./outcomeContract";
+} from "./core/outcomeContract";
 export type {
   VoiceTelephonyOutcomeAction,
   VoiceTelephonyOutcomeDecision,
@@ -2007,7 +2013,7 @@ export type {
   VoiceTelephonyWebhookVerificationEvidenceAttempt,
   VoiceTelephonyWebhookVerificationResult,
   StoredVoiceTelephonyWebhookDecision,
-} from "./telephonyOutcome";
+} from "./core/telephonyOutcome";
 export type {
   VoicePhoneAgentCarrier,
   VoicePhoneAgentCarrierSummary,
@@ -2022,7 +2028,7 @@ export type {
   VoicePhoneAgentSetupReport,
   VoicePhoneAgentTelnyxCarrier,
   VoicePhoneAgentTwilioCarrier,
-} from "./phoneAgent";
+} from "./core/phoneAgent";
 export type {
   VoicePhoneAgentProductionSmokeIssue,
   VoicePhoneAgentProductionSmokeHandlerOptions,
@@ -2031,19 +2037,19 @@ export type {
   VoicePhoneAgentProductionSmokeReport,
   VoicePhoneAgentProductionSmokeRoutesOptions,
   VoicePhoneAgentProductionSmokeRequirement,
-} from "./phoneAgentProductionSmoke";
+} from "./core/phoneAgentProductionSmoke";
 export type {
   VoiceOpsConsoleLink,
   VoiceOpsConsoleReport,
   VoiceOpsConsoleRoutesOptions,
-} from "./opsConsoleRoutes";
+} from "./core/opsConsoleRoutes";
 export type {
   VoiceOpsStatus,
   VoiceOpsStatusLink,
   VoiceOpsStatusOptions,
   VoiceOpsStatusReport,
   VoiceOpsStatusRoutesOptions,
-} from "./opsStatus";
+} from "./core/opsStatus";
 export type {
   VoiceProductionReadinessAction,
   VoiceProductionReadinessAuditOptions,
@@ -2081,7 +2087,7 @@ export type {
   VoiceProductionReadinessAuditDeliverySummary,
   VoiceProductionReadinessTraceDeliveryOptions,
   VoiceProductionReadinessStatus,
-} from "./productionReadiness";
+} from "./core/productionReadiness";
 export type {
   VoiceMonitorDefinition,
   VoiceMonitorEvaluation,
@@ -2107,14 +2113,14 @@ export type {
   VoiceMonitorSeverity,
   VoiceMonitorStatus,
   VoiceMonitorWebhookNotifierOptions,
-} from "./voiceMonitoring";
+} from "./core/voiceMonitoring";
 export type {
   VoiceReadinessProfileName,
   VoiceReadinessProfileOptions,
   VoiceReadinessProfileRecommendation,
   VoiceReadinessProfileRecommendationScore,
   VoiceReadinessProfileRoutesOptions,
-} from "./readinessProfiles";
+} from "./core/readinessProfiles";
 export type {
   VoiceProviderStackChoice,
   VoiceProviderStackCapabilities,
@@ -2138,7 +2144,7 @@ export type {
   VoiceProviderStackInput,
   VoiceProviderStackKind,
   VoiceProviderStackRecommendation,
-} from "./providerStackRecommendations";
+} from "./core/providerStackRecommendations";
 export type {
   VoiceFailureReplayMediaStep,
   VoiceFailureReplayOptions,
@@ -2170,7 +2176,7 @@ export type {
   VoiceOperationsRecordTelephonyMediaSummary,
   VoiceOperationsRecordTranscriptTurn,
   VoiceOperationsRecordTool,
-} from "./operationsRecord";
+} from "./core/operationsRecord";
 export type {
   VoiceObservabilityExportArtifact,
   VoiceObservabilityExportArtifactChecksum,
@@ -2210,7 +2216,7 @@ export type {
   VoiceObservabilityExportTiming,
   VoiceObservabilityExportValidationIssue,
   VoiceObservabilityExportValidationResult,
-} from "./observabilityExport";
+} from "./core/observabilityExport";
 export type {
   VoiceOpsRecoveryFailedSession,
   VoiceOpsRecoveryInterventionSummary,
@@ -2222,7 +2228,7 @@ export type {
   VoiceOpsRecoveryReportOptions,
   VoiceOpsRecoveryRoutesOptions,
   VoiceOpsRecoveryStatus,
-} from "./opsRecovery";
+} from "./core/opsRecovery";
 export type {
   StoredVoiceIncidentBundleArtifact,
   VoiceIncidentBundle,
@@ -2235,7 +2241,7 @@ export type {
   VoiceIncidentBundleStore,
   VoiceIncidentBundleStoreFilter,
   VoiceIncidentBundleSummary,
-} from "./incidentBundle";
+} from "./core/incidentBundle";
 export type {
   VoiceQualityLink,
   VoiceQualityMetric,
@@ -2243,7 +2249,7 @@ export type {
   VoiceQualityRoutesOptions,
   VoiceQualityStatus,
   VoiceQualityThresholds,
-} from "./qualityRoutes";
+} from "./core/qualityRoutes";
 export type {
   VoiceResilienceIOSimulator,
   VoiceResilienceLink,
@@ -2257,7 +2263,7 @@ export type {
   VoiceRoutingEventKind,
   VoiceRoutingSessionSummary,
   VoiceRoutingSessionSummaryOptions,
-} from "./resilienceRoutes";
+} from "./core/resilienceRoutes";
 export type {
   VoiceIOProviderRouterEvent,
   VoiceIOProviderRouterOptions,
@@ -2265,7 +2271,7 @@ export type {
   VoiceIOProviderRouterPolicyConfig,
   VoiceSTTProviderRouterOptions,
   VoiceTTSProviderRouterOptions,
-} from "./providerAdapters";
+} from "./core/providerAdapters";
 export type {
   VoiceAgent,
   VoiceAgentMessage,
@@ -2284,7 +2290,7 @@ export type {
   VoiceAgentTool,
   VoiceAgentToolCall,
   VoiceAgentToolResult,
-} from "./agent";
+} from "./core/agent";
 export type {
   VoiceAgentSquadContractAssertionInput,
   VoiceAgentSquadContractAssertionReport,
@@ -2297,14 +2303,14 @@ export type {
   VoiceAgentSquadContractTurnReport,
   VoiceAgentSquadHandoffExpectation,
   VoiceAgentSquadTurnExpectation,
-} from "./agentSquadContract";
+} from "./core/agentSquadContract";
 export type {
   VoiceToolRetryDelay,
   VoiceToolRuntime,
   VoiceToolRuntimeExecuteInput,
   VoiceToolRuntimeOptions,
   VoiceToolRuntimeResult,
-} from "./toolRuntime";
+} from "./core/toolRuntime";
 export type {
   VoiceToolContractAssertionInput,
   VoiceToolContractAssertionReport,
@@ -2318,7 +2324,7 @@ export type {
   VoiceToolContractReport,
   VoiceToolContractRoutesOptions,
   VoiceToolContractSuiteReport,
-} from "./toolContract";
+} from "./core/toolContract";
 export type {
   VoiceOpsRuntime,
   VoiceOpsRuntimeConfig,
@@ -2327,17 +2333,17 @@ export type {
   VoiceOpsRuntimeTaskWorkerConfig,
   VoiceOpsRuntimeTickResult,
   VoiceOpsRuntimeWebhookWorkerConfig,
-} from "./opsRuntime";
+} from "./core/opsRuntime";
 export type {
   VoiceOpsPresetName,
   VoiceOpsPresetOverrides,
   VoiceResolvedOpsPreset,
-} from "./opsPresets";
+} from "./core/opsPresets";
 export type {
   VoiceOutcomeRecipe,
   VoiceOutcomeRecipeName,
   VoiceOutcomeRecipeOptions,
-} from "./outcomeRecipes";
+} from "./core/outcomeRecipes";
 export type {
   VoicePostCallAnalysisFieldRequirement,
   VoicePostCallAnalysisFieldResult,
@@ -2347,7 +2353,7 @@ export type {
   VoicePostCallAnalysisReport,
   VoicePostCallAnalysisRoutesOptions,
   VoicePostCallAnalysisStatus,
-} from "./postCallAnalysis";
+} from "./core/postCallAnalysis";
 export type {
   VoiceGuardrailDecision,
   VoiceGuardrailEvaluationInput,
@@ -2362,7 +2368,7 @@ export type {
   VoiceGuardrailSeverity,
   VoiceGuardrailStage,
   VoiceGuardrailStatus,
-} from "./guardrails";
+} from "./core/guardrails";
 export type {
   VoiceCRMActivitySinkOptions,
   VoiceHubSpotTaskSinkOptions,
@@ -2375,7 +2381,7 @@ export type {
   VoiceLinearIssueUpdateSinkOptions,
   VoiceZendeskTicketSinkOptions,
   VoiceZendeskTicketUpdateSinkOptions,
-} from "./opsSinks";
+} from "./core/opsSinks";
 export type {
   VoiceOpsWebhookEnvelope,
   VoiceOpsWebhookEntity,
@@ -2383,7 +2389,7 @@ export type {
   VoiceOpsWebhookReceiverRoutesOptions,
   VoiceOpsWebhookSinkOptions,
   VoiceOpsWebhookVerificationResult,
-} from "./opsWebhook";
+} from "./core/opsWebhook";
 export type {
   VoiceHandoffDelivery,
   VoiceHandoffDeliveryRecord,
@@ -2392,7 +2398,7 @@ export type {
   VoiceQueuedHandoffDeliveryOptions,
   VoiceTwilioRedirectHandoffAdapterOptions,
   VoiceWebhookHandoffAdapterOptions,
-} from "./handoff";
+} from "./core/handoff";
 export type {
   VoiceHandoffHealthDelivery,
   VoiceHandoffHealthEvent,
@@ -2401,7 +2407,7 @@ export type {
   VoiceHandoffHealthStatus,
   VoiceHandoffHealthSummary,
   VoiceHandoffHealthSummaryOptions,
-} from "./handoffHealth";
+} from "./core/handoffHealth";
 export type {
   StoredVoiceCallReviewArtifact,
   VoiceCallReviewArtifact,
@@ -2436,14 +2442,14 @@ export type {
   VoiceProviderAuditEventInput,
   VoiceRetentionAuditEventInput,
   VoiceToolAuditEventInput,
-} from "./audit";
+} from "./core/audit";
 export type {
   VoiceAuditTrailOptions,
   VoiceAuditTrailReport,
   VoiceAuditTrailRoutesOptions,
   VoiceAuditTrailSummary,
-} from "./auditRoutes";
-export type { VoiceAuditExport } from "./auditExport";
+} from "./core/auditRoutes";
+export type { VoiceAuditExport } from "./core/auditExport";
 export type {
   VoiceAuditHTTPSinkOptions,
   VoiceAuditS3SinkOptions,
@@ -2462,18 +2468,18 @@ export type {
   VoiceAuditSinkDeliveryWorkerResult,
   VoiceAuditSinkFanoutResult,
   VoiceAuditSinkStoreOptions,
-} from "./auditSinks";
+} from "./core/auditSinks";
 export type {
   VoiceAuditDeliveryDrainReport,
   VoiceAuditDeliveryDrainWorker,
   VoiceAuditDeliveryFilter,
   VoiceAuditDeliveryReport,
   VoiceAuditDeliveryRoutesOptions,
-} from "./auditDeliveryRoutes";
+} from "./core/auditDeliveryRoutes";
 export type {
   VoiceFileRuntimeStorage,
   VoiceFileStoreOptions,
-} from "./fileStore";
+} from "./core/fileStore";
 export type {
   VoiceProfileTraceTaggerOptions,
   VoiceProfileTraceTaggerProfile,
@@ -2506,26 +2512,26 @@ export type {
   VoiceTraceSummary,
   VoiceS3TraceSinkClient,
   VoiceS3TraceSinkFile,
-} from "./trace";
+} from "./core/trace";
 export type {
   VoiceTraceDeliveryDrainReport,
   VoiceTraceDeliveryDrainWorker,
   VoiceTraceDeliveryFilter,
   VoiceTraceDeliveryReport,
   VoiceTraceDeliveryRoutesOptions,
-} from "./traceDeliveryRoutes";
+} from "./core/traceDeliveryRoutes";
 export type {
   VoiceTraceTimelineEvent,
   VoiceTraceTimelineProviderSummary,
   VoiceTraceTimelineReport,
   VoiceTraceTimelineRoutesOptions,
   VoiceTraceTimelineSession,
-} from "./traceTimeline";
+} from "./core/traceTimeline";
 export type {
   VoicePostgresClient,
   VoicePostgresRuntimeStorage,
   VoicePostgresStoreOptions,
-} from "./postgresStore";
+} from "./core/postgresStore";
 export type {
   VoiceOpsTaskLease,
   VoiceOpsTaskWorker,
@@ -2563,16 +2569,16 @@ export type {
   VoiceOpsTaskProcessorWorkerOptions,
   VoiceOpsTaskProcessorWorkerResult,
   VoiceOpsTaskQueueSummary,
-} from "./queue";
+} from "./core/queue";
 export type {
   VoiceS3ReviewStoreClient,
   VoiceS3ReviewStoreFile,
   VoiceS3ReviewStoreOptions,
-} from "./s3Store";
+} from "./core/s3Store";
 export type {
   VoiceSQLiteRuntimeStorage,
   VoiceSQLiteStoreOptions,
-} from "./sqliteStore";
+} from "./core/sqliteStore";
 export type {
   StoredVoiceIntegrationEvent,
   StoredVoiceExternalObjectMap,
@@ -2603,7 +2609,7 @@ export type {
   VoiceOpsTaskStore,
   VoiceOpsTaskSummary,
   VoiceOpsTaskWorkerAnalytics,
-} from "./ops";
+} from "./core/ops";
 export {
   createTwilioMediaStreamBridge,
   createTwilioVoiceRoutes,
@@ -2764,7 +2770,7 @@ export {
   createVoiceProofPackSupportBundleSection,
   renderVoiceProofPackMarkdown,
   writeVoiceProofPack,
-} from "./proofPack";
+} from "./core/proofPack";
 export type {
   VoiceProofPack,
   VoiceProofPackBuildContext,
@@ -2787,12 +2793,12 @@ export type {
   VoiceProofPackWriteResult,
   VoiceProofRefreshSnapshot,
   VoiceProofRefreshSnapshotOptions,
-} from "./proofPack";
+} from "./core/proofPack";
 export {
   buildVoiceMultilingualProofReadinessCheck,
   renderVoiceMultilingualProofMarkdown,
   runVoiceMultilingualProof,
-} from "./multilingualProof";
+} from "./core/multilingualProof";
 export type {
   VoiceMultilingualLanguageCode,
   VoiceMultilingualProofAdapterEntry,
@@ -2805,14 +2811,14 @@ export type {
   VoiceMultilingualProofReadinessCheck,
   VoiceMultilingualProofReadinessOptions,
   VoiceMultilingualProofReport,
-} from "./multilingualProof";
+} from "./core/multilingualProof";
 export {
   buildVoiceMonitorPlan,
   createVoiceInMemoryMonitorRegistry,
   createVoiceLiveMonitorRoutes,
   createVoiceMonitorRuntimeBinding,
   createVoiceMonitorSession,
-} from "./monitor";
+} from "./core/monitor";
 export type {
   VoiceMonitorAudioEvent,
   VoiceMonitorAudioSource,
@@ -2830,66 +2836,69 @@ export type {
   VoiceLiveMonitorRoutesOptions,
   VoiceMonitorRuntimeBindingOptions,
   VoiceMonitorSessionRecord,
-} from "./monitor";
+} from "./core/monitor";
 export {
   compareVoiceCostScenarios,
   predictVoiceCallCost,
-} from "./costPredictor";
+} from "./core/costPredictor";
 export type {
   PredictVoiceCallCostInput,
   VoiceCostPrediction,
   VoiceCostProfile,
   VoiceCostScenarioComparison,
-} from "./costPredictor";
+} from "./core/costPredictor";
 export {
   createCoturnIceServers,
   createTwilioNTSIceServers,
-} from "./iceServers";
+} from "./core/iceServers";
 export type {
   CreateCoturnIceServersInput,
   CreateTwilioNTSIceServersInput,
   VoiceIceServer,
-} from "./iceServers";
-export { createVoiceHoldAudioDriver } from "./holdAudio";
+} from "./core/iceServers";
+export { createVoiceHoldAudioDriver } from "./core/holdAudio";
 export type {
   VoiceHoldAudioCue,
   VoiceHoldAudioDriver,
   VoiceHoldAudioDriverOptions,
-} from "./holdAudio";
+} from "./core/holdAudio";
 export {
   createVoicePromptInjectionGuard,
   DEFAULT_VOICE_PROMPT_INJECTION_RULES,
-} from "./promptInjectionGuard";
+} from "./core/promptInjectionGuard";
 export type {
   VoicePromptInjectionRule,
   VoicePromptInjectionVerdict,
   VoicePromptInjectionGuard,
   CreateVoicePromptInjectionGuardOptions,
-} from "./promptInjectionGuard";
+} from "./core/promptInjectionGuard";
 export {
   createVoicePostCallSurvey,
   DEFAULT_VOICE_POST_CALL_SURVEY_QUESTIONS,
   summarizeVoicePostCallSurveys,
-} from "./postCallSurvey";
+} from "./core/postCallSurvey";
 export type {
   VoicePostCallSurvey,
   VoicePostCallSurveyAnswer,
   VoicePostCallSurveyQuestion,
   VoicePostCallSurveyResponse,
   CreateVoicePostCallSurveyOptions,
-} from "./postCallSurvey";
+} from "./core/postCallSurvey";
 export {
   collectVoiceDTMFInput,
   validateVoiceDTMFLuhn,
   VOICE_DTMF_DIGITS,
-} from "./dtmfCollector";
+} from "./core/dtmfCollector";
 export type {
   VoiceDTMFCollector,
   VoiceDTMFCollectorState,
   VoiceDTMFDigit,
   CreateVoiceDTMFCollectorOptions,
-} from "./dtmfCollector";
-export { createVoiceDNCRegistry, importVoiceDNCFromCSV } from "./dncRegistry";
+} from "./core/dtmfCollector";
+export {
+  createVoiceDNCRegistry,
+  importVoiceDNCFromCSV,
+} from "./core/dncRegistry";
 export type {
   VoiceDNCEntry,
   VoiceDNCExternalLookup,
@@ -2897,30 +2906,30 @@ export type {
   VoiceDNCRegistry,
   VoiceDNCSource,
   CreateVoiceDNCRegistryOptions,
-} from "./dncRegistry";
+} from "./core/dncRegistry";
 export {
   createVoiceCallingWindow,
   VOICE_TCPA_DEFAULT_WINDOW,
-} from "./callingWindow";
+} from "./core/callingWindow";
 export type {
   VoiceCallingDayKey,
   VoiceCallingTimeRange,
   VoiceCallingWindow,
   VoiceCallingWindowOptions,
   VoiceCallingWindowVerdict,
-} from "./callingWindow";
+} from "./core/callingWindow";
 export {
   createVoiceCallDispositionTagger,
   DEFAULT_VOICE_CALL_DISPOSITIONS,
-} from "./callDisposition";
+} from "./core/callDisposition";
 export type {
   VoiceCallDispositionDefinition,
   VoiceCallDispositionTag,
   VoiceCallDispositionTagger,
   VoiceCallDispositionTaxonomy,
   CreateVoiceCallDispositionTaggerOptions,
-} from "./callDisposition";
-export { createVoiceRetryPolicy } from "./retryPolicy";
+} from "./core/callDisposition";
+export { createVoiceRetryPolicy } from "./core/retryPolicy";
 export type {
   VoiceRetryAttempt,
   VoiceRetryDecision,
@@ -2928,57 +2937,57 @@ export type {
   VoiceRetryDispositionRule,
   VoiceRetryPolicy,
   CreateVoiceRetryPolicyOptions,
-} from "./retryPolicy";
+} from "./core/retryPolicy";
 export {
   collectVoiceCampaignTemplateVariables,
   DEFAULT_VOICE_CAMPAIGN_TEMPLATE_FILTERS,
   resolveVoiceCampaignTemplate,
-} from "./campaignTemplate";
+} from "./core/campaignTemplate";
 export type {
   ResolveVoiceCampaignTemplateOptions,
   VoiceCampaignTemplateFilter,
   VoiceCampaignTemplateResolveResult,
   VoiceCampaignTemplateScope,
   VoiceCampaignTemplateValue,
-} from "./campaignTemplate";
-export { createVoiceWhisperChannel } from "./whisperChannel";
+} from "./core/campaignTemplate";
+export { createVoiceWhisperChannel } from "./core/whisperChannel";
 export type {
   CreateVoiceWhisperChannelOptions,
   VoiceWhisperChannel,
   VoiceWhisperEvent,
   VoiceWhisperFrame,
   VoiceWhisperRoute,
-} from "./whisperChannel";
-export { createVoiceLiveCoach } from "./liveCoach";
+} from "./core/whisperChannel";
+export { createVoiceLiveCoach } from "./core/liveCoach";
 export type {
   CreateVoiceLiveCoachOptions,
   VoiceCoachNudge,
   VoiceCoachNudgeInjection,
   VoiceCoachNudgeKind,
   VoiceLiveCoach,
-} from "./liveCoach";
+} from "./core/liveCoach";
 export {
   createVoiceTranscriptAnnotator,
   DEFAULT_VOICE_ANNOTATION_KIND_SEVERITY,
-} from "./transcriptAnnotator";
+} from "./core/transcriptAnnotator";
 export type {
   CreateVoiceTranscriptAnnotatorOptions,
   VoiceTranscriptAnnotation,
   VoiceTranscriptAnnotationKind,
   VoiceTranscriptAnnotator,
-} from "./transcriptAnnotator";
-export { createVoiceSupervisorPresence } from "./supervisorPresence";
+} from "./core/transcriptAnnotator";
+export { createVoiceSupervisorPresence } from "./core/supervisorPresence";
 export type {
   CreateVoiceSupervisorPresenceOptions,
   VoiceSupervisorPresence,
   VoiceSupervisorPresenceEvent,
   VoiceSupervisorRole,
   VoiceSupervisorWatcher,
-} from "./supervisorPresence";
+} from "./core/supervisorPresence";
 export {
   createVoiceSupervisorPermissions,
   VOICE_SUPERVISOR_TIER_CAPABILITIES,
-} from "./supervisorPermissions";
+} from "./core/supervisorPermissions";
 export type {
   CreateVoiceSupervisorPermissionsOptions,
   VoiceSupervisorCapability,
@@ -2986,48 +2995,48 @@ export type {
   VoiceSupervisorPermissionCheck,
   VoiceSupervisorPermissions,
   VoiceSupervisorTier,
-} from "./supervisorPermissions";
+} from "./core/supervisorPermissions";
 export {
   generateVoiceCalendarSlots,
   summarizeVoiceCalendarSlot,
-} from "./calendarSlots";
+} from "./core/calendarSlots";
 export type {
   GenerateVoiceCalendarSlotsInput,
   VoiceCalendarBlackout,
   VoiceCalendarBookedRange,
   VoiceCalendarBusinessHours,
   VoiceCalendarSlot,
-} from "./calendarSlots";
-export { createVoiceInMemoryCalendarAdapter } from "./calendarAdapter";
+} from "./core/calendarSlots";
+export { createVoiceInMemoryCalendarAdapter } from "./core/calendarAdapter";
 export type {
   CreateVoiceInMemoryCalendarAdapterOptions,
   VoiceCalendarAdapter,
   VoiceCalendarAppointment,
   VoiceCalendarAvailabilityQuery,
   VoiceCalendarBookInput,
-} from "./calendarAdapter";
-export { createVoiceBookingFlow } from "./bookingFlow";
+} from "./core/calendarAdapter";
+export { createVoiceBookingFlow } from "./core/bookingFlow";
 export type {
   CreateVoiceBookingFlowOptions,
   VoiceBookingFlow,
   VoiceBookingFlowServiceCatalog,
   VoiceBookingFlowState,
   VoiceBookingFlowStep,
-} from "./bookingFlow";
+} from "./core/bookingFlow";
 export {
   scoreVoiceNoShowRisk,
   summarizeVoiceNoShowVerdict,
-} from "./noShowPredictor";
+} from "./core/noShowPredictor";
 export type {
   VoiceNoShowHistoricalRecord,
   VoiceNoShowScoreInput,
   VoiceNoShowSignal,
   VoiceNoShowVerdict,
-} from "./noShowPredictor";
+} from "./core/noShowPredictor";
 export {
   createVoiceReminderScheduler,
   DEFAULT_VOICE_REMINDER_TRIGGERS,
-} from "./reminderScheduler";
+} from "./core/reminderScheduler";
 export type {
   CreateVoiceReminderSchedulerOptions,
   ScheduleVoiceRemindersInput,
@@ -3035,22 +3044,22 @@ export type {
   VoiceReminderJob,
   VoiceReminderScheduler,
   VoiceReminderTrigger,
-} from "./reminderScheduler";
+} from "./core/reminderScheduler";
 export {
   buildVoiceCallScorecard,
   DEFAULT_VOICE_SALES_RUBRIC,
-} from "./callScorecard";
+} from "./core/callScorecard";
 export type {
   BuildVoiceCallScorecardInput,
   VoiceScorecard,
   VoiceScorecardCriterion,
   VoiceScorecardCriterionResult,
   VoiceScorecardRubric,
-} from "./callScorecard";
+} from "./core/callScorecard";
 export {
   createVoiceAIScorecard,
   parseVoiceAIScorecardResponse,
-} from "./aiScorecard";
+} from "./core/aiScorecard";
 export type {
   CreateVoiceAIScorecardOptions,
   ScoreVoiceCallWithAIInput,
@@ -3058,33 +3067,33 @@ export type {
   VoiceAIScorecardCompletion,
   VoiceAIScorecardParsedResponse,
   VoiceAIScorecardScoringResult,
-} from "./aiScorecard";
-export { buildVoiceAgentPerformanceReport } from "./agentPerformanceReport";
+} from "./core/aiScorecard";
+export { buildVoiceAgentPerformanceReport } from "./core/agentPerformanceReport";
 export type {
   BuildVoiceAgentPerformanceReportInput,
   VoiceAgentPerformanceBucket,
   VoiceAgentPerformanceBucketSummary,
   VoiceAgentPerformanceCriterionSummary,
   VoiceAgentPerformanceReport,
-} from "./agentPerformanceReport";
-export { computeVoiceScorecardCalibration } from "./scorecardCalibration";
+} from "./core/agentPerformanceReport";
+export { computeVoiceScorecardCalibration } from "./core/scorecardCalibration";
 export type {
   VoiceScorecardCalibrationDivergence,
   VoiceScorecardCalibrationPair,
   VoiceScorecardCalibrationReport,
-} from "./scorecardCalibration";
-export { detectVoiceQualityDrift } from "./qualityDriftDetector";
+} from "./core/scorecardCalibration";
+export { detectVoiceQualityDrift } from "./core/qualityDriftDetector";
 export type {
   DetectVoiceQualityDriftInput,
   VoiceQualityDriftCriterionAlert,
   VoiceQualityDriftReport,
   VoiceQualityDriftSeverity,
-} from "./qualityDriftDetector";
+} from "./core/qualityDriftDetector";
 export {
   findVoicePathwaySlot,
   findVoicePathwayState,
   validateVoicePathway,
-} from "./pathway";
+} from "./core/pathway";
 export type {
   VoicePathway,
   VoicePathwayAction,
@@ -3095,8 +3104,8 @@ export type {
   VoicePathwayTransition,
   VoicePathwayValidationIssue,
   VoicePathwayValidationReport,
-} from "./pathway";
-export { createVoicePathwayRuntime } from "./pathwayRuntime";
+} from "./core/pathway";
+export { createVoicePathwayRuntime } from "./core/pathwayRuntime";
 export type {
   CreateVoicePathwayRuntimeOptions,
   VoicePathwayRuntime,
@@ -3105,37 +3114,37 @@ export type {
   VoicePathwayRuntimeStatus,
   VoicePathwaySlotValue,
   VoicePathwayToolCall,
-} from "./pathwayRuntime";
+} from "./core/pathwayRuntime";
 export {
   createVoicePathwaySlotCollector,
   DEFAULT_VOICE_PATHWAY_SLOT_PARSERS,
-} from "./pathwaySlotCollector";
+} from "./core/pathwaySlotCollector";
 export type {
   CreateVoicePathwaySlotCollectorOptions,
   VoicePathwaySlotCollector,
   VoicePathwaySlotCollectorAttempt,
   VoicePathwaySlotParser,
   VoicePathwaySlotParseResult,
-} from "./pathwaySlotCollector";
-export { compileVoicePathwayToAssistant } from "./pathwayCompiler";
+} from "./core/pathwaySlotCollector";
+export { compileVoicePathwayToAssistant } from "./core/pathwayCompiler";
 export type {
   CompileVoicePathwayOptions,
   VoicePathwayCompiledAssistant,
   VoicePathwayCompilerToolDefinition,
-} from "./pathwayCompiler";
+} from "./core/pathwayCompiler";
 export {
   renderVoicePathwayMermaid,
   renderVoicePathwayText,
   visualizeVoicePathway,
-} from "./pathwayVisualizer";
-export type { VoicePathwayVisualization } from "./pathwayVisualizer";
-export { generateVoicePathwayFromPrompt } from "./pathwayGenerator";
+} from "./core/pathwayVisualizer";
+export type { VoicePathwayVisualization } from "./core/pathwayVisualizer";
+export { generateVoicePathwayFromPrompt } from "./core/pathwayGenerator";
 export type {
   GenerateVoicePathwayInput,
   GenerateVoicePathwayResult,
   VoicePathwayGeneratorCompletion,
-} from "./pathwayGenerator";
-export { createVoiceCRMRegistry } from "./crmContract";
+} from "./core/pathwayGenerator";
+export { createVoiceCRMRegistry } from "./core/crmContract";
 export type {
   CreateVoiceCRMRegistryOptions,
   VoiceCRMCallActivityInput,
@@ -3145,23 +3154,23 @@ export type {
   VoiceCRMNoteInput,
   VoiceCRMRegistry,
   VoiceCRMTaskInput,
-} from "./crmContract";
+} from "./core/crmContract";
 export {
   createInMemoryVoiceCallerCRMLinkCache,
   createVoiceCallerCRMLinker,
-} from "./callerCRMLinker";
+} from "./core/callerCRMLinker";
 export type {
   CreateVoiceCallerCRMLinkerOptions,
   VoiceCallerCRMLinkCacheStore,
   VoiceCallerCRMLinker,
   VoiceCallerCRMLinkRecord,
-} from "./callerCRMLinker";
-export { createVoiceCRMCallLogger } from "./crmCallLogger";
+} from "./core/callerCRMLinker";
+export { createVoiceCRMCallLogger } from "./core/crmCallLogger";
 export type {
   CreateVoiceCRMCallLoggerOptions,
   VoiceCRMCallLogErrorPolicy,
   VoiceCRMCallLogger,
   VoiceCRMCallLoggerInput,
   VoiceCRMCallLogResult,
-} from "./crmCallLogger";
-export * from "./types";
+} from "./core/crmCallLogger";
+export * from "./core/types";

@@ -8,7 +8,7 @@ import {
   createLexiconCorrectionHandler,
   createPhraseHintCorrectionHandler,
   createRiskyTurnCorrectionHandler,
-} from "../src/correction";
+} from "../src/core/correction";
 
 test("applyPhraseHintCorrections replaces matched aliases with canonical hint text", () => {
   const result = applyPhraseHintCorrections(

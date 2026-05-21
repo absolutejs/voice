@@ -3,7 +3,7 @@ import {
   createVoiceReconnectProfileEvidenceStore,
   type VoiceReconnectProfileEvidenceClientOptions,
 } from "../client/reconnectProfileEvidence";
-import type { VoiceReconnectProfileEvidenceSummary } from "../proofTrends";
+import type { VoiceReconnectProfileEvidenceSummary } from "../core/proofTrends";
 
 export function useVoiceReconnectProfileEvidence(
   path = "/api/voice/reconnect-profile-evidence",

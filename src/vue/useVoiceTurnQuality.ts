@@ -3,7 +3,7 @@ import {
   createVoiceTurnQualityStore,
   type VoiceTurnQualityClientOptions,
 } from "../client/turnQuality";
-import type { VoiceTurnQualityReport } from "../turnQuality";
+import type { VoiceTurnQualityReport } from "../core/turnQuality";
 
 export function useVoiceTurnQuality(
   path = "/api/turn-quality",

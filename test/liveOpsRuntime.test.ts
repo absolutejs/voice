@@ -6,10 +6,10 @@ import {
   createVoiceMemoryLiveOpsControlStore,
   evaluateVoiceLiveOpsControlEvidence,
   evaluateVoiceLiveOpsEvidence,
-} from "../src/liveOps";
-import { createVoiceMemoryStore } from "../src/memoryStore";
-import { createVoiceSession } from "../src/session";
-import { createVoiceMemoryTraceEventStore } from "../src/trace";
+} from "../src/core/liveOps";
+import { createVoiceMemoryStore } from "../src/core/memoryStore";
+import { createVoiceSession } from "../src/core/session";
+import { createVoiceMemoryTraceEventStore } from "../src/core/trace";
 import type {
   AudioChunk,
   STTAdapter,
@@ -18,7 +18,7 @@ import type {
   STTSessionEventMap,
   VoiceServerMessage,
   VoiceSocket,
-} from "../src/types";
+} from "../src/core/types";
 import type { VoiceLiveOpsEvidenceInput } from "../src";
 
 type ListenerMap = {

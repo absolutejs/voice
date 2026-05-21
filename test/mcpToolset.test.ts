@@ -9,7 +9,11 @@ import {
 } from "../src";
 
 const mockClient = (
-  tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>,
+  tools: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+  }>,
   calls: Array<{ name: string; arguments?: Record<string, unknown> }>,
   respond: (name: string) => Awaited<ReturnType<MCPClientLike["callTool"]>>,
 ): MCPClientLike => ({
@@ -20,7 +24,11 @@ const mockClient = (
   listTools: () => ({ tools }),
 });
 
-const api = {} as VoiceSessionHandle<unknown, ReturnType<typeof createVoiceSessionRecord>, unknown>;
+const api = {} as VoiceSessionHandle<
+  unknown,
+  ReturnType<typeof createVoiceSessionRecord>,
+  unknown
+>;
 const turn = { committedAt: 0, id: "t", text: "hi", transcripts: [] };
 
 describe("createVoiceMCPToolset", () => {
@@ -30,7 +38,10 @@ describe("createVoiceMCPToolset", () => {
         [
           {
             description: "Look up weather",
-            inputSchema: { properties: { city: { type: "string" } }, type: "object" },
+            inputSchema: {
+              properties: { city: { type: "string" } },
+              type: "object",
+            },
             name: "get_weather",
           },
         ],
@@ -45,13 +56,12 @@ describe("createVoiceMCPToolset", () => {
   });
 
   test("applies namePrefix and forwards args to callTool", async () => {
-    const calls: Array<{ name: string; arguments?: Record<string, unknown> }> = [];
+    const calls: Array<{ name: string; arguments?: Record<string, unknown> }> =
+      [];
     const tools = await createVoiceMCPToolset({
-      client: mockClient(
-        [{ name: "search" }],
-        calls,
-        () => ({ content: [{ text: "results", type: "text" }] }),
-      ),
+      client: mockClient([{ name: "search" }], calls, () => ({
+        content: [{ text: "results", type: "text" }],
+      })),
       namePrefix: "mcp_",
     });
     expect(tools[0]?.name).toBe("mcp_search");
@@ -62,7 +72,10 @@ describe("createVoiceMCPToolset", () => {
       session: createVoiceSessionRecord("s"),
       turn,
     });
-    expect(calls[0]).toEqual({ arguments: { q: "voice agents" }, name: "search" });
+    expect(calls[0]).toEqual({
+      arguments: { q: "voice agents" },
+      name: "search",
+    });
     expect(result?.text).toBe("results");
     expect(result?.isError).toBe(false);
   });
@@ -125,11 +138,10 @@ describe("createVoiceMCPToolset", () => {
 
   test("marks isError and the resultToMessage reflects it", async () => {
     const [tool] = await createVoiceMCPToolset({
-      client: mockClient(
-        [{ name: "boom" }],
-        [],
-        () => ({ content: [{ text: "permission denied", type: "text" }], isError: true }),
-      ),
+      client: mockClient([{ name: "boom" }], [], () => ({
+        content: [{ text: "permission denied", type: "text" }],
+        isError: true,
+      })),
     });
     const result = await tool?.execute({
       api,
@@ -139,7 +151,9 @@ describe("createVoiceMCPToolset", () => {
       turn,
     });
     expect(result?.isError).toBe(true);
-    expect(tool?.resultToMessage?.(result!)).toBe("Tool error: permission denied");
+    expect(tool?.resultToMessage?.(result!)).toBe(
+      "Tool error: permission denied",
+    );
   });
 
   test("an agent can call a bridged MCP tool end to end", async () => {

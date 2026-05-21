@@ -1,7 +1,7 @@
 import type {
   VoiceCampaignDialerProofReport,
   VoiceCampaignDialerProofStatus,
-} from "../campaignDialers";
+} from "../core/campaignDialers";
 
 export type VoiceCampaignDialerProofClientOptions = {
   fetch?: typeof fetch;

@@ -1,4 +1,4 @@
-import type { VoiceScenarioEvalReport } from "../evalRoutes";
+import type { VoiceScenarioEvalReport } from "../core/evalRoutes";
 
 export type VoiceWorkflowStatusClientOptions = {
   fetch?: typeof fetch;

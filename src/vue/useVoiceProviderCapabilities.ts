@@ -3,7 +3,7 @@ import {
   createVoiceProviderCapabilitiesStore,
   type VoiceProviderCapabilitiesClientOptions,
 } from "../client/providerCapabilities";
-import type { VoiceProviderCapabilityReport } from "../providerCapabilities";
+import type { VoiceProviderCapabilityReport } from "../core/providerCapabilities";
 
 export function useVoiceProviderCapabilities<TProvider extends string = string>(
   path = "/api/provider-capabilities",

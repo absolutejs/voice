@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceTraceTimelineSession } from "../traceTimeline";
+import type { VoiceTraceTimelineSession } from "../core/traceTimeline";
 import {
   createVoiceTraceTimelineStore,
   type VoiceTraceTimelineClientOptions,

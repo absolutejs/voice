@@ -2,7 +2,7 @@ import type {
   VoiceClientMessage,
   VoiceConnectionOptions,
   VoiceServerMessage,
-} from "../types";
+} from "../core/types";
 
 const WS_OPEN = 1;
 const WS_CLOSED = 3;

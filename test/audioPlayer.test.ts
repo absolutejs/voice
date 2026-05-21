@@ -3,7 +3,10 @@ import {
   createVoiceAudioPlayer,
   decodeVoiceAudioChunk,
 } from "../src/client/audioPlayer";
-import type { VoiceAudioPlayerSource, VoiceStreamState } from "../src/types";
+import type {
+  VoiceAudioPlayerSource,
+  VoiceStreamState,
+} from "../src/core/types";
 
 const createSource = () => {
   let assistantAudio: VoiceStreamState["assistantAudio"] = [];

@@ -1,4 +1,4 @@
-import type { VoiceProfileSwitchRecommendation } from "../profileSwitchRecommendation";
+import type { VoiceProfileSwitchRecommendation } from "../core/profileSwitchRecommendation";
 
 export type VoiceProfileSwitchRecommendationClientOptions = {
   fetch?: typeof fetch;

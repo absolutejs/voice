@@ -2,14 +2,14 @@ import type {
   VoiceAgentModel,
   VoiceAgentModelInput,
   VoiceAgentModelOutput,
-} from "../agent";
-import { createVoiceProviderRouter } from "../modelAdapters";
-import { createVoiceSessionRecord } from "../store";
-import type { VoiceSessionRecord } from "../types";
+} from "../core/agent";
+import { createVoiceProviderRouter } from "../core/modelAdapters";
+import { createVoiceSessionRecord } from "../core/store";
+import type { VoiceSessionRecord } from "../core/types";
 import type {
   VoiceProviderRouterEvent,
   VoiceProviderRouterHealthOptions,
-} from "../modelAdapters";
+} from "../core/modelAdapters";
 
 export type VoiceProviderFailureSimulationMode = "failure" | "recovery";
 

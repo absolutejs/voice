@@ -9,7 +9,7 @@ import type {
   STTSessionEventMap,
   TTSAdapter,
   TTSSessionEventMap,
-} from "../src/types";
+} from "../src/core/types";
 
 type STTListenerMap = {
   [K in keyof STTSessionEventMap]: Array<

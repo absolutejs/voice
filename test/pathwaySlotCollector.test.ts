@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { VoicePathwaySlot } from "../src/pathway";
-import { createVoicePathwaySlotCollector } from "../src/pathwaySlotCollector";
+import type { VoicePathwaySlot } from "../src/core/pathway";
+import { createVoicePathwaySlotCollector } from "../src/core/pathwaySlotCollector";
 
 const slot = (
   type: VoicePathwaySlot["type"],

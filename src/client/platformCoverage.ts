@@ -1,4 +1,4 @@
-import type { VoicePlatformCoverageSummary } from "../platformCoverage";
+import type { VoicePlatformCoverageSummary } from "../core/platformCoverage";
 
 export type VoicePlatformCoverageClientOptions = {
   fetch?: typeof fetch;

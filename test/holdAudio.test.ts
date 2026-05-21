@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceHoldAudioDriver,
   type VoiceHoldAudioCue,
-} from "../src/holdAudio";
+} from "../src/core/holdAudio";
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));

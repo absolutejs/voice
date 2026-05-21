@@ -1,4 +1,4 @@
-import type { VoiceProviderContractMatrixReport } from "../providerStackRecommendations";
+import type { VoiceProviderContractMatrixReport } from "../core/providerStackRecommendations";
 
 export type VoiceProviderContractsClientOptions = {
   fetch?: typeof fetch;

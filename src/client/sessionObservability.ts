@@ -1,4 +1,4 @@
-import type { VoiceSessionObservabilityReport } from "../sessionObservability";
+import type { VoiceSessionObservabilityReport } from "../core/sessionObservability";
 
 export type VoiceSessionObservabilityClientOptions = {
   fetch?: typeof fetch;

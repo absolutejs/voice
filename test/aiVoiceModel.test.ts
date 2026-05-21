@@ -4,8 +4,8 @@ import type {
   AIProviderStreamParams,
 } from "@absolutejs/ai";
 import { describe, expect, test } from "bun:test";
-import { createAIVoiceModel } from "../src/aiVoiceModel";
-import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/types";
+import { createAIVoiceModel } from "../src/core/aiVoiceModel";
+import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/core/types";
 
 const emptyTurn: VoiceTurnRecord = {
   committedAt: 0,

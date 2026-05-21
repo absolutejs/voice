@@ -1,6 +1,6 @@
 import { onUnmounted, ref, shallowRef } from "vue";
 import { createVoiceStream } from "../client/createVoiceStream";
-import type { VoiceConnectionOptions, VoiceTurnRecord } from "../types";
+import type { VoiceConnectionOptions, VoiceTurnRecord } from "../core/types";
 
 export function useVoiceStream<TResult = unknown>(
   path: string,

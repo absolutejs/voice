@@ -1,4 +1,4 @@
-import type { VoiceRoutingDecisionSummary } from "../resilienceRoutes";
+import type { VoiceRoutingDecisionSummary } from "../core/resilienceRoutes";
 
 export type VoiceRoutingStatusClientOptions = {
   fetch?: typeof fetch;

@@ -1,4 +1,4 @@
-import type { VoiceTraceTimelineReport } from "../traceTimeline";
+import type { VoiceTraceTimelineReport } from "../core/traceTimeline";
 
 export type VoiceTraceTimelineClientOptions = {
   fetch?: typeof fetch;

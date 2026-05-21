@@ -1,4 +1,4 @@
-import type { VoiceDeliveryRuntimeReport } from "../deliveryRuntime";
+import type { VoiceDeliveryRuntimeReport } from "../core/deliveryRuntime";
 
 export type VoiceDeliveryRuntimeClientOptions = {
   fetch?: typeof fetch;

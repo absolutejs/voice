@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_VOICE_SALES_RUBRIC } from "../src/callScorecard";
+import { DEFAULT_VOICE_SALES_RUBRIC } from "../src/core/callScorecard";
 import {
   createVoiceAIScorecard,
   parseVoiceAIScorecardResponse,
-} from "../src/aiScorecard";
+} from "../src/core/aiScorecard";
 
 const allFiveResponse = JSON.stringify({
   comments: "great call",
@@ -48,9 +48,7 @@ describe("parseVoiceAIScorecardResponse", () => {
       raw,
       DEFAULT_VOICE_SALES_RUBRIC,
     );
-    expect(parsed.scores).toEqual([
-      { criterionId: "greeting", score: 4 },
-    ]);
+    expect(parsed.scores).toEqual([{ criterionId: "greeting", score: 4 }]);
   });
 
   test("throws on empty response", () => {

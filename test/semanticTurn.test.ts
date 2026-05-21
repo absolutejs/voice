@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   createPunctuationSemanticTurnDetector,
   createRegexSemanticTurnDetector,
-} from "../src/semanticTurn";
-import type { Transcript } from "../src/types";
+} from "../src/core/semanticTurn";
+import type { Transcript } from "../src/core/types";
 
 const finalTranscript = (text: string): Transcript => ({
   id: "t1",

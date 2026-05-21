@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 import { useVoiceController } from "./useVoiceController";
-import type { VoiceControllerOptions } from "../types";
+import type { VoiceControllerOptions } from "../core/types";
 import {
   createVoiceWidgetViewModel,
   type VoiceWidgetLabels,
@@ -35,9 +35,7 @@ const buttonStyle = (
           ? theme.errorAccent
           : "transparent",
     border:
-      variant === "secondary"
-        ? `1px solid rgba(255,255,255,0.18)`
-        : "none",
+      variant === "secondary" ? `1px solid rgba(255,255,255,0.18)` : "none",
     borderRadius: 12,
     color: theme.foreground,
     cursor: "pointer",

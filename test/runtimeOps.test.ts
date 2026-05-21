@@ -1,17 +1,17 @@
 import { expect, test } from "bun:test";
-import { buildVoiceOpsTaskFromReview } from "../src/ops";
-import { createVoiceIntegrationHTTPSink } from "../src/opsSinks";
+import { buildVoiceOpsTaskFromReview } from "../src/core/ops";
+import { createVoiceIntegrationHTTPSink } from "../src/core/opsSinks";
 import {
   createVoiceCallReviewFromSession,
   recordVoiceRuntimeOps,
-} from "../src/runtimeOps";
-import { createVoiceSessionRecord } from "../src/store";
+} from "../src/core/runtimeOps";
+import { createVoiceSessionRecord } from "../src/core/store";
 import type {
   StoredVoiceCallReviewArtifact,
   StoredVoiceIntegrationEvent,
   StoredVoiceOpsTask,
 } from "../src";
-import type { VoiceSessionHandle, VoiceSessionRecord } from "../src/types";
+import type { VoiceSessionHandle, VoiceSessionRecord } from "../src/core/types";
 
 const createStore = <T extends { id: string }>() => {
   const values = new Map<string, T>();

@@ -1,4 +1,4 @@
-import type { VoiceTurnLatencyReport } from "../turnLatency";
+import type { VoiceTurnLatencyReport } from "../core/turnLatency";
 
 export type VoiceTurnLatencyClientOptions = {
   fetch?: typeof fetch;

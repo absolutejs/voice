@@ -3,7 +3,7 @@ import {
   createVoiceCallPlayer,
   formatVoiceCallPlayerTimestamp,
 } from "../src/client/callPlayer";
-import type { Transcript } from "../src/types";
+import type { Transcript } from "../src/core/types";
 
 const final = (
   id: string,

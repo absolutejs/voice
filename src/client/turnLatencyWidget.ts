@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceTurnLatencyItem } from "../turnLatency";
+import type { VoiceTurnLatencyItem } from "../core/turnLatency";
 import {
   createVoiceTurnLatencyStore,
   type VoiceTurnLatencyClientOptions,

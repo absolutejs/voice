@@ -3,7 +3,7 @@ import {
   createVoiceProfileComparisonStore,
   type VoiceProfileComparisonClientOptions,
 } from "../client/profileComparison";
-import type { VoiceRealCallProfileHistoryReport } from "../proofTrends";
+import type { VoiceRealCallProfileHistoryReport } from "../core/proofTrends";
 
 @Injectable({ providedIn: "root" })
 export class VoiceProfileComparisonService {

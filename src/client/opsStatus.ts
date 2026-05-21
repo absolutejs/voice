@@ -1,4 +1,4 @@
-import type { VoiceOpsStatusReport } from "../opsStatus";
+import type { VoiceOpsStatusReport } from "../core/opsStatus";
 
 export type VoiceOpsStatusClientOptions = {
   fetch?: typeof fetch;

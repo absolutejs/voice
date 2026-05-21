@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceBackchannelDriver,
   type VoiceBackchannelCue,
-} from "../src/backchannel";
+} from "../src/core/backchannel";
 
 const collect = () => {
   const cues: VoiceBackchannelCue[] = [];

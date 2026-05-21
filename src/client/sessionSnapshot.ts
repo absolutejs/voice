@@ -1,4 +1,4 @@
-import type { VoiceSessionSnapshot } from "../sessionSnapshot";
+import type { VoiceSessionSnapshot } from "../core/sessionSnapshot";
 
 export type VoiceSessionSnapshotClientOptions = {
   fetch?: typeof fetch;

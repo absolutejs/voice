@@ -1,4 +1,4 @@
-import type { VoiceTurnQualityReport } from "../turnQuality";
+import type { VoiceTurnQualityReport } from "../core/turnQuality";
 
 export type VoiceTurnQualityClientOptions = {
   fetch?: typeof fetch;

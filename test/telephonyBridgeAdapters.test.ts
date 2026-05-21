@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createVoiceMemoryStore } from "../src/memoryStore";
+import { createVoiceMemoryStore } from "../src/core/memoryStore";
 import { createPlivoMediaStreamBridge } from "../src/telephony/plivo";
 import { createTelnyxMediaStreamBridge } from "../src/telephony/telnyx";
 import { encodeTwilioMulawBase64 } from "../src/telephony/twilio";
@@ -10,7 +10,7 @@ import type {
   STTAdapterSession,
   TTSAdapterSession,
   Transcript,
-} from "../src/types";
+} from "../src/core/types";
 
 const waitFor = async (condition: () => boolean) => {
   const start = Date.now();

@@ -6,10 +6,7 @@ import {
   createVoiceTransferCallTool,
   createVoiceVoicemailDetectionTool,
 } from "../src";
-import type {
-  VoiceSessionHandle,
-  VoiceSessionRecord,
-} from "../src";
+import type { VoiceSessionHandle, VoiceSessionRecord } from "../src";
 
 type StubCall = {
   args?: unknown;
@@ -39,11 +36,12 @@ const buildStubApi = () => {
       calls.push({ args: input, method: "markVoicemail" });
     },
     receiveAudio: noop,
-    snapshot: async () => ({
-      createdAt: 0,
-      id: "session-1",
-      updatedAt: 0,
-    }) as VoiceSessionRecord,
+    snapshot: async () =>
+      ({
+        createdAt: 0,
+        id: "session-1",
+        updatedAt: 0,
+      }) as VoiceSessionRecord,
     transfer: async (input: unknown) => {
       calls.push({ args: input, method: "transfer" });
     },
@@ -79,7 +77,11 @@ describe("createVoiceEndCallTool", () => {
 
   test("uses farewell function and resolveResult", async () => {
     const env = buildExecuteEnv({ reason: "caller satisfied" });
-    const tool = createVoiceEndCallTool<unknown, VoiceSessionRecord, { wrap: string }>({
+    const tool = createVoiceEndCallTool<
+      unknown,
+      VoiceSessionRecord,
+      { wrap: string }
+    >({
       farewell: ({ args }) =>
         args.reason ? `Goodbye — ${args.reason}.` : undefined,
       resolveResult: ({ args }) => ({ wrap: args.reason ?? "" }),
@@ -96,9 +98,7 @@ describe("createVoiceEndCallTool", () => {
 
 describe("createVoiceTransferCallTool", () => {
   test("rejects construction with empty destinations", () => {
-    expect(() =>
-      createVoiceTransferCallTool({ destinations: [] }),
-    ).toThrow();
+    expect(() => createVoiceTransferCallTool({ destinations: [] })).toThrow();
   });
 
   test("emits a JSON schema enum of destination ids", () => {
@@ -154,7 +154,9 @@ describe("createVoiceTransferCallTool", () => {
     const tool = createVoiceTransferCallTool({
       destinations: [{ id: "billing", target: "+15551234567" }],
     });
-    await expect(tool.execute(env)).rejects.toThrow(/Unknown transfer destination/);
+    await expect(tool.execute(env)).rejects.toThrow(
+      /Unknown transfer destination/,
+    );
   });
 });
 
@@ -179,9 +181,9 @@ describe("createVoiceDTMFTool", () => {
       maxDigits: 4,
       send: () => undefined,
     });
-    await expect(
-      tool.execute(buildExecuteEnv({ digits: "" })),
-    ).rejects.toThrow(/non-empty/);
+    await expect(tool.execute(buildExecuteEnv({ digits: "" }))).rejects.toThrow(
+      /non-empty/,
+    );
     await expect(
       tool.execute(buildExecuteEnv({ digits: "12345" })),
     ).rejects.toThrow(/maxDigits=4/);
@@ -210,7 +212,9 @@ describe("createVoiceVoicemailDetectionTool", () => {
 
   test("can be configured to skip completion", async () => {
     const env = buildExecuteEnv();
-    const tool = createVoiceVoicemailDetectionTool({ completeAfterMarking: false });
+    const tool = createVoiceVoicemailDetectionTool({
+      completeAfterMarking: false,
+    });
     await tool.execute(env);
     expect(env.calls.map((entry) => entry.method)).toEqual(["markVoicemail"]);
   });
@@ -219,15 +223,18 @@ describe("createVoiceVoicemailDetectionTool", () => {
 describe("createVoiceApiRequestTool", () => {
   test("issues a GET with buildQuery and returns parsed JSON", async () => {
     let requested: Request | undefined;
-    const tool = createVoiceApiRequestTool<unknown, VoiceSessionRecord, { lookupId: string }>({
+    const tool = createVoiceApiRequestTool<
+      unknown,
+      VoiceSessionRecord,
+      { lookupId: string }
+    >({
       buildQuery: ({ args }) => ({ id: args.lookupId }),
       description: "Look up a record",
       fetch: (request) => {
         requested = request;
-        return new Response(
-          JSON.stringify({ found: true, id: "abc-123" }),
-          { headers: { "content-type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ found: true, id: "abc-123" }), {
+          headers: { "content-type": "application/json" },
+        });
       },
       method: "GET",
       name: "lookupRecord",
@@ -257,10 +264,10 @@ describe("createVoiceApiRequestTool", () => {
       description: "Create a record",
       fetch: (request) => {
         requested = request;
-        return new Response(
-          JSON.stringify({ created: true }),
-          { status: 201, headers: { "content-type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ created: true }), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        });
       },
       method: "POST",
       name: "createRecord",

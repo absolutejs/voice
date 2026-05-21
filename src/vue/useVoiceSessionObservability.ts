@@ -3,7 +3,7 @@ import {
   createVoiceSessionObservabilityStore,
   type VoiceSessionObservabilityClientOptions,
 } from "../client/sessionObservability";
-import type { VoiceSessionObservabilityReport } from "../sessionObservability";
+import type { VoiceSessionObservabilityReport } from "../core/sessionObservability";
 
 export function useVoiceSessionObservability(
   path = "/api/voice/session-observability/latest",

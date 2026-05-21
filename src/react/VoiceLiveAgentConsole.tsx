@@ -101,7 +101,9 @@ export const VoiceLiveAgentConsole = ({
             padding: 12,
           }}
         >
-          <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase" }}>
+          <div
+            style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase" }}
+          >
             Caller
           </div>
           <div style={{ marginTop: 4 }}>{state.caller.summary}</div>

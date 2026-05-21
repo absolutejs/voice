@@ -1,5 +1,5 @@
 import { computed, defineComponent, h, type PropType } from "vue";
-import type { StoredVoiceTraceEvent } from "../trace";
+import type { StoredVoiceTraceEvent } from "../core/trace";
 import {
   buildVoiceCostDashboardReport,
   type VoiceCostDashboardBucket,

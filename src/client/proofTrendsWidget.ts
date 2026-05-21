@@ -2,7 +2,7 @@ import { escapeHtml } from "../internal/html";
 import {
   formatVoiceProofTrendAge,
   type VoiceProofTrendReport,
-} from "../proofTrends";
+} from "../core/proofTrends";
 import {
   createVoiceProofTrendsStore,
   type VoiceProofTrendsClientOptions,

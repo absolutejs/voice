@@ -41,12 +41,12 @@ import {
   loadVoiceRealCallProfileEvidenceFromTraceStore,
   runVoiceRealCallProfileRecoveryLoop,
   resolveVoiceRealCallProfileProviderRoute,
-} from "../src/proofTrends";
-import type { VoiceProofTrendProviderSummary } from "../src/proofTrends";
+} from "../src/core/proofTrends";
+import type { VoiceProofTrendProviderSummary } from "../src/core/proofTrends";
 import {
   createVoiceMemoryTraceEventStore,
   createVoiceTraceEvent,
-} from "../src/trace";
+} from "../src/core/trace";
 
 describe("proof trends", () => {
   test("buildVoiceProofTrendReport marks fresh passing artifacts as pass", () => {

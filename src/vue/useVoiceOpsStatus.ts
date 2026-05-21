@@ -3,7 +3,7 @@ import {
   createVoiceOpsStatusStore,
   type VoiceOpsStatusClientOptions,
 } from "../client/opsStatus";
-import type { VoiceOpsStatusReport } from "../opsStatus";
+import type { VoiceOpsStatusReport } from "../core/opsStatus";
 
 export function useVoiceOpsStatus(
   path = "/api/voice/ops-status",

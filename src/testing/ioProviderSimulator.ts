@@ -1,5 +1,5 @@
-import type { VoiceIOProviderRouterEvent } from "../providerAdapters";
-import type { VoiceProviderRouterProviderHealth } from "../modelAdapters";
+import type { VoiceIOProviderRouterEvent } from "../core/providerAdapters";
+import type { VoiceProviderRouterProviderHealth } from "../core/modelAdapters";
 
 export type VoiceIOProviderFailureSimulationMode = "failure" | "recovery";
 export type VoiceIOProviderFailureSimulationKind = "stt" | "tts";

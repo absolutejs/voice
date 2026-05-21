@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { VoicePathway } from "../src/pathway";
-import { compileVoicePathwayToAssistant } from "../src/pathwayCompiler";
+import type { VoicePathway } from "../src/core/pathway";
+import { compileVoicePathwayToAssistant } from "../src/core/pathwayCompiler";
 
 const sample: VoicePathway = {
   entryStateId: "greet",
@@ -47,9 +47,7 @@ describe("compileVoicePathwayToAssistant", () => {
 
   test("advance tool enum matches state ids", () => {
     const compiled = compileVoicePathwayToAssistant({ pathway: sample });
-    const advance = compiled.tools.find((t) =>
-      t.name.endsWith("_advance"),
-    );
+    const advance = compiled.tools.find((t) => t.name.endsWith("_advance"));
     expect(advance?.parameters.properties.toStateId?.enum).toEqual([
       "greet",
       "collect",
@@ -76,7 +74,9 @@ describe("compileVoicePathwayToAssistant", () => {
       pathway: sample,
       toolNamePrefix: "custom",
     });
-    expect(compiled.tools.every((t) => t.name.startsWith("custom_"))).toBe(true);
+    expect(compiled.tools.every((t) => t.name.startsWith("custom_"))).toBe(
+      true,
+    );
   });
 
   test("rejects invalid pathway", () => {

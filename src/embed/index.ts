@@ -5,7 +5,7 @@ import {
   type VoiceWidgetLabels,
   type VoiceWidgetTheme,
 } from "../client/voiceWidgetView";
-import type { VoiceControllerOptions } from "../types";
+import type { VoiceControllerOptions } from "../core/types";
 
 export type VoiceEmbedMountOptions = {
   /** WebSocket route the voice runtime is mounted at. Defaults to "/voice". */

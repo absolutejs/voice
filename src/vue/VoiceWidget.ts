@@ -1,7 +1,7 @@
 import { computed, defineComponent, h, type PropType } from "vue";
-import { deriveVoiceAgentUIState } from "../agentState";
+import { deriveVoiceAgentUIState } from "../core/agentState";
 import { useVoiceController } from "./useVoiceController";
-import type { VoiceControllerOptions } from "../types";
+import type { VoiceControllerOptions } from "../core/types";
 
 export type VoiceWidgetTheme = {
   accent?: string;

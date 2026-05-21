@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceInMemoryCalendarAdapter } from "../src/calendarAdapter";
-import { createVoiceBookingFlow } from "../src/bookingFlow";
+import { createVoiceInMemoryCalendarAdapter } from "../src/core/calendarAdapter";
+import { createVoiceBookingFlow } from "../src/core/bookingFlow";
 
 const utc = (iso: string) => new Date(`${iso}Z`).getTime();
 
@@ -16,9 +16,7 @@ describe("createVoiceBookingFlow", () => {
       adapter: adapter(),
       calendarId: "cal_1",
       maxSlotsPerDay: 4,
-      services: [
-        { durationMinutes: 30, id: "cleaning", label: "Cleaning" },
-      ],
+      services: [{ durationMinutes: 30, id: "cleaning", label: "Cleaning" }],
     });
     expect(flow.getState().step).toBe("ask-service");
     flow.chooseService("cleaning");

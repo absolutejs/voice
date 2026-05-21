@@ -5,13 +5,13 @@ import {
   createDomainPhraseHints,
   createLexiconCorrectionHandler,
   createPhraseHintCorrectionHandler,
-} from "../correction";
+} from "../core/correction";
 import type {
   VoiceDomainTerm,
   VoiceLexiconEntry,
   VoicePhraseHint,
   VoiceTurnCorrectionHandler,
-} from "../types";
+} from "../core/types";
 import {
   summarizeSTTBenchmark,
   type VoiceExpectedTermAccuracy,

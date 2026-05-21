@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceCRMRegistry } from "../src/crmContract";
-import type { VoiceCRMContract } from "../src/crmContract";
+import { createVoiceCRMRegistry } from "../src/core/crmContract";
+import type { VoiceCRMContract } from "../src/core/crmContract";
 
 const stubContract = (vendor: string): VoiceCRMContract => ({
   vendor,
@@ -39,9 +39,11 @@ describe("createVoiceCRMRegistry", () => {
     const registry = createVoiceCRMRegistry({
       contracts: [stubContract("salesforce"), stubContract("hubspot")],
     });
-    expect(registry.list().map((c) => c.vendor).sort()).toEqual([
-      "hubspot",
-      "salesforce",
-    ]);
+    expect(
+      registry
+        .list()
+        .map((c) => c.vendor)
+        .sort(),
+    ).toEqual(["hubspot", "salesforce"]);
   });
 });

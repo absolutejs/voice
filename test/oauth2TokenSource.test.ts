@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceOAuth2TokenSource } from "../src/oauth2TokenSource";
+import { createVoiceOAuth2TokenSource } from "../src/core/oauth2TokenSource";
 
 const mockFetch = (
   responses: Array<{

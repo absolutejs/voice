@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoicePlatformCoverageSurface } from "../platformCoverage";
+import type { VoicePlatformCoverageSurface } from "../core/platformCoverage";
 import {
   createVoicePlatformCoverageStore,
   type VoicePlatformCoverageClientOptions,

@@ -3,7 +3,7 @@ import {
   createVoiceRoutingStatusStore,
   type VoiceRoutingStatusClientOptions,
 } from "../client/routingStatus";
-import type { VoiceRoutingDecisionSummary } from "../resilienceRoutes";
+import type { VoiceRoutingDecisionSummary } from "../core/resilienceRoutes";
 
 export function useVoiceRoutingStatus(
   path = "/api/routing/latest",

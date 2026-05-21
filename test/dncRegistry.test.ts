@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceDNCRegistry,
   importVoiceDNCFromCSV,
-} from "../src/dncRegistry";
+} from "../src/core/dncRegistry";
 
 describe("createVoiceDNCRegistry", () => {
   test("normalizes phone numbers on block/check", async () => {

@@ -3,7 +3,7 @@ import {
   createVoiceOpsStatusStore,
   type VoiceOpsStatusClientOptions,
 } from "../client/opsStatus";
-import type { VoiceOpsStatusReport } from "../opsStatus";
+import type { VoiceOpsStatusReport } from "../core/opsStatus";
 
 @Injectable({ providedIn: "root" })
 export class VoiceOpsStatusService {

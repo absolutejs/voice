@@ -3,7 +3,7 @@ import type {
   VoiceStreamState,
   VoiceStoreAction,
   VoiceTurnRecord,
-} from "../types";
+} from "../core/types";
 
 const createInitialReconnectState = (): VoiceReconnectClientState => ({
   attempts: 0,

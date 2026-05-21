@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
   extractVoiceRAGCitations,
   type VoiceRAGToolResult,
-} from "../src/ragTool";
+} from "../src/core/ragTool";
 
-const ragResult = (chunks: Array<{ id: string; score: number; title?: string }>): VoiceRAGToolResult => ({
+const ragResult = (
+  chunks: Array<{ id: string; score: number; title?: string }>,
+): VoiceRAGToolResult => ({
   citations: chunks.map((chunk) => ({
     chunkId: chunk.id,
     chunkText: `text for ${chunk.id}`,

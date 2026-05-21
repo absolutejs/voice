@@ -2,13 +2,15 @@ import { describe, expect, test } from "bun:test";
 import {
   createInMemoryVoiceCallerCRMLinkCache,
   createVoiceCallerCRMLinker,
-} from "../src/callerCRMLinker";
+} from "../src/core/callerCRMLinker";
 import type {
   VoiceCRMContactSummary,
   VoiceCRMContract,
-} from "../src/crmContract";
+} from "../src/core/crmContract";
 
-const buildContract = (overrides: Partial<VoiceCRMContract> = {}): VoiceCRMContract => ({
+const buildContract = (
+  overrides: Partial<VoiceCRMContract> = {},
+): VoiceCRMContract => ({
   vendor: "hubspot",
   addNote: async () => ({ noteId: "n_1" }),
   createLead: async (i) => ({ ...i, id: "c_1", vendor: "hubspot" }),
@@ -91,10 +93,7 @@ describe("createVoiceCallerCRMLinker", () => {
     const linker = createVoiceCallerCRMLinker({
       contract: buildContract(),
     });
-    const linked = await linker.associate(
-      { phone: "+14155550100" },
-      sample(),
-    );
+    const linked = await linker.associate({ phone: "+14155550100" }, sample());
     expect(linked.source).toBe("manual");
     const cached = await linker.resolve({ phone: "+14155550100" });
     expect(cached?.contactId).toBe("c_42");

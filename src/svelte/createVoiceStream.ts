@@ -1,5 +1,5 @@
 import { createVoiceStream as createSharedVoiceStream } from "../client/createVoiceStream";
-import type { VoiceConnectionOptions } from "../types";
+import type { VoiceConnectionOptions } from "../core/types";
 
 export const createVoiceStream = <TResult = unknown>(
   path: string,

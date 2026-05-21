@@ -3,7 +3,7 @@ import {
   createVoiceProofTrendsStore,
   type VoiceProofTrendsClientOptions,
 } from "../client/proofTrends";
-import type { VoiceProofTrendReport } from "../proofTrends";
+import type { VoiceProofTrendReport } from "../core/proofTrends";
 
 @Injectable({ providedIn: "root" })
 export class VoiceProofTrendsService {

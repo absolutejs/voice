@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   buildVoiceCallScorecard,
   DEFAULT_VOICE_SALES_RUBRIC,
-} from "../src/callScorecard";
-import { computeVoiceScorecardCalibration } from "../src/scorecardCalibration";
+} from "../src/core/callScorecard";
+import { computeVoiceScorecardCalibration } from "../src/core/scorecardCalibration";
 
 const card = (
   reviewer: "human" | "llm",
@@ -78,9 +78,7 @@ describe("computeVoiceScorecardCalibration", () => {
         sessionId: "call_1",
       },
     ]);
-    expect(
-      report.perCriterion.every((c) => c.bias < 0),
-    ).toBe(true);
+    expect(report.perCriterion.every((c) => c.bias < 0)).toBe(true);
   });
 
   test("correlation is positive when LLM tracks human", () => {

@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { createMonologueAMDDetector } from "../src/amdDetector";
-import { createVoiceCostAccountant } from "../src/costAccounting";
-import { createVoiceMemoryStore } from "../src/memoryStore";
-import { createVoiceMemoryRecordingStore } from "../src/recordingStore";
-import { createVoiceTranscriptRedactor } from "../src/redaction";
-import { createPunctuationSemanticTurnDetector } from "../src/semanticTurn";
-import { createVoiceSession } from "../src/session";
-import { createVoiceMemoryTraceEventStore } from "../src/trace";
+import { createMonologueAMDDetector } from "../src/core/amdDetector";
+import { createVoiceCostAccountant } from "../src/core/costAccounting";
+import { createVoiceMemoryStore } from "../src/core/memoryStore";
+import { createVoiceMemoryRecordingStore } from "../src/core/recordingStore";
+import { createVoiceTranscriptRedactor } from "../src/core/redaction";
+import { createPunctuationSemanticTurnDetector } from "../src/core/semanticTurn";
+import { createVoiceSession } from "../src/core/session";
+import { createVoiceMemoryTraceEventStore } from "../src/core/trace";
 import type {
   AudioChunk,
   RealtimeAdapter,
@@ -21,7 +21,7 @@ import type {
   TTSAdapterSession,
   TTSSessionEventMap,
   VoiceSocket,
-} from "../src/types";
+} from "../src/core/types";
 
 const withDeferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -283,9 +283,7 @@ const createFakeRealtimeAdapter = () => {
   };
 };
 
-const createFakeTTSAdapter = (
-  options: { supportsCancel?: boolean } = {},
-) => {
+const createFakeTTSAdapter = (options: { supportsCancel?: boolean } = {}) => {
   let closeCalls = 0;
   let openCalls = 0;
   const cancelReasons: Array<string | undefined> = [];
@@ -2610,9 +2608,10 @@ test("voice session captures user + assistant audio to recording store on close"
 
   const recordingEvents = await trace.list({ type: "recording.ready" });
   expect(recordingEvents).toHaveLength(2);
-  expect(recordingEvents.map((event) => event.payload.channel).sort()).toEqual(
-    ["assistant", "user"],
-  );
+  expect(recordingEvents.map((event) => event.payload.channel).sort()).toEqual([
+    "assistant",
+    "user",
+  ]);
 });
 
 test("voice session closes with silence-timeout disposition when no activity within callSilenceTimeoutMs", async () => {
@@ -2653,7 +2652,9 @@ test("voice session closes with silence-timeout disposition when no activity wit
   expect(snapshot.call?.disposition).toBe("silence-timeout");
   const lifecycleEvents = await trace.list({ type: "call.lifecycle" });
   expect(
-    lifecycleEvents.find((event) => event.payload.disposition === "silence-timeout"),
+    lifecycleEvents.find(
+      (event) => event.payload.disposition === "silence-timeout",
+    ),
   ).toBeDefined();
 });
 
@@ -2988,7 +2989,6 @@ test("voice session commits a turn immediately when semantic detector signals en
   expect(turnTexts).toEqual(["I need help with my account."]);
 });
 
-
 test("voice session runs the noise suppressor before sending audio to STT", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();
@@ -3090,7 +3090,7 @@ test("voice session falls back to raw audio when the suppressor throws", async (
   await session.receiveAudio(createSpeechChunk(16_000));
 
   expect(adapter.getSentAudioChunks()).toBe(1);
-  expect(warnings.some((message) => message.includes("noise suppression failed"))).toBe(
-    true,
-  );
+  expect(
+    warnings.some((message) => message.includes("noise suppression failed")),
+  ).toBe(true);
 });

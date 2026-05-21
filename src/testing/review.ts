@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceCallDisposition, VoiceServerMessage } from "../types";
+import type { VoiceCallDisposition, VoiceServerMessage } from "../core/types";
 
 type ReviewTimelineSource = "benchmark" | "stt" | "turn" | "twilio";
 type TimelineTrafficSummary = {

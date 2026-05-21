@@ -3,7 +3,7 @@ import {
   createVoiceDeliveryRuntimeStore,
   type VoiceDeliveryRuntimeClientOptions,
 } from "../client/deliveryRuntime";
-import type { VoiceDeliveryRuntimeReport } from "../deliveryRuntime";
+import type { VoiceDeliveryRuntimeReport } from "../core/deliveryRuntime";
 
 @Injectable({ providedIn: "root" })
 export class VoiceDeliveryRuntimeService {

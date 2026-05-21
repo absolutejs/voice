@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { defineVoiceAssistant } from "../src/defineVoiceAssistant";
+import { defineVoiceAssistant } from "../src/core/defineVoiceAssistant";
 import type {
   AudioFormat,
   TTSAdapter,
   STTAdapter,
   VoiceSocket,
-} from "../src/types";
-import { createVoiceMemoryStore } from "../src/memoryStore";
+} from "../src/core/types";
+import { createVoiceMemoryStore } from "../src/core/memoryStore";
 
 const stubAdapter = <K extends "stt" | "tts">(kind: K) =>
   ({ kind, open: async () => ({}) as never }) as never as K extends "tts"

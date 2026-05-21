@@ -3,7 +3,7 @@ import {
   createVoicePlatformCoverageStore,
   type VoicePlatformCoverageClientOptions,
 } from "../client/platformCoverage";
-import type { VoicePlatformCoverageSummary } from "../platformCoverage";
+import type { VoicePlatformCoverageSummary } from "../core/platformCoverage";
 
 @Injectable({ providedIn: "root" })
 export class VoicePlatformCoverageService {

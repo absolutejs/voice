@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceProviderContractMatrixRow } from "../providerStackRecommendations";
+import type { VoiceProviderContractMatrixRow } from "../core/providerStackRecommendations";
 import {
   createVoiceProviderContractsStore,
   type VoiceProviderContractsClientOptions,

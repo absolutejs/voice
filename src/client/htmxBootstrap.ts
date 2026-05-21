@@ -3,7 +3,10 @@ import { createVoiceController } from "./controller";
 import { createVoiceAudioPlayer } from "./audioPlayer";
 import { createVoiceBargeInMonitor } from "./bargeInMonitor";
 import { bindVoiceBargeIn } from "./duplex";
-import type { VoiceBargeInBinding, VoiceReconnectClientState } from "../types";
+import type {
+  VoiceBargeInBinding,
+  VoiceReconnectClientState,
+} from "../core/types";
 
 type VoiceDemoMode = "guided" | "general";
 

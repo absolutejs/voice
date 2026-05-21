@@ -3,8 +3,8 @@ import {
   buildTurnText,
   measureAudioLevel,
   selectPreferredTranscriptText,
-} from "../src/turnDetection";
-import { createTranscript } from "../src/store";
+} from "../src/core/turnDetection";
+import { createTranscript } from "../src/core/store";
 
 test("buildTurnText collapses cumulative final transcripts", () => {
   const text = buildTurnText(

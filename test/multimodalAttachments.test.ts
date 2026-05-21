@@ -5,12 +5,12 @@ import type {
   AIProviderStreamParams,
 } from "@absolutejs/ai";
 import { describe, expect, test } from "bun:test";
-import { createAIVoiceModel } from "../src/aiVoiceModel";
+import { createAIVoiceModel } from "../src/core/aiVoiceModel";
 import type {
   VoiceAgentMessage,
   VoiceAgentMessageAttachment,
-} from "../src/agent";
-import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/types";
+} from "../src/core/agent";
+import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/core/types";
 
 const emptyTurn: VoiceTurnRecord = {
   committedAt: 0,
@@ -112,7 +112,10 @@ describe("createAIVoiceModel multimodal translation", () => {
       turn: emptyTurn,
     });
     const sentMessage = captured[0]!.messages[0]! as AIProviderMessage;
-    const blocks = sentMessage.content as Array<{ name?: string; type: string }>;
+    const blocks = sentMessage.content as Array<{
+      name?: string;
+      type: string;
+    }>;
     const documentBlock = blocks.find((b) => b.type === "document");
     expect(documentBlock).toBeDefined();
     expect(documentBlock!.name).toBe("policy.pdf");

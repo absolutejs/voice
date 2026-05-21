@@ -1,8 +1,11 @@
-import { createVoiceMemoryStore } from "../memoryStore";
-import { createVoiceSession } from "../session";
-import { DEFAULT_SILENCE_MS, DEFAULT_SPEECH_THRESHOLD } from "../turnDetection";
-import { resolveAudioConditioningConfig } from "../audioConditioning";
-import { resolveTurnDetectionConfig } from "../turnProfiles";
+import { createVoiceMemoryStore } from "../core/memoryStore";
+import { createVoiceSession } from "../core/session";
+import {
+  DEFAULT_SILENCE_MS,
+  DEFAULT_SPEECH_THRESHOLD,
+} from "../core/turnDetection";
+import { resolveAudioConditioningConfig } from "../core/audioConditioning";
+import { resolveTurnDetectionConfig } from "../core/turnProfiles";
 import type {
   STTAdapter,
   VoiceAudioConditioningConfig,
@@ -18,7 +21,7 @@ import type {
   VoiceTurnProfile,
   VoiceTranscriptQuality,
   VoiceSocket,
-} from "../types";
+} from "../core/types";
 import {
   scoreTranscriptAccuracy,
   type VoiceTranscriptAccuracy,

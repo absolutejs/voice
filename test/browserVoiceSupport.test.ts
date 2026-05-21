@@ -31,7 +31,9 @@ const buildFakeBrowser = (
   };
   class FakeAudioContext {}
   if (want.audioWorklet) {
-    (FakeAudioContext.prototype as never as { audioWorklet: unknown }).audioWorklet = {};
+    (
+      FakeAudioContext.prototype as never as { audioWorklet: unknown }
+    ).audioWorklet = {};
   }
   class FakeMediaRecorder {
     static isTypeSupported(_t: string) {

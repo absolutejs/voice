@@ -6,9 +6,9 @@ import {
   computePcmDurationMs,
   createVoiceMemoryRecordingStore,
   encodePcmAsWav,
-} from "../src/recordingStore";
-import { createVoiceFileRecordingStore } from "../src/fileStore";
-import type { AudioFormat } from "../src/types";
+} from "../src/core/recordingStore";
+import { createVoiceFileRecordingStore } from "../src/core/fileStore";
+import type { AudioFormat } from "../src/core/types";
 
 const PCM_FORMAT: AudioFormat = {
   channels: 1,
@@ -37,11 +37,7 @@ describe("encodePcmAsWav", () => {
     expect(decoder.decode(wav.subarray(8, 12))).toBe("WAVE");
     expect(decoder.decode(wav.subarray(12, 16))).toBe("fmt ");
     expect(decoder.decode(wav.subarray(36, 40))).toBe("data");
-    const view = new DataView(
-      wav.buffer,
-      wav.byteOffset,
-      wav.byteLength,
-    );
+    const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
     expect(view.getUint32(24, true)).toBe(16_000);
     expect(view.getUint16(22, true)).toBe(1);
     expect(view.getUint16(34, true)).toBe(16);

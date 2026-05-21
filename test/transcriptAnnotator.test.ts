@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceTranscriptAnnotator } from "../src/transcriptAnnotator";
+import { createVoiceTranscriptAnnotator } from "../src/core/transcriptAnnotator";
 
 describe("createVoiceTranscriptAnnotator", () => {
   test("add defaults severity from kind", () => {

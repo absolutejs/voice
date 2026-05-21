@@ -1,6 +1,6 @@
 import { onUnmounted, ref, shallowRef } from "vue";
 import { createVoiceController } from "../client/controller";
-import type { VoiceControllerOptions, VoiceTurnRecord } from "../types";
+import type { VoiceControllerOptions, VoiceTurnRecord } from "../core/types";
 
 export function useVoiceController<TResult = unknown>(
   path: string,

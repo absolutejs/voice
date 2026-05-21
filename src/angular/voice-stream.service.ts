@@ -1,6 +1,6 @@
 import { computed, Injectable, signal } from "@angular/core";
 import { createVoiceStream } from "../client/createVoiceStream";
-import type { VoiceConnectionOptions, VoiceTurnRecord } from "../types";
+import type { VoiceConnectionOptions, VoiceTurnRecord } from "../core/types";
 
 @Injectable({ providedIn: "root" })
 export class VoiceStreamService {

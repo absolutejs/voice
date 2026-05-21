@@ -3,7 +3,7 @@ import {
   buildVoiceAgentSquadStatusReport,
   renderVoiceAgentSquadStatusHTML,
 } from "../src/client";
-import type { VoiceTraceTimelineReport } from "../src/traceTimeline";
+import type { VoiceTraceTimelineReport } from "../src/core/traceTimeline";
 
 const report = {
   checkedAt: 1,

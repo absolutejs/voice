@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoicePostCallSurvey,
   summarizeVoicePostCallSurveys,
-} from "../src/postCallSurvey";
+} from "../src/core/postCallSurvey";
 
 describe("createVoicePostCallSurvey", () => {
   test("walks the default question set and buckets NPS", () => {

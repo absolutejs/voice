@@ -1,4 +1,4 @@
-import type { VoiceProviderHealthSummary } from "../providerHealth";
+import type { VoiceProviderHealthSummary } from "../core/providerHealth";
 
 export type VoiceProviderStatusClientOptions = {
   fetch?: typeof fetch;

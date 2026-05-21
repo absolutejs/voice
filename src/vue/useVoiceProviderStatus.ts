@@ -3,7 +3,7 @@ import {
   createVoiceProviderStatusStore,
   type VoiceProviderStatusClientOptions,
 } from "../client/providerStatus";
-import type { VoiceProviderHealthSummary } from "../providerHealth";
+import type { VoiceProviderHealthSummary } from "../core/providerHealth";
 
 export function useVoiceProviderStatus<TProvider extends string = string>(
   path = "/api/provider-status",

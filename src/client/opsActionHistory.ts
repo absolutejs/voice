@@ -1,4 +1,4 @@
-import type { VoiceOpsActionHistoryReport } from "../opsActionAuditRoutes";
+import type { VoiceOpsActionHistoryReport } from "../core/opsActionAuditRoutes";
 
 export type VoiceOpsActionHistoryClientOptions = {
   fetch?: typeof fetch;

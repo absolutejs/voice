@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_VOICE_REDACTION_PATTERNS,
   createVoiceTranscriptRedactor,
-} from "../src/redaction";
+} from "../src/core/redaction";
 
 const transcript = (text: string) => ({
   id: "t",

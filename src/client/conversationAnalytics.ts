@@ -1,4 +1,4 @@
-import type { StoredVoiceTraceEvent } from "../trace";
+import type { StoredVoiceTraceEvent } from "../core/trace";
 
 export type VoiceTrafficBucket = {
   bucketKey: string;

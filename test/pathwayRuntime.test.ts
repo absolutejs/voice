@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { VoicePathway } from "../src/pathway";
+import type { VoicePathway } from "../src/core/pathway";
 import {
   createVoicePathwayRuntime,
   type VoicePathwayRuntimeEvent,
-} from "../src/pathwayRuntime";
+} from "../src/core/pathwayRuntime";
 
 const simple: VoicePathway = {
   entryStateId: "greet",

@@ -14,7 +14,7 @@ import {
   type VoiceCallPlayer as VoiceCallPlayerHandle,
   type VoiceCallPlayerState,
 } from "../client/callPlayer";
-import type { Transcript } from "../types";
+import type { Transcript } from "../core/types";
 
 export const VoiceCallPlayer = defineComponent({
   name: "VoiceCallPlayer",

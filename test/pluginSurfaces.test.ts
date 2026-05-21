@@ -25,17 +25,13 @@ const buildApp = (enableQuality: boolean) => {
 describe("voice() surface mounting", () => {
   test("mounts a surface route when its config key is provided", async () => {
     const app = buildApp(true);
-    const res = await app.handle(
-      new Request("http://localhost/quality"),
-    );
+    const res = await app.handle(new Request("http://localhost/quality"));
     expect(res.status).toBe(200);
   });
 
   test("does not mount the surface route when the key is omitted", async () => {
     const app = buildApp(false);
-    const res = await app.handle(
-      new Request("http://localhost/quality"),
-    );
+    const res = await app.handle(new Request("http://localhost/quality"));
     expect(res.status).toBe(404);
   });
 

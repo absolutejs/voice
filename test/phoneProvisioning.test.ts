@@ -2,13 +2,14 @@ import { describe, expect, test } from "bun:test";
 import {
   provisionTelnyxPhoneNumber,
   provisionTwilioPhoneNumber,
-} from "../src/phoneProvisioning";
+} from "../src/core/phoneProvisioning";
 
 const makeFetch = (
   responses: Array<{ body: unknown; ok?: boolean; status?: number }>,
 ) => {
   let index = 0;
-  const requests: Array<{ body?: unknown; init?: RequestInit; url: string }> = [];
+  const requests: Array<{ body?: unknown; init?: RequestInit; url: string }> =
+    [];
   const fetchMock = (async (url: string | URL, init?: RequestInit) => {
     requests.push({
       body: init?.body,
@@ -63,9 +64,7 @@ describe("provisionTwilioPhoneNumber", () => {
     expect(requests[0]!.url).toContain("AvailablePhoneNumbers");
     expect(requests[0]!.url).toContain("AreaCode=415");
     expect(requests[1]!.url).toContain("IncomingPhoneNumbers.json");
-    expect(String(requests[1]!.body)).toContain(
-      "PhoneNumber=%2B14155551212",
-    );
+    expect(String(requests[1]!.body)).toContain("PhoneNumber=%2B14155551212");
     expect(String(requests[1]!.body)).toContain(
       "VoiceUrl=https%3A%2F%2Fexample.com%2Fvoice",
     );
@@ -136,9 +135,7 @@ describe("provisionTelnyxPhoneNumber", () => {
     expect(result.phoneNumber).toBe("+18005551212");
     expect(result.providerNumberId).toBe("ph-1");
     expect(requests[0]!.url).toContain("available_phone_numbers");
-    expect(requests[0]!.url).toContain(
-      "national_destination_code%5D=800",
-    );
+    expect(requests[0]!.url).toContain("national_destination_code%5D=800");
     expect(requests[1]!.url).toContain("number_orders");
     expect(requests[2]!.url).toContain("phone_numbers/ph-1");
     expect(String(requests[2]!.body)).toContain("https://example.com/voice");

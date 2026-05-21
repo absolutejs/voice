@@ -2,11 +2,11 @@ import { expect, test } from "bun:test";
 import {
   conditionAudioChunk,
   resolveAudioConditioningConfig,
-} from "../src/audioConditioning";
+} from "../src/core/audioConditioning";
 import {
   resolveTurnDetectionConfig,
   TURN_PROFILE_DEFAULTS,
-} from "../src/turnProfiles";
+} from "../src/core/turnProfiles";
 
 const toSamples = (audio: ArrayBuffer | ArrayBufferView) =>
   new Int16Array(

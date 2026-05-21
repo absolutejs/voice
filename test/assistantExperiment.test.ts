@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceAssistantExperiment } from "../src/assistantExperiment";
+import { createVoiceAssistantExperiment } from "../src/core/assistantExperiment";
 
 const stubVariant = (id: string, weight?: number) => ({
   assistant: { definition: { id }, id, toSessionOptions: () => ({}) } as never,
@@ -44,7 +44,8 @@ describe("createVoiceAssistantExperiment", () => {
 
   test("custom allocator routes by external rule", () => {
     const exp = createVoiceAssistantExperiment<{ tier: string }>({
-      allocator: ({ context }) => (context.tier === "gold" ? "premium" : "basic"),
+      allocator: ({ context }) =>
+        context.tier === "gold" ? "premium" : "basic",
       experimentId: "tier-based",
       variants: [stubVariant("basic"), stubVariant("premium")],
     });

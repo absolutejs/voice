@@ -1,13 +1,13 @@
 import { bindVoiceHTMX } from "./htmx";
 import { createMicrophoneCapture } from "./microphone";
 import { createVoiceStream } from "./createVoiceStream";
-import { resolveVoiceRuntimePreset } from "../presets";
+import { resolveVoiceRuntimePreset } from "../core/presets";
 import type {
   VoiceController,
   VoiceControllerOptions,
   VoiceControllerState,
   VoiceHTMXBindingOptions,
-} from "../types";
+} from "../core/types";
 
 const createInitialState = <TResult>(
   stream: ReturnType<typeof createVoiceStream<TResult>>,

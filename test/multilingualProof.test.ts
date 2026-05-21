@@ -4,11 +4,7 @@ import {
   renderVoiceMultilingualProofMarkdown,
   runVoiceMultilingualProof,
 } from "../src";
-import type {
-  STTAdapter,
-  STTAdapterSession,
-  VoiceTestFixture,
-} from "../src";
+import type { STTAdapter, STTAdapterSession, VoiceTestFixture } from "../src";
 
 const baseFormat = {
   channels: 1 as const,
@@ -54,10 +50,7 @@ const buildScriptedAdapter = (
         final: new Set<(event: never) => void>(),
         partial: new Set<(event: never) => void>(),
       };
-      const emit = (
-        event: keyof typeof listeners,
-        payload: unknown,
-      ) => {
+      const emit = (event: keyof typeof listeners, payload: unknown) => {
         for (const handler of listeners[event]) {
           (handler as (event: unknown) => void)(payload);
         }
@@ -132,24 +125,30 @@ describe("runVoiceMultilingualProof", () => {
         {
           adapter,
           adapterId: "scripted-perfect",
-          benchmarkOptions: { idleTimeoutMs: 200, settleMs: 50, tailPaddingMs: 0 },
+          benchmarkOptions: {
+            idleTimeoutMs: 200,
+            settleMs: 50,
+            tailPaddingMs: 0,
+          },
         },
       ],
       defaultThresholds: { maxAverageWordErrorRate: 0.1, minPassRate: 0.5 },
       fixtures,
       perLanguage: [
-        { language: "hi-en", label: "Hindi-English", maxAverageWordErrorRate: 0.2 },
+        {
+          language: "hi-en",
+          label: "Hindi-English",
+          maxAverageWordErrorRate: 0.2,
+        },
       ],
     });
     expect(report.passes).toBe(true);
     expect(report.summary.fixtureCount).toBe(4);
     expect(report.summary.languageCount).toBe(3);
     expect(report.adapters[0]?.passes).toBe(true);
-    expect(report.adapters[0]?.languageReports.map((entry) => entry.language).sort()).toEqual([
-      "es",
-      "fr",
-      "hi-en",
-    ]);
+    expect(
+      report.adapters[0]?.languageReports.map((entry) => entry.language).sort(),
+    ).toEqual(["es", "fr", "hi-en"]);
     for (const language of report.adapters[0]?.languageReports ?? []) {
       expect(language.metrics.averageWordErrorRate).toBeLessThanOrEqual(0.01);
     }
@@ -161,8 +160,8 @@ describe("runVoiceMultilingualProof", () => {
       buildFixture("fr-1", "fr", "bonjour le monde"),
     ];
     const transcripts: Record<string, string> = {
-      "es-1": "hola mundo",       // perfect
-      "fr-1": "totally wrong",    // huge WER
+      "es-1": "hola mundo", // perfect
+      "fr-1": "totally wrong", // huge WER
     };
     const adapter = buildScriptedAdapter(transcripts);
     const report = await runVoiceMultilingualProof({
@@ -170,7 +169,11 @@ describe("runVoiceMultilingualProof", () => {
         {
           adapter,
           adapterId: "scripted-fr-broken",
-          benchmarkOptions: { idleTimeoutMs: 200, settleMs: 50, tailPaddingMs: 0 },
+          benchmarkOptions: {
+            idleTimeoutMs: 200,
+            settleMs: 50,
+            tailPaddingMs: 0,
+          },
         },
       ],
       defaultThresholds: { maxAverageWordErrorRate: 0.2 },
@@ -215,7 +218,11 @@ describe("runVoiceMultilingualProof", () => {
         {
           adapter,
           adapterId: "scripted",
-          benchmarkOptions: { idleTimeoutMs: 200, settleMs: 50, tailPaddingMs: 0 },
+          benchmarkOptions: {
+            idleTimeoutMs: 200,
+            settleMs: 50,
+            tailPaddingMs: 0,
+          },
         },
       ],
       defaultThresholds: { maxAverageWordErrorRate: 0.1 },
@@ -237,12 +244,20 @@ describe("runVoiceMultilingualProof", () => {
         {
           adapter: good,
           adapterId: "good",
-          benchmarkOptions: { idleTimeoutMs: 200, settleMs: 50, tailPaddingMs: 0 },
+          benchmarkOptions: {
+            idleTimeoutMs: 200,
+            settleMs: 50,
+            tailPaddingMs: 0,
+          },
         },
         {
           adapter: bad,
           adapterId: "bad",
-          benchmarkOptions: { idleTimeoutMs: 200, settleMs: 50, tailPaddingMs: 0 },
+          benchmarkOptions: {
+            idleTimeoutMs: 200,
+            settleMs: 50,
+            tailPaddingMs: 0,
+          },
         },
       ],
       defaultThresholds: { maxAverageWordErrorRate: 0.2 },

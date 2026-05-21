@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { buildVoiceCostDashboardReport } from "../src/client/costDashboard";
 import { createLiveCallViewer } from "../src/client/liveCallViewer";
 import { buildReplayTimelineReport } from "../src/client/replayTimeline";
-import type { StoredVoiceTraceEvent } from "../src/trace";
+import type { StoredVoiceTraceEvent } from "../src/core/trace";
 import type { VoiceCallReviewArtifact } from "../src/testing/review";
 
 const costEvent = (
@@ -13,7 +13,12 @@ const costEvent = (
   at,
   id: `cost-${at}`,
   payload: {
-    llm: { cachedInputTokens: 0, inputTokens: 100, outputTokens: 50, usd: llmUsd },
+    llm: {
+      cachedInputTokens: 0,
+      inputTokens: 100,
+      outputTokens: 50,
+      usd: llmUsd,
+    },
     sessionId: "s",
     stt: { audioMs: 30_000, usd: totalUsd * 0.1 },
     telephony: { minutes: 1, usd: totalUsd * 0.1 },
@@ -29,7 +34,11 @@ describe("buildVoiceCostDashboardReport", () => {
     const dayA = new Date("2026-05-19T10:00:00Z").getTime();
     const dayB = new Date("2026-05-20T09:00:00Z").getTime();
     const report = buildVoiceCostDashboardReport({
-      events: [costEvent(dayA, 1), costEvent(dayA + 60_000, 0.5), costEvent(dayB, 2)],
+      events: [
+        costEvent(dayA, 1),
+        costEvent(dayA + 60_000, 0.5),
+        costEvent(dayB, 2),
+      ],
     });
     expect(report.buckets).toHaveLength(2);
     const dayABucket = report.buckets[0]!;
@@ -104,7 +113,12 @@ describe("buildReplayTimelineReport", () => {
       summary: { pass: true },
       timeline: [
         { atMs: 0, event: "call.lifecycle.start", source: "voice-runtime" },
-        { atMs: 1_000, event: "stt.final", source: "voice-runtime", text: "hi" },
+        {
+          atMs: 1_000,
+          event: "stt.final",
+          source: "voice-runtime",
+          text: "hi",
+        },
         {
           atMs: 1_400,
           event: "tts.send",

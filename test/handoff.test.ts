@@ -8,7 +8,7 @@ import {
   createVoiceWebhookHandoffAdapter,
   summarizeVoiceHandoffDeliveries,
 } from "../src";
-import { createVoiceMemoryTraceEventStore } from "../src/trace";
+import { createVoiceMemoryTraceEventStore } from "../src/core/trace";
 import type {
   AudioChunk,
   STTAdapter,
@@ -16,7 +16,7 @@ import type {
   STTAdapterSession,
   STTSessionEventMap,
   VoiceSocket,
-} from "../src/types";
+} from "../src/core/types";
 
 type ListenerMap = {
   [K in keyof STTSessionEventMap]: Array<

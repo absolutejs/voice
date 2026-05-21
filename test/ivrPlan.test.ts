@@ -3,8 +3,8 @@ import {
   createVoiceIVRSession,
   describeVoiceIVRPlan,
   evaluateVoiceIVRPlan,
-} from "../src/ivrPlan";
-import type { VoiceIVRPlan } from "../src/ivrPlan";
+} from "../src/core/ivrPlan";
+import type { VoiceIVRPlan } from "../src/core/ivrPlan";
 
 const plan: VoiceIVRPlan = {
   branches: [

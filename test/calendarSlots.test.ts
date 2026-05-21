@@ -2,16 +2,14 @@ import { describe, expect, test } from "bun:test";
 import {
   generateVoiceCalendarSlots,
   summarizeVoiceCalendarSlot,
-} from "../src/calendarSlots";
+} from "../src/core/calendarSlots";
 
 const utc = (iso: string) => new Date(`${iso}Z`).getTime();
 
 describe("generateVoiceCalendarSlots", () => {
   test("generates slots inside business hours only", () => {
     const slots = generateVoiceCalendarSlots({
-      businessHours: [
-        { end: "12:00", start: "09:00", weekday: 1 },
-      ],
+      businessHours: [{ end: "12:00", start: "09:00", weekday: 1 }],
       durationMinutes: 30,
       fromMs: utc("2026-05-18T00:00:00"),
       timezone: "UTC",

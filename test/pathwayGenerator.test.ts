@@ -1,15 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import {
-  generateVoicePathwayFromPrompt,
-  validateVoicePathway,
-} from "../src";
+import { generateVoicePathwayFromPrompt, validateVoicePathway } from "../src";
 
 const validPathwayJson = JSON.stringify({
   entryStateId: "greet",
   id: "support",
   label: "Support",
   slots: [
-    { id: "issue", prompt: "What's the issue?", required: true, type: "string" },
+    {
+      id: "issue",
+      prompt: "What's the issue?",
+      required: true,
+      type: "string",
+    },
   ],
   states: [
     {
@@ -76,9 +78,7 @@ describe("generateVoicePathwayFromPrompt", () => {
       id: "x",
       label: "X",
       slots: [],
-      states: [
-        { id: "a", kind: "terminal", label: "A", transitions: [] },
-      ],
+      states: [{ id: "a", kind: "terminal", label: "A", transitions: [] }],
     });
     const prompts: string[] = [];
     let call = 0;

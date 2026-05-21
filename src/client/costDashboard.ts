@@ -1,5 +1,5 @@
-import type { StoredVoiceTraceEvent } from "../trace";
-import type { VoiceCostBreakdown } from "../costAccounting";
+import type { StoredVoiceTraceEvent } from "../core/trace";
+import type { VoiceCostBreakdown } from "../core/costAccounting";
 
 export type VoiceCostDashboardBucket = {
   bucketKey: string;

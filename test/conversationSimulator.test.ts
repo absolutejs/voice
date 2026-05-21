@@ -9,7 +9,10 @@ import {
 } from "../src";
 
 const echoAgent = (
-  reply: (userText: string, turnNumber: number) => { text: string; complete?: boolean },
+  reply: (
+    userText: string,
+    turnNumber: number,
+  ) => { text: string; complete?: boolean },
 ) => {
   let turnNumber = 0;
   const model: VoiceAgentModel = {
@@ -101,10 +104,7 @@ test("honors maxTurns as a hard cap", async () => {
 });
 
 test("persona caller hangs up on the [[END]] sentinel", async () => {
-  const lines = [
-    "What are your hours?",
-    "Great, thank you [[END]]",
-  ];
+  const lines = ["What are your hours?", "Great, thank you [[END]]"];
   let index = 0;
   const caller = createPersonaVoiceCaller({
     completion: async () => lines[index++] ?? "[[END]]",

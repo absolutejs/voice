@@ -3,7 +3,7 @@ import {
   createVoiceSessionSnapshotStore,
   type VoiceSessionSnapshotClientOptions,
 } from "../client/sessionSnapshot";
-import type { VoiceSessionSnapshot } from "../sessionSnapshot";
+import type { VoiceSessionSnapshot } from "../core/sessionSnapshot";
 
 @Injectable({ providedIn: "root" })
 export class VoiceSessionSnapshotService {

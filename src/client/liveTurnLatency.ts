@@ -1,4 +1,4 @@
-import type { VoiceStreamState } from "../types";
+import type { VoiceStreamState } from "../core/types";
 
 export type VoiceLiveTurnLatencyStatus =
   | "empty"

@@ -1,4 +1,4 @@
-import type { Transcript } from "../types";
+import type { Transcript } from "../core/types";
 
 export type VoiceCallPlayerState = {
   activeTranscriptId?: string;

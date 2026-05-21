@@ -5,7 +5,7 @@ import {
   type VoiceSessionBenchmarkScenarioResult,
 } from "../src/testing";
 import { runVoiceSessionBenchmarkScenario } from "../src/testing";
-import type { STTAdapter } from "../src/types";
+import type { STTAdapter } from "../src/core/types";
 
 test("summarizeVoiceSessionBenchmark reports pass and replay metrics", () => {
   const scenarios: VoiceSessionBenchmarkScenarioResult[] = [

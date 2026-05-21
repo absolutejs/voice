@@ -13,7 +13,7 @@ import {
   transcodePCMToTwilioOutboundPayload,
   transcodeTwilioInboundPayloadToPCM16,
 } from "../src/telephony/twilio";
-import { createVoiceMemoryStore } from "../src/memoryStore";
+import { createVoiceMemoryStore } from "../src/core/memoryStore";
 import type {
   AudioChunk,
   AudioFormat,
@@ -23,7 +23,7 @@ import type {
   TTSAdapter,
   TTSAdapterSession,
   Transcript,
-} from "../src/types";
+} from "../src/core/types";
 
 const DEFAULT_PCM16_FORMAT: AudioFormat = {
   channels: 1,

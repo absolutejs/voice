@@ -1,4 +1,4 @@
-import type { VoiceCallDebuggerReport } from "../callDebugger";
+import type { VoiceCallDebuggerReport } from "../core/callDebugger";
 
 export type VoiceCallDebuggerClientOptions = {
   fetch?: typeof fetch;

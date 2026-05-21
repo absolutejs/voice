@@ -58,7 +58,7 @@ describe("buildVoiceHTMXAttributes", () => {
         pollIntervalMs: 1_000,
         refreshUrl: '"><script>alert(1)</script>',
       }),
-    ).toContain('&quot;&gt;&lt;script&gt;');
+    ).toContain("&quot;&gt;&lt;script&gt;");
   });
 });
 
@@ -107,9 +107,9 @@ describe("wrapVoiceHTMLInHTMXContainer", () => {
       pollIntervalMs: 4_000,
       refreshUrl: "/voice/ops-status",
     });
-    expect(out.startsWith('<div class="ops-status" hx-get="/voice/ops-status"')).toBe(
-      true,
-    );
+    expect(
+      out.startsWith('<div class="ops-status" hx-get="/voice/ops-status"'),
+    ).toBe(true);
     expect(out).toContain("<p>inner</p>");
     expect(out.endsWith("</div>")).toBe(true);
   });

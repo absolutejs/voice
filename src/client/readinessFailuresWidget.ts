@@ -2,7 +2,7 @@ import { escapeHtml } from "../internal/html";
 import type {
   VoiceProductionReadinessCheck,
   VoiceProductionReadinessGateExplanation,
-} from "../productionReadiness";
+} from "../core/productionReadiness";
 import {
   createVoiceReadinessFailuresStore,
   type VoiceReadinessFailuresClientOptions,

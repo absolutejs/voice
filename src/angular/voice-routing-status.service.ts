@@ -3,7 +3,7 @@ import {
   createVoiceRoutingStatusStore,
   type VoiceRoutingStatusClientOptions,
 } from "../client/routingStatus";
-import type { VoiceRoutingDecisionSummary } from "../resilienceRoutes";
+import type { VoiceRoutingDecisionSummary } from "../core/resilienceRoutes";
 
 @Injectable({ providedIn: "root" })
 export class VoiceRoutingStatusService {

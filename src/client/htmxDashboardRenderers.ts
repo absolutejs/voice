@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { StoredVoiceTraceEvent } from "../trace";
+import type { StoredVoiceTraceEvent } from "../core/trace";
 import type { VoiceCallReviewArtifact } from "../testing/review";
 import {
   buildVoiceCostDashboardReport,

@@ -3,7 +3,7 @@ import {
   createVoiceReadinessFailuresStore,
   type VoiceReadinessFailuresClientOptions,
 } from "../client/readinessFailures";
-import type { VoiceProductionReadinessReport } from "../productionReadiness";
+import type { VoiceProductionReadinessReport } from "../core/productionReadiness";
 
 @Injectable({ providedIn: "root" })
 export class VoiceReadinessFailuresService {

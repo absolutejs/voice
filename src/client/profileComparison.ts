@@ -1,4 +1,4 @@
-import type { VoiceRealCallProfileHistoryReport } from "../proofTrends";
+import type { VoiceRealCallProfileHistoryReport } from "../core/proofTrends";
 
 export type VoiceProfileComparisonClientOptions = {
   fetch?: typeof fetch;

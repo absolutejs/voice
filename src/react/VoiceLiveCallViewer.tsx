@@ -39,7 +39,9 @@ export const VoiceLiveCallViewer = ({
       viewerProp ?? createLiveCallViewer({ sessionId: sessionId ?? "live" }),
     [viewerProp, sessionId],
   );
-  const [state, setState] = useState<LiveCallViewState>(() => viewer.getState());
+  const [state, setState] = useState<LiveCallViewState>(() =>
+    viewer.getState(),
+  );
 
   useEffect(() => {
     const unsubscribe = viewer.subscribe(() => {
@@ -136,10 +138,7 @@ export const VoiceLiveCallViewer = ({
                 width: 60,
               }}
             >
-              {formatRelative(
-                event.at -
-                  (state.events[0]?.at ?? event.at),
-              )}
+              {formatRelative(event.at - (state.events[0]?.at ?? event.at))}
             </span>
             <strong style={{ fontSize: 13 }}>{event.title}</strong>
             {event.detail ? (

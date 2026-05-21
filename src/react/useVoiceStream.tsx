@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createVoiceStream } from "../client/createVoiceStream";
-import type { VoiceConnectionOptions } from "../types";
+import type { VoiceConnectionOptions } from "../core/types";
 
 const EMPTY_SNAPSHOT = {
   assistantAudio: [],

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { resolveVoiceOpsPreset } from "../src/opsPresets";
-import { resolveVoiceRuntimePreset } from "../src/presets";
-import { resolveVoiceSTTRoutingStrategy } from "../src/routing";
+import { resolveVoiceOpsPreset } from "../src/core/opsPresets";
+import { resolveVoiceRuntimePreset } from "../src/core/presets";
+import { resolveVoiceSTTRoutingStrategy } from "../src/core/routing";
 
 test("resolveVoiceRuntimePreset returns reliability settings for noisy, long calls", () => {
   const preset = resolveVoiceRuntimePreset("reliability");

@@ -7,7 +7,7 @@ import type {
   VoiceController,
   VoiceDuplexController,
   VoiceDuplexControllerOptions,
-} from "../types";
+} from "../core/types";
 
 const DEFAULT_INTERRUPT_THRESHOLD = 0.08;
 

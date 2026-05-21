@@ -3,7 +3,7 @@ import {
   createVoiceCallDebuggerStore,
   type VoiceCallDebuggerClientOptions,
 } from "../client/callDebugger";
-import type { VoiceCallDebuggerReport } from "../callDebugger";
+import type { VoiceCallDebuggerReport } from "../core/callDebugger";
 
 @Injectable({ providedIn: "root" })
 export class VoiceCallDebuggerService {

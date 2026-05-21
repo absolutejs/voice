@@ -2,10 +2,14 @@ import { describe, expect, test } from "bun:test";
 import {
   buildVoiceCallScorecard,
   DEFAULT_VOICE_SALES_RUBRIC,
-} from "../src/callScorecard";
-import { detectVoiceQualityDrift } from "../src/qualityDriftDetector";
+} from "../src/core/callScorecard";
+import { detectVoiceQualityDrift } from "../src/core/qualityDriftDetector";
 
-const card = (score: number, at: number, overrides: Record<string, number> = {}) =>
+const card = (
+  score: number,
+  at: number,
+  overrides: Record<string, number> = {},
+) =>
   buildVoiceCallScorecard({
     agentId: "agent_1",
     now: () => at,
@@ -45,9 +49,7 @@ describe("detectVoiceQualityDrift", () => {
     const baseline = Array.from({ length: 20 }, (_, i) =>
       card(5, now - 20 * DAY - i * DAY),
     );
-    const current = Array.from({ length: 5 }, (_, i) =>
-      card(2, now - i * DAY),
-    );
+    const current = Array.from({ length: 5 }, (_, i) => card(2, now - i * DAY));
     const report = detectVoiceQualityDrift({
       now: () => now,
       rubricId: DEFAULT_VOICE_SALES_RUBRIC.id,

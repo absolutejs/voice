@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_VOICE_PRICE_BOOK,
   createVoiceCostAccountant,
-} from "../src/costAccounting";
+} from "../src/core/costAccounting";
 
 describe("createVoiceCostAccountant", () => {
   test("accumulates LLM tokens and prices them against the price book", () => {
@@ -83,7 +83,10 @@ describe("createVoiceCostAccountant", () => {
     // cartesia: 1M chars @ $65 = $65
     // deepgram: 60s @ $0.000077 = $0.00462
     // twilio: 1min @ $0.014 = $0.014
-    expect(snapshot.totalUsd).toBeCloseTo(0.75 + 65 + 60 * 0.000_077 + 0.014, 4);
+    expect(snapshot.totalUsd).toBeCloseTo(
+      0.75 + 65 + 60 * 0.000_077 + 0.014,
+      4,
+    );
   });
 
   test("skips pricing when provider is unknown but still records counts", () => {

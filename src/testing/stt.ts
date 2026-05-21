@@ -3,7 +3,7 @@ import {
   scoreTranscriptAccuracy,
   type VoiceTranscriptAccuracy,
 } from "./accuracy";
-import { buildTurnText } from "../turnDetection";
+import { buildTurnText } from "../core/turnDetection";
 import type {
   STTAdapter,
   STTAdapterOpenOptions,
@@ -13,7 +13,7 @@ import type {
   VoiceErrorEvent,
   VoiceFinalEvent,
   VoicePartialEvent,
-} from "../types";
+} from "../core/types";
 import type { VoiceTestFixture } from "./fixtures";
 
 export type VoiceSTTAdapterHarnessOptions = {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createMidCallSummarizer } from "../src/midCallSummary";
-import type { VoiceLLMJudgeCompletion } from "../src/llmJudge";
-import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/types";
+import { createMidCallSummarizer } from "../src/core/midCallSummary";
+import type { VoiceLLMJudgeCompletion } from "../src/core/llmJudge";
+import type { VoiceSessionRecord, VoiceTurnRecord } from "../src/core/types";
 
 const turn = (text: string, assistantText?: string): VoiceTurnRecord => ({
   assistantText,
@@ -46,7 +46,10 @@ describe("createMidCallSummarizer", () => {
       everyTurns: 2,
       minIntervalMs: 100_000,
     });
-    const session = baseSession([turn("hi", "hello"), turn("refund please", "ok")]);
+    const session = baseSession([
+      turn("hi", "hello"),
+      turn("refund please", "ok"),
+    ]);
     const out = await summarizer.evaluate({ session });
     expect(out?.summary).toBe("Caller wants a refund.");
     expect(out?.turnCount).toBe(2);

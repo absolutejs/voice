@@ -1,4 +1,4 @@
-import type { VoiceProviderCapabilityReport } from "../providerCapabilities";
+import type { VoiceProviderCapabilityReport } from "../core/providerCapabilities";
 
 export type VoiceProviderCapabilitiesClientOptions = {
   fetch?: typeof fetch;

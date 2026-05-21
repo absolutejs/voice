@@ -2,7 +2,7 @@ import { serverMessageToAction } from "./actions";
 import { createVoiceBrowserMediaReporter } from "./browserMedia";
 import { createVoiceConnection } from "./connection";
 import { createVoiceStreamStore } from "./store";
-import type { VoiceConnectionOptions, VoiceStream } from "../types";
+import type { VoiceConnectionOptions, VoiceStream } from "../core/types";
 
 export const createVoiceStream = <TResult = unknown>(
   path: string,

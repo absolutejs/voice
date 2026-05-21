@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createVoiceCallDispositionTagger,
   DEFAULT_VOICE_CALL_DISPOSITIONS,
-} from "../src/callDisposition";
+} from "../src/core/callDisposition";
 
 describe("createVoiceCallDispositionTagger", () => {
   test("default taxonomy ships with positive/neutral/negative/no-contact codes", () => {

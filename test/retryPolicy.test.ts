@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createVoiceRetryPolicy } from "../src/retryPolicy";
+import { createVoiceRetryPolicy } from "../src/core/retryPolicy";
 
 describe("createVoiceRetryPolicy", () => {
   test("schedules a retry after voicemail with cooldown", () => {
@@ -7,7 +7,10 @@ describe("createVoiceRetryPolicy", () => {
       jitterMs: 0,
       now: () => 0,
     });
-    const decision = policy.decide([{ at: 0, disposition: "voicemail-left" }], "voicemail-left");
+    const decision = policy.decide(
+      [{ at: 0, disposition: "voicemail-left" }],
+      "voicemail-left",
+    );
     expect(decision.action).toBe("retry");
     if (decision.action === "retry") {
       expect(decision.attemptNumber).toBe(2);
@@ -102,7 +105,12 @@ describe("createVoiceRetryPolicy", () => {
       jitterMs: 0,
       maxAttempts: 10,
       rules: [
-        { action: "retry", cooldownMs: 1_000, disposition: "no-answer", maxAttemptsOverride: 1 },
+        {
+          action: "retry",
+          cooldownMs: 1_000,
+          disposition: "no-answer",
+          maxAttemptsOverride: 1,
+        },
       ],
       now: () => 0,
     });

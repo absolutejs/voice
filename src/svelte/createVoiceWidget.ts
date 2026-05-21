@@ -1,5 +1,5 @@
 import { createVoiceController } from "../client/controller";
-import type { VoiceControllerOptions } from "../types";
+import type { VoiceControllerOptions } from "../core/types";
 import {
   createVoiceWidgetViewModel,
   renderVoiceWidgetHTML,

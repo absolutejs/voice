@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   describeVoiceAssistantMode,
   resolveVoiceAssistantMode,
-} from "../src/assistantMode";
+} from "../src/core/assistantMode";
 
 describe("resolveVoiceAssistantMode", () => {
   test("returns 's2s' when only a realtime adapter is configured", () => {

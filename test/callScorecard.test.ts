@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildVoiceCallScorecard,
   DEFAULT_VOICE_SALES_RUBRIC,
-} from "../src/callScorecard";
+} from "../src/core/callScorecard";
 
 const fullScores = (max = 5) => ({
   "close-or-next-step": { score: max },
@@ -75,7 +75,9 @@ describe("buildVoiceCallScorecard", () => {
       },
       sessionId: "call_5",
     });
-    expect(card.results.find((r) => r.criterionId === "greeting")?.score).toBe(5);
+    expect(card.results.find((r) => r.criterionId === "greeting")?.score).toBe(
+      5,
+    );
   });
 
   test("missing score for a criterion throws", () => {

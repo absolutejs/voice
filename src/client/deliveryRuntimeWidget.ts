@@ -4,7 +4,7 @@ import {
   type VoiceDeliveryRuntimeClientOptions,
   type VoiceDeliveryRuntimeSnapshot,
 } from "./deliveryRuntime";
-import type { VoiceDeliveryRuntimeSummary } from "../deliveryRuntime";
+import type { VoiceDeliveryRuntimeSummary } from "../core/deliveryRuntime";
 
 export type VoiceDeliveryRuntimeSurfaceView = {
   deadLettered: number;

@@ -283,9 +283,7 @@ test("session observability evidence assertion can fail for unmet proof threshol
 
   expect(evidence.ok).toBe(false);
   expect(evidence.status).toBe("warn");
-  expect(evidence.issues).toContain(
-    "Expected at least 2 turn(s), found 1.",
-  );
+  expect(evidence.issues).toContain("Expected at least 2 turn(s), found 1.");
 
   expect(() =>
     assertVoiceSessionObservabilityEvidence(report, {

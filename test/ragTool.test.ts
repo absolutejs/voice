@@ -6,9 +6,7 @@ import {
   type VoiceRAGSearchInput,
 } from "../src";
 
-const buildFakeCollection = (
-  results: readonly VoiceRAGQueryResult[],
-) => {
+const buildFakeCollection = (results: readonly VoiceRAGQueryResult[]) => {
   const calls: VoiceRAGSearchInput[] = [];
   const collection: VoiceRAGCollectionLike = {
     search: (input) => {
@@ -19,9 +17,7 @@ const buildFakeCollection = (
   return { calls, collection };
 };
 
-const stubExecuteEnvironment = (
-  args: Record<string, unknown> = {},
-) => ({
+const stubExecuteEnvironment = (args: Record<string, unknown> = {}) => ({
   api: {} as never,
   args,
   context: {} as never,
@@ -63,8 +59,9 @@ describe("createVoiceRAGTool", () => {
       required: ["query"],
       type: "object",
     });
-    const properties = (tool.parameters as { properties: Record<string, unknown> })
-      .properties;
+    const properties = (
+      tool.parameters as { properties: Record<string, unknown> }
+    ).properties;
     expect(properties).not.toHaveProperty("filter");
   });
 
@@ -162,7 +159,9 @@ describe("createVoiceRAGTool", () => {
     const result = await tool.execute(
       stubExecuteEnvironment({ query: "voice intro" }),
     );
-    expect(result.message).toContain('Knowledge base results for "voice intro"');
+    expect(result.message).toContain(
+      'Knowledge base results for "voice intro"',
+    );
     expect(result.message).toContain("1. Voice intro (score 0.910):");
     expect(result.message).toContain("2. Tool authoring");
   });
@@ -174,7 +173,9 @@ describe("createVoiceRAGTool", () => {
       stubExecuteEnvironment({ query: "missing topic" }),
     );
     expect(result.citations).toEqual([]);
-    expect(result.message).toBe('No knowledge base results for "missing topic".');
+    expect(result.message).toBe(
+      'No knowledge base results for "missing topic".',
+    );
   });
 
   test("truncates long chunk text in the default formatter", async () => {
@@ -205,8 +206,6 @@ describe("createVoiceRAGTool", () => {
     const result = await tool.execute(
       stubExecuteEnvironment({ query: "anything" }),
     );
-    expect(tool.resultToMessage?.(result)).toBe(
-      'Got 2 hits for "anything".',
-    );
+    expect(tool.resultToMessage?.(result)).toBe('Got 2 hits for "anything".');
   });
 });

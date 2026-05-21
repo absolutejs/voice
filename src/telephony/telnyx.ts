@@ -16,8 +16,8 @@ import {
   type VoiceTelephonyOutcomePolicy,
   type VoiceTelephonyWebhookRoutesOptions,
   type VoiceTelephonyWebhookVerificationResult,
-} from "../telephonyOutcome";
-import type { VoiceServerMessage, VoiceSessionRecord } from "../types";
+} from "../core/telephonyOutcome";
+import type { VoiceServerMessage, VoiceSessionRecord } from "../core/types";
 import {
   createTwilioMediaStreamBridge,
   type TwilioInboundMessage,
@@ -25,7 +25,7 @@ import {
   type TwilioMediaStreamSocket,
   type TwilioOutboundMessage,
 } from "./twilio";
-import type { VoicePostgresClient } from "../postgresStore";
+import type { VoicePostgresClient } from "../core/postgresStore";
 
 export type TelnyxMediaPayload = {
   chunk?: string;

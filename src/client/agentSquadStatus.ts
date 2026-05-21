@@ -2,7 +2,7 @@ import type {
   VoiceTraceTimelineEvent,
   VoiceTraceTimelineReport,
   VoiceTraceTimelineSession,
-} from "../traceTimeline";
+} from "../core/traceTimeline";
 import {
   createVoiceTraceTimelineStore,
   type VoiceTraceTimelineClientOptions,

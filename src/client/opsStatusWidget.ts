@@ -1,5 +1,5 @@
 import { escapeHtml } from "../internal/html";
-import type { VoiceOpsStatusReport } from "../opsStatus";
+import type { VoiceOpsStatusReport } from "../core/opsStatus";
 import {
   createVoiceOpsStatusStore,
   type VoiceOpsStatusClientOptions,

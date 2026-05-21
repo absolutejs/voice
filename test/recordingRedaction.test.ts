@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { deriveVoiceRecordingRedactionRanges } from "../src/recordingRedaction";
-import type { Transcript } from "../src/types";
+import { deriveVoiceRecordingRedactionRanges } from "../src/core/recordingRedaction";
+import type { Transcript } from "../src/core/types";
 
 const final = (
   text: string,
@@ -49,9 +49,7 @@ describe("deriveVoiceRecordingRedactionRanges", () => {
     const ranges = deriveVoiceRecordingRedactionRanges({
       paddingMs: 0,
       recordingStartedAtEpochMs: epoch,
-      transcripts: [
-        final("ssn 123-45-6789", epoch + 5_000, epoch + 7_000),
-      ],
+      transcripts: [final("ssn 123-45-6789", epoch + 5_000, epoch + 7_000)],
     });
     expect(ranges[0]).toEqual({
       endMs: 7_000,
@@ -84,7 +82,8 @@ describe("deriveVoiceRecordingRedactionRanges", () => {
 
 describe("redactVoiceRecording", () => {
   test("bleeps the PCM ranges that match sensitive transcripts (silence default)", async () => {
-    const { redactVoiceRecording } = await import("../src/recordingRedaction");
+    const { redactVoiceRecording } =
+      await import("../src/core/recordingRedaction");
     const format = {
       channels: 1 as const,
       container: "raw" as const,
@@ -97,9 +96,7 @@ describe("redactVoiceRecording", () => {
       format,
       paddingMs: 0,
       pcm: new Uint8Array(samples.buffer),
-      transcripts: [
-        final("my card is 4242 4242 4242 4242", 2_000, 3_000),
-      ],
+      transcripts: [final("my card is 4242 4242 4242 4242", 2_000, 3_000)],
     });
     expect(result.redactedCount).toBe(1);
     const out = new Int16Array(
@@ -114,7 +111,8 @@ describe("redactVoiceRecording", () => {
   });
 
   test("returns the original audio when no transcript matches", async () => {
-    const { redactVoiceRecording } = await import("../src/recordingRedaction");
+    const { redactVoiceRecording } =
+      await import("../src/core/recordingRedaction");
     const format = {
       channels: 1 as const,
       container: "raw" as const,
@@ -137,7 +135,8 @@ describe("redactVoiceRecording", () => {
   });
 
   test("tone fill writes a non-zero beep into the redacted window", async () => {
-    const { redactVoiceRecording } = await import("../src/recordingRedaction");
+    const { redactVoiceRecording } =
+      await import("../src/core/recordingRedaction");
     const sampleRateHz = 8_000;
     const format = {
       channels: 1 as const,

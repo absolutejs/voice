@@ -5,8 +5,8 @@ import {
   buildOTELTraceId,
   buildVoiceOTELPayload,
   createVoiceOTELHTTPExporter,
-} from "../src/otelExporter";
-import type { StoredVoiceTraceEvent } from "../src/trace";
+} from "../src/core/otelExporter";
+import type { StoredVoiceTraceEvent } from "../src/core/trace";
 
 const stageEvent = (
   at: number,

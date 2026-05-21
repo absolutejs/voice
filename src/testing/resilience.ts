@@ -1,13 +1,13 @@
-import { createVoiceMemoryStore } from "../memoryStore";
-import { createVoiceSession } from "../session";
-import { resolveTurnDetectionConfig } from "../turnProfiles";
+import { createVoiceMemoryStore } from "../core/memoryStore";
+import { createVoiceSession } from "../core/session";
+import { resolveTurnDetectionConfig } from "../core/turnProfiles";
 import type {
   AudioChunk,
   STTAdapter,
   STTAdapterSession,
   STTSessionEventMap,
   VoiceSocket,
-} from "../types";
+} from "../core/types";
 
 type ListenerMap = {
   [K in keyof STTSessionEventMap]: Array<

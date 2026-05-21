@@ -6,7 +6,7 @@ import {
 import type {
   VoiceCampaignDialerProofReport,
   VoiceCampaignDialerProofStatus,
-} from "../campaignDialers";
+} from "../core/campaignDialers";
 
 @Injectable({ providedIn: "root" })
 export class VoiceCampaignDialerProofService {

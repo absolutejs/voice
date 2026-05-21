@@ -119,9 +119,7 @@ export const VoiceCostDashboard = ({
             </tr>
           </thead>
           <tbody>
-            {report.buckets.map((bucket) =>
-              renderRow(bucket, currency, false),
-            )}
+            {report.buckets.map((bucket) => renderRow(bucket, currency, false))}
             {renderRow(report.grandTotal, currency, true)}
           </tbody>
         </table>

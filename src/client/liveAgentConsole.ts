@@ -5,7 +5,7 @@ import {
   type LiveCallViewState,
   type LiveCallViewer,
 } from "./liveCallViewer";
-import type { VoiceCallerMemorySnapshot } from "../callerMemory";
+import type { VoiceCallerMemorySnapshot } from "../core/callerMemory";
 
 export type LiveAgentConsoleState = {
   caller?: VoiceCallerMemorySnapshot;

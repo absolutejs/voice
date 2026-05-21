@@ -93,9 +93,7 @@ describe("createVoiceInMemoryMonitorRegistry", () => {
     const unsubAudio = record.onAudio((event) =>
       audioChunks.push(Array.from(event.chunk)),
     );
-    const unsubClose = record.onClose((reason) =>
-      closeReasons.push(reason),
-    );
+    const unsubClose = record.onClose((reason) => closeReasons.push(reason));
     registry.emit("session-1", buildAudioEvent([1, 2, 3]));
     registry.emit("session-1", buildAudioEvent([4, 5]));
     expect(audioChunks).toEqual([
@@ -170,12 +168,8 @@ describe("buildVoiceMonitorPlan", () => {
       listenPath: "/ops/monitor/:sessionId/audio",
       sessionId: "abc",
     });
-    expect(plan.listenUrl).toBe(
-      "wss://api.example.com/ops/monitor/abc/audio",
-    );
-    expect(plan.controlUrl).toBe(
-      "wss://api.example.com/ops/monitor/abc/cmd",
-    );
+    expect(plan.listenUrl).toBe("wss://api.example.com/ops/monitor/abc/audio");
+    expect(plan.controlUrl).toBe("wss://api.example.com/ops/monitor/abc/cmd");
   });
 });
 
@@ -186,7 +180,9 @@ describe("createVoiceLiveMonitorRoutes default control handlers", () => {
   // mapping onto VoiceSessionHandle verbs that buyers care about most.
   const runHandlerDirectly = async (
     message: VoiceMonitorControlMessage,
-    customHandler?: () => Promise<VoiceMonitorControlAck> | VoiceMonitorControlAck,
+    customHandler?: () =>
+      | Promise<VoiceMonitorControlAck>
+      | VoiceMonitorControlAck,
   ) => {
     const { calls, handle } = buildStubHandle();
     const registry = createVoiceInMemoryMonitorRegistry();
@@ -203,11 +199,13 @@ describe("createVoiceLiveMonitorRoutes default control handlers", () => {
     });
     // Pull the websocket route definitions out via Elysia's internals so we
     // can invoke the message handler synchronously with our own fake socket.
-    const ws = (routes as unknown as {
-      websocketRouter?: {
-        history: Array<{ path: string; options: Record<string, unknown> }>;
-      };
-    }).websocketRouter;
+    const ws = (
+      routes as unknown as {
+        websocketRouter?: {
+          history: Array<{ path: string; options: Record<string, unknown> }>;
+        };
+      }
+    ).websocketRouter;
     return { calls, record, registry, routes, ws };
   };
 
@@ -254,9 +252,7 @@ describe("createVoiceMonitorRuntimeBinding", () => {
       [4, 5],
     ]);
     const closeReasons: Array<string | undefined> = [];
-    registry
-      .get("session-1")!
-      .onClose((reason) => closeReasons.push(reason));
+    registry.get("session-1")!.onClose((reason) => closeReasons.push(reason));
     sessionBinding.deregister("hangup");
     expect(closeReasons).toEqual(["hangup"]);
     expect(registry.get("session-1")).toBeUndefined();

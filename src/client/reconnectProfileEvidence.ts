@@ -1,4 +1,4 @@
-import type { VoiceReconnectProfileEvidenceSummary } from "../proofTrends";
+import type { VoiceReconnectProfileEvidenceSummary } from "../core/proofTrends";
 
 export type VoiceReconnectProfileEvidenceClientOptions = {
   fetch?: typeof fetch;

@@ -1,5 +1,5 @@
-import type { VoiceAgentUIState } from "../agentState";
-import { deriveVoiceAgentUIState } from "../agentState";
+import type { VoiceAgentUIState } from "../core/agentState";
+import { deriveVoiceAgentUIState } from "../core/agentState";
 
 export type LiveCallEventKind =
   | "agent_audio"

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { AudioFormat, VoiceExpectedSpeakerTurn } from "../types";
+import type { AudioFormat, VoiceExpectedSpeakerTurn } from "../core/types";
 
 export type VoiceTestFixtureManifestEntry = {
   id: string;

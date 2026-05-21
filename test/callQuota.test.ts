@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createInMemoryVoiceCallQuota } from "../src/callQuota";
+import { createInMemoryVoiceCallQuota } from "../src/core/callQuota";
 
 describe("createInMemoryVoiceCallQuota", () => {
   test("reserves up to reservedConcurrent + burstAllowance, then rejects with concurrency-exceeded", async () => {
@@ -45,7 +45,8 @@ describe("createInMemoryVoiceCallQuota", () => {
       customerId: "cust-3",
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.rejection.reason).toBe("monthly-minutes-exceeded");
+    if (!result.ok)
+      expect(result.rejection.reason).toBe("monthly-minutes-exceeded");
   });
 
   test("strict mode rejects unknown customers; non-strict admits them", async () => {

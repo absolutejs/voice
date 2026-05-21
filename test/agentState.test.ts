@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   describeVoiceAgentUIState,
   deriveVoiceAgentUIState,
-} from "../src/agentState";
+} from "../src/core/agentState";
 
 describe("deriveVoiceAgentUIState", () => {
   test("returns idle when not connected", () => {

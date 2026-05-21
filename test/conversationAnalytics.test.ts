@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { summarizeVoiceCallTraffic } from "../src/client/conversationAnalytics";
-import type { StoredVoiceTraceEvent } from "../src/trace";
+import type { StoredVoiceTraceEvent } from "../src/core/trace";
 
 const lifecycleEvent = (
   at: number,
@@ -23,7 +23,10 @@ describe("summarizeVoiceCallTraffic", () => {
     const summary = summarizeVoiceCallTraffic({
       events: [
         lifecycleEvent(dayA, "s1", { type: "start" }),
-        lifecycleEvent(dayAEnd, "s1", { disposition: "completed", type: "end" }),
+        lifecycleEvent(dayAEnd, "s1", {
+          disposition: "completed",
+          type: "end",
+        }),
         lifecycleEvent(dayA + 1_000, "s2", { type: "start" }),
         lifecycleEvent(dayA + 2_000, "s2", {
           disposition: "failed",
@@ -41,7 +44,9 @@ describe("summarizeVoiceCallTraffic", () => {
     expect(summary.totals.callsCompleted).toBe(1);
     expect(summary.totals.callsFailed).toBe(1);
     expect(summary.totals.callsTransferred).toBe(1);
-    expect(summary.totals.totalDurationMs).toBe(5 * 60_000 + 1_000 + 3 * 60_000);
+    expect(summary.totals.totalDurationMs).toBe(
+      5 * 60_000 + 1_000 + 3 * 60_000,
+    );
     expect(summary.callsByDisposition.completed).toBe(1);
     expect(summary.callsByDisposition.failed).toBe(1);
     expect(summary.callsByDisposition.transferred).toBe(1);

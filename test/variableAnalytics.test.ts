@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  buildVoiceVariableAnalytics,
-  type VoiceAnalyticsCall,
-} from "../src";
+import { buildVoiceVariableAnalytics, type VoiceAnalyticsCall } from "../src";
 
 const calls: VoiceAnalyticsCall[] = [
   {

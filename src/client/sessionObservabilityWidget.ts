@@ -2,7 +2,7 @@ import { escapeHtml } from "../internal/html";
 import type {
   VoiceSessionObservabilityLink,
   VoiceSessionObservabilityTurn,
-} from "../sessionObservability";
+} from "../core/sessionObservability";
 import {
   createVoiceSessionObservabilityStore,
   type VoiceSessionObservabilityClientOptions,

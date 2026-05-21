@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   collectVoiceCampaignTemplateVariables,
   resolveVoiceCampaignTemplate,
-} from "../src/campaignTemplate";
+} from "../src/core/campaignTemplate";
 
 describe("resolveVoiceCampaignTemplate", () => {
   test("interpolates plain variables", () => {
@@ -15,10 +15,9 @@ describe("resolveVoiceCampaignTemplate", () => {
   });
 
   test("supports dotted paths", () => {
-    const result = resolveVoiceCampaignTemplate(
-      "Account {{customer.id}}",
-      { scope: { customer: { id: "cust_1" } } },
-    );
+    const result = resolveVoiceCampaignTemplate("Account {{customer.id}}", {
+      scope: { customer: { id: "cust_1" } },
+    });
     expect(result.output).toBe("Account cust_1");
   });
 
@@ -53,10 +52,10 @@ describe("resolveVoiceCampaignTemplate", () => {
   });
 
   test("collects missing variables without strict mode", () => {
-    const result = resolveVoiceCampaignTemplate(
-      "Hi {{firstName}} ({{age}})",
-      { fallback: "[?]", scope: { firstName: "Alex" } },
-    );
+    const result = resolveVoiceCampaignTemplate("Hi {{firstName}} ({{age}})", {
+      fallback: "[?]",
+      scope: { firstName: "Alex" },
+    });
     expect(result.output).toBe("Hi Alex ([?])");
     expect(result.missingVariables).toEqual(["age"]);
   });

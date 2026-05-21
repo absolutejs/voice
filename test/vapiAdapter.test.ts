@@ -7,7 +7,11 @@ import {
   type VoiceSessionRecord,
 } from "../src";
 
-const stubModelFactory = (): VoiceAgentModel<unknown, VoiceSessionRecord, unknown> => ({
+const stubModelFactory = (): VoiceAgentModel<
+  unknown,
+  VoiceSessionRecord,
+  unknown
+> => ({
   generate: async () => ({ assistantText: "", complete: true }),
 });
 
@@ -81,12 +85,14 @@ describe("fromVapiAssistantConfig", () => {
     expect(typeof result.assistantOptions.system).toBe("function");
     const system = result.assistantOptions.system;
     expect(typeof system).toBe("function");
-    const rendered = (system as (input: {
-      context: {
-        customer: { name: string; accountId: string };
-      };
-      session: VoiceSessionRecord;
-    }) => string)({
+    const rendered = (
+      system as (input: {
+        context: {
+          customer: { name: string; accountId: string };
+        };
+        session: VoiceSessionRecord;
+      }) => string
+    )({
       context: { customer: { accountId: "acct-1", name: "Alex" } },
       session: { createdAt: 0, id: "s", updatedAt: 0 },
     });
@@ -164,12 +170,16 @@ describe("fromVapiAssistantConfig", () => {
     let dtmfSent = "";
     const result = fromVapiAssistantConfig(config, {
       ...baseOptions,
-      dtmfSendFactory: () => ({ args }) => {
-        dtmfSent = args.digits;
-      },
+      dtmfSendFactory:
+        () =>
+        ({ args }) => {
+          dtmfSent = args.digits;
+        },
     });
     expect(result.tools.map((tool) => tool.name)).toContain("sendDTMF");
-    expect(result.unsupported.some((entry) => entry.field === "tools[].type=dtmf")).toBe(false);
+    expect(
+      result.unsupported.some((entry) => entry.field === "tools[].type=dtmf"),
+    ).toBe(false);
     expect(dtmfSent).toBe("");
   });
 

@@ -5,7 +5,7 @@ import {
   extractVoiceWebhookSignatureFromHeaders,
   signVoiceWebhookBody,
   verifyVoiceWebhookSignature,
-} from "../src/webhookVerification";
+} from "../src/core/webhookVerification";
 
 describe("signVoiceWebhookBody + verifyVoiceWebhookSignature", () => {
   test("round-trips a valid signature", async () => {
@@ -109,7 +109,9 @@ describe("extractVoiceWebhookSignatureFromHeaders", () => {
       "X-AbsoluteJS-Timestamp": "123",
     };
     expect(
-      extractVoiceWebhookSignatureFromHeaders(headers as Record<string, string>),
+      extractVoiceWebhookSignatureFromHeaders(
+        headers as Record<string, string>,
+      ),
     ).toEqual({
       signature: "sha256=abc",
       timestamp: "123",
