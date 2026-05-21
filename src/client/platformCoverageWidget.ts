@@ -6,7 +6,7 @@ import {
   type VoicePlatformCoverageSnapshot,
 } from "./platformCoverage";
 
-export type VoicePlatformCoverageSurfaceView = VoicePlatformCoverageSurface & {
+type VoicePlatformCoverageSurfaceView = VoicePlatformCoverageSurface & {
   detail: string;
   label: string;
 };

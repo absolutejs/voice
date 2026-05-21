@@ -1,7 +1,4 @@
-import {
-  createVoiceCallDebuggerStore,
-  type VoiceCallDebuggerClientOptions,
-} from "../client/callDebugger";
+import { createVoiceCallDebuggerStore } from "../client/callDebugger";
 import {
   createVoiceCallDebuggerLaunchViewModel,
   renderVoiceCallDebuggerLaunchHTML,
@@ -25,5 +22,3 @@ export const createVoiceCallDebugger = (
       ),
   };
 };
-
-export type { VoiceCallDebuggerClientOptions };

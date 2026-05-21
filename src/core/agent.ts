@@ -17,7 +17,7 @@ import { extractVoiceRAGCitations } from "./ragTool";
 
 export type VoiceAgentMessageRole = "assistant" | "system" | "tool" | "user";
 
-export type VoiceAgentImageMediaType =
+type VoiceAgentImageMediaType =
   | "image/gif"
   | "image/jpeg"
   | "image/png"

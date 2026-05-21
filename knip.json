@@ -4,6 +4,6 @@
     "src/client/htmxBootstrap.ts",
     "test/**/*.test.ts"
   ],
-  "project": ["src/**/*.ts"],
+  "project": ["src/**/*.{ts,tsx}"],
   "ignoreBinaries": ["eslint"]
 }

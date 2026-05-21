@@ -29,7 +29,7 @@ export const TURN_PROFILE_DEFAULTS: Record<
   },
 };
 
-export const QUALITY_PROFILE_DEFAULTS: Record<
+const QUALITY_PROFILE_DEFAULTS: Record<
   VoiceTurnQualityProfile,
   Partial<VoiceResolvedTurnDetectionConfig>
 > = {
@@ -51,8 +51,8 @@ export const QUALITY_PROFILE_DEFAULTS: Record<
   },
 };
 
-export const DEFAULT_TURN_PROFILE: VoiceTurnProfile = "fast";
-export const DEFAULT_QUALITY_PROFILE: VoiceTurnQualityProfile = "general";
+const DEFAULT_TURN_PROFILE: VoiceTurnProfile = "fast";
+const DEFAULT_QUALITY_PROFILE: VoiceTurnQualityProfile = "general";
 
 export const resolveTurnDetectionConfig = (
   config?: VoiceTurnDetectionConfig,

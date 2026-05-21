@@ -13,7 +13,7 @@ export type VoiceReconnectContractSnapshot = {
   turnIds?: readonly string[];
 };
 
-export type VoiceReconnectContractIssue = {
+type VoiceReconnectContractIssue = {
   code: string;
   message: string;
   severity: "error" | "warning";

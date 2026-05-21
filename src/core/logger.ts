@@ -2,7 +2,7 @@ import type { VoiceLogger } from "./types";
 
 const noop = () => {};
 
-export const createNoopLogger = (): Required<VoiceLogger> => ({
+const createNoopLogger = (): Required<VoiceLogger> => ({
   debug: noop,
   error: noop,
   info: noop,

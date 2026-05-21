@@ -1,7 +1,7 @@
 import type { Transcript, VoiceSessionRecord, VoiceTurnRecord } from "./types";
 import type { VoiceLLMJudgeCompletion } from "./llmJudge";
 
-export type MidCallSummary = {
+type MidCallSummary = {
   generatedAt: number;
   summary: string;
   topicalShift?: boolean;
@@ -111,9 +111,3 @@ export const createMidCallSummarizer = (
     latest: () => lastSummary,
   };
 };
-
-export const extractTranscriptText = (transcripts: Transcript[]) =>
-  transcripts
-    .filter((t) => t.isFinal && t.text.trim())
-    .map((t) => t.text.trim())
-    .join(" ");

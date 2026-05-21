@@ -351,7 +351,7 @@ const findMissing = <Value extends string>(
   return required.filter((value) => !valueSet.has(value));
 };
 
-export class VoiceTelephonyWebhookVerificationError extends Error {
+class VoiceTelephonyWebhookVerificationError extends Error {
   result: VoiceTelephonyWebhookVerificationResult;
 
   constructor(result: VoiceTelephonyWebhookVerificationResult) {

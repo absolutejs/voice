@@ -9,7 +9,7 @@ import {
   type VoiceProofTrendsSnapshot,
 } from "./proofTrends";
 
-export type VoiceProofTrendsMetricView = {
+type VoiceProofTrendsMetricView = {
   label: string;
   value: string;
 };

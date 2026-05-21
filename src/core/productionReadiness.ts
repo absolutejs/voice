@@ -104,18 +104,17 @@ import {
   type VoiceProfileSwitchReadinessReport,
 } from "./profileSwitchRecommendation";
 
-export type VoiceProductionReadinessObservabilityExportDeliveryHistoryOptions =
-  {
-    failOnMissing?: boolean;
-    failOnStale?: boolean;
-    history?: VoiceObservabilityExportDeliveryHistory;
-    maxAgeMs?: number;
-    store?: VoiceObservabilityExportDeliveryReceiptStore;
-  };
+type VoiceProductionReadinessObservabilityExportDeliveryHistoryOptions = {
+  failOnMissing?: boolean;
+  failOnStale?: boolean;
+  history?: VoiceObservabilityExportDeliveryHistory;
+  maxAgeMs?: number;
+  store?: VoiceObservabilityExportDeliveryReceiptStore;
+};
 
 export type VoiceProductionReadinessStatus = "fail" | "pass" | "warn";
 
-export type VoiceProductionReconnectEvidence =
+type VoiceProductionReconnectEvidence =
   | VoiceReconnectContractReport
   | VoiceReconnectProofReport;
 
@@ -679,7 +678,7 @@ export type VoiceProductionReadinessOpsActionHistorySummary = {
   warnWhenEmpty: boolean;
 };
 
-export type VoiceProductionReadinessDeliveryRuntimeSummary = {
+type VoiceProductionReadinessDeliveryRuntimeSummary = {
   audit?: VoiceProductionReadinessDeliveryRuntimeQueueSummary;
   deadLettered: number;
   delivered: number;
@@ -692,7 +691,7 @@ export type VoiceProductionReadinessDeliveryRuntimeSummary = {
   trace?: VoiceProductionReadinessDeliveryRuntimeQueueSummary;
 };
 
-export type VoiceProductionReadinessDeliveryRuntimeQueueSummary = {
+type VoiceProductionReadinessDeliveryRuntimeQueueSummary = {
   deadLettered: number;
   delivered: number;
   failed: number;

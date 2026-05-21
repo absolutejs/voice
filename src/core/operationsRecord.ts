@@ -203,7 +203,7 @@ export type VoiceOperationsRecordTelephonyMediaSummary = {
   total: number;
 };
 
-export type VoiceOperationsRecordMediaPipelineSummary = {
+type VoiceOperationsRecordMediaPipelineSummary = {
   frames: number;
   issueCodes: readonly string[];
   jitterMs?: number;

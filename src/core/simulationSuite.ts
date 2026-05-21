@@ -51,7 +51,7 @@ export type VoiceSimulationSuiteReport = {
   total: number;
 };
 
-export type VoiceSimulationSuiteAction = {
+type VoiceSimulationSuiteAction = {
   description: string;
   href?: string;
   label: string;

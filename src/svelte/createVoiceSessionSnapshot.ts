@@ -1,7 +1,4 @@
-import {
-  createVoiceSessionSnapshotStore,
-  type VoiceSessionSnapshotClientOptions,
-} from "../client/sessionSnapshot";
+import { createVoiceSessionSnapshotStore } from "../client/sessionSnapshot";
 import {
   createVoiceSessionSnapshotViewModel,
   renderVoiceSessionSnapshotHTML,
@@ -20,5 +17,3 @@ export const createVoiceSessionSnapshot = (
       createVoiceSessionSnapshotViewModel(store.getSnapshot(), options),
   };
 };
-
-export type { VoiceSessionSnapshotClientOptions };

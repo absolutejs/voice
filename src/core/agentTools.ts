@@ -535,5 +535,3 @@ export const createVoiceApiRequestTool = <
           : `API request ${options.name} failed with status ${String(result.status)}.`),
   });
 };
-
-export type VoiceRouteResultLike = VoiceRouteResult<unknown>;

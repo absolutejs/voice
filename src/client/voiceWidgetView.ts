@@ -53,7 +53,7 @@ export type VoiceWidgetViewModel = {
   title: string;
 };
 
-export const DEFAULT_VOICE_WIDGET_THEME: Required<VoiceWidgetTheme> = {
+const DEFAULT_VOICE_WIDGET_THEME: Required<VoiceWidgetTheme> = {
   accent: "#3b82f6",
   background: "#0f172a",
   errorAccent: "#ef4444",
@@ -63,7 +63,7 @@ export const DEFAULT_VOICE_WIDGET_THEME: Required<VoiceWidgetTheme> = {
   radius: 16,
 };
 
-export const DEFAULT_VOICE_WIDGET_LABELS: Required<VoiceWidgetLabels> = {
+const DEFAULT_VOICE_WIDGET_LABELS: Required<VoiceWidgetLabels> = {
   callEnded: "Call ended",
   connecting: "Connecting…",
   endCall: "End call",

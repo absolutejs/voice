@@ -7,7 +7,7 @@ import type {
   VoiceTurnCorrectionHandler,
 } from "./types";
 
-export type VoicePhraseHintCorrectionMatch = {
+type VoicePhraseHintCorrectionMatch = {
   alias: string;
   hint: VoicePhraseHint;
 };

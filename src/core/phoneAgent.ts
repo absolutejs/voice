@@ -115,7 +115,7 @@ export type VoicePhoneAgentCarrierSummary = {
   smokePath?: false | string;
 };
 
-export type VoicePhoneAgentSetupInstruction = {
+type VoicePhoneAgentSetupInstruction = {
   answerLabel: string;
   answerUrl?: string;
   carrierName: string;

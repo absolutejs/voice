@@ -89,7 +89,7 @@ export type VoiceProviderStackCapabilityGapInput<
 
 export type VoiceProviderContractCheckStatus = "fail" | "pass" | "warn";
 
-export type VoiceProviderContractRemediation = {
+type VoiceProviderContractRemediation = {
   code: string;
   detail: string;
   href?: string;

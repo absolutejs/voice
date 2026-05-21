@@ -125,7 +125,7 @@ export type VoiceAssistantMemoryLifecycle<
   ) => Promise<void> | void;
 };
 
-export type VoiceAssistantExperimentResolverInput<
+type VoiceAssistantExperimentResolverInput<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
 > = {

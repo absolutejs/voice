@@ -69,7 +69,7 @@ export type VoiceDeliveryRuntimeTickResult = {
   trace?: VoiceTraceSinkDeliveryWorkerResult;
 };
 
-export type VoiceDeliveryRuntimeRequeueDeadLettersResult = {
+type VoiceDeliveryRuntimeRequeueDeadLettersResult = {
   audit: number;
   trace: number;
   total: number;
@@ -125,7 +125,7 @@ export type VoiceDeliveryRuntimePresetLeaseConfig =
       trace: VoiceRedisTaskLeaseCoordinator;
     };
 
-export type VoiceDeliveryRuntimePresetBaseOptions = {
+type VoiceDeliveryRuntimePresetBaseOptions = {
   auditDeliveries: VoiceAuditSinkDeliveryStore;
   auditSinkId?: string;
   auditWorkerId?: string;

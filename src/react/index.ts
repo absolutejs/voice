@@ -61,3 +61,26 @@ export { useVoiceAgentSquadStatus } from "./useVoiceAgentSquadStatus";
 export { useVoiceTurnLatency } from "./useVoiceTurnLatency";
 export { useVoiceTurnQuality } from "./useVoiceTurnQuality";
 export { useVoiceWorkflowStatus } from "./useVoiceWorkflowStatus";
+
+// Component prop types (public API for typing React component usage).
+export type { VoiceAgentSquadStatusProps } from "./VoiceAgentSquadStatus";
+export type { VoiceDeliveryRuntimeProps } from "./VoiceDeliveryRuntime";
+export type { VoiceOpsActionCenterProps } from "./VoiceOpsActionCenter";
+export type { VoiceOpsStatusProps } from "./VoiceOpsStatus";
+export type { VoicePlatformCoverageProps } from "./VoicePlatformCoverage";
+export type { VoiceProfileComparisonProps } from "./VoiceProfileComparison";
+export type { VoiceProfileSwitchRecommendationProps } from "./VoiceProfileSwitchRecommendation";
+export type { VoiceProofTrendsProps } from "./VoiceProofTrends";
+export type { VoiceProviderCapabilitiesProps } from "./VoiceProviderCapabilities";
+export type { VoiceProviderContractsProps } from "./VoiceProviderContracts";
+export type { VoiceProviderSimulationControlsProps } from "./VoiceProviderSimulationControls";
+export type { VoiceProviderStatusProps } from "./VoiceProviderStatus";
+export type { VoiceReadinessFailuresProps } from "./VoiceReadinessFailures";
+export type { VoiceReconnectProfileEvidenceProps } from "./VoiceReconnectProfileEvidence";
+export type { VoiceRoutingStatusProps } from "./VoiceRoutingStatus";
+export type { VoiceSessionObservabilityProps } from "./VoiceSessionObservability";
+export type { VoiceSessionSnapshotProps } from "./VoiceSessionSnapshot";
+export type { VoiceTraceTimelineProps } from "./VoiceTraceTimeline";
+export type { VoiceTurnLatencyProps } from "./VoiceTurnLatency";
+export type { VoiceTurnQualityProps } from "./VoiceTurnQuality";
+export type { VoiceWidgetViewModel } from "./VoiceWidget";

@@ -18,7 +18,7 @@ import type { VoiceCostDashboardOptions } from "../client/costDashboard";
 
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
 
-export type VoiceHTMXDashboardRoutesShared = {
+type VoiceHTMXDashboardRoutesShared = {
   name?: string;
   render?: VoiceDashboardHTMXRendererConfig;
 };

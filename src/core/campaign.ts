@@ -364,7 +364,7 @@ export type VoiceCampaignWorkerOptions = {
   workerId: string;
 };
 
-export type VoiceCampaignWorkerResult = {
+type VoiceCampaignWorkerResult = {
   attempted: number;
   campaigns: number;
   errors: Array<{ campaignId: string; error: string }>;

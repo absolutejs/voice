@@ -60,7 +60,7 @@ export type VoiceCostDashboardRenderer = (
   input: VoiceCostDashboardHTMXInput,
 ) => string;
 
-export type VoiceCostDashboardCellRenderer = (
+type VoiceCostDashboardCellRenderer = (
   bucket: VoiceCostDashboardBucket,
   currency: string,
   isTotal: boolean,

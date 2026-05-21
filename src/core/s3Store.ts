@@ -123,7 +123,7 @@ export const createVoiceS3ReviewStore = <
   };
 };
 
-export type VoiceS3RecordingStoreFile = {
+type VoiceS3RecordingStoreFile = {
   delete: () => Promise<void>;
   exists: () => Promise<boolean>;
   text: () => Promise<string>;
@@ -131,9 +131,9 @@ export type VoiceS3RecordingStoreFile = {
   write: (data: string | Uint8Array) => Promise<number>;
 };
 
-export type VoiceS3RecordingStoreClient = Pick<S3Client, "file" | "list">;
+type VoiceS3RecordingStoreClient = Pick<S3Client, "file" | "list">;
 
-export type VoiceS3RecordingStoreOptions = S3Options & {
+type VoiceS3RecordingStoreOptions = S3Options & {
   client?: VoiceS3RecordingStoreClient;
   keyPrefix?: string;
   publicUrlBase?: string;

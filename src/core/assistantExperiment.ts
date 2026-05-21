@@ -1,7 +1,7 @@
 import type { DefinedVoiceAssistant } from "./defineVoiceAssistant";
 import type { VoiceSessionRecord } from "./types";
 
-export type VoiceAssistantVariant<
+type VoiceAssistantVariant<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TResult = unknown,
@@ -14,13 +14,13 @@ export type VoiceAssistantVariant<
   assistant: DefinedVoiceAssistant<TContext, TSession, TResult>;
 };
 
-export type VoiceAssistantAllocatorInput<TContext = unknown> = {
+type VoiceAssistantAllocatorInput<TContext = unknown> = {
   context: TContext;
   sessionId: string;
   stickyKey?: string;
 };
 
-export type VoiceAssistantAllocator<TContext = unknown> = (
+type VoiceAssistantAllocator<TContext = unknown> = (
   input: VoiceAssistantAllocatorInput<TContext>,
 ) => string;
 
@@ -44,7 +44,7 @@ export type VoiceAssistantExperimentOptions<
   variants: ReadonlyArray<VoiceAssistantVariant<TContext, TSession, TResult>>;
 };
 
-export type VoiceAssistantExperimentDecision<
+type VoiceAssistantExperimentDecision<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TResult = unknown,
