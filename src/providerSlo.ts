@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
@@ -583,13 +584,10 @@ export const assertVoiceProviderSloEvidence = (
   report: VoiceProviderSloReport,
   input: VoiceProviderSloAssertionInput = {},
 ): VoiceProviderSloAssertionReport => {
-  const assertion = evaluateVoiceProviderSloEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice provider SLO assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice provider SLO assertion failed",
+    evaluateVoiceProviderSloEvidence(report, input),
+  );
 };
 
 const formatMetricValue = (metric: VoiceProviderSloMetric) =>

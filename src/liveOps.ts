@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { Elysia } from "elysia";
 import { createVoiceAuditEvent, type VoiceAuditEventStore } from "./audit";
 import { createVoiceTraceEvent, type VoiceTraceEventStore } from "./trace";
@@ -324,13 +325,10 @@ export const evaluateVoiceLiveOpsEvidence = (
 export const assertVoiceLiveOpsEvidence = (
   input: VoiceLiveOpsEvidenceInput = {},
 ): VoiceLiveOpsEvidenceReport => {
-  const assertion = evaluateVoiceLiveOpsEvidence(input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice live-ops evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice live-ops evidence assertion failed",
+    evaluateVoiceLiveOpsEvidence(input),
+  );
 };
 
 export const evaluateVoiceLiveOpsControlEvidence = (
@@ -420,13 +418,10 @@ export const evaluateVoiceLiveOpsControlEvidence = (
 export const assertVoiceLiveOpsControlEvidence = (
   input: VoiceLiveOpsControlEvidenceInput = {},
 ): VoiceLiveOpsControlEvidenceReport => {
-  const assertion = evaluateVoiceLiveOpsControlEvidence(input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice live-ops control evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice live-ops control evidence assertion failed",
+    evaluateVoiceLiveOpsControlEvidence(input),
+  );
 };
 
 export const createVoiceMemoryLiveOpsControlStore =

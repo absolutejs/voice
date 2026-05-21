@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { AudioFormat } from "./types";
@@ -449,13 +450,10 @@ export const assertVoiceRealtimeChannelEvidence = (
   report: VoiceRealtimeChannelReport,
   input: VoiceRealtimeChannelAssertionInput = {},
 ): VoiceRealtimeChannelAssertionReport => {
-  const assertion = evaluateVoiceRealtimeChannelEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice realtime channel assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice realtime channel assertion failed",
+    evaluateVoiceRealtimeChannelEvidence(report, input),
+  );
 };
 
 export const renderVoiceRealtimeChannelMarkdown = (

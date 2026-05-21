@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import type { VoiceCampaignRecord, VoiceCampaignStore } from "./campaign";
 import { Elysia } from "elysia";
@@ -866,13 +867,10 @@ export const assertVoiceDataControlEvidence = (
   report: VoiceDataControlReport,
   input: VoiceDataControlAssertionInput = {},
 ): VoiceDataControlAssertionReport => {
-  const assertion = evaluateVoiceDataControlEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice data-control evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice data-control evidence assertion failed",
+    evaluateVoiceDataControlEvidence(report, input),
+  );
 };
 
 export const createVoiceZeroRetentionPolicy = (

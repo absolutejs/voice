@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { Elysia } from "elysia";
 import type {
   VoiceCallDisposition,
@@ -631,13 +632,10 @@ export const evaluateVoiceTelephonyWebhookNormalizationEvidence = (
 export const assertVoiceTelephonyWebhookNormalizationEvidence = (
   input: VoiceTelephonyWebhookNormalizationEvidenceInput = {},
 ): VoiceTelephonyWebhookNormalizationEvidenceReport => {
-  const assertion = evaluateVoiceTelephonyWebhookNormalizationEvidence(input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice telephony webhook normalization evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice telephony webhook normalization evidence assertion failed",
+    evaluateVoiceTelephonyWebhookNormalizationEvidence(input),
+  );
 };
 
 const normalizeToken = (value: unknown) =>

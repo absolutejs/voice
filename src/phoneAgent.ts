@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
@@ -505,13 +506,10 @@ export const assertVoicePhoneAssistantEvidence = (
   report: VoicePhoneAgentSetupReport,
   input: VoicePhoneAssistantEvidenceInput = {},
 ): VoicePhoneAssistantEvidenceReport => {
-  const assertion = evaluateVoicePhoneAssistantEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice phone assistant evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice phone assistant evidence assertion failed",
+    evaluateVoicePhoneAssistantEvidence(report, input),
+  );
 };
 
 export const evaluateVoicePhoneCallControlEvidence = (
@@ -588,13 +586,10 @@ export const evaluateVoicePhoneCallControlEvidence = (
 export const assertVoicePhoneCallControlEvidence = (
   input: VoicePhoneCallControlEvidenceInput = {},
 ): VoicePhoneCallControlEvidenceReport => {
-  const assertion = evaluateVoicePhoneCallControlEvidence(input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice phone call-control evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice phone call-control evidence assertion failed",
+    evaluateVoicePhoneCallControlEvidence(input),
+  );
 };
 
 const buildVoicePhoneAgentSetupInstructions = (input: {

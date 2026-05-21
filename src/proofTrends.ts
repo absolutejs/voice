@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { Database } from "bun:sqlite";
@@ -5167,13 +5168,10 @@ export const assertVoiceProofTrendEvidence = (
   report: VoiceProofTrendReport,
   input: VoiceProofTrendAssertionInput = {},
 ): VoiceProofTrendAssertionReport => {
-  const assertion = evaluateVoiceProofTrendEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice proof trends assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice proof trends assertion failed",
+    evaluateVoiceProofTrendEvidence(report, input),
+  );
 };
 
 const DEFAULT_RECOMMENDATION_BUDGETS = {

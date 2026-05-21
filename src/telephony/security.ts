@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "../internal/evidence";
 import {
   createMemoryVoiceTelephonyWebhookIdempotencyStore,
   verifyVoiceTwilioWebhookSignature,
@@ -466,16 +467,10 @@ export const assertVoiceTelephonyWebhookSecurityEvidence = (
   report: VoiceTelephonyWebhookSecurityReport,
   input: VoiceTelephonyWebhookSecurityAssertionInput = {},
 ): VoiceTelephonyWebhookSecurityAssertionReport => {
-  const assertion = evaluateVoiceTelephonyWebhookSecurityEvidence(
-    report,
-    input,
+  return assertVoiceEvidence(
+    "Voice telephony webhook security assertion failed",
+    evaluateVoiceTelephonyWebhookSecurityEvidence(report, input),
   );
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice telephony webhook security assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
 };
 
 export const createVoiceTelephonyWebhookSecurityRoutes = <TResult = unknown>(

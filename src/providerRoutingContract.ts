@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import {
   listVoiceRoutingEvents,
   type VoiceRoutingEvent,
@@ -321,11 +322,8 @@ export const assertVoiceProviderRoutingContractEvidence = (
   reports: readonly VoiceProviderRoutingContractReport[],
   input: VoiceProviderRoutingContractAssertionInput = {},
 ): VoiceProviderRoutingContractAssertionReport => {
-  const report = evaluateVoiceProviderRoutingContractEvidence(reports, input);
-  if (!report.ok) {
-    throw new Error(
-      `Voice provider routing contract evidence assertion failed: ${report.issues.join(" ")}`,
-    );
-  }
-  return report;
+  return assertVoiceEvidence(
+    "Voice provider routing contract evidence assertion failed",
+    evaluateVoiceProviderRoutingContractEvidence(reports, input),
+  );
 };

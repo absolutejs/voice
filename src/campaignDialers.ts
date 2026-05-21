@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { Buffer } from "node:buffer";
 import {
   applyVoiceCampaignTelephonyOutcome,
@@ -689,11 +690,8 @@ export const assertVoiceCampaignDialerProofEvidence = (
   report: VoiceCampaignDialerProofReport,
   input: VoiceCampaignDialerProofAssertionInput = {},
 ): VoiceCampaignDialerProofAssertionReport => {
-  const assertion = evaluateVoiceCampaignDialerProofEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice campaign dialer proof evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice campaign dialer proof evidence assertion failed",
+    evaluateVoiceCampaignDialerProofEvidence(report, input),
+  );
 };

@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { worstVoiceStatus } from "./internal/status";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
@@ -360,13 +361,10 @@ export const assertVoiceMediaPipelineEvidence = (
   report: VoiceMediaPipelineReport,
   input: VoiceMediaPipelineAssertionInput = {},
 ): VoiceMediaPipelineAssertionReport => {
-  const assertion = evaluateVoiceMediaPipelineEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice media pipeline assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice media pipeline assertion failed",
+    evaluateVoiceMediaPipelineEvidence(report, input),
+  );
 };
 
 export const renderVoiceMediaPipelineMarkdown = (

@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { worstVoiceStatus } from "./internal/status";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
@@ -614,13 +615,10 @@ export const assertVoiceProviderContractMatrixEvidence = <
   report: VoiceProviderContractMatrixReport<TProvider>,
   input: VoiceProviderContractMatrixAssertionInput<TProvider> = {},
 ): VoiceProviderContractMatrixAssertionReport<TProvider> => {
-  const assertion = evaluateVoiceProviderContractMatrixEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice provider contract matrix assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice provider contract matrix assertion failed",
+    evaluateVoiceProviderContractMatrixEvidence(report, input),
+  );
 };
 
 export const createVoiceProviderContractMatrixPreset = <
@@ -943,11 +941,8 @@ export const assertVoiceProviderStackEvidence = <
   report: VoiceProviderStackCapabilityGapReport<TProvider>,
   input: VoiceProviderStackAssertionInput<TProvider> = {},
 ): VoiceProviderStackAssertionReport<TProvider> => {
-  const assertion = evaluateVoiceProviderStackEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice provider stack assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice provider stack assertion failed",
+    evaluateVoiceProviderStackEvidence(report, input),
+  );
 };

@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import type {
   VoiceAgent,
   VoiceAgentRunResult,
@@ -593,11 +594,8 @@ export const assertVoiceAgentSquadContractEvidence = (
   reports: readonly VoiceAgentSquadContractReport[],
   input: VoiceAgentSquadContractAssertionInput = {},
 ): VoiceAgentSquadContractAssertionReport => {
-  const report = evaluateVoiceAgentSquadContractEvidence(reports, input);
-  if (!report.ok) {
-    throw new Error(
-      `Voice agent squad contract evidence assertion failed: ${report.issues.join(" ")}`,
-    );
-  }
-  return report;
+  return assertVoiceEvidence(
+    "Voice agent squad contract evidence assertion failed",
+    evaluateVoiceAgentSquadContractEvidence(reports, input),
+  );
 };

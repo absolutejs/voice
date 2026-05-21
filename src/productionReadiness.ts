@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { worstVoiceStatus } from "./internal/status";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
@@ -1477,13 +1478,10 @@ export const assertVoiceProductionReadinessEvidence = (
   report: VoiceProductionReadinessReport,
   input: VoiceProductionReadinessAssertionInput = {},
 ): VoiceProductionReadinessAssertionReport => {
-  const assertion = evaluateVoiceProductionReadinessEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice production readiness assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice production readiness assertion failed",
+    evaluateVoiceProductionReadinessEvidence(report, input),
+  );
 };
 
 const carrierStatus = (

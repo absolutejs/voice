@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { worstVoiceStatus } from "./internal/status";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
@@ -433,16 +434,10 @@ export const assertVoiceRealtimeProviderContractEvidence = <
   report: VoiceRealtimeProviderContractMatrixReport<TProvider>,
   input: VoiceRealtimeProviderContractAssertionInput<TProvider> = {},
 ): VoiceRealtimeProviderContractAssertionReport<TProvider> => {
-  const assertion = evaluateVoiceRealtimeProviderContractEvidence(
-    report,
-    input,
+  return assertVoiceEvidence(
+    "Voice realtime provider contract assertion failed",
+    evaluateVoiceRealtimeProviderContractEvidence(report, input),
   );
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice realtime provider contract assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
 };
 
 const resolveMatrix = async <TProvider extends string = string>(

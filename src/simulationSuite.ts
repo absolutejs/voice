@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
@@ -421,13 +422,10 @@ export const assertVoiceSimulationSuiteEvidence = (
   report: VoiceSimulationSuiteReport,
   input: VoiceSimulationSuiteAssertionInput = {},
 ): VoiceSimulationSuiteAssertionReport => {
-  const assertion = evaluateVoiceSimulationSuiteEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice simulation suite evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice simulation suite evidence assertion failed",
+    evaluateVoiceSimulationSuiteEvidence(report, input),
+  );
 };
 
 const renderSection = (

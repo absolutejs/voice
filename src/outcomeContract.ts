@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type {
@@ -458,13 +459,10 @@ export const assertVoiceOutcomeContractEvidence = (
   report: VoiceOutcomeContractSuiteReport,
   input: VoiceOutcomeContractAssertionInput = {},
 ): VoiceOutcomeContractAssertionReport => {
-  const assertion = evaluateVoiceOutcomeContractEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice outcome contract evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice outcome contract evidence assertion failed",
+    evaluateVoiceOutcomeContractEvidence(report, input),
+  );
 };
 
 export const renderVoiceOutcomeContractHTML = (

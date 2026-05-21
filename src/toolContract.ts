@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceAgentTool, VoiceAgentToolCall } from "./agent";
@@ -531,13 +532,10 @@ export const assertVoiceToolContractEvidence = (
   report: VoiceToolContractSuiteReport,
   input: VoiceToolContractAssertionInput = {},
 ): VoiceToolContractAssertionReport => {
-  const assertion = evaluateVoiceToolContractEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice tool contract evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice tool contract evidence assertion failed",
+    evaluateVoiceToolContractEvidence(report, input),
+  );
 };
 
 export const renderVoiceToolContractHTML = (

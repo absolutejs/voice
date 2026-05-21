@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { Elysia } from "elysia";
 import type { S3Client, S3Options } from "bun";
 import { Database } from "bun:sqlite";
@@ -1460,16 +1461,10 @@ export const assertVoiceObservabilityExportReplayEvidence = (
   report: VoiceObservabilityExportReplayReport,
   input: VoiceObservabilityExportReplayAssertionInput = {},
 ): VoiceObservabilityExportReplayAssertionReport => {
-  const assertion = evaluateVoiceObservabilityExportReplayEvidence(
-    report,
-    input,
+  return assertVoiceEvidence(
+    "Voice observability export replay assertion failed",
+    evaluateVoiceObservabilityExportReplayEvidence(report, input),
   );
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice observability export replay assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
 };
 
 export const loadVoiceObservabilityExportReplaySource = async (
@@ -2088,16 +2083,10 @@ export const assertVoiceObservabilityExportDeliveryEvidence = (
   history: VoiceObservabilityExportDeliveryHistory,
   input: VoiceObservabilityExportDeliveryAssertionInput = {},
 ): VoiceObservabilityExportDeliveryAssertionReport => {
-  const assertion = evaluateVoiceObservabilityExportDeliveryEvidence(
-    history,
-    input,
+  return assertVoiceEvidence(
+    "Voice observability export delivery assertion failed",
+    evaluateVoiceObservabilityExportDeliveryEvidence(history, input),
   );
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice observability export delivery assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
 };
 
 const inferContentType = (artifact: VoiceObservabilityExportArtifact) => {

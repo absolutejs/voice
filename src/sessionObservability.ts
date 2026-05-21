@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import {
@@ -607,13 +608,10 @@ export const assertVoiceSessionObservabilityEvidence = (
   report: VoiceSessionObservabilityReport,
   input: VoiceSessionObservabilityEvidenceInput = {},
 ): VoiceSessionObservabilityEvidenceReport => {
-  const assertion = evaluateVoiceSessionObservabilityEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice session observability evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice session observability evidence assertion failed",
+    evaluateVoiceSessionObservabilityEvidence(report, input),
+  );
 };
 
 export const createVoiceSessionObservabilityRoutes = (

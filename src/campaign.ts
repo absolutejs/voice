@@ -1,3 +1,4 @@
+import { assertVoiceEvidence } from "./internal/evidence";
 import { escapeHtml } from "./internal/html";
 import { Elysia } from "elysia";
 import type { VoiceRedisTaskLeaseCoordinator } from "./queue";
@@ -2041,13 +2042,10 @@ export const assertVoiceCampaignReadinessEvidence = (
   report: VoiceCampaignReadinessProofReport,
   input: VoiceCampaignReadinessAssertionInput = {},
 ): VoiceCampaignReadinessAssertionReport => {
-  const assertion = evaluateVoiceCampaignReadinessEvidence(report, input);
-  if (!assertion.ok) {
-    throw new Error(
-      `Voice campaign readiness evidence assertion failed: ${assertion.issues.join(" ")}`,
-    );
-  }
-  return assertion;
+  return assertVoiceEvidence(
+    "Voice campaign readiness evidence assertion failed",
+    evaluateVoiceCampaignReadinessEvidence(report, input),
+  );
 };
 
 const getString = (value: unknown) =>
