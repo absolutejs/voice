@@ -90,6 +90,7 @@ export default defineConfig([
         { allowedVars: ["_", "id", "db", "OK", "ws"], minLength: 3 },
       ],
       "absolute/no-explicit-return-type": "error",
+      "absolute/no-import-meta-path": "error",
       "absolute/no-useless-function": "error",
       "absolute/sort-exports": [
         "error",
@@ -193,7 +194,19 @@ export default defineConfig([
   {
     files: ["eslint.config.mjs"],
     rules: {
+      // Config file: run directly, never bundled — import.meta.url is safe.
+      "absolute/no-import-meta-path": "off",
       "no-restricted-exports": "off",
+    },
+  },
+  {
+    // These resolve voice's OWN shipped assets/fixtures relative to the
+    // package (htmx bootstrap, test audio). For a library locating its own
+    // files, import.meta.dir is the correct mechanism — projectRoot is the
+    // consuming app's root, not this package's location.
+    files: ["src/core/plugin.ts", "src/testing/fixtures.ts"],
+    rules: {
+      "absolute/no-import-meta-path": "off",
     },
   },
 ]);
