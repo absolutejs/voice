@@ -474,7 +474,7 @@ export const createTelnyxMediaStreamBridge = <
   const bridge = createTwilioMediaStreamBridge(
     createTelnyxTwilioSocketAdapter(socket),
     {
-      ...(options),
+      ...options,
       telephonyMediaCarrier: "telnyx",
       onVoiceMessage: options.onVoiceMessage
         ? (input) =>
@@ -766,7 +766,7 @@ export const createVoiceRedisTelnyxWebhookEventStore = (
 ): VoiceTelnyxWebhookEventStore => {
   const client = options.client ?? new Bun.RedisClient(options.url);
   const keyPrefix = options.keyPrefix?.trim() || "voice:telnyx-webhook-event";
-  const {ttlSeconds} = options;
+  const { ttlSeconds } = options;
 
   const setEvent = async (eventId: string, nx: boolean) => {
     const key = getTelnyxRedisEventKey(keyPrefix, eventId);
@@ -800,7 +800,7 @@ const readTelnyxWebhookEventId = (rawBody: string) => {
       return undefined;
     }
     const record = body as Record<string, unknown>;
-    const {data} = record;
+    const { data } = record;
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const eventId = (data as Record<string, unknown>).id;
       if (typeof eventId === "string" && eventId.trim()) {
@@ -831,7 +831,7 @@ export const createVoiceTelnyxWebhookVerifier =
       return verification;
     }
 
-    const {eventStore} = options;
+    const { eventStore } = options;
     if (!eventStore) {
       return verification;
     }
@@ -1139,8 +1139,11 @@ export const createTelnyxVoiceRoutes = <
     })
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
-        const bridge = bridges.get(ws);
-        bridges.delete(ws);
+        // Key by the stable underlying socket (ws.raw); Elysia recreates the
+        // ElysiaWS wrapper per event, so keying by ws would miss/leak the bridge.
+        const key = ws.raw ?? ws;
+        const bridge = bridges.get(key);
+        bridges.delete(key);
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
@@ -1150,7 +1153,8 @@ export const createTelnyxVoiceRoutes = <
           return;
         }
 
-        let bridge = bridges.get(ws);
+        const key = ws.raw ?? ws;
+        let bridge = bridges.get(key);
         if (!bridge) {
           bridge = createTelnyxMediaStreamBridge(
             {
@@ -1163,7 +1167,7 @@ export const createTelnyxVoiceRoutes = <
             },
             options.bridge,
           );
-          bridges.set(ws, bridge);
+          bridges.set(key, bridge);
         }
 
         await bridge.handleMessage(raw as string);
@@ -1180,7 +1184,7 @@ export const createTelnyxVoiceRoutes = <
         resolveSessionId:
           options.webhook?.resolveSessionId ??
           (({ event }) => {
-            const {metadata} = event;
+            const { metadata } = event;
 
             return typeof metadata?.call_session_id === "string"
               ? metadata.call_session_id

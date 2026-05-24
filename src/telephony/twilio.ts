@@ -1069,7 +1069,7 @@ export const createTwilioMediaStreamBridge = <
       streamSid?: string;
     },
   ) => {
-    const {trace} = options;
+    const { trace } = options;
     const sessionId =
       override?.sessionId ??
       bridgeState.sessionId ??
@@ -1108,7 +1108,7 @@ export const createTwilioMediaStreamBridge = <
   const resolveLexicon = async () => {
     if (typeof options.lexicon === "function") {
       return normalizeLexicon(
-        (await (options.lexicon)({
+        (await options.lexicon({
           context: options.context,
           scenarioId: bridgeState.scenarioId ?? undefined,
           sessionId: bridgeState.sessionId ?? "",
@@ -1122,7 +1122,7 @@ export const createTwilioMediaStreamBridge = <
   const resolvePhraseHints = async () => {
     if (typeof options.phraseHints === "function") {
       return normalizePhraseHints(
-        (await (options.phraseHints)({
+        (await options.phraseHints({
           context: options.context,
           scenarioId: bridgeState.scenarioId ?? undefined,
           sessionId: bridgeState.sessionId ?? "",
@@ -1173,6 +1173,7 @@ export const createTwilioMediaStreamBridge = <
       audioConditioning,
       context: options.context,
       costTelemetry: options.costTelemetry,
+      greeting: options.greeting,
       id: bridgeState.sessionId,
       languageStrategy: options.languageStrategy,
       lexicon,
@@ -1189,6 +1190,12 @@ export const createTwilioMediaStreamBridge = <
       tts: options.tts,
       turnDetection,
     } satisfies CreateVoiceSessionOptions<TContext, TSession, TResult>);
+
+    // Twilio Media Streams have no separate "open" event that carries the
+    // outbound socket, so the bridge must connect the session itself (the
+    // browser voice() plugin does the same on ws open). connect() opens STT/TTS
+    // and fires the greeting; without it the call is silent.
+    await sessionHandle.connect(voiceSocket);
 
     return sessionHandle;
   };
@@ -1260,7 +1267,7 @@ export const createTwilioMediaStreamBridge = <
             bridgeState.reviewRecorder?.recordTwilioOutbound({
               event: "clear",
             });
-            await (options.trace)?.append({
+            await options.trace?.append({
               at: Date.now(),
               payload: {
                 callSid: bridgeState.callSid ?? undefined,
@@ -1304,7 +1311,6 @@ export const createTwilioMediaStreamBridge = <
             streamSid: bridgeState.streamSid ?? undefined,
           });
           await sessionHandle?.close("twilio-stop");
-          
       }
     },
   };
@@ -1413,12 +1419,16 @@ export const createTwilioVoiceRoutes = <
     })
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
-        const bridge = bridges.get(ws);
-        bridges.delete(ws);
+        // Elysia hands a fresh ElysiaWS wrapper per event; key the bridge map by
+        // the stable underlying socket (ws.raw) so one bridge persists per call.
+        const key = ws.raw ?? ws;
+        const bridge = bridges.get(key);
+        bridges.delete(key);
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
-        let bridge = bridges.get(ws);
+        const key = ws.raw ?? ws;
+        let bridge = bridges.get(key);
         if (!bridge) {
           bridge = createTwilioMediaStreamBridge(
             {
@@ -1431,7 +1441,7 @@ export const createTwilioVoiceRoutes = <
             },
             options,
           );
-          bridges.set(ws, bridge);
+          bridges.set(key, bridge);
         }
 
         await bridge.handleMessage(raw as string);

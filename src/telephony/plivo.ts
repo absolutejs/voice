@@ -538,7 +538,7 @@ export const createPlivoMediaStreamBridge = <
   const bridge = createTwilioMediaStreamBridge(
     createPlivoTwilioSocketAdapter(socket),
     {
-      ...(options),
+      ...options,
       telephonyMediaCarrier: "plivo",
       onVoiceMessage: options.onVoiceMessage
         ? (input) =>
@@ -880,7 +880,7 @@ export const createVoicePlivoWebhookVerifier =
     query: Record<string, unknown>;
     request: Request;
   }): Promise<VoiceTelephonyWebhookVerificationResult> => {
-    const {verificationUrl} = options;
+    const { verificationUrl } = options;
     const verification = await verifyVoicePlivoWebhookSignature({
       authToken: options.authToken,
       body: input.body,
@@ -897,7 +897,7 @@ export const createVoicePlivoWebhookVerifier =
       return verification;
     }
 
-    const {nonceStore} = options;
+    const { nonceStore } = options;
     if (!nonceStore) {
       return verification;
     }
@@ -928,7 +928,7 @@ export const createVoiceRedisPlivoWebhookNonceStore = (
 ): VoicePlivoWebhookNonceStore => {
   const client = options.client ?? new Bun.RedisClient(options.url);
   const keyPrefix = options.keyPrefix?.trim() || "voice:plivo-webhook-nonce";
-  const {ttlSeconds} = options;
+  const { ttlSeconds } = options;
 
   const setNonce = async (nonce: string, nx: boolean) => {
     const key = getPlivoRedisNonceKey(keyPrefix, nonce);
@@ -1235,8 +1235,11 @@ export const createPlivoVoiceRoutes = <
     })
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
-        const bridge = bridges.get(ws);
-        bridges.delete(ws);
+        // Key by the stable underlying socket (ws.raw); Elysia recreates the
+        // ElysiaWS wrapper per event, so keying by ws would miss/leak the bridge.
+        const key = ws.raw ?? ws;
+        const bridge = bridges.get(key);
+        bridges.delete(key);
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
@@ -1246,7 +1249,8 @@ export const createPlivoVoiceRoutes = <
           return;
         }
 
-        let bridge = bridges.get(ws);
+        const key = ws.raw ?? ws;
+        let bridge = bridges.get(key);
         if (!bridge) {
           bridge = createPlivoMediaStreamBridge(
             {
@@ -1259,7 +1263,7 @@ export const createPlivoVoiceRoutes = <
             },
             options.bridge,
           );
-          bridges.set(ws, bridge);
+          bridges.set(key, bridge);
         }
 
         await bridge.handleMessage(raw as string);
@@ -1276,7 +1280,7 @@ export const createPlivoVoiceRoutes = <
         resolveSessionId:
           options.webhook?.resolveSessionId ??
           (({ event }) => {
-            const {metadata} = event;
+            const { metadata } = event;
 
             return typeof metadata?.SessionId === "string"
               ? metadata.SessionId
