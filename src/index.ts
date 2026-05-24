@@ -1325,6 +1325,7 @@ export {
   resolveVoiceProviderRoutingPolicyPreset,
   createVoiceProviderRouter,
 } from "./core/modelAdapters";
+export { createCachedTTS } from "./core/cachedTTS";
 export { createOpenAIVoiceTTS } from "./core/openaiTTS";
 export {
   createVoiceProviderHealthHTMLHandler,
@@ -1896,6 +1897,7 @@ export type {
   VoiceJSONAssistantModelHandler,
   VoiceJSONAssistantModelOptions,
 } from "./core/modelAdapters";
+export type { CachedTTSOptions } from "./core/cachedTTS";
 export type {
   OpenAIVoiceTTSOptions,
   OpenAIVoiceTTSVoice,
