@@ -93,10 +93,10 @@ const toProviderTools = (
 
   return tools.map((tool) => ({
     description: tool.description ?? "",
-    input_schema: (tool.parameters ?? {
+    input_schema: tool.parameters ?? {
       properties: {},
       type: "object",
-    }),
+    },
     name: tool.name,
   }));
 };

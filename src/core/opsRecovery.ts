@@ -180,7 +180,7 @@ const collectFailedSessions = (
       if (event.type !== "session.error") {
         return false;
       }
-      const {providerStatus} = event.payload;
+      const { providerStatus } = event.payload;
 
       return providerStatus !== "success" && providerStatus !== "fallback";
     })

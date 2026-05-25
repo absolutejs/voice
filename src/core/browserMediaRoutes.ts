@@ -107,10 +107,7 @@ const mergeIssues = (
     return report;
   }
 
-  const issues = [
-    ...report.issues,
-    ...(continuity.issues),
-  ];
+  const issues = [...report.issues, ...continuity.issues];
   const status =
     report.status === "fail" || continuity.status === "fail"
       ? "fail"

@@ -156,7 +156,7 @@ export const summarizeVoiceReconnectProofSessions = (
 ): VoiceReconnectContractSnapshot[] =>
   sessions
     .map((session) => {
-      const {attempts} = session.reconnect;
+      const { attempts } = session.reconnect;
       const at =
         session.lastActivityAt ??
         session.reconnect.lastDisconnectAt ??

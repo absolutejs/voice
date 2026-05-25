@@ -1,8 +1,9 @@
-import { computed, defineComponent, h } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 import {
   createVoiceCallDebuggerLaunchViewModel,
   type VoiceCallDebuggerLaunchOptions,
 } from "../client/callDebuggerWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceCallDebugger } from "./useVoiceCallDebugger";
 
 export const VoiceCallDebuggerLaunch = defineComponent({
@@ -12,6 +13,7 @@ export const VoiceCallDebuggerLaunch = defineComponent({
     description: { default: undefined, type: String },
     href: { default: undefined, type: String },
     intervalMs: { default: 0, type: Number },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     linkLabel: { default: undefined, type: String },
     path: { required: true, type: String },
     title: { default: undefined, type: String },
@@ -21,6 +23,7 @@ export const VoiceCallDebuggerLaunch = defineComponent({
       description: props.description,
       href: props.href,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       linkLabel: props.linkLabel,
       title: props.title,
     } satisfies VoiceCallDebuggerLaunchOptions;

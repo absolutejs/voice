@@ -14,7 +14,7 @@ export function VoiceAgentSquadStatus({
 }: VoiceAgentSquadStatusProps) {
   const snapshot = useVoiceAgentSquadStatus(path, options);
   const model = createVoiceAgentSquadStatusViewModel(snapshot, options);
-  const {current} = model;
+  const { current } = model;
 
   return (
     <section className="absolute-voice-agent-squad-status">

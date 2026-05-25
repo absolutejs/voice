@@ -235,7 +235,7 @@ const toGeneratedAt = (value: number | string | undefined) =>
 
 const getProofPackMetadata = (proofPack: VoiceProofPackSourceValue) => {
   const built = buildVoiceProofPack(proofPack);
-  const {generatedAt} = built;
+  const { generatedAt } = built;
   const generatedAtMs = Date.parse(generatedAt);
 
   return {

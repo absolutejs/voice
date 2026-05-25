@@ -99,7 +99,7 @@ const resolveRequestedProvider = <TProvider extends string>(
   context: VoiceProviderFailureSimulationContext<TProvider>,
   providers: readonly TProvider[],
 ): TProvider => {
-  const {provider} = getContextQuery(context);
+  const { provider } = getContextQuery(context);
 
   return providers.includes(provider) ? provider : providers[0]!;
 };
@@ -168,7 +168,7 @@ export const createVoiceProviderFailureSimulator = <
     },
     providers: providerModels,
     allowProviders: async (input) => {
-      const {recoverProvider} = getContextQuery(input.context);
+      const { recoverProvider } = getContextQuery(input.context);
       if (recoverProvider) {
         return [recoverProvider];
       }

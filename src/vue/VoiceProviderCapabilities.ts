@@ -1,8 +1,9 @@
-import { computed, defineComponent, h } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 import {
   createVoiceProviderCapabilitiesViewModel,
   type VoiceProviderCapabilitiesWidgetOptions,
 } from "../client/providerCapabilitiesWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceProviderCapabilities } from "./useVoiceProviderCapabilities";
 
 export const VoiceProviderCapabilities = defineComponent({
@@ -20,6 +21,7 @@ export const VoiceProviderCapabilities = defineComponent({
       default: 5000,
       type: Number,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     path: {
       default: "/api/provider-capabilities",
       type: String,
@@ -33,6 +35,7 @@ export const VoiceProviderCapabilities = defineComponent({
     const options = {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } satisfies VoiceProviderCapabilitiesWidgetOptions;
     const capabilities = useVoiceProviderCapabilities(props.path, options);

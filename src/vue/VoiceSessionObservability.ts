@@ -1,9 +1,10 @@
-import { defineComponent, h, onBeforeUnmount, ref } from "vue";
+import { defineComponent, h, onBeforeUnmount, ref, type PropType } from "vue";
 import {
   createVoiceSessionObservabilityViewModel,
   type VoiceSessionObservabilityWidgetOptions,
   type VoiceSessionObservabilityViewModel,
 } from "../client/sessionObservabilityWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { createVoiceSessionObservabilityStore } from "../client/sessionObservability";
 
 export const VoiceSessionObservability = defineComponent({
@@ -16,6 +17,7 @@ export const VoiceSessionObservability = defineComponent({
       default: "/api/voice/session-observability/latest",
       type: String,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     title: String,
   },
   setup(props) {
@@ -23,6 +25,7 @@ export const VoiceSessionObservability = defineComponent({
       description: props.description,
       intervalMs: props.intervalMs,
       maxTurns: props.maxTurns,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     };
     const store = createVoiceSessionObservabilityStore(props.path, options);

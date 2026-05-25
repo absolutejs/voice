@@ -8,6 +8,7 @@ import {
   type VoiceProviderCapabilitiesClientOptions,
   type VoiceProviderCapabilitiesSnapshot,
 } from "./providerCapabilities";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceProviderCapabilityCardView<TProvider extends string = string> =
   VoiceProviderCapabilitySummary<TProvider> & {
@@ -156,13 +157,22 @@ export const defineVoiceProviderCapabilitiesElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceProviderCapabilities(
           this,
           this.getAttribute("path") ?? "/api/provider-capabilities",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }

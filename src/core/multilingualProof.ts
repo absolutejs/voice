@@ -386,7 +386,7 @@ export const buildVoiceMultilingualProofReadinessCheck = (
       value: 0,
     };
   }
-  const {failedAdapters} = report.summary;
+  const { failedAdapters } = report.summary;
   if (failedAdapters.length === 0) {
     const passingDetail = report.adapters
       .map(

@@ -653,7 +653,7 @@ export const evaluateSTTBenchmarkAcceptance = (
   const failures: string[] = [];
   const details = thresholds;
 
-  const {overallPassRate} = details;
+  const { overallPassRate } = details;
   if (
     overallPassRate !== undefined &&
     report.summary.passRate < overallPassRate

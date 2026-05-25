@@ -5,6 +5,7 @@ import {
   type VoiceTraceTimelineClientOptions,
   type VoiceTraceTimelineSnapshot,
 } from "./traceTimeline";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceTraceTimelineSessionView = VoiceTraceTimelineSession & {
   detailHref: string;
@@ -125,6 +126,7 @@ export const defineVoiceTraceTimelineElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         const limit = Number(this.getAttribute("limit") ?? 3);
         this.mounted = mountVoiceTraceTimeline(
           this,
@@ -134,11 +136,19 @@ export const defineVoiceTraceTimelineElement = (
             detailBasePath: this.getAttribute("detail-base-path") ?? undefined,
             incidentBundleBasePath:
               this.getAttribute("incident-bundle-base-path") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             limit: Number.isFinite(limit) ? limit : 3,
             operationsRecordBasePath:
               this.getAttribute("operations-record-base-path") ?? undefined,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }

@@ -431,5 +431,5 @@ export const renderVoiceProviderOrchestrationMarkdown = (
     }
   }
 
-  return `${lines.join("\n").trimEnd()  }\n`;
+  return `${lines.join("\n").trimEnd()}\n`;
 };

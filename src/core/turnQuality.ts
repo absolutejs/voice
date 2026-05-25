@@ -85,7 +85,7 @@ const summarizeTurn = (
   turn: VoiceTurnRecord,
   options: { confidenceWarnThreshold: number },
 ): VoiceTurnQualityItem => {
-  const {quality} = turn;
+  const { quality } = turn;
   const correctionChanged = quality?.correction?.changed === true;
   const fallbackUsed = quality?.fallbackUsed === true;
   const lowConfidence =
@@ -134,9 +134,7 @@ const resolveSessions = async <
   }
   const ids =
     options.sessionIds ??
-    ((await options.store.list())).map(
-      (summary) => summary.id,
-    );
+    (await options.store.list()).map((summary) => summary.id);
   const hydrated = await Promise.all(
     ids.slice(0, options.limit ?? 25).map((id) => options.store?.get(id)),
   );

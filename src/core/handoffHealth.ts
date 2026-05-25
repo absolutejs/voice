@@ -91,7 +91,7 @@ const normalizeDelivery = (
 const normalizeDeliveries = (
   payload: Record<string, unknown>,
 ): VoiceHandoffHealthDelivery[] => {
-  const {deliveries} = payload;
+  const { deliveries } = payload;
   if (!deliveries || typeof deliveries !== "object") {
     return [];
   }

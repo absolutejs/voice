@@ -417,7 +417,7 @@ const buildHelpdeskTicketBody = (
   event: StoredVoiceIntegrationEvent,
   project?: string,
 ) => {
-  const {payload} = event;
+  const { payload } = event;
 
   return {
     event: {
@@ -479,7 +479,7 @@ const buildCRMActivityBody = (
   event: StoredVoiceIntegrationEvent,
   pipeline?: string,
 ) => {
-  const {payload} = event;
+  const { payload } = event;
   const entityType =
     event.type === "call.completed"
       ? "call"
@@ -548,7 +548,7 @@ const resolveVoiceSinkText = (
   event: StoredVoiceIntegrationEvent,
   fallback: string,
 ) => {
-  const {payload} = event;
+  const { payload } = event;
   if (typeof payload.recommendedAction === "string") {
     return payload.recommendedAction;
   }
@@ -762,7 +762,7 @@ const resolveZendeskExternalId = (responseBody: unknown) => {
     responseBody.ticket &&
     "id" in responseBody.ticket
   ) {
-    const {id} = responseBody.ticket;
+    const { id } = responseBody.ticket;
 
     return typeof id === "string" || typeof id === "number"
       ? String(id)
@@ -778,7 +778,7 @@ const resolveHubSpotExternalId = (responseBody: unknown) => {
     responseBody &&
     "id" in responseBody
   ) {
-    const {id} = responseBody;
+    const { id } = responseBody;
 
     return typeof id === "string" || typeof id === "number"
       ? String(id)
@@ -803,7 +803,7 @@ const resolveLinearExternalId = (responseBody: unknown) => {
     responseBody.data.issueCreate.issue &&
     "id" in responseBody.data.issueCreate.issue
   ) {
-    const {id} = responseBody.data.issueCreate.issue;
+    const { id } = responseBody.data.issueCreate.issue;
 
     return typeof id === "string" || typeof id === "number"
       ? String(id)
@@ -1364,7 +1364,7 @@ export const deliverVoiceIntegrationEventToSinks = async (input: {
   event: StoredVoiceIntegrationEvent;
   sinks: VoiceIntegrationSink[];
 }): Promise<StoredVoiceIntegrationEvent> => {
-  let {event} = input;
+  let { event } = input;
   for (const sink of input.sinks) {
     const previous = event.sinkDeliveries?.[sink.id];
     const result =

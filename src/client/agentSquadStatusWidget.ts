@@ -120,7 +120,7 @@ export const renderVoiceAgentSquadStatusHTML = (
   options: VoiceAgentSquadStatusWidgetOptions = {},
 ) => {
   const model = createVoiceAgentSquadStatusViewModel(snapshot, options);
-  const {current} = model;
+  const { current } = model;
   const rows = model.sessions.length
     ? model.sessions
         .slice(0, 5)

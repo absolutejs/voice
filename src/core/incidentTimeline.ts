@@ -1220,7 +1220,7 @@ export const createVoiceIncidentTimelineRoutes = (
         );
       })
       .post(`${actionPath}/:actionId`, async ({ params, request }) => {
-        const {actionId} = params;
+        const { actionId } = params;
         const report = await buildVoiceIncidentTimelineReport(options);
         const action = report.actions.find((item) => item.id === actionId);
         const handler = options.actionHandlers?.[actionId];

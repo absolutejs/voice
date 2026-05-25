@@ -111,7 +111,7 @@ export const createVoiceAssistantExperiment = <
       "createVoiceAssistantExperiment requires at least one variant",
     );
   }
-  const {allocator} = options;
+  const { allocator } = options;
   const findById = (id: string) => {
     const found = options.variants.find((v) => v.id === id);
 

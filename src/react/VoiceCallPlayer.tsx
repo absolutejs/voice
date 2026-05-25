@@ -224,7 +224,9 @@ export const VoiceCallPlayer = ({
 
           return (
             <li
-              key={transcript.id} onClick={() => player.seekToTranscript(transcript.id)} style={{
+              key={transcript.id}
+              onClick={() => player.seekToTranscript(transcript.id)}
+              style={{
                 background: active ? "rgba(59,130,246,0.18)" : "transparent",
                 borderRadius: 8,
                 cursor: "pointer",

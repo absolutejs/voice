@@ -399,7 +399,7 @@ const renderSessionKind = (
   kind: VoiceRoutingEventKind,
   summary: VoiceRoutingKindSummary,
 ) => {
-  const {latest} = summary;
+  const { latest } = summary;
   const provider = latest?.provider ?? summary.providers[0] ?? "none";
   const status = latest?.status ?? "idle";
   const fallback =

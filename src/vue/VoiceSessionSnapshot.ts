@@ -1,8 +1,9 @@
-import { computed, defineComponent, h } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 import {
   createVoiceSessionSnapshotViewModel,
   type VoiceSessionSnapshotWidgetOptions,
 } from "../client/sessionSnapshotWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceSessionSnapshot } from "./useVoiceSessionSnapshot";
 
 export const VoiceSessionSnapshot = defineComponent({
@@ -12,6 +13,7 @@ export const VoiceSessionSnapshot = defineComponent({
     description: { default: undefined, type: String },
     downloadLabel: { default: undefined, type: String },
     intervalMs: { default: 0, type: Number },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     path: { required: true, type: String },
     title: { default: undefined, type: String },
     turnId: { default: undefined, type: String },
@@ -21,6 +23,7 @@ export const VoiceSessionSnapshot = defineComponent({
       description: props.description,
       downloadLabel: props.downloadLabel,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
       turnId: props.turnId,
     } satisfies VoiceSessionSnapshotWidgetOptions;

@@ -502,7 +502,7 @@ const initVoiceHTMXRoot = (root: HTMLElement) => {
     const hasStarted =
       (activeMode ? hasStartedModes[activeMode] : false) ||
       voice.turns.length > 0;
-    const {status} = voice;
+    const { status } = voice;
     connectionMetric.textContent = voice.isConnected ? "Connected" : "Waiting";
     errorStatus.textContent = micError || voice.error || "None";
     if (reconnectStatus) {

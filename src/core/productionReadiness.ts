@@ -1398,7 +1398,8 @@ const summarizeVoiceProductionReadinessGateProfile = (
 export const assertVoiceProductionReadinessEvidence = (
   report: VoiceProductionReadinessReport,
   input: VoiceProductionReadinessAssertionInput = {},
-): VoiceProductionReadinessAssertionReport => assertVoiceEvidence(
+): VoiceProductionReadinessAssertionReport =>
+  assertVoiceEvidence(
     "Voice production readiness assertion failed",
     evaluateVoiceProductionReadinessEvidence(report, input),
   );
@@ -1412,7 +1413,7 @@ export const evaluateVoiceProductionReadinessEvidence = (
   const requiredStatus = input.requireStatus ?? "pass";
   const requireGateOk = input.requireGateOk ?? true;
   const maxFailures = input.maxFailures ?? 0;
-  const {maxWarnings} = input;
+  const { maxWarnings } = input;
 
   if (report.status !== requiredStatus) {
     issues.push(
@@ -4290,7 +4291,7 @@ export const buildVoiceProductionReadinessReport = async (
                     ? `${gap.kind.toUpperCase()} ${gap.provider} missing ${gap.missing.join(", ")}`
                     : `${gap.kind.toUpperCase()} provider is not configured`,
                 )
-                .join("; ")  }.`
+                .join("; ")}.`
             : "Provider stack capability coverage needs review.",
       href:
         options.links?.providerRoutingContracts ??
@@ -4337,7 +4338,7 @@ export const buildVoiceProductionReadinessReport = async (
 
                   return `${row.kind.toUpperCase()} ${row.provider}: ${issues}`;
                 })
-                .join("; ")  }.`
+                .join("; ")}.`
             : "Provider contract matrix needs review.",
       href: options.links?.providerContracts ?? "/provider-contracts",
       label: "Provider contract matrix",

@@ -1,9 +1,10 @@
-import { defineComponent, h } from "vue";
+import { defineComponent, h, type PropType } from "vue";
 import { useVoiceProviderContracts } from "./useVoiceProviderContracts";
 import {
   createVoiceProviderContractsViewModel,
   type VoiceProviderContractsWidgetOptions,
 } from "../client/providerContractsWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 
 export const VoiceProviderContracts = defineComponent({
   name: "VoiceProviderContracts",
@@ -14,12 +15,14 @@ export const VoiceProviderContracts = defineComponent({
       default: "/api/provider-contracts",
       type: String,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     title: String,
   },
   setup(props) {
     const state = useVoiceProviderContracts(props.path, {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } as VoiceProviderContractsWidgetOptions);
 
@@ -34,6 +37,7 @@ export const VoiceProviderContracts = defineComponent({
         {
           description: props.description,
           intervalMs: props.intervalMs,
+          reactiveSource: props.reactiveSource,
           title: props.title,
         },
       );

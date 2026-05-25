@@ -379,7 +379,8 @@ export const assertVoiceProviderContractMatrixEvidence = <
 >(
   report: VoiceProviderContractMatrixReport<TProvider>,
   input: VoiceProviderContractMatrixAssertionInput<TProvider> = {},
-): VoiceProviderContractMatrixAssertionReport<TProvider> => assertVoiceEvidence(
+): VoiceProviderContractMatrixAssertionReport<TProvider> =>
+  assertVoiceEvidence(
     "Voice provider contract matrix assertion failed",
     evaluateVoiceProviderContractMatrixEvidence(report, input),
   );
@@ -815,7 +816,8 @@ export const assertVoiceProviderStackEvidence = <
 >(
   report: VoiceProviderStackCapabilityGapReport<TProvider>,
   input: VoiceProviderStackAssertionInput<TProvider> = {},
-): VoiceProviderStackAssertionReport<TProvider> => assertVoiceEvidence(
+): VoiceProviderStackAssertionReport<TProvider> =>
+  assertVoiceEvidence(
     "Voice provider stack assertion failed",
     evaluateVoiceProviderStackEvidence(report, input),
   );

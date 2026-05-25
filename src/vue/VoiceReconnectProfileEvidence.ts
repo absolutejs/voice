@@ -1,8 +1,9 @@
-import { defineComponent, h } from "vue";
+import { defineComponent, h, type PropType } from "vue";
 import {
   createVoiceReconnectProfileEvidenceViewModel,
   type VoiceReconnectProfileEvidenceWidgetOptions,
 } from "../client/reconnectProfileEvidenceWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceReconnectProfileEvidence } from "./useVoiceReconnectProfileEvidence";
 
 export const VoiceReconnectProfileEvidence = defineComponent({
@@ -14,12 +15,14 @@ export const VoiceReconnectProfileEvidence = defineComponent({
       default: "/api/voice/reconnect-profile-evidence",
       type: String,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     title: String,
   },
   setup(props) {
     const state = useVoiceReconnectProfileEvidence(props.path, {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } as VoiceReconnectProfileEvidenceWidgetOptions);
 
@@ -34,6 +37,7 @@ export const VoiceReconnectProfileEvidence = defineComponent({
         {
           description: props.description,
           intervalMs: props.intervalMs,
+          reactiveSource: props.reactiveSource,
           title: props.title,
         },
       );

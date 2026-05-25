@@ -246,7 +246,8 @@ const normalizeHintAliases = (hint: VoicePhraseHint) =>
 export const applyPhraseHintCorrections = (
   text: string,
   phraseHints: VoicePhraseHint[],
-): VoicePhraseHintCorrectionResult => applyRiskTieredPhraseHintCorrections(text, phraseHints, {
+): VoicePhraseHintCorrectionResult =>
+  applyRiskTieredPhraseHintCorrections(text, phraseHints, {
     riskTier: "risky",
   });
 

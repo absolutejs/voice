@@ -1,8 +1,13 @@
 import type { VoiceProviderContractMatrixReport } from "../core/providerStackRecommendations";
+import {
+  bindVoiceReactiveSource,
+  type VoiceReactiveSource,
+} from "./reactiveSource";
 
 export type VoiceProviderContractsClientOptions = {
   fetch?: typeof fetch;
   intervalMs?: number;
+  reactiveSource?: VoiceReactiveSource;
 };
 
 export type VoiceProviderContractsSnapshot<TProvider extends string = string> =
@@ -61,12 +66,14 @@ export const createVoiceProviderContractsStore = <
       throw error;
     }
   };
+  let unbindReactiveSource: () => void = () => {};
   const close = () => {
     closed = true;
     if (timer) {
       clearInterval(timer);
       timer = undefined;
     }
+    unbindReactiveSource();
     listeners.clear();
   };
 
@@ -74,6 +81,13 @@ export const createVoiceProviderContractsStore = <
     timer = setInterval(() => {
       void refresh().catch(() => {});
     }, options.intervalMs);
+  }
+
+  if (typeof window !== "undefined" && options.reactiveSource) {
+    unbindReactiveSource = bindVoiceReactiveSource(
+      () => void refresh().catch(() => {}),
+      options.reactiveSource,
+    );
   }
 
   return {

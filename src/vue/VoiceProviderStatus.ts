@@ -1,8 +1,9 @@
-import { computed, defineComponent, h } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 import {
   createVoiceProviderStatusViewModel,
   type VoiceProviderStatusWidgetOptions,
 } from "../client/providerStatusWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceProviderStatus } from "./useVoiceProviderStatus";
 
 export const VoiceProviderStatus = defineComponent({
@@ -20,6 +21,7 @@ export const VoiceProviderStatus = defineComponent({
       default: 5000,
       type: Number,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     path: {
       default: "/api/provider-status",
       type: String,
@@ -33,6 +35,7 @@ export const VoiceProviderStatus = defineComponent({
     const options = {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } satisfies VoiceProviderStatusWidgetOptions;
     const status = useVoiceProviderStatus(props.path, options);

@@ -146,7 +146,7 @@ export const summarizeVoiceProviderHealth = async <
       continue;
     }
 
-    const {provider} = event.payload;
+    const { provider } = event.payload;
     if (!isAllowedProvider(provider)) {
       continue;
     }
@@ -155,7 +155,7 @@ export const summarizeVoiceProviderHealth = async <
       : undefined;
     const applyProviderHealth = () => {
       const entry = getEntry(provider);
-      const {providerHealth} = event.payload;
+      const { providerHealth } = event.payload;
       if (providerHealth && typeof providerHealth === "object") {
         const suppressedUntil = getNumber(
           (providerHealth as Record<string, unknown>).suppressedUntil,
@@ -193,7 +193,7 @@ export const summarizeVoiceProviderHealth = async <
         entry.elapsedCount += 1;
         entry.elapsedTotal += elapsedMs;
       }
-      const {selectedProvider} = event.payload;
+      const { selectedProvider } = event.payload;
       if (
         providerStatus === "fallback" &&
         isAllowedProvider(selectedProvider) &&

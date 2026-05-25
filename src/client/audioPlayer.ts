@@ -83,7 +83,7 @@ const decodePCM16LEChunk = (
   audioContext: MinimalAudioContext,
   chunk: VoiceAudioChunk,
 ) => {
-  const {format} = chunk;
+  const { format } = chunk;
   if (format.container !== "raw" || format.encoding !== "pcm_s16le") {
     throw new Error(
       `Unsupported assistant audio format: ${format.container}/${format.encoding}`,

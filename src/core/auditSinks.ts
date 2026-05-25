@@ -230,7 +230,7 @@ const createVoiceAuditS3ObjectKey = (
 };
 
 const resolveVoiceS3DeliveredTo = (options: S3Options, key: string) => {
-  const {bucket} = (options as { bucket?: string });
+  const { bucket } = options as { bucket?: string };
 
   return bucket ? `s3://${bucket}/${key}` : `s3://${key}`;
 };

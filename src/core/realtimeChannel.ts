@@ -167,7 +167,8 @@ const eventHasRealtimeAssistantProof = (event: StoredVoiceTraceEvent) =>
 export const assertVoiceRealtimeChannelEvidence = (
   report: VoiceRealtimeChannelReport,
   input: VoiceRealtimeChannelAssertionInput = {},
-): VoiceRealtimeChannelAssertionReport => assertVoiceEvidence(
+): VoiceRealtimeChannelAssertionReport =>
+  assertVoiceEvidence(
     "Voice realtime channel assertion failed",
     evaluateVoiceRealtimeChannelEvidence(report, input),
   );
@@ -255,7 +256,7 @@ export const buildVoiceRealtimeChannelReport = (
     .sort((a, b) => a - b)[0];
   const minInputAudioSamples = options.minInputAudioSamples ?? 1;
   const minAssistantAudioSamples = options.minAssistantAudioSamples ?? 1;
-  const {maxFirstAudioLatencyMs} = options;
+  const { maxFirstAudioLatencyMs } = options;
 
   if (inputAudioSamples < minInputAudioSamples) {
     issues.push({

@@ -406,7 +406,8 @@ const isCallDisposition = (value: unknown): value is VoiceCallDisposition =>
 
 export const assertVoiceTelephonyWebhookNormalizationEvidence = (
   input: VoiceTelephonyWebhookNormalizationEvidenceInput = {},
-): VoiceTelephonyWebhookNormalizationEvidenceReport => assertVoiceEvidence(
+): VoiceTelephonyWebhookNormalizationEvidenceReport =>
+  assertVoiceEvidence(
     "Voice telephony webhook normalization evidence assertion failed",
     evaluateVoiceTelephonyWebhookNormalizationEvidence(input),
   );

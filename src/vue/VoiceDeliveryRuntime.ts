@@ -1,8 +1,9 @@
-import { defineComponent, h } from "vue";
+import { defineComponent, h, type PropType } from "vue";
 import {
   createVoiceDeliveryRuntimeViewModel,
   type VoiceDeliveryRuntimeWidgetOptions,
 } from "../client/deliveryRuntimeWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceDeliveryRuntime } from "./useVoiceDeliveryRuntime";
 
 export const VoiceDeliveryRuntime = defineComponent({
@@ -18,12 +19,14 @@ export const VoiceDeliveryRuntime = defineComponent({
       default: "/api/voice-delivery-runtime",
       type: String,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     title: String,
   },
   setup(props) {
     const options = {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } satisfies VoiceDeliveryRuntimeWidgetOptions;
     const runtime = useVoiceDeliveryRuntime(props.path, options);

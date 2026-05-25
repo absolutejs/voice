@@ -297,7 +297,7 @@ const parseControlMessage = (
 ): VoiceMonitorControlMessage | undefined => {
   if (!raw || typeof raw !== "object") return undefined;
   const record = raw as Record<string, unknown>;
-  const {type} = record;
+  const { type } = record;
   if (typeof type !== "string") return undefined;
   if (type === "transfer") {
     if (typeof record.target !== "string") return undefined;

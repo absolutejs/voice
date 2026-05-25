@@ -410,7 +410,7 @@ export const summarizeVoiceSessionReplay = async (
     redact: options.redact,
     title: options.title ?? `Voice Session ${options.sessionId}`,
   });
-  const {startedAt} = replay.summary;
+  const { startedAt } = replay.summary;
 
   return {
     evaluation: replay.evaluation,
@@ -445,7 +445,7 @@ export const summarizeVoiceSessions = async (
 
   const sessions = [...grouped.entries()].map(([sessionId, sessionEvents]) => {
     const sorted = filterVoiceTraceEvents(sessionEvents);
-    const {summary} = buildVoiceTraceReplay(sorted, {
+    const { summary } = buildVoiceTraceReplay(sorted, {
       evaluation: {
         requireAssistantReply: false,
         requireCompletedCall: false,

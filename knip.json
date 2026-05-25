@@ -1,9 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": [
-    "src/client/htmxBootstrap.ts",
-    "test/**/*.test.ts"
-  ],
+  "entry": ["src/client/htmxBootstrap.ts", "test/**/*.test.ts"],
   "project": ["src/**/*.{ts,tsx}"],
   "ignoreBinaries": ["eslint"]
 }

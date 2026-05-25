@@ -1,8 +1,13 @@
 import type { VoiceReconnectProfileEvidenceSummary } from "../core/proofTrends";
+import {
+  bindVoiceReactiveSource,
+  type VoiceReactiveSource,
+} from "./reactiveSource";
 
 export type VoiceReconnectProfileEvidenceClientOptions = {
   fetch?: typeof fetch;
   intervalMs?: number;
+  reactiveSource?: VoiceReactiveSource;
 };
 
 export type VoiceReconnectProfileEvidenceSnapshot = {
@@ -55,12 +60,14 @@ export const createVoiceReconnectProfileEvidenceStore = (
       throw error;
     }
   };
+  let unbindReactiveSource: () => void = () => {};
   const close = () => {
     closed = true;
     if (timer) {
       clearInterval(timer);
       timer = undefined;
     }
+    unbindReactiveSource();
     listeners.clear();
   };
 
@@ -72,6 +79,13 @@ export const createVoiceReconnectProfileEvidenceStore = (
     timer = setInterval(() => {
       void refresh().catch(() => {});
     }, options.intervalMs);
+  }
+
+  if (typeof window !== "undefined" && options.reactiveSource) {
+    unbindReactiveSource = bindVoiceReactiveSource(
+      () => void refresh().catch(() => {}),
+      options.reactiveSource,
+    );
   }
 
   return {

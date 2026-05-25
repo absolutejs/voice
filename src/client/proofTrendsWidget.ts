@@ -8,6 +8,7 @@ import {
   type VoiceProofTrendsClientOptions,
   type VoiceProofTrendsSnapshot,
 } from "./proofTrends";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 type VoiceProofTrendsMetricView = {
   label: string;
@@ -61,7 +62,7 @@ export const createVoiceProofTrendsViewModel = (
   snapshot: VoiceProofTrendsSnapshot,
   options: VoiceProofTrendsWidgetOptions = {},
 ): VoiceProofTrendsViewModel => {
-  const {report} = snapshot;
+  const { report } = snapshot;
   const metrics: VoiceProofTrendsMetricView[] = report
     ? [
         { label: "Status", value: report.status.toUpperCase() },
@@ -130,14 +131,22 @@ export const defineVoiceProofTrendsElement = (
       private mounted?: ReturnType<typeof mountVoiceProofTrends>;
 
       connectedCallback() {
+        const intervalMs =
+          Number(this.getAttribute("interval-ms") ?? 0) || undefined;
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceProofTrends(
           this,
           this.getAttribute("path") ?? "/api/voice/proof-trends",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs:
-              Number(this.getAttribute("interval-ms") ?? 0) || undefined,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : { intervalMs }),
           },
         );
       }

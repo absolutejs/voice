@@ -1,8 +1,13 @@
 import type { VoiceOpsStatusReport } from "../core/opsStatus";
+import {
+  bindVoiceReactiveSource,
+  type VoiceReactiveSource,
+} from "./reactiveSource";
 
 export type VoiceOpsStatusClientOptions = {
   fetch?: typeof fetch;
   intervalMs?: number;
+  reactiveSource?: VoiceReactiveSource;
 };
 
 export type VoiceOpsStatusSnapshot = {
@@ -59,12 +64,14 @@ export const createVoiceOpsStatusStore = (
       throw error;
     }
   };
+  let unbindReactiveSource: () => void = () => {};
   const close = () => {
     closed = true;
     if (timer) {
       clearInterval(timer);
       timer = undefined;
     }
+    unbindReactiveSource();
     listeners.clear();
   };
 
@@ -76,6 +83,13 @@ export const createVoiceOpsStatusStore = (
     timer = setInterval(() => {
       void refresh().catch(() => {});
     }, options.intervalMs);
+  }
+
+  if (typeof window !== "undefined" && options.reactiveSource) {
+    unbindReactiveSource = bindVoiceReactiveSource(
+      () => void refresh().catch(() => {}),
+      options.reactiveSource,
+    );
   }
 
   return {

@@ -155,9 +155,7 @@ const getPayloadString = (
   event: StoredVoiceIntegrationEvent,
   key: string,
 ): string | undefined =>
-  typeof event.payload[key] === "string"
-    ? (event.payload[key])
-    : undefined;
+  typeof event.payload[key] === "string" ? event.payload[key] : undefined;
 
 const toList = async <T>(input: T[] | ListStore<T> | undefined) =>
   Array.isArray(input) ? input : ((await input?.list()) ?? []);
@@ -169,7 +167,7 @@ const hydrateSessions = async <
 ) => {
   if (!input) return [];
   if (Array.isArray(input)) return input;
-  const summaries = (await input.list());
+  const summaries = await input.list();
   const sessions = await Promise.all(
     summaries.map((summary) => input.get(summary.id)),
   );
@@ -305,7 +303,8 @@ const reportContract = (input: {
 export const assertVoiceOutcomeContractEvidence = (
   report: VoiceOutcomeContractSuiteReport,
   input: VoiceOutcomeContractAssertionInput = {},
-): VoiceOutcomeContractAssertionReport => assertVoiceEvidence(
+): VoiceOutcomeContractAssertionReport =>
+  assertVoiceEvidence(
     "Voice outcome contract evidence assertion failed",
     evaluateVoiceOutcomeContractEvidence(report, input),
   );

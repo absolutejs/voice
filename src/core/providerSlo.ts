@@ -228,9 +228,7 @@ const isRoutingEvent = (event: unknown): event is VoiceRoutingEvent =>
 const normalizeEvents = (
   events: StoredVoiceTraceEvent[] | VoiceRoutingEvent[],
 ): VoiceRoutingEvent[] =>
-  events.every(isRoutingEvent)
-    ? [...(events)]
-    : listVoiceRoutingEvents(events);
+  events.every(isRoutingEvent) ? [...events] : listVoiceRoutingEvents(events);
 
 const issueFromMetric = (
   kind: VoiceRoutingEventKind,
@@ -415,7 +413,8 @@ const summarizeSessions = (
 export const assertVoiceProviderSloEvidence = (
   report: VoiceProviderSloReport,
   input: VoiceProviderSloAssertionInput = {},
-): VoiceProviderSloAssertionReport => assertVoiceEvidence(
+): VoiceProviderSloAssertionReport =>
+  assertVoiceEvidence(
     "Voice provider SLO assertion failed",
     evaluateVoiceProviderSloEvidence(report, input),
   );

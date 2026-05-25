@@ -1,8 +1,9 @@
-import { defineComponent, h } from "vue";
+import { defineComponent, h, type PropType } from "vue";
 import {
   createVoiceReadinessFailuresViewModel,
   type VoiceReadinessFailuresWidgetOptions,
 } from "../client/readinessFailuresWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import type { VoiceProductionReadinessReport } from "../core/productionReadiness";
 import { useVoiceReadinessFailures } from "./useVoiceReadinessFailures";
 
@@ -15,12 +16,14 @@ export const VoiceReadinessFailures = defineComponent({
       default: "/api/production-readiness",
       type: String,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     title: String,
   },
   setup(props) {
     const state = useVoiceReadinessFailures(props.path, {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } as VoiceReadinessFailuresWidgetOptions);
 
@@ -37,6 +40,7 @@ export const VoiceReadinessFailures = defineComponent({
         {
           description: props.description,
           intervalMs: props.intervalMs,
+          reactiveSource: props.reactiveSource,
           title: props.title,
         },
       );

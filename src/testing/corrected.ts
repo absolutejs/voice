@@ -151,7 +151,7 @@ const countDistinctScripts = (value: string) => {
 };
 
 const scoreCodeSwitchLexiconEntry = (entry: VoiceLexiconEntry) => {
-  const {text} = entry;
+  const { text } = entry;
   const tokens = tokenizeCodeSwitchText(text);
   const normalized = normalizeBenchmarkText(text);
   const hasAlias = (entry.aliases?.length ?? 0) > 0;
@@ -233,7 +233,7 @@ const appendParlamentParlaCodeSwitchLexicon = (
   fixture: Pick<VoiceTestFixture, "expectedText" | "language" | "tags">,
 ) => {
   const expectedText = normalizeBenchmarkText(fixture.expectedText ?? "");
-  const {language} = fixture;
+  const { language } = fixture;
 
   if (expectedText.includes("espanya es paro y muerte")) {
     pushUniqueLexiconEntryWithAliases(
@@ -614,7 +614,7 @@ export const buildCodeSwitchBenchmarkLexicon = (
   const expectedTermEntries: VoiceLexiconEntry[] = [];
   const candidateEntries: VoiceLexiconEntry[] = [];
   const seen = new Set<string>();
-  const {language} = fixture;
+  const { language } = fixture;
   const tokens = tokenizeCodeSwitchText(fixture.expectedText ?? "");
 
   for (const expectedTerm of fixture.expectedTerms ?? []) {

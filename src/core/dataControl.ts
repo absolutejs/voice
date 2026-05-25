@@ -691,7 +691,8 @@ const findMissing = <Value extends string>(
 export const assertVoiceDataControlEvidence = (
   report: VoiceDataControlReport,
   input: VoiceDataControlAssertionInput = {},
-): VoiceDataControlAssertionReport => assertVoiceEvidence(
+): VoiceDataControlAssertionReport =>
+  assertVoiceEvidence(
     "Voice data-control evidence assertion failed",
     evaluateVoiceDataControlEvidence(report, input),
   );
@@ -772,8 +773,8 @@ export const evaluateVoiceDataControlEvidence = (
   );
   const auditExportEvents = report.auditExport?.events.length ?? 0;
   const deletionDeleted = report.deletionProof?.deletedCount ?? 0;
-  const {maxRetentionDeleted} = input;
-  const {maxDeletionDeleted} = input;
+  const { maxRetentionDeleted } = input;
+  const { maxDeletionDeleted } = input;
   const requireAuditExport = input.requireAuditExport ?? true;
   const requireDeletionDryRun = input.requireDeletionDryRun ?? true;
   const requireDeletionProof = input.requireDeletionProof ?? false;

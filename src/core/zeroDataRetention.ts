@@ -70,7 +70,7 @@ export const scrubVoiceTraceForZeroDataRetention = (
   if (!isVoiceZeroDataRetentionActive(policy) || policy.retain.traceText) {
     return event;
   }
-  const {payload} = event;
+  const { payload } = event;
   if (!payload || typeof payload !== "object") return event;
   const scrubbedPayload: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(payload)) {

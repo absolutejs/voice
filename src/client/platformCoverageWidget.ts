@@ -5,6 +5,7 @@ import {
   type VoicePlatformCoverageClientOptions,
   type VoicePlatformCoverageSnapshot,
 } from "./platformCoverage";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 type VoicePlatformCoverageSurfaceView = VoicePlatformCoverageSurface & {
   detail: string;
@@ -117,15 +118,23 @@ export const defineVoicePlatformCoverageElement = (
       private mounted?: ReturnType<typeof mountVoicePlatformCoverage>;
 
       connectedCallback() {
+        const intervalMs =
+          Number(this.getAttribute("interval-ms") ?? 0) || undefined;
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoicePlatformCoverage(
           this,
           this.getAttribute("path") ?? "/api/voice/platform-coverage",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs:
-              Number(this.getAttribute("interval-ms") ?? 0) || undefined,
             limit: Number(this.getAttribute("limit") ?? 0) || undefined,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : { intervalMs }),
           },
         );
       }

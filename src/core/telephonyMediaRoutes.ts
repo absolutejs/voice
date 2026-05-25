@@ -279,7 +279,7 @@ export const getLatestVoiceTelephonyMediaReport = async (
 ): Promise<VoiceTelephonyMediaReport | undefined> => {
   const events = (await options.store.list({ type: "client.telephony_media" }))
     .filter((event) => {
-      const {carrier} = event.payload;
+      const { carrier } = event.payload;
 
       return (
         typeof carrier === "string" &&
@@ -307,7 +307,7 @@ export const getLatestVoiceTelephonyMediaReport = async (
     carriers: [...byCarrier.entries()].map(([carrier, lifecycleEnvelopes]) => ({
       carrier,
       envelope: lifecycleEnvelopes.find((envelope) => {
-        const {event} = envelope;
+        const { event } = envelope;
 
         return typeof event === "string" && event.toLowerCase() === "media";
       }),

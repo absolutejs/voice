@@ -1,8 +1,9 @@
-import { computed, defineComponent, h } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 import {
   createVoiceTurnQualityViewModel,
   type VoiceTurnQualityWidgetOptions,
 } from "../client/turnQualityWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceTurnQuality } from "./useVoiceTurnQuality";
 
 export const VoiceTurnQuality = defineComponent({
@@ -11,6 +12,7 @@ export const VoiceTurnQuality = defineComponent({
     class: { default: "", type: String },
     description: { default: undefined, type: String },
     intervalMs: { default: 5000, type: Number },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     path: { default: "/api/turn-quality", type: String },
     title: { default: undefined, type: String },
   },
@@ -18,6 +20,7 @@ export const VoiceTurnQuality = defineComponent({
     const options = {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } satisfies VoiceTurnQualityWidgetOptions;
     const quality = useVoiceTurnQuality(props.path, options);

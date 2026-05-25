@@ -304,7 +304,7 @@ const loadCarrierMatrixInputs = async <
   carriers: readonly VoicePhoneAgentCarrier<TContext, TSession, TResult>[];
   request: Request;
 }) => {
-  const {origin} = new URL(input.request.url);
+  const { origin } = new URL(input.request.url);
   const entries: VoiceTelephonyCarrierMatrixInput[] = [];
 
   for (const carrier of input.carriers) {
@@ -383,13 +383,15 @@ const findMissing = <Value extends string>(
 export const assertVoicePhoneAssistantEvidence = (
   report: VoicePhoneAgentSetupReport,
   input: VoicePhoneAssistantEvidenceInput = {},
-): VoicePhoneAssistantEvidenceReport => assertVoiceEvidence(
+): VoicePhoneAssistantEvidenceReport =>
+  assertVoiceEvidence(
     "Voice phone assistant evidence assertion failed",
     evaluateVoicePhoneAssistantEvidence(report, input),
   );
 export const assertVoicePhoneCallControlEvidence = (
   input: VoicePhoneCallControlEvidenceInput = {},
-): VoicePhoneCallControlEvidenceReport => assertVoiceEvidence(
+): VoicePhoneCallControlEvidenceReport =>
+  assertVoiceEvidence(
     "Voice phone call-control evidence assertion failed",
     evaluateVoicePhoneCallControlEvidence(input),
   );
@@ -519,7 +521,7 @@ export const evaluateVoicePhoneCallControlEvidence = (
   input: VoicePhoneCallControlEvidenceInput = {},
 ): VoicePhoneCallControlEvidenceReport => {
   const issues: string[] = [];
-  const {setup} = input;
+  const { setup } = input;
   const productionSmokes = input.productionSmokes ?? [];
   const lifecycleStages = uniqueSorted(setup?.lifecycleStages ?? []);
   const providers = uniqueSorted(
@@ -803,7 +805,7 @@ export const createVoicePhoneAgent = <
     options.productionSmoke !== false &&
     options.productionSmoke !== undefined
   ) {
-    const {productionSmoke} = options;
+    const { productionSmoke } = options;
     app.use(
       createVoicePhoneAgentProductionSmokeRoutes({
         ...productionSmoke,

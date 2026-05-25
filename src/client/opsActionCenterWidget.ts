@@ -117,7 +117,7 @@ export const mountVoiceOpsActionCenter = (
   };
   const unsubscribe = store.subscribe(render);
   const handleClick = (event: Event) => {
-    const {target} = event;
+    const { target } = event;
     if (!(target instanceof Element)) {
       return;
     }

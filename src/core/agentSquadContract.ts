@@ -179,23 +179,22 @@ const createContractApi = <
   TResult,
 >(
   session: TSession,
-): VoiceSessionHandle<TContext, TSession, TResult> =>
-  ({
-    id: session.id,
-    attachUserMedia: async () => {},
-    close: async () => {},
-    commitTurn: async () => {},
-    complete: async () => {},
-    connect: async () => {},
-    disconnect: async () => {},
-    escalate: async () => {},
-    fail: async () => {},
-    markNoAnswer: async () => {},
-    markVoicemail: async () => {},
-    receiveAudio: async () => {},
-    snapshot: async () => session,
-    transfer: async () => {},
-  });
+): VoiceSessionHandle<TContext, TSession, TResult> => ({
+  id: session.id,
+  attachUserMedia: async () => {},
+  close: async () => {},
+  commitTurn: async () => {},
+  complete: async () => {},
+  connect: async () => {},
+  disconnect: async () => {},
+  escalate: async () => {},
+  fail: async () => {},
+  markNoAnswer: async () => {},
+  markVoicemail: async () => {},
+  receiveAudio: async () => {},
+  snapshot: async () => session,
+  transfer: async () => {},
+});
 
 const createContractTurn = <TResult>(
   turn: VoiceAgentSquadContractTurn<TResult>,
@@ -285,7 +284,8 @@ export const assertVoiceAgentSquadContract = async <
 export const assertVoiceAgentSquadContractEvidence = (
   reports: readonly VoiceAgentSquadContractReport[],
   input: VoiceAgentSquadContractAssertionInput = {},
-): VoiceAgentSquadContractAssertionReport => assertVoiceEvidence(
+): VoiceAgentSquadContractAssertionReport =>
+  assertVoiceEvidence(
     "Voice agent squad contract evidence assertion failed",
     evaluateVoiceAgentSquadContractEvidence(reports, input),
   );

@@ -47,7 +47,8 @@ const speechMatchesPattern = (pattern: string | RegExp, speech: string) => {
   return normalized.includes(target);
 };
 
-const digitsMatchPattern = (pattern: string, input: string) => input === pattern;
+const digitsMatchPattern = (pattern: string, input: string) =>
+  input === pattern;
 
 const branchMatches = (
   branch: VoiceIVRBranch,

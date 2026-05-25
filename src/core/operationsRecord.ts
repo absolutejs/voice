@@ -1014,7 +1014,7 @@ export const evaluateVoiceOperationsRecordGuardrails = (
   input: VoiceOperationsRecordGuardrailAssertionInput = {},
 ): VoiceOperationsRecordGuardrailAssertionReport => {
   const issues: string[] = [];
-  const {decisions} = record.guardrails;
+  const { decisions } = record.guardrails;
   const proofs = uniqueSorted(decisions.map((decision) => decision.proof));
   const ruleIds = uniqueSorted(
     decisions.flatMap((decision) =>
@@ -1637,7 +1637,7 @@ export const renderVoiceOperationsRecordHTML = (
         )
         .join("")
     : "<li>No provider decisions recorded.</li>";
-  const {providerDecisionSummary} = record;
+  const { providerDecisionSummary } = record;
   const handoffs = record.handoffs.length
     ? record.handoffs
         .map(
@@ -1793,7 +1793,7 @@ export const renderVoiceOperationsRecordIncidentMarkdown = (
         return `- ${provider}: ${parts.join("; ") || "decision recorded"}`;
       })
     : ["- none recorded"];
-  const {providerDecisionSummary} = record;
+  const { providerDecisionSummary } = record;
   const providerRecoveryLine = [
     `status=${providerDecisionSummary.recoveryStatus}`,
     `selected=${String(providerDecisionSummary.selected)}`,

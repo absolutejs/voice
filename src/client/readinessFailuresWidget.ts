@@ -8,6 +8,7 @@ import {
   type VoiceReadinessFailuresClientOptions,
   type VoiceReadinessFailuresSnapshot,
 } from "./readinessFailures";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceReadinessFailureView = {
   evidenceHref?: string;
@@ -86,7 +87,8 @@ export const createVoiceReadinessFailuresViewModel = (
   const failures =
     snapshot.report?.checks
       .map(toFailureView)
-      .filter((value): value is VoiceReadinessFailureView => Boolean(value)) ?? [];
+      .filter((value): value is VoiceReadinessFailureView => Boolean(value)) ??
+    [];
   const hasOpenIssues = failures.length > 0;
 
   return {
@@ -134,14 +136,22 @@ export const defineVoiceReadinessFailuresElement = (
       private mounted?: ReturnType<typeof mountVoiceReadinessFailures>;
 
       connectedCallback() {
+        const intervalMs =
+          Number(this.getAttribute("interval-ms") ?? 0) || undefined;
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceReadinessFailures(
           this,
           this.getAttribute("path") ?? "/api/production-readiness",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs:
-              Number(this.getAttribute("interval-ms") ?? 0) || undefined,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : { intervalMs }),
           },
         );
       }

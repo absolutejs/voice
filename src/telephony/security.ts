@@ -199,7 +199,7 @@ const resolveVerificationUrl = (
 const createStores = <TResult>(
   options: VoiceTelephonyWebhookSecurityOptions<TResult>,
 ) => {
-  const {ttlSeconds} = options;
+  const { ttlSeconds } = options;
   const store = options.store ?? { kind: "memory" as const };
 
   if (store.kind === "sqlite") {
@@ -348,7 +348,8 @@ const providerStatus = (
 export const assertVoiceTelephonyWebhookSecurityEvidence = (
   report: VoiceTelephonyWebhookSecurityReport,
   input: VoiceTelephonyWebhookSecurityAssertionInput = {},
-): VoiceTelephonyWebhookSecurityAssertionReport => assertVoiceEvidence(
+): VoiceTelephonyWebhookSecurityAssertionReport =>
+  assertVoiceEvidence(
     "Voice telephony webhook security assertion failed",
     evaluateVoiceTelephonyWebhookSecurityEvidence(report, input),
   );

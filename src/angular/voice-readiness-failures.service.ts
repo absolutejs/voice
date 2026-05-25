@@ -40,7 +40,8 @@ export class VoiceReadinessFailuresService {
       explanations: computed(
         () =>
           reportSignal()?.checks.filter(
-            (check) => check.status !== "pass" && Boolean(check.gateExplanation),
+            (check) =>
+              check.status !== "pass" && Boolean(check.gateExplanation),
           ) ?? [],
       ),
       isLoading: computed(() => isLoadingSignal()),

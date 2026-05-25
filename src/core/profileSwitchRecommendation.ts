@@ -294,7 +294,7 @@ const scoreProfile = (
   profile: VoiceRealCallProfileDefault,
   observed: VoiceProfileSwitchObservedSignals,
 ) => {
-  const {evidence} = profile;
+  const { evidence } = profile;
   const live = evidence.liveP95Ms ?? observed.liveP95Ms ?? 0;
   const provider = evidence.providerP95Ms ?? observed.providerP95Ms ?? 0;
   const turn = evidence.turnP95Ms ?? observed.turnP95Ms ?? 0;
@@ -319,7 +319,7 @@ const estimateSwitchConfidence = (
     return recommendation.status === "stay" && recommendation.ok ? 0.99 : 0;
   }
 
-  const {observed} = recommendation;
+  const { observed } = recommendation;
   const currentStatus = recommendation.currentProfile?.status;
   const recommendedStatus = recommendation.recommendedProfile?.status;
   let confidence = 0.58;
@@ -801,7 +801,7 @@ const auditEventToLiveDecision = (
   if (event.type !== "profile.switch" || !event.sessionId) {
     return undefined;
   }
-  const {payload} = event;
+  const { payload } = event;
 
   return {
     action:
@@ -840,7 +840,7 @@ const traceEventToLiveDecision = (
   ) {
     return undefined;
   }
-  const {payload} = event;
+  const { payload } = event;
 
   return {
     action: readStringField(payload, "action"),
@@ -1066,7 +1066,7 @@ export const buildVoiceProfileSwitchReadinessReport = async (
     options.requireAllowedProfilePolicy ?? Boolean(options.autoMode);
   const maxBlockedRatio = options.maxBlockedRatio ?? 0.5;
   const maxAutoAppliedRatio = options.maxAutoAppliedRatio ?? 0.75;
-  const {decisions} = live.summary;
+  const { decisions } = live.summary;
   const blockedRatio = decisions > 0 ? live.summary.blocked / decisions : 0;
   const autoAppliedRatio =
     decisions > 0 ? live.summary.autoApplied / decisions : 0;

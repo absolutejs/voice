@@ -175,9 +175,9 @@ const buildVoiceRAGToolParameters = (
   if (options.allowedFilterKeys && options.allowedFilterKeys.length > 0) {
     properties.filter = {
       additionalProperties: false,
-      description:
-        `Optional metadata filter. Only keys listed here are honored: ${ 
-        options.allowedFilterKeys.join(", ")}`,
+      description: `Optional metadata filter. Only keys listed here are honored: ${options.allowedFilterKeys.join(
+        ", ",
+      )}`,
       properties: Object.fromEntries(
         options.allowedFilterKeys.map((key) => [key, {}]),
       ),

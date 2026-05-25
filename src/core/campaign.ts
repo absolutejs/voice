@@ -991,10 +991,7 @@ export const importVoiceCampaignRecipients = (
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       name: typeof name === "string" ? name : undefined,
       phone,
-      variables:
-        Object.keys(variables).length > 0
-          ? (variables)
-          : undefined,
+      variables: Object.keys(variables).length > 0 ? variables : undefined,
     });
   });
 
@@ -1210,7 +1207,7 @@ export const createVoiceCampaign = (
         return result;
       }
       const at = now();
-      const {schedule} = record.campaign;
+      const { schedule } = record.campaign;
       if (
         schedule?.attemptWindow &&
         !isWithinCampaignTimeWindow(schedule.attemptWindow, at)
@@ -1816,7 +1813,8 @@ const pushCampaignReadinessCheck = (
 export const assertVoiceCampaignReadinessEvidence = (
   report: VoiceCampaignReadinessProofReport,
   input: VoiceCampaignReadinessAssertionInput = {},
-): VoiceCampaignReadinessAssertionReport => assertVoiceEvidence(
+): VoiceCampaignReadinessAssertionReport =>
+  assertVoiceEvidence(
     "Voice campaign readiness evidence assertion failed",
     evaluateVoiceCampaignReadinessEvidence(report, input),
   );

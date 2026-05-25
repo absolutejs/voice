@@ -1,8 +1,13 @@
 import type { VoiceProductionReadinessReport } from "../core/productionReadiness";
+import {
+  bindVoiceReactiveSource,
+  type VoiceReactiveSource,
+} from "./reactiveSource";
 
 export type VoiceReadinessFailuresClientOptions = {
   fetch?: typeof fetch;
   intervalMs?: number;
+  reactiveSource?: VoiceReactiveSource;
 };
 
 export type VoiceReadinessFailuresSnapshot = {
@@ -55,12 +60,14 @@ export const createVoiceReadinessFailuresStore = (
       throw error;
     }
   };
+  let unbindReactiveSource: () => void = () => {};
   const close = () => {
     closed = true;
     if (timer) {
       clearInterval(timer);
       timer = undefined;
     }
+    unbindReactiveSource();
     listeners.clear();
   };
 
@@ -72,6 +79,13 @@ export const createVoiceReadinessFailuresStore = (
     timer = setInterval(() => {
       void refresh().catch(() => {});
     }, options.intervalMs);
+  }
+
+  if (typeof window !== "undefined" && options.reactiveSource) {
+    unbindReactiveSource = bindVoiceReactiveSource(
+      () => void refresh().catch(() => {}),
+      options.reactiveSource,
+    );
   }
 
   return {

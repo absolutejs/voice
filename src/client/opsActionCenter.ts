@@ -1,3 +1,8 @@
+import {
+  bindVoiceReactiveSource,
+  type VoiceReactiveSource,
+} from "./reactiveSource";
+
 export type VoiceOpsActionMethod = "GET" | "POST";
 
 export type VoiceOpsActionDescriptor = {
@@ -15,6 +20,7 @@ export type VoiceOpsActionCenterClientOptions = {
   fetch?: typeof fetch;
   intervalMs?: number;
   onActionResult?: (result: VoiceOpsActionRunResult) => Promise<void> | void;
+  reactiveSource?: VoiceReactiveSource;
 };
 
 export type VoiceOpsActionRunResult = {
@@ -214,12 +220,14 @@ export const createVoiceOpsActionCenterStore = (
       throw error;
     }
   };
+  let unbindReactiveSource: () => void = () => {};
   const close = () => {
     closed = true;
     if (timer) {
       clearInterval(timer);
       timer = undefined;
     }
+    unbindReactiveSource();
     listeners.clear();
   };
 
@@ -227,6 +235,13 @@ export const createVoiceOpsActionCenterStore = (
     timer = setInterval(() => {
       emit();
     }, options.intervalMs);
+  }
+
+  if (typeof window !== "undefined" && options.reactiveSource) {
+    unbindReactiveSource = bindVoiceReactiveSource(
+      () => emit(),
+      options.reactiveSource,
+    );
   }
 
   return {

@@ -1,8 +1,13 @@
 import type { VoiceSessionObservabilityReport } from "../core/sessionObservability";
+import {
+  bindVoiceReactiveSource,
+  type VoiceReactiveSource,
+} from "./reactiveSource";
 
 export type VoiceSessionObservabilityClientOptions = {
   fetch?: typeof fetch;
   intervalMs?: number;
+  reactiveSource?: VoiceReactiveSource;
 };
 
 export type VoiceSessionObservabilitySnapshot = {
@@ -60,12 +65,14 @@ export const createVoiceSessionObservabilityStore = (
       throw error;
     }
   };
+  let unbindReactiveSource: () => void = () => {};
   const close = () => {
     closed = true;
     if (timer) {
       clearInterval(timer);
       timer = undefined;
     }
+    unbindReactiveSource();
     listeners.clear();
   };
 
@@ -73,6 +80,13 @@ export const createVoiceSessionObservabilityStore = (
     timer = setInterval(() => {
       void refresh().catch(() => {});
     }, options.intervalMs);
+  }
+
+  if (typeof window !== "undefined" && options.reactiveSource) {
+    unbindReactiveSource = bindVoiceReactiveSource(
+      () => void refresh().catch(() => {}),
+      options.reactiveSource,
+    );
   }
 
   return {

@@ -8,6 +8,7 @@ import {
   type VoiceSessionObservabilityClientOptions,
   type VoiceSessionObservabilitySnapshot,
 } from "./sessionObservability";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceSessionObservabilityTurnView =
   VoiceSessionObservabilityTurn & {
@@ -46,7 +47,7 @@ export const createVoiceSessionObservabilityViewModel = (
   snapshot: VoiceSessionObservabilitySnapshot,
   options: VoiceSessionObservabilityWidgetOptions = {},
 ): VoiceSessionObservabilityViewModel => {
-  const {report} = snapshot;
+  const { report } = snapshot;
   const turns = (report?.turns ?? [])
     .slice(0, options.maxTurns ?? 3)
     .map((turn) => ({
@@ -113,6 +114,7 @@ export const defineVoiceSessionObservabilityElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         const maxTurns = Number(this.getAttribute("max-turns") ?? 3);
         this.mounted = mountVoiceSessionObservability(
           this,
@@ -120,9 +122,17 @@ export const defineVoiceSessionObservabilityElement = (
             "/api/voice/session-observability/latest",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             maxTurns: Number.isFinite(maxTurns) ? maxTurns : 3,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }

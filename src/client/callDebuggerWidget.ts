@@ -4,6 +4,7 @@ import {
   type VoiceCallDebuggerClientOptions,
   type VoiceCallDebuggerClientState,
 } from "./callDebugger";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceCallDebuggerLaunchViewModel = {
   description: string;
@@ -61,7 +62,7 @@ export const createVoiceCallDebuggerLaunchViewModel = (
   state: VoiceCallDebuggerClientState,
   options: VoiceCallDebuggerLaunchOptions = {},
 ): VoiceCallDebuggerLaunchViewModel => {
-  const {report} = state;
+  const { report } = state;
   const href = resolveHref(path, state, options);
 
   return {
@@ -135,15 +136,22 @@ export const defineVoiceCallDebuggerLaunchElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 0);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceCallDebuggerLaunch(
           this,
           this.getAttribute("path") ?? "/api/voice-call-debugger/latest",
           {
             description: this.getAttribute("description") ?? undefined,
             href: this.getAttribute("href") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 0,
             linkLabel: this.getAttribute("link-label") ?? undefined,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : { intervalMs: Number.isFinite(intervalMs) ? intervalMs : 0 }),
           },
         );
       }

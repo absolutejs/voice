@@ -5,6 +5,7 @@ import {
   type VoiceRoutingStatusClientOptions,
   type VoiceRoutingStatusSnapshot,
 } from "./routingStatus";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceRoutingStatusViewModel = {
   activeStack: Array<{ label: string; value: string }>;
@@ -68,7 +69,7 @@ export const createVoiceRoutingStatusViewModel = (
   snapshot: VoiceRoutingStatusSnapshot,
   options: VoiceRoutingStatusWidgetOptions = {},
 ): VoiceRoutingStatusViewModel => {
-  const {decision} = snapshot;
+  const { decision } = snapshot;
   const activeStack = decision
     ? [
         {
@@ -168,13 +169,22 @@ export const defineVoiceRoutingStatusElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceRoutingStatus(
           this,
           this.getAttribute("path") ?? "/api/routing/latest",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }

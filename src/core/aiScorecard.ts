@@ -151,7 +151,7 @@ export const parseVoiceAIScorecardResponse = (
     });
   }
   const comments =
-    typeof root.comments === "string" ? (root.comments) : undefined;
+    typeof root.comments === "string" ? root.comments : undefined;
 
   return {
     scores: parsed,

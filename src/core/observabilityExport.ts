@@ -1241,7 +1241,8 @@ const replayIssueSeverity = (
 export const assertVoiceObservabilityExportReplayEvidence = (
   report: VoiceObservabilityExportReplayReport,
   input: VoiceObservabilityExportReplayAssertionInput = {},
-): VoiceObservabilityExportReplayAssertionReport => assertVoiceEvidence(
+): VoiceObservabilityExportReplayAssertionReport =>
+  assertVoiceEvidence(
     "Voice observability export replay assertion failed",
     evaluateVoiceObservabilityExportReplayEvidence(report, input),
   );
@@ -1403,7 +1404,7 @@ export const evaluateVoiceObservabilityExportReplayEvidence = (
   const maxFailedDeliveryDestinations =
     input.maxFailedDeliveryDestinations ?? 0;
   const minArtifacts = input.minArtifacts ?? 1;
-  const {minDeliveryDestinations} = input;
+  const { minDeliveryDestinations } = input;
   const recordKinds = Object.values(report.records)
     .map((record) => record?.kind)
     .filter((kind): kind is VoiceObservabilityExportIngestedRecordKind =>
@@ -1581,10 +1582,10 @@ export const loadVoiceObservabilityExportReplaySource = async (
   );
   const table = normalizeObservabilityIdentifier(source.tableName);
   const qualifiedTable = `${quoteObservabilityIdentifier(schema)}.${quoteObservabilityIdentifier(table)}`;
-  const rows = (await sql.unsafe(
+  const rows = await sql.unsafe(
     `SELECT manifest_json, artifact_index_json, payload FROM ${qualifiedTable} WHERE run_id = $1`,
     [source.runId],
-  ));
+  );
   const row = rows[0];
   if (!row) {
     throw new Error(`No observability export found for run ${source.runId}.`);
@@ -1981,7 +1982,8 @@ const getLatestSuccessfulObservabilityExportReceipt = (
 export const assertVoiceObservabilityExportDeliveryEvidence = (
   history: VoiceObservabilityExportDeliveryHistory,
   input: VoiceObservabilityExportDeliveryAssertionInput = {},
-): VoiceObservabilityExportDeliveryAssertionReport => assertVoiceEvidence(
+): VoiceObservabilityExportDeliveryAssertionReport =>
+  assertVoiceEvidence(
     "Voice observability export delivery assertion failed",
     evaluateVoiceObservabilityExportDeliveryEvidence(history, input),
   );

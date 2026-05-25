@@ -205,16 +205,15 @@ const requeueDelivery = <
   TDelivery extends VoiceAuditSinkDeliveryRecord | VoiceTraceSinkDeliveryRecord,
 >(
   delivery: TDelivery,
-): TDelivery =>
-  ({
-    ...delivery,
-    deliveredAt: undefined,
-    deliveryAttempts: 0,
-    deliveryError: undefined,
-    deliveryStatus: "pending",
-    sinkDeliveries: undefined,
-    updatedAt: Date.now(),
-  });
+): TDelivery => ({
+  ...delivery,
+  deliveredAt: undefined,
+  deliveryAttempts: 0,
+  deliveryError: undefined,
+  deliveryStatus: "pending",
+  sinkDeliveries: undefined,
+  updatedAt: Date.now(),
+});
 
 const createDeliveryRuntimeFileSink = <TEvent extends { id: string }>(input: {
   directory: string;

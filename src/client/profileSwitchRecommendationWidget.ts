@@ -4,6 +4,7 @@ import {
   type VoiceProfileSwitchRecommendationClientOptions,
   type VoiceProfileSwitchRecommendationSnapshot,
 } from "./profileSwitchRecommendation";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceProfileSwitchRecommendationWidgetOptions =
   VoiceProfileSwitchRecommendationClientOptions & {
@@ -42,14 +43,23 @@ export const defineVoiceProfileSwitchRecommendationElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceProfileSwitchRecommendation(
           this,
           this.getAttribute("path") ??
             "/api/voice/profile-switch-recommendation",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }
@@ -91,7 +101,7 @@ export const renderVoiceProfileSwitchRecommendationHTML = (
   snapshot: VoiceProfileSwitchRecommendationSnapshot,
   options: VoiceProfileSwitchRecommendationWidgetOptions = {},
 ) => {
-  const {recommendation} = snapshot;
+  const { recommendation } = snapshot;
   const status = snapshot.error
     ? "error"
     : recommendation

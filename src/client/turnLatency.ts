@@ -1,9 +1,14 @@
 import type { VoiceTurnLatencyReport } from "../core/turnLatency";
+import {
+  bindVoiceReactiveSource,
+  type VoiceReactiveSource,
+} from "./reactiveSource";
 
 export type VoiceTurnLatencyClientOptions = {
   fetch?: typeof fetch;
   intervalMs?: number;
   proofPath?: string;
+  reactiveSource?: VoiceReactiveSource;
 };
 
 export type VoiceTurnLatencySnapshot = {
@@ -76,12 +81,14 @@ export const createVoiceTurnLatencyStore = (
       throw error;
     }
   };
+  let unbindReactiveSource: () => void = () => {};
   const close = () => {
     closed = true;
     if (timer) {
       clearInterval(timer);
       timer = undefined;
     }
+    unbindReactiveSource();
     listeners.clear();
   };
 
@@ -89,6 +96,13 @@ export const createVoiceTurnLatencyStore = (
     timer = setInterval(() => {
       void refresh().catch(() => {});
     }, options.intervalMs);
+  }
+
+  if (typeof window !== "undefined" && options.reactiveSource) {
+    unbindReactiveSource = bindVoiceReactiveSource(
+      () => void refresh().catch(() => {}),
+      options.reactiveSource,
+    );
   }
 
   return {

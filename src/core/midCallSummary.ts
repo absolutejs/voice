@@ -88,7 +88,7 @@ export const createMidCallSummarizer = (
 
   return {
     evaluate: async ({ session }) => {
-      const {turns} = session;
+      const { turns } = session;
       if (turns.length === 0) return undefined;
       const turnsSince = turns.length - lastTurnCount;
       if (turnsSince < everyTurns) return undefined;

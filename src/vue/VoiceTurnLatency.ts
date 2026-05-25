@@ -1,8 +1,9 @@
-import { computed, defineComponent, h } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 import {
   createVoiceTurnLatencyViewModel,
   type VoiceTurnLatencyWidgetOptions,
 } from "../client/turnLatencyWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceTurnLatency } from "./useVoiceTurnLatency";
 
 export const VoiceTurnLatency = defineComponent({
@@ -11,6 +12,7 @@ export const VoiceTurnLatency = defineComponent({
     class: { default: "", type: String },
     description: { default: undefined, type: String },
     intervalMs: { default: 5000, type: Number },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     path: { default: "/api/turn-latency", type: String },
     proofLabel: { default: undefined, type: String },
     proofPath: { default: undefined, type: String },
@@ -20,6 +22,7 @@ export const VoiceTurnLatency = defineComponent({
     const options = {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       proofLabel: props.proofLabel,
       proofPath: props.proofPath,
       title: props.title,

@@ -1,8 +1,9 @@
-import { computed, defineComponent, h } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 import {
   createVoiceRoutingStatusViewModel,
   type VoiceRoutingStatusWidgetOptions,
 } from "../client/routingStatusWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceRoutingStatus } from "./useVoiceRoutingStatus";
 
 export const VoiceRoutingStatus = defineComponent({
@@ -20,6 +21,7 @@ export const VoiceRoutingStatus = defineComponent({
       default: 5000,
       type: Number,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     path: {
       default: "/api/routing/latest",
       type: String,
@@ -33,6 +35,7 @@ export const VoiceRoutingStatus = defineComponent({
     const options = {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } satisfies VoiceRoutingStatusWidgetOptions;
     const status = useVoiceRoutingStatus(props.path, options);

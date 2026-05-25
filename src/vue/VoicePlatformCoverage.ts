@@ -1,9 +1,10 @@
-import { defineComponent, h } from "vue";
+import { defineComponent, h, type PropType } from "vue";
 import { useVoicePlatformCoverage } from "./useVoicePlatformCoverage";
 import {
   createVoicePlatformCoverageViewModel,
   type VoicePlatformCoverageWidgetOptions,
 } from "../client/platformCoverageWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 
 export const VoicePlatformCoverage = defineComponent({
   name: "VoicePlatformCoverage",
@@ -15,6 +16,7 @@ export const VoicePlatformCoverage = defineComponent({
       default: "/api/voice/platform-coverage",
       type: String,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     title: String,
   },
   setup(props) {
@@ -22,6 +24,7 @@ export const VoicePlatformCoverage = defineComponent({
       description: props.description,
       intervalMs: props.intervalMs,
       limit: props.limit,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } as VoicePlatformCoverageWidgetOptions);
 
@@ -37,6 +40,7 @@ export const VoicePlatformCoverage = defineComponent({
           description: props.description,
           intervalMs: props.intervalMs,
           limit: props.limit,
+          reactiveSource: props.reactiveSource,
           title: props.title,
         },
       );

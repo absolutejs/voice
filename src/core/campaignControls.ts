@@ -102,7 +102,7 @@ export type VoiceCampaignDispositionSummary = {
 const dispositionFromAttempt = (
   attempt: VoiceCampaignAttempt,
 ): VoiceCampaignDisposition | undefined => {
-  const {metadata} = attempt;
+  const { metadata } = attempt;
   if (metadata && typeof metadata.disposition === "string") {
     return metadata.disposition as VoiceCampaignDisposition;
   }

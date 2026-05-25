@@ -1570,8 +1570,7 @@ const summarizeReconnectTraceEvidence = (
   };
 };
 
-const readTraceRecord = (event: StoredVoiceTraceEvent) =>
-  event.payload;
+const readTraceRecord = (event: StoredVoiceTraceEvent) => event.payload;
 
 const readTraceProfileId = (
   events: readonly StoredVoiceTraceEvent[],
@@ -2707,8 +2706,8 @@ const readProofTrendProfileStatus = (
     maxTurnP95Ms: number;
   },
 ) => {
-  const {runtimeChannel} = profile;
-  const {reconnect} = profile;
+  const { runtimeChannel } = profile;
+  const { reconnect } = profile;
   const hasBudgetEvidence =
     profile.maxLiveP95Ms !== undefined ||
     profile.maxProviderP95Ms !== undefined ||
@@ -3410,7 +3409,7 @@ const buildRealCallProfileReadinessIssues = (
         `Required real-call profile ${profileId} has ${String(summaryProfile?.sessionCount ?? 0)} session(s), expected at least ${String(options.minProfileSessions)}.`,
       );
     }
-    const {requiredProfileSurfaces} = options;
+    const { requiredProfileSurfaces } = options;
     const requiredSurfaces = resolveRequiredRealCallProfileSurfaces(
       requiredProfileSurfaces,
       profileId,
@@ -3572,11 +3571,8 @@ const profileRealCallRecoveryEvent = <TEvent extends VoiceTraceEvent>(
   },
   payload: {
     ...(event.payload ?? {}),
-    benchmarkProfileId:
-      (event.payload).benchmarkProfileId ??
-      profileId,
-    profileId:
-      (event.payload).profileId ?? profileId,
+    benchmarkProfileId: event.payload.benchmarkProfileId ?? profileId,
+    profileId: event.payload.profileId ?? profileId,
   },
 });
 
@@ -3733,7 +3729,7 @@ export const buildVoiceRealCallProfileRecoveryActions = (
     ) {
       return true;
     }
-    const {requiredProfileSurfaces} = options;
+    const { requiredProfileSurfaces } = options;
     const requiredSurfaces = resolveRequiredRealCallProfileSurfaces(
       requiredProfileSurfaces,
       profileId,
@@ -4110,7 +4106,7 @@ export const runVoiceRealCallProfileRecoveryLoop = async (
           job?: VoiceRealCallProfileRecoveryLoopJob;
           ok?: boolean;
         }>(resolveJobHref(jobId));
-        const {job} = body;
+        const { job } = body;
         if (!job) {
           throw new Error(`Recovery job ${jobId} was not found.`);
         }
@@ -5020,7 +5016,8 @@ const buildProfileRecommendations = (
 export const assertVoiceProofTrendEvidence = (
   report: VoiceProofTrendReport,
   input: VoiceProofTrendAssertionInput = {},
-): VoiceProofTrendAssertionReport => assertVoiceEvidence(
+): VoiceProofTrendAssertionReport =>
+  assertVoiceEvidence(
     "Voice proof trends assertion failed",
     evaluateVoiceProofTrendEvidence(report, input),
   );

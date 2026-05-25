@@ -576,7 +576,8 @@ const runCampaignDialerProofForProvider = async (input: {
 export const assertVoiceCampaignDialerProofEvidence = (
   report: VoiceCampaignDialerProofReport,
   input: VoiceCampaignDialerProofAssertionInput = {},
-): VoiceCampaignDialerProofAssertionReport => assertVoiceEvidence(
+): VoiceCampaignDialerProofAssertionReport =>
+  assertVoiceEvidence(
     "Voice campaign dialer proof evidence assertion failed",
     evaluateVoiceCampaignDialerProofEvidence(report, input),
   );

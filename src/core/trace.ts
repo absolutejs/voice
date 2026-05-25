@@ -609,7 +609,7 @@ const createVoiceTraceS3ObjectKey = (
 };
 
 const resolveVoiceS3DeliveredTo = (options: S3Options, key: string) => {
-  const {bucket} = (options as { bucket?: string });
+  const { bucket } = options as { bucket?: string };
 
   return bucket ? `s3://${bucket}/${key}` : `s3://${key}`;
 };
@@ -974,19 +974,13 @@ export const createVoiceProfileTraceTagger = <
       const payload =
         event.payload && typeof event.payload === "object"
           ? {
-              ...(event.payload),
+              ...event.payload,
               benchmarkProfileId:
-                (event.payload).benchmarkProfileId ??
-                profile.id,
+                event.payload.benchmarkProfileId ?? profile.id,
               profileDescription:
-                (event.payload).profileDescription ??
-                profile.description,
-              profileId:
-                (event.payload).profileId ??
-                profile.id,
-              profileLabel:
-                (event.payload).profileLabel ??
-                profile.label,
+                event.payload.profileDescription ?? profile.description,
+              profileId: event.payload.profileId ?? profile.id,
+              profileLabel: event.payload.profileLabel ?? profile.label,
             }
           : event.payload;
 

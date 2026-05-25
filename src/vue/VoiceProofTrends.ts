@@ -1,8 +1,9 @@
-import { defineComponent, h } from "vue";
+import { defineComponent, h, type PropType } from "vue";
 import {
   createVoiceProofTrendsViewModel,
   type VoiceProofTrendsWidgetOptions,
 } from "../client/proofTrendsWidget";
+import type { VoiceReactiveSource } from "../client/reactiveSource";
 import { useVoiceProofTrends } from "./useVoiceProofTrends";
 
 export const VoiceProofTrends = defineComponent({
@@ -14,12 +15,14 @@ export const VoiceProofTrends = defineComponent({
       default: "/api/voice/proof-trends",
       type: String,
     },
+    reactiveSource: Function as PropType<VoiceReactiveSource>,
     title: String,
   },
   setup(props) {
     const state = useVoiceProofTrends(props.path, {
       description: props.description,
       intervalMs: props.intervalMs,
+      reactiveSource: props.reactiveSource,
       title: props.title,
     } as VoiceProofTrendsWidgetOptions);
 
@@ -34,6 +37,7 @@ export const VoiceProofTrends = defineComponent({
         {
           description: props.description,
           intervalMs: props.intervalMs,
+          reactiveSource: props.reactiveSource,
           title: props.title,
         },
       );

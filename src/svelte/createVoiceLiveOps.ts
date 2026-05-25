@@ -19,7 +19,6 @@ export const createVoiceLiveOps = (
     run: store.run,
     subscribe: store.subscribe,
     getHTML: () => renderVoiceLiveOpsHTML(store.getSnapshot(), options),
-    mount: (element: Element) =>
-      mountVoiceLiveOps(element, options),
+    mount: (element: Element) => mountVoiceLiveOps(element, options),
   };
 };

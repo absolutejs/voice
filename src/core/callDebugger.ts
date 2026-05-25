@@ -56,7 +56,7 @@ export type VoiceCallDebuggerRoutesOptions = Omit<
 };
 
 const resolveSessionId = (params: Record<string, unknown>) => {
-  const {sessionId} = params;
+  const { sessionId } = params;
 
   return typeof sessionId === "string" ? sessionId : "";
 };

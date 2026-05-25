@@ -185,7 +185,8 @@ export const assertVoiceRealtimeProviderContractEvidence = <
 >(
   report: VoiceRealtimeProviderContractMatrixReport<TProvider>,
   input: VoiceRealtimeProviderContractAssertionInput<TProvider> = {},
-): VoiceRealtimeProviderContractAssertionReport<TProvider> => assertVoiceEvidence(
+): VoiceRealtimeProviderContractAssertionReport<TProvider> =>
+  assertVoiceEvidence(
     "Voice realtime provider contract assertion failed",
     evaluateVoiceRealtimeProviderContractEvidence(report, input),
   );
@@ -206,7 +207,7 @@ export const buildVoiceRealtimeProviderContractMatrix = <
     const missingCapabilities = requiredCapabilities.filter(
       (capability) => !presentCapabilities.has(capability),
     );
-    const {realtimeChannel} = contract;
+    const { realtimeChannel } = contract;
     const checks: VoiceRealtimeProviderContractCheck[] = [
       {
         detail: planned
@@ -454,12 +455,16 @@ export const createVoiceRealtimeProviderContractRoutes = <
     );
   const routes = new Elysia({
     name: options.name ?? "voice-realtime-provider-contracts",
-  }).get(path, async () => new Response(JSON.stringify(await report(), null, 2), {
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        ...options.headers,
-      },
-    }));
+  }).get(
+    path,
+    async () =>
+      new Response(JSON.stringify(await report(), null, 2), {
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          ...options.headers,
+        },
+      }),
+  );
 
   if (htmlPath !== false) {
     routes.get(htmlPath, async () => {

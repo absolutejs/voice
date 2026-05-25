@@ -357,7 +357,8 @@ const simulationSectionNames = [
 export const assertVoiceSimulationSuiteEvidence = (
   report: VoiceSimulationSuiteReport,
   input: VoiceSimulationSuiteAssertionInput = {},
-): VoiceSimulationSuiteAssertionReport => assertVoiceEvidence(
+): VoiceSimulationSuiteAssertionReport =>
+  assertVoiceEvidence(
     "Voice simulation suite evidence assertion failed",
     evaluateVoiceSimulationSuiteEvidence(report, input),
   );

@@ -5,6 +5,7 @@ import {
   type VoiceDeliveryRuntimeSnapshot,
 } from "./deliveryRuntime";
 import type { VoiceDeliveryRuntimeSummary } from "../core/deliveryRuntime";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceDeliveryRuntimeSurfaceView = {
   deadLettered: number;
@@ -79,7 +80,7 @@ export const createVoiceDeliveryRuntimeViewModel = (
   snapshot: VoiceDeliveryRuntimeSnapshot,
   options: VoiceDeliveryRuntimeWidgetOptions = {},
 ): VoiceDeliveryRuntimeViewModel => {
-  const {report} = snapshot;
+  const { report } = snapshot;
   const surfaces = [
     createSurface("audit", report?.summary.audit),
     createSurface("trace", report?.summary.trace),
@@ -130,13 +131,22 @@ export const defineVoiceDeliveryRuntimeElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceDeliveryRuntime(
           this,
           this.getAttribute("path") ?? "/api/voice-delivery-runtime",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }
@@ -164,7 +174,7 @@ export const mountVoiceDeliveryRuntime = (
   };
   const unsubscribe = store.subscribe(render);
   const handleClick = (event: Event) => {
-    const {target} = event;
+    const { target } = event;
     if (!(target instanceof Element)) {
       return;
     }

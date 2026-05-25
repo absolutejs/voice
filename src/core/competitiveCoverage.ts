@@ -252,8 +252,8 @@ export const evaluateVoiceCompetitiveCoverage = (
 ): VoiceCompetitiveCoverageAssertionReport => {
   const issues: string[] = [];
   const surfaces = report.surfaces.map((surface) => surface.surface).sort();
-  const {missing} = report.summary;
-  const {failed} = report.summary;
+  const { missing } = report.summary;
+  const { failed } = report.summary;
   const evidenceNames = new Set(
     report.surfaces.flatMap((surface) =>
       (surface.evidence ?? []).map((evidence) => evidence.name),

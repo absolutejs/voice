@@ -114,7 +114,8 @@ const worstStatus = (
 export const assertVoiceMediaPipelineEvidence = (
   report: VoiceMediaPipelineReport,
   input: VoiceMediaPipelineAssertionInput = {},
-): VoiceMediaPipelineAssertionReport => assertVoiceEvidence(
+): VoiceMediaPipelineAssertionReport =>
+  assertVoiceEvidence(
     "Voice media pipeline assertion failed",
     evaluateVoiceMediaPipelineEvidence(report, input),
   );
@@ -339,7 +340,7 @@ export const evaluateVoiceMediaPipelineEvidence = (
       `Expected media quality proof to pass, found ${report.quality.status}.`,
     );
   }
-  const {maxMediaGapMs} = input;
+  const { maxMediaGapMs } = input;
   if (
     maxMediaGapMs !== undefined &&
     report.quality.gapsMs.some((gap) => gap > maxMediaGapMs)
@@ -572,7 +573,7 @@ export const summarizeVoiceMediaPipelineReport = (
   report: VoiceMediaPipelineReport,
   options: VoiceMediaPipelineProofSummaryOptions = {},
 ): VoiceMediaPipelineProofSummary => {
-  const {calibration} = report;
+  const { calibration } = report;
   const quality = summarizeMediaQualityReport(report.quality);
   const processorGraph = report.processorGraph
     ? summarizeMediaProcessorGraphReport(report.processorGraph)

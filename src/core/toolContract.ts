@@ -193,7 +193,7 @@ const evaluateExpectation = (input: {
   timedOut: boolean;
 }): VoiceToolContractIssue[] => {
   const issues: VoiceToolContractIssue[] = [];
-  const {expect} = input;
+  const { expect } = input;
   if (!expect) {
     return issues;
   }
@@ -262,7 +262,8 @@ const evaluateExpectation = (input: {
 export const assertVoiceToolContractEvidence = (
   report: VoiceToolContractSuiteReport,
   input: VoiceToolContractAssertionInput = {},
-): VoiceToolContractAssertionReport => assertVoiceEvidence(
+): VoiceToolContractAssertionReport =>
+  assertVoiceEvidence(
     "Voice tool contract evidence assertion failed",
     evaluateVoiceToolContractEvidence(report, input),
   );

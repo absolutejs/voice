@@ -69,7 +69,7 @@ export const encodePcmAsWav = (
       `encodePcmAsWav only supports raw pcm_s16le input (got container=${format.container}, encoding=${format.encoding})`,
     );
   }
-  const {channels} = format;
+  const { channels } = format;
   const sampleRate = format.sampleRateHz;
   const bitsPerSample = 16;
   const byteRate = (sampleRate * channels * bitsPerSample) / 8;

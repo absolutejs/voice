@@ -264,7 +264,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
     if (!healthOptions) {
       return undefined;
     }
-    const {suppressedUntil} = getHealth(provider);
+    const { suppressedUntil } = getHealth(provider);
 
     return typeof suppressedUntil === "number"
       ? Math.max(0, suppressedUntil - now())
@@ -275,7 +275,7 @@ const createResolver = <TProvider extends string, TAdapter, TOpenOptions>(
     if (!healthOptions) {
       return false;
     }
-    const {suppressedUntil} = getHealth(provider);
+    const { suppressedUntil } = getHealth(provider);
 
     return typeof suppressedUntil === "number" && suppressedUntil > now();
   };

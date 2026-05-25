@@ -320,11 +320,10 @@ const createPostgresExternalObjectMapStoreWithClient = <
   options: VoicePostgresStoreOptions,
 ): VoiceExternalObjectMapStore<TMapping> => {
   const store = createPostgresRecordStore<TMapping>({
-    decorate: (id, value) =>
-      ({
-        ...value,
-        id,
-      }),
+    decorate: (id, value) => ({
+      ...value,
+      id,
+    }),
     getSortAt: (value) => value.updatedAt,
     qualifiedTableName: resolveQualifiedTableName({
       fallback: "external_objects",
@@ -387,11 +386,10 @@ const createPostgresTraceSinkDeliveryStoreWithClient = <
   options: VoicePostgresStoreOptions,
 ): VoiceTraceSinkDeliveryStore<TDelivery> =>
   createPostgresRecordStore<TDelivery>({
-    decorate: (id, value) =>
-      ({
-        ...value,
-        id,
-      }),
+    decorate: (id, value) => ({
+      ...value,
+      id,
+    }),
     getSortAt: (value) => value.createdAt,
     qualifiedTableName: resolveQualifiedTableName({
       fallback: "trace_deliveries",
@@ -437,11 +435,10 @@ const createPostgresAuditSinkDeliveryStoreWithClient = <
   options: VoicePostgresStoreOptions,
 ): VoiceAuditSinkDeliveryStore<TDelivery> =>
   createPostgresRecordStore<TDelivery>({
-    decorate: (id, value) =>
-      ({
-        ...value,
-        id,
-      }),
+    decorate: (id, value) => ({
+      ...value,
+      id,
+    }),
     getSortAt: (value) => value.createdAt,
     qualifiedTableName: resolveQualifiedTableName({
       fallback: "audit_deliveries",

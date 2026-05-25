@@ -75,7 +75,7 @@ export const mount = (
     for (const button of host.querySelectorAll<HTMLButtonElement>(
       "button[data-action]",
     )) {
-      const {action} = button.dataset;
+      const { action } = button.dataset;
       button.addEventListener("click", () => {
         if (action === "start") void controller.startRecording();
         else if (action === "mute") controller.stopRecording();
@@ -131,7 +131,6 @@ const globalApi: VoiceEmbedGlobal = {
 };
 
 declare global {
-   
   var AbsoluteVoice: VoiceEmbedGlobal | undefined;
 }
 

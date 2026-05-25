@@ -31,7 +31,7 @@ export const bindVoiceProviderSimulationControls = <
   >,
 ) => {
   const onClick = (event: Event) => {
-    const {target} = event;
+    const { target } = event;
     if (!(target instanceof HTMLElement)) {
       return;
     }

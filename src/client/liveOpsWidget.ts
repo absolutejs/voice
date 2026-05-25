@@ -122,7 +122,7 @@ export const mountVoiceLiveOps = (
   const unsubscribe = store.subscribe(render);
   const handleInput = () => syncInputs();
   const handleClick = (event: Event) => {
-    const {target} = event;
+    const { target } = event;
     if (!(target instanceof Element)) {
       return;
     }

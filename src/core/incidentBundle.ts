@@ -293,7 +293,7 @@ const renderIncidentMarkdown = (input: {
   title?: string;
   traceMarkdown: string;
 }) => {
-  const {recoveryOutcomes} = input;
+  const { recoveryOutcomes } = input;
   const lines = [
     `# ${input.title ?? `Voice Incident ${input.summary.sessionId}`}`,
     "",

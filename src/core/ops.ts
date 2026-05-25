@@ -1077,7 +1077,7 @@ export const matchesVoiceOpsTaskAssignmentRule = (
   task: StoredVoiceOpsTask,
   rule: VoiceOpsTaskAssignmentRule,
 ) => {
-  const {when} = rule;
+  const { when } = rule;
   if (!when) {
     return true;
   }
@@ -1198,7 +1198,7 @@ export const resolveVoiceOpsTaskPolicy = (input: {
   disposition?: VoiceCallDisposition;
   policies?: VoiceOpsDispositionTaskPolicies;
 }) => {
-  const {disposition} = input;
+  const { disposition } = input;
   if (!disposition) {
     return undefined;
   }

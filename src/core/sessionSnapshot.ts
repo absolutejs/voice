@@ -244,7 +244,7 @@ const resolveVoiceSessionSnapshot = async (
 };
 
 const readRouteSessionId = (params: Record<string, unknown>) => {
-  const {sessionId} = params;
+  const { sessionId } = params;
 
   return typeof sessionId === "string" ? sessionId : "";
 };

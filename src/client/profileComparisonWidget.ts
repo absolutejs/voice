@@ -5,6 +5,7 @@ import {
   type VoiceProfileComparisonClientOptions,
   type VoiceProfileComparisonSnapshot,
 } from "./profileComparison";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceProfileComparisonProfileView = {
   evidence: Array<{ label: string; value: string }>;
@@ -70,7 +71,7 @@ export const createVoiceProfileComparisonViewModel = (
   snapshot: VoiceProfileComparisonSnapshot,
   options: VoiceProfileComparisonWidgetOptions = {},
 ): VoiceProfileComparisonViewModel => {
-  const {report} = snapshot;
+  const { report } = snapshot;
   const profiles = report?.defaults.profiles.map(createProfileView) ?? [];
 
   return {
@@ -116,13 +117,22 @@ export const defineVoiceProfileComparisonElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceProfileComparison(
           this,
           this.getAttribute("path") ?? "/api/voice/real-call-profile-history",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }

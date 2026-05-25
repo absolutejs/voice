@@ -404,26 +404,28 @@ const presetDefinitions = {
   VoiceWorkflowContractDefinition<unknown>
 >;
 
-export const createVoiceWorkflowContractHandler = <
-  TContext = unknown,
-  TSession extends VoiceSessionRecord = VoiceSessionRecord,
-  TResult = unknown,
->(input: {
-  contract?:
-    | VoiceWorkflowContract<TResult>
-    | VoiceWorkflowContractDefinition<TResult>;
-  handler: VoiceOnTurnHandler<TContext, TSession, TResult>;
-  resolveContract?: (args: {
-    context: TContext;
-    result: VoiceRouteResult<TResult>;
-    session: TSession;
-    turn: VoiceTurnRecord;
-  }) =>
-    | VoiceWorkflowContract<TResult>
-    | VoiceWorkflowContractDefinition<TResult>
-    | undefined;
-  store?: VoiceTraceEventStore;
-}): VoiceOnTurnHandler<TContext, TSession, TResult> => async (session, turn, api, context) => {
+export const createVoiceWorkflowContractHandler =
+  <
+    TContext = unknown,
+    TSession extends VoiceSessionRecord = VoiceSessionRecord,
+    TResult = unknown,
+  >(input: {
+    contract?:
+      | VoiceWorkflowContract<TResult>
+      | VoiceWorkflowContractDefinition<TResult>;
+    handler: VoiceOnTurnHandler<TContext, TSession, TResult>;
+    resolveContract?: (args: {
+      context: TContext;
+      result: VoiceRouteResult<TResult>;
+      session: TSession;
+      turn: VoiceTurnRecord;
+    }) =>
+      | VoiceWorkflowContract<TResult>
+      | VoiceWorkflowContractDefinition<TResult>
+      | undefined;
+    store?: VoiceTraceEventStore;
+  }): VoiceOnTurnHandler<TContext, TSession, TResult> =>
+  async (session, turn, api, context) => {
     const legacyHandler = input.handler as (
       session: TSession,
       turn: VoiceTurnRecord,
@@ -475,7 +477,7 @@ export const createVoiceWorkflowContractPreset = <TResult = unknown>(
   return createVoiceWorkflowContract<TResult>({
     ...(preset as VoiceWorkflowContractDefinition<TResult>),
     ...options,
-    fields: options.fields ?? (preset.fields),
+    fields: options.fields ?? preset.fields,
     id: options.id ?? preset.id,
   });
 };

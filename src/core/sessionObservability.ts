@@ -467,7 +467,8 @@ const linkByRel = (links: readonly VoiceSessionObservabilityLink[]) => {
 export const assertVoiceSessionObservabilityEvidence = (
   report: VoiceSessionObservabilityReport,
   input: VoiceSessionObservabilityEvidenceInput = {},
-): VoiceSessionObservabilityEvidenceReport => assertVoiceEvidence(
+): VoiceSessionObservabilityEvidenceReport =>
+  assertVoiceEvidence(
     "Voice session observability evidence assertion failed",
     evaluateVoiceSessionObservabilityEvidence(report, input),
   );

@@ -270,11 +270,10 @@ const createSQLiteExternalObjectMapStoreWithDatabase = <
   const store = createSQLiteRecordStore<TMapping>({
     database,
     tableName,
-    decorate: (id, value) =>
-      ({
-        ...value,
-        id,
-      }),
+    decorate: (id, value) => ({
+      ...value,
+      id,
+    }),
     getSortAt: (value) => value.updatedAt,
   });
 
@@ -331,11 +330,10 @@ const createSQLiteTraceSinkDeliveryStoreWithDatabase = <
   createSQLiteRecordStore<TDelivery>({
     database,
     tableName,
-    decorate: (id, value) =>
-      ({
-        ...value,
-        id,
-      }),
+    decorate: (id, value) => ({
+      ...value,
+      id,
+    }),
     getSortAt: (value) => value.createdAt,
   });
 
@@ -375,11 +373,10 @@ const createSQLiteAuditSinkDeliveryStoreWithDatabase = <
   createSQLiteRecordStore<TDelivery>({
     database,
     tableName,
-    decorate: (id, value) =>
-      ({
-        ...value,
-        id,
-      }),
+    decorate: (id, value) => ({
+      ...value,
+      id,
+    }),
     getSortAt: (value) => value.createdAt,
   });
 

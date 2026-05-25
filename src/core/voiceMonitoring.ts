@@ -623,12 +623,16 @@ export const createVoiceMonitorRoutes = <TEvidence = unknown>(
     name: options.name ?? "absolutejs-voice-monitoring",
   })
     .get(path, report)
-    .get(`${path}.md`, async () => new Response(renderVoiceMonitorMarkdown(await report()), {
-        headers: {
-          "Content-Type": "text/markdown; charset=utf-8",
-          ...options.headers,
-        },
-      }))
+    .get(
+      `${path}.md`,
+      async () =>
+        new Response(renderVoiceMonitorMarkdown(await report()), {
+          headers: {
+            "Content-Type": "text/markdown; charset=utf-8",
+            ...options.headers,
+          },
+        }),
+    )
     .get(issuePath, () => issueStore.list())
     .get(`${issuePath}/notifications`, () => receiptStore.list())
     .post(`${issuePath}/:id/acknowledge`, async ({ params, request }) => {

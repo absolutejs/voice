@@ -669,7 +669,6 @@ export const createVoiceCallReviewRecorder = (
           return;
         case "pong":
           push("benchmark", "pong");
-          
       }
     },
   };

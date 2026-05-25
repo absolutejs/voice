@@ -92,7 +92,7 @@ const normalizeEvents = (
   events: StoredVoiceTraceEvent[] | VoiceRoutingEvent[],
 ): VoiceRoutingEvent[] =>
   (events.every(isRoutingEvent)
-    ? [...(events)]
+    ? [...events]
     : listVoiceRoutingEvents(events)
   ).sort((left, right) => left.at - right.at);
 
@@ -133,7 +133,8 @@ export const assertVoiceProviderRoutingContract = async (
 export const assertVoiceProviderRoutingContractEvidence = (
   reports: readonly VoiceProviderRoutingContractReport[],
   input: VoiceProviderRoutingContractAssertionInput = {},
-): VoiceProviderRoutingContractAssertionReport => assertVoiceEvidence(
+): VoiceProviderRoutingContractAssertionReport =>
+  assertVoiceEvidence(
     "Voice provider routing contract evidence assertion failed",
     evaluateVoiceProviderRoutingContractEvidence(reports, input),
   );

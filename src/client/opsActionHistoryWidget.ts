@@ -41,7 +41,7 @@ export const renderVoiceOpsActionHistoryWidgetHTML = (
   snapshot: VoiceOpsActionHistorySnapshot,
   options: VoiceOpsActionHistoryWidgetOptions = {},
 ) => {
-  const {report} = snapshot;
+  const { report } = snapshot;
   const entries = (report?.entries ?? []).slice(0, options.limit ?? 5);
   const rows = entries
     .map(

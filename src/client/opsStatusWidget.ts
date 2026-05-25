@@ -5,6 +5,7 @@ import {
   type VoiceOpsStatusClientOptions,
   type VoiceOpsStatusSnapshot,
 } from "./opsStatus";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceOpsStatusSurfaceView = {
   detail: string;
@@ -78,7 +79,7 @@ export const createVoiceOpsStatusViewModel = (
   snapshot: VoiceOpsStatusSnapshot,
   options: VoiceOpsStatusWidgetOptions = {},
 ): VoiceOpsStatusViewModel => {
-  const {report} = snapshot;
+  const { report } = snapshot;
   const surfaces = Object.entries(report?.surfaces ?? {}).map(
     ([id, surface]) => {
       const failed =
@@ -138,14 +139,25 @@ export const defineVoiceOpsStatusElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceOpsStatus(
           this,
           this.getAttribute("path") ?? "/api/voice/ops-status",
           {
             description: this.getAttribute("description") ?? undefined,
             includeLinks: this.getAttribute("include-links") !== "false",
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             title: this.getAttribute("title") ?? undefined,
+            // reactive-topic opts the element into SSE push (no polling); fall
+            // back to interval polling when it is absent.
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }

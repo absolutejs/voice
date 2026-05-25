@@ -45,10 +45,9 @@ export const createVoiceBearerAuthVerifier = (input: {
   };
 };
 
-export const createVoiceHMACAuthVerifier = (input: {
-  secret: string;
-  toleranceMs?: number;
-}): VoiceRouteAuthVerifier => async ({ body, headers }) => {
+export const createVoiceHMACAuthVerifier =
+  (input: { secret: string; toleranceMs?: number }): VoiceRouteAuthVerifier =>
+  async ({ body, headers }) => {
     const { signature, timestamp } =
       extractVoiceWebhookSignatureFromHeaders(headers);
     const result = await verifyVoiceWebhookSignature({
@@ -81,7 +80,7 @@ export const createVoiceRouteAuth = (options: VoiceRouteAuthOptions) => {
 
   return new Elysia({ name: options.name ?? "voice-route-auth" }).onRequest(
     async ({ request, set }) => {
-      const {url} = request;
+      const { url } = request;
       if (isBypassed(bypassPaths, url)) return;
       const cloned = request.clone();
       const body =

@@ -626,7 +626,7 @@ export const voice = <
     profileSwitchGuardedSessions: new Set(),
     socketSessions: new WeakMap(),
   };
-  const {monitor} = config;
+  const { monitor } = config;
   const registerMonitorSession = (
     sessionId: string,
     handle: VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>,
@@ -744,6 +744,7 @@ export const voice = <
       noiseSuppressorFormat: sessionOptions.noiseSuppressorFormat,
       context,
       id: sessionId,
+      greeting: config.greeting,
       handoff: config.handoff,
       languageStrategy: config.languageStrategy,
       lexicon,
@@ -824,9 +825,7 @@ export const voice = <
     }
     const options = value === true ? {} : value;
 
-    return app.use(
-      (factory as (options: unknown) => Elysia)(options),
-    );
+    return app.use((factory as (options: unknown) => Elysia)(options));
   };
 
   const surfaceRoutes = (): Elysia => {

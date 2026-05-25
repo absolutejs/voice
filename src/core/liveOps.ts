@@ -184,13 +184,15 @@ const findMissing = <Value extends string>(
 
 export const assertVoiceLiveOpsControlEvidence = (
   input: VoiceLiveOpsControlEvidenceInput = {},
-): VoiceLiveOpsControlEvidenceReport => assertVoiceEvidence(
+): VoiceLiveOpsControlEvidenceReport =>
+  assertVoiceEvidence(
     "Voice live-ops control evidence assertion failed",
     evaluateVoiceLiveOpsControlEvidence(input),
   );
 export const assertVoiceLiveOpsEvidence = (
   input: VoiceLiveOpsEvidenceInput = {},
-): VoiceLiveOpsEvidenceReport => assertVoiceEvidence(
+): VoiceLiveOpsEvidenceReport =>
+  assertVoiceEvidence(
     "Voice live-ops evidence assertion failed",
     evaluateVoiceLiveOpsEvidence(input),
   );
@@ -431,10 +433,10 @@ export const evaluateVoiceLiveOpsEvidence = (
   input: VoiceLiveOpsEvidenceInput = {},
 ): VoiceLiveOpsEvidenceReport => {
   const issues: string[] = [];
-  const {actionHistory} = input;
-  const {opsRecovery} = input;
-  const {opsStatus} = input;
-  const {operationsRecord} = input;
+  const { actionHistory } = input;
+  const { opsRecovery } = input;
+  const { opsStatus } = input;
+  const { operationsRecord } = input;
   const historyActions = uniqueSorted(
     actionHistory?.entries.map((entry) => entry.actionId) ?? [],
   );
@@ -594,7 +596,7 @@ const readVoiceLiveOpsActionInput = async (
     throw new Error("Voice live ops action requires a JSON body.");
   }
   const record = body as Record<string, unknown>;
-  const {action} = record;
+  const { action } = record;
   const sessionId = toStringValue(record.sessionId);
   if (!sessionId || !isVoiceLiveOpsAction(action)) {
     throw new Error(
@@ -637,7 +639,7 @@ export const createVoiceLiveOpsRoutes = (
       }
     })
     .get(controlPath, async ({ params }) => {
-      const {sessionId} = (params as { sessionId: string });
+      const { sessionId } = params as { sessionId: string };
 
       return {
         control: await controller.get(sessionId),

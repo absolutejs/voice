@@ -4,6 +4,7 @@ import {
   type VoiceSessionSnapshotClientOptions,
   type VoiceSessionSnapshotClientState,
 } from "./sessionSnapshot";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceSessionSnapshotViewModel = {
   artifacts: Array<{ href?: string; label: string; status: string }>;
@@ -36,7 +37,7 @@ export const createVoiceSessionSnapshotViewModel = (
   state: VoiceSessionSnapshotClientState,
   options: VoiceSessionSnapshotWidgetOptions = {},
 ): VoiceSessionSnapshotViewModel => {
-  const {snapshot} = state;
+  const { snapshot } = state;
   const failedProofs = snapshot?.proofSummary.failed ?? 0;
   const mediaWarnings =
     snapshot?.media.filter((media) => media.report.status !== "pass").length ??
@@ -188,15 +189,22 @@ export const defineVoiceSessionSnapshotElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 0);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceSessionSnapshot(
           this,
           this.getAttribute("path") ?? "/api/voice/session-snapshot/session",
           {
             description: this.getAttribute("description") ?? undefined,
             downloadLabel: this.getAttribute("download-label") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 0,
             title: this.getAttribute("title") ?? undefined,
             turnId: this.getAttribute("turn-id") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : { intervalMs: Number.isFinite(intervalMs) ? intervalMs : 0 }),
           },
         );
       }
@@ -221,7 +229,7 @@ export const mountVoiceSessionSnapshot = (
     );
   };
   const handleClick = (event: Event) => {
-    const {target} = event;
+    const { target } = event;
     if (
       target instanceof Element &&
       target.closest("[data-absolute-voice-session-snapshot-download]")

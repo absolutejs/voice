@@ -122,7 +122,9 @@ const toTime = (
 };
 
 const uniqueStrings = (values: Array<string | undefined>) =>
-  Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+  Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
 
 const normalizeNumber = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;

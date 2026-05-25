@@ -149,7 +149,7 @@ export const summarizeVoiceOpsStatus = async <
 >(
   options: VoiceOpsStatusOptions<TProvider>,
 ): Promise<VoiceOpsStatusReport> => {
-  const {include} = options;
+  const { include } = options;
   const shouldInclude = (surface: keyof NonNullable<typeof include>) =>
     include?.[surface] !== false;
   const evals = options.evals === false ? undefined : options.evals;

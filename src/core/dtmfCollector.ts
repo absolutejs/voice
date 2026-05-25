@@ -94,7 +94,7 @@ export const collectVoiceDTMFInput = (
 
   const finish = (reason: "length" | "terminator") => {
     if (state.status !== "collecting") return;
-    const {digits} = state;
+    const { digits } = state;
     if (digits.length < minLength) {
       state = { digits, reason: "too-short", status: "rejected" };
       notify();

@@ -5,6 +5,7 @@ import {
   type VoiceTurnLatencyClientOptions,
   type VoiceTurnLatencySnapshot,
 } from "./turnLatency";
+import { voiceSseReactiveSource } from "./reactiveSource";
 
 export type VoiceTurnLatencyCardView = VoiceTurnLatencyItem & {
   label: string;
@@ -108,15 +109,24 @@ export const defineVoiceTurnLatencyElement = (
 
       connectedCallback() {
         const intervalMs = Number(this.getAttribute("interval-ms") ?? 5000);
+        const reactiveTopic = this.getAttribute("reactive-topic");
         this.mounted = mountVoiceTurnLatency(
           this,
           this.getAttribute("path") ?? "/api/turn-latency",
           {
             description: this.getAttribute("description") ?? undefined,
-            intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
             proofLabel: this.getAttribute("proof-label") ?? undefined,
             proofPath: this.getAttribute("proof-path") ?? undefined,
             title: this.getAttribute("title") ?? undefined,
+            ...(reactiveTopic
+              ? {
+                  reactiveSource: voiceSseReactiveSource(reactiveTopic, {
+                    path: this.getAttribute("reactive-path") ?? undefined,
+                  }),
+                }
+              : {
+                  intervalMs: Number.isFinite(intervalMs) ? intervalMs : 5000,
+                }),
           },
         );
       }
@@ -141,7 +151,7 @@ export const mountVoiceTurnLatency = (
     );
   };
   const handleClick = (event: Event) => {
-    const {target} = event;
+    const { target } = event;
     if (
       target instanceof Element &&
       target.closest("[data-absolute-voice-turn-latency-proof]")

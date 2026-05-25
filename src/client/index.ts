@@ -1,3 +1,11 @@
+export {
+  bindVoiceReactiveSource,
+  voiceSseReactiveSource,
+} from "./reactiveSource";
+export type {
+  VoiceReactiveSource,
+  VoiceSseReactiveSourceOptions,
+} from "./reactiveSource";
 export { createVoiceConnection } from "./connection";
 export { createVoiceAudioPlayer, decodeVoiceAudioChunk } from "./audioPlayer";
 export { createVoiceStream } from "./createVoiceStream";
