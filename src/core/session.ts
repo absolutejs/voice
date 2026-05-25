@@ -2193,102 +2193,119 @@ export const createVoiceSession = <
     });
   };
 
-  // Forward a streamed assistant reply to TTS sentence-by-sentence so the caller
-  // hears the first phrase while the model is still generating. Returns the full
-  // accumulated text for persistence. Stops early if the turn is superseded by a
-  // barge-in (cancelActiveTTS clears activeTTSTurnId).
-  const speakAssistantStream = async (
-    stream: AsyncIterable<string>,
-    session: TSession,
+  // Stream an assistant reply to TTS as the model generates it. The run pushes
+  // prose deltas via `push`, which flushes complete sentences to the TTS adapter
+  // in order (sends are serialized) so the caller hears the first phrase before
+  // the model finishes. `finish` flushes the tail and waits for pending sends,
+  // returning the full text + whether anything was streamed. Sends stop once a
+  // barge-in (cancelActiveTTS clears activeTTSTurnId) takes over the channel.
+  const createTurnTTSStreamer = (
     turn: VoiceTurnRecord<TResult>,
-  ): Promise<string> => {
-    let activeTTSSession: TTSAdapterSession | null = null;
-    try {
-      activeTTSSession = await ensureTTSSession();
-    } catch (error) {
-      logger.warn("voice assistant audio send failed", {
-        error: toError(error).message,
-        sessionId: options.id,
-        turnId: turn.id,
-      });
-    }
-
-    let full = "";
+    session: TSession,
+  ) => {
     let buffer = "";
+    let full = "";
     let charsSent = 0;
     let started = false;
+    let streamed = false;
+    let sendChain: Promise<void> = Promise.resolve();
+    let ttsSessionRequest: Promise<TTSAdapterSession | null> | null = null;
     const ttsStartedAt = Date.now();
 
-    const flush = async (text: string) => {
-      if (!activeTTSSession || !text.trim()) return;
-      // Stop once a barge-in (or a newer turn) has taken over the TTS channel.
-      if (started && activeTTSTurnId !== turn.id) return;
-      if (!started) {
-        activeTTSTurnId = turn.id;
-        await appendTurnLatencyStage({
-          at: ttsStartedAt,
-          session,
-          stage: "tts_send_started",
-          turnId: turn.id,
+    const ensure = () => {
+      if (!ttsSessionRequest) {
+        ttsSessionRequest = ensureTTSSession().catch((error) => {
+          logger.warn("voice assistant audio send failed", {
+            error: toError(error).message,
+            sessionId: options.id,
+            turnId: turn.id,
+          });
+
+          return null;
         });
-        started = true;
       }
-      await activeTTSSession.send(text);
-      charsSent += text.length;
+
+      return ttsSessionRequest;
     };
 
-    try {
-      for await (const delta of stream) {
-        if (!delta) continue;
+    const flush = (text: string) => {
+      if (!text.trim()) return;
+      sendChain = sendChain.then(async () => {
+        // Stop once a barge-in (or a newer turn) has taken over the channel.
+        if (started && activeTTSTurnId !== turn.id) return;
+        const ttsSession = await ensure();
+        if (!ttsSession || (started && activeTTSTurnId !== turn.id)) return;
+        if (!started) {
+          activeTTSTurnId = turn.id;
+          await appendTurnLatencyStage({
+            at: ttsStartedAt,
+            session,
+            stage: "tts_send_started",
+            turnId: turn.id,
+          });
+          started = true;
+        }
+        try {
+          await ttsSession.send(text);
+          charsSent += text.length;
+        } catch (error) {
+          logger.warn("voice assistant audio send failed", {
+            error: toError(error).message,
+            sessionId: options.id,
+            turnId: turn.id,
+          });
+        }
+      });
+    };
+
+    return {
+      finish: async () => {
+        if (buffer.trim()) {
+          flush(buffer);
+        }
+        buffer = "";
+        await sendChain;
+        if (started) {
+          if (options.costAccountant) {
+            options.costAccountant.recordTTS({ characters: charsSent });
+          }
+          await appendTurnLatencyStage({
+            session,
+            stage: "tts_send_completed",
+            turnId: turn.id,
+          });
+          await appendTrace({
+            payload: {
+              elapsedMs: Date.now() - ttsStartedAt,
+              status: "sent",
+              streamed: true,
+            },
+            session,
+            turnId: turn.id,
+            type: "turn.assistant",
+          });
+        }
+
+        return { fullText: full, streamed };
+      },
+      push: (delta: string) => {
+        if (!delta) return;
+        streamed = true;
         full += delta;
         buffer += delta;
-        if (started && activeTTSTurnId !== turn.id) break;
-
         let boundary = nextSpeakableBoundary(buffer);
         while (boundary !== -1) {
-          await flush(buffer.slice(0, boundary));
+          flush(buffer.slice(0, boundary));
           buffer = buffer.slice(boundary);
           boundary = nextSpeakableBoundary(buffer);
         }
         const cut = softCutBoundary(buffer);
         if (cut !== -1) {
-          await flush(buffer.slice(0, cut));
+          flush(buffer.slice(0, cut));
           buffer = buffer.slice(cut);
         }
-      }
-      await flush(buffer);
-    } catch (error) {
-      logger.warn("voice assistant stream failed", {
-        error: toError(error).message,
-        sessionId: options.id,
-        turnId: turn.id,
-      });
-      await appendTrace({
-        payload: { error: toError(error).message, status: "tts-send-failed" },
-        session,
-        turnId: turn.id,
-        type: "session.error",
-      });
-    }
-
-    if (started) {
-      if (options.costAccountant) {
-        options.costAccountant.recordTTS({ characters: charsSent });
-      }
-      await appendTurnLatencyStage({
-        session,
-        stage: "tts_send_completed",
-        turnId: turn.id,
-      });
-      await appendTrace({
-        payload: { elapsedMs: Date.now() - ttsStartedAt, status: "sent", streamed: true },
-        session,
-        turnId: turn.id,
-        type: "turn.assistant",
-      });
-    }
-
-    return full;
+      },
+    };
   };
 
   const completeTurn = async (
@@ -2317,6 +2334,12 @@ export const createVoiceSession = <
       return;
     }
     const injectedInstruction = liveOpsControl?.injectedInstruction?.trim();
+    // Stream the reply to TTS: the model pushes prose deltas through
+    // ttsStreamer.push (via onTextDelta) during the run, so the caller hears the
+    // first sentence while the model is still generating.
+    const ttsStreamer = options.tts
+      ? createTurnTTSStreamer(turn, session)
+      : undefined;
     const committedOutput = await options.route.onTurn({
       api: api,
       context: options.context,
@@ -2326,6 +2349,7 @@ export const createVoiceSession = <
             injectedInstruction,
           }
         : undefined,
+      onTextDelta: ttsStreamer?.push,
       session,
       turn,
     });
@@ -2347,49 +2371,13 @@ export const createVoiceSession = <
       });
     }
 
-    if (
-      committedOutput?.assistantTextStream &&
-      !options.tts &&
-      options.realtime &&
-      !output.assistantText
-    ) {
-      // Realtime adapters can't accept incremental TTS sends — drain the
-      // streamed reply into a single text for the realtime branch below.
-      let collected = "";
-      try {
-        for await (const delta of committedOutput.assistantTextStream) {
-          collected += delta ?? "";
-        }
-      } catch (error) {
-        logger.warn("voice assistant stream drain failed", {
-          error: toError(error).message,
-          sessionId: options.id,
-          turnId: turn.id,
-        });
-      }
-      output.assistantText = collected || output.assistantText;
-    }
+    // Flush the streamed reply (tail + pending sends). `streamed` is false when
+    // the model never called onTextDelta (a non-streaming adapter) — those fall
+    // through to the one-shot send below.
+    const streamResult = ttsStreamer ? await ttsStreamer.finish() : undefined;
 
-    const assistantStream = options.tts
-      ? committedOutput?.assistantTextStream
-      : undefined;
-
-    if (assistantStream) {
-      // Streaming TTS path: speak phrases as the model generates them; the
-      // accumulated text becomes the persisted assistantText.
-      const assistantTextStartedAt = Date.now();
-      await appendTurnLatencyStage({
-        at: assistantTextStartedAt,
-        session,
-        stage: "assistant_text_started",
-        turnId: turn.id,
-      });
-      const streamedText = await speakAssistantStream(
-        assistantStream,
-        session,
-        turn,
-      );
-      output.assistantText = streamedText || output.assistantText;
+    if (streamResult?.streamed) {
+      output.assistantText = streamResult.fullText || output.assistantText;
       if (output.assistantText) {
         const finalText = output.assistantText;
         await writeSession((currentSession) => {

@@ -88,6 +88,10 @@ export type VoiceAgentModelInput<
   agentId: string;
   context: TContext;
   messages: VoiceAgentMessage[];
+  // Streaming adapters call this with prose deltas as they generate, so the
+  // session can speak the first sentence before the model finishes. Adapters
+  // that don't stream simply ignore it and return the full text.
+  onTextDelta?: (delta: string) => void;
   session: TSession;
   system?: string;
   tools: Array<{
@@ -179,6 +183,7 @@ export type VoiceAgent<
     api: VoiceSessionHandle<TContext, TSession, TResult>;
     context: TContext;
     messages?: VoiceAgentMessage[];
+    onTextDelta?: (delta: string) => void;
     session: TSession;
     system?: string;
     turn: VoiceTurnRecord;
@@ -435,6 +440,119 @@ const appendVoiceAgentSquadHandoff = async (input: {
   return handoff;
 };
 
+// Built-in lifecycle tools. The model signals call lifecycle (Option B) by
+// CALLING these rather than returning JSON fields, so it can stream natural
+// prose for speech while still controlling the call. The agent maps a lifecycle
+// tool call onto the VoiceRouteResult outcome and never dispatches it to a user
+// tool. These are always offered to the model alongside the user's tools.
+const LIFECYCLE_TOOLS: ReadonlyArray<{
+  description: string;
+  name: string;
+  parameters: Record<string, unknown>;
+}> = [
+  {
+    description:
+      "Transfer the call to a human agent or phone number. Say a short handoff line to the caller first, then call this.",
+    name: "transfer_call",
+    parameters: {
+      additionalProperties: false,
+      properties: {
+        reason: { description: "Why you are transferring", type: "string" },
+        target: {
+          description: "Agent id or phone number to transfer to",
+          type: "string",
+        },
+      },
+      required: ["target"],
+      type: "object",
+    },
+  },
+  {
+    description:
+      "Escalate to a supervisor or human when you cannot resolve the caller's request.",
+    name: "escalate",
+    parameters: {
+      additionalProperties: false,
+      properties: {
+        reason: { description: "Why you are escalating", type: "string" },
+      },
+      required: ["reason"],
+      type: "object",
+    },
+  },
+  {
+    description: "Record that the call reached voicemail or an answering machine.",
+    name: "leave_voicemail",
+    parameters: { additionalProperties: false, properties: {}, type: "object" },
+  },
+  {
+    description:
+      "Record that no one answered or the call could not proceed to a conversation.",
+    name: "mark_no_answer",
+    parameters: { additionalProperties: false, properties: {}, type: "object" },
+  },
+  {
+    description:
+      "End the conversation once its goal is met. Optionally include a structured result.",
+    name: "complete",
+    parameters: {
+      additionalProperties: true,
+      properties: {
+        result: { description: "Structured outcome of the call, if any" },
+      },
+      type: "object",
+    },
+  },
+];
+
+const LIFECYCLE_TOOL_NAMES: ReadonlySet<string> = new Set(
+  LIFECYCLE_TOOLS.map((tool) => tool.name),
+);
+
+const applyLifecycleToolCall = <TResult>(
+  output: VoiceAgentModelOutput<TResult>,
+  toolCall: VoiceAgentToolCall,
+) => {
+  const args = (toolCall.args ?? {}) as Record<string, unknown>;
+  switch (toolCall.name) {
+    case "transfer_call":
+      output.transfer = {
+        reason: typeof args.reason === "string" ? args.reason : undefined,
+        target: typeof args.target === "string" ? args.target : "",
+      };
+      break;
+    case "escalate":
+      output.escalate = {
+        reason:
+          typeof args.reason === "string" ? args.reason : "escalation requested",
+      };
+      break;
+    case "leave_voicemail":
+      output.voicemail = {};
+      break;
+    case "mark_no_answer":
+      output.noAnswer = {};
+      break;
+    case "complete":
+      output.complete = true;
+      if ("result" in args) {
+        output.result = args.result as TResult;
+      }
+      break;
+    default:
+      break;
+  }
+};
+
+const isLifecycleRequested = <TResult>(
+  output: VoiceAgentModelOutput<TResult>,
+) =>
+  Boolean(output.complete) ||
+  Boolean(output.transfer) ||
+  Boolean(output.escalate) ||
+  Boolean(output.voicemail) ||
+  Boolean(output.noAnswer);
+
 export const createVoiceAgent = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -473,9 +591,10 @@ export const createVoiceAgent = <
           agentId: options.id,
           context: input.context,
           messages,
+          onTextDelta: input.onTextDelta,
           session: input.session,
           system,
-          tools: [...toolMap.values()].map((tool) => ({
+          tools: [...LIFECYCLE_TOOLS, ...toolMap.values()].map((tool) => ({
             description: tool.description,
             name: tool.name,
             parameters: tool.parameters,
@@ -544,11 +663,27 @@ export const createVoiceAgent = <
         });
       }
 
-      if (!output.toolCalls?.length || round === maxToolRounds) {
+      // Built-in lifecycle tools set the call outcome and end the turn; only
+      // the user's own tools get dispatched + looped back to the model.
+      const appToolCalls = (output.toolCalls ?? []).filter((toolCall) => {
+        if (LIFECYCLE_TOOL_NAMES.has(toolCall.name)) {
+          applyLifecycleToolCall(output, toolCall);
+
+          return false;
+        }
+
+        return true;
+      });
+
+      if (
+        appToolCalls.length === 0 ||
+        isLifecycleRequested(output) ||
+        round === maxToolRounds
+      ) {
         break;
       }
 
-      for (const toolCall of output.toolCalls) {
+      for (const toolCall of appToolCalls) {
         const tool = toolMap.get(toolCall.name);
         if (!tool) {
           const missingResult: VoiceAgentToolResult = {

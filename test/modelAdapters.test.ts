@@ -657,24 +657,46 @@ test("createVoiceProviderRouter falls back when provider exceeds latency budget"
   ]);
 });
 
-test("createOpenAIVoiceAssistantModel maps tool calls from responses output", async () => {
+// Build an OpenAI Responses SSE body from a list of events.
+const sseResponse = (events: Array<Record<string, unknown>>) =>
+  new Response(
+    events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+    { headers: { "content-type": "text/event-stream" } },
+  );
+
+test("createOpenAIVoiceAssistantModel maps tool calls from the responses stream", async () => {
   const requests: Array<Record<string, unknown>> = [];
   const model = createOpenAIVoiceAssistantModel({
     apiKey: "test-key",
     fetch: async (_url, init) => {
       requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-      return new Response(
-        JSON.stringify({
-          output: [
-            {
-              arguments: '{"orderId":"123"}',
-              call_id: "call-1",
-              name: "lookup_order",
-              type: "function_call",
-            },
-          ],
-        }),
-      );
+
+      return sseResponse([
+        {
+          item: {
+            call_id: "call-1",
+            id: "fc_1",
+            name: "lookup_order",
+            type: "function_call",
+          },
+          type: "response.output_item.added",
+        },
+        {
+          delta: '{"orderId":"123"}',
+          item_id: "fc_1",
+          type: "response.function_call_arguments.delta",
+        },
+        {
+          item: {
+            arguments: '{"orderId":"123"}',
+            call_id: "call-1",
+            id: "fc_1",
+            name: "lookup_order",
+            type: "function_call",
+          },
+          type: "response.output_item.done",
+        },
+      ]);
     },
   });
 
@@ -682,6 +704,7 @@ test("createOpenAIVoiceAssistantModel maps tool calls from responses output", as
 
   expect(requests[0]).toMatchObject({
     model: "gpt-4.1-mini",
+    stream: true,
     tool_choice: "auto",
   });
   expect(result.toolCalls).toEqual([
@@ -695,29 +718,31 @@ test("createOpenAIVoiceAssistantModel maps tool calls from responses output", as
   ]);
 });
 
-test("createOpenAIVoiceAssistantModel maps JSON text into route results", async () => {
+test("createOpenAIVoiceAssistantModel streams assistant text via onTextDelta", async () => {
   const usage: Record<string, unknown>[] = [];
+  const deltas: string[] = [];
   const model = createOpenAIVoiceAssistantModel({
     apiKey: "test-key",
     fetch: async () =>
-      new Response(
-        JSON.stringify({
-          output_text: '{"assistantText":"Hi","complete":true}',
-          usage: {
-            input_tokens: 10,
-            output_tokens: 5,
-          },
-        }),
-      ),
+      sseResponse([
+        { delta: "Hi ", type: "response.output_text.delta" },
+        { delta: "there.", type: "response.output_text.delta" },
+        {
+          response: { usage: { input_tokens: 10, output_tokens: 5 } },
+          type: "response.completed",
+        },
+      ]),
     onUsage: (nextUsage) => {
       usage.push(nextUsage);
     },
   });
 
-  expect(await model.generate(createInput())).toMatchObject({
-    assistantText: "Hi",
-    complete: true,
-  });
+  const input = createInput();
+  input.onTextDelta = (delta) => deltas.push(delta);
+  const result = await model.generate(input);
+
+  expect(deltas).toEqual(["Hi ", "there."]);
+  expect(result).toMatchObject({ assistantText: "Hi there." });
   expect(usage).toEqual([
     {
       input_tokens: 10,

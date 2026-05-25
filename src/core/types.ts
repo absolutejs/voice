@@ -731,18 +731,6 @@ export type VoiceRouteResult<TResult = unknown> = {
   complete?: boolean;
   result?: TResult;
   assistantText?: string;
-  /**
-   * Stream the spoken reply incrementally. When set, the session forwards text
-   * to the TTS adapter in sentence-sized chunks as it arrives — so the caller
-   * hears the first sentence while the model is still generating, instead of
-   * waiting for the whole reply. The accumulated text becomes the final
-   * `assistantText` for persistence, traces, and transcript events. If both
-   * `assistantText` and `assistantTextStream` are set, the stream wins.
-   *
-   * Only used on the TTS path; realtime (speech-to-speech) adapters drain the
-   * stream to a single send. Cancelled (barge-in) turns stop draining early.
-   */
-  assistantTextStream?: AsyncIterable<string>;
   citations?: ReadonlyArray<VoiceTurnCitation>;
   transfer?: {
     metadata?: Record<string, unknown>;
@@ -811,6 +799,10 @@ export type VoiceOnTurnObjectHandler<
     control: VoiceLiveOpsControlState;
     injectedInstruction?: string;
   };
+  // The session passes this on the TTS path; call it with prose deltas as the
+  // reply generates and the caller hears the first sentence before the model
+  // finishes. createVoiceAssistant wires it to the model adapter automatically.
+  onTextDelta?: (delta: string) => void;
   session: TSession;
   turn: VoiceTurnRecord;
   api: VoiceSessionHandle<TContext, TSession, TResult>;

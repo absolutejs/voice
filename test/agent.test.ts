@@ -50,7 +50,8 @@ test("createVoiceAgent executes tools and feeds results into the next model pass
   });
   const model: VoiceAgentModel = {
     generate: ({ messages, tools }) => {
-      expect(tools.map((tool) => tool.name)).toEqual(["lookup_order"]);
+      // User tools are offered alongside the built-in lifecycle tools.
+      expect(tools.map((tool) => tool.name)).toContain("lookup_order");
       const toolMessage = messages.find((message) => message.role === "tool");
       if (!toolMessage) {
         return {
@@ -1411,4 +1412,78 @@ test("createVoiceAgent surfaces RAG citations from the knowledge-base tool", asy
     "kb-2",
   ]);
   expect(result.citations?.[0]?.title).toBe("Password reset");
+});
+
+test("createVoiceAgent maps a transfer_call lifecycle tool onto the result", async () => {
+  const model: VoiceAgentModel = {
+    generate: () => ({
+      assistantText: "Sure, connecting you to billing now.",
+      toolCalls: [
+        {
+          args: { reason: "billing", target: "+15551230000" },
+          id: "lc-1",
+          name: "transfer_call",
+        },
+      ],
+    }),
+  };
+  const agent = createVoiceAgent({ id: "support", model });
+
+  const result = await agent.run({
+    api: createApi(),
+    context: {},
+    session: createVoiceSessionRecord("session-lifecycle-transfer"),
+    turn: createTurn("transfer me to billing"),
+  });
+
+  expect(result.assistantText).toBe("Sure, connecting you to billing now.");
+  expect(result.transfer).toEqual({ reason: "billing", target: "+15551230000" });
+  // Lifecycle tools are not dispatched as user tools.
+  expect(result.toolResults ?? []).toHaveLength(0);
+});
+
+test("createVoiceAgent completes via the complete lifecycle tool", async () => {
+  const model: VoiceAgentModel = {
+    generate: () => ({
+      assistantText: "All set — goodbye!",
+      toolCalls: [
+        { args: { result: { booked: true } }, id: "lc-2", name: "complete" },
+      ],
+    }),
+  };
+  const agent = createVoiceAgent({ id: "support", model });
+
+  const result = await agent.run({
+    api: createApi(),
+    context: {},
+    session: createVoiceSessionRecord("session-lifecycle-complete"),
+    turn: createTurn("that's everything"),
+  });
+
+  expect(result.complete).toBe(true);
+  expect(result.result).toEqual({ booked: true });
+});
+
+test("createVoiceAgent forwards model onTextDelta to the run caller", async () => {
+  const deltas: string[] = [];
+  const model: VoiceAgentModel = {
+    generate: ({ onTextDelta }) => {
+      onTextDelta?.("Hello ");
+      onTextDelta?.("world.");
+
+      return { assistantText: "Hello world." };
+    },
+  };
+  const agent = createVoiceAgent({ id: "support", model });
+
+  const result = await agent.run({
+    api: createApi(),
+    context: {},
+    onTextDelta: (delta) => deltas.push(delta),
+    session: createVoiceSessionRecord("session-stream-delta"),
+    turn: createTurn("hi"),
+  });
+
+  expect(deltas).toEqual(["Hello ", "world."]);
+  expect(result.assistantText).toBe("Hello world.");
 });

@@ -539,9 +539,13 @@ export const createVoiceAssistant = <
         type: "assistant.run",
       });
     }
+    // The model streams prose through input.onTextDelta as it generates (the
+    // session forwards those deltas to TTS); the run still resolves with the
+    // complete result for persistence, guardrails, and lifecycle.
     const runResult =
       (await runner.run({
         ...input,
+        onTextDelta: input.onTextDelta,
         system: liveOpsInstruction
           ? `Operator instruction for this turn: ${liveOpsInstruction}`
           : undefined,

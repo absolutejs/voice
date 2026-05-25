@@ -798,7 +798,7 @@ export const createVoiceProviderRouter = <
     if (!healthOptions) {
       return undefined;
     }
-    const {suppressedUntil} = getHealth(provider);
+    const { suppressedUntil } = getHealth(provider);
 
     return typeof suppressedUntil === "number"
       ? Math.max(0, suppressedUntil - now())
@@ -1315,59 +1315,129 @@ const messageToGeminiContent = (message: VoiceAgentMessage) => {
   };
 };
 
-const extractText = (response: Record<string, unknown>) => {
-  if (typeof response.output_text === "string") {
-    return response.output_text;
-  }
+// Spoken-style system instructions (Option B): the model replies with natural
+// prose for TTS and takes call actions via the built-in lifecycle tools instead
+// of returning a JSON object. This lets us stream the reply straight to TTS.
+const VOICE_SYSTEM_INSTRUCTIONS =
+  "You are on a live phone call. Reply with natural, concise spoken sentences — no markdown, lists, headings, or emoji. To take an action (transfer the call, escalate, record voicemail/no-answer, or end the call), CALL the matching tool rather than describing it in words. Call the complete tool once the conversation's goal is met.";
 
-  const output = Array.isArray(response.output) ? response.output : [];
-  for (const item of output) {
-    if (!item || typeof item !== "object") {
-      continue;
-    }
-    const record = item as Record<string, unknown>;
-    const content = Array.isArray(record.content) ? record.content : [];
-    for (const contentItem of content) {
-      if (!contentItem || typeof contentItem !== "object") {
-        continue;
-      }
-      const contentRecord = contentItem as Record<string, unknown>;
-      if (typeof contentRecord.text === "string") {
-        return contentRecord.text;
-      }
-    }
+const parseToolArgs = (raw: string): Record<string, unknown> => {
+  if (!raw.trim()) {
+    return {};
   }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
 
-  return "";
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
 };
 
-const extractToolCalls = (response: Record<string, unknown>) => {
-  const output = Array.isArray(response.output) ? response.output : [];
-  const toolCalls: VoiceAgentToolCall[] = [];
+type StreamedResponse = {
+  assistantText: string;
+  toolCalls: VoiceAgentToolCall[];
+  usage?: Record<string, unknown>;
+};
 
-  for (const item of output) {
-    if (!item || typeof item !== "object") {
-      continue;
+// Parse the OpenAI Responses SSE stream: forward text deltas as they arrive and
+// accumulate function (tool) calls + usage.
+const consumeOpenAIResponsesStream = async (
+  response: Response,
+  onTextDelta?: (delta: string) => void,
+): Promise<StreamedResponse> => {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("OpenAI streaming response has no body");
+  }
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let assistantText = "";
+  let usage: Record<string, unknown> | undefined;
+  const calls = new Map<string, { args: string; id?: string; name: string }>();
+
+  const handleEvent = (data: string) => {
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(data) as Record<string, unknown>;
+    } catch {
+      return;
     }
-    const record = item as Record<string, unknown>;
-    if (record.type !== "function_call" || typeof record.name !== "string") {
-      continue;
+    const type = typeof event.type === "string" ? event.type : "";
+    if (type === "response.output_text.delta" && typeof event.delta === "string") {
+      assistantText += event.delta;
+      onTextDelta?.(event.delta);
+
+      return;
     }
-    const args =
-      typeof record.arguments === "string" ? parseJSON(record.arguments) : {};
-    toolCalls.push({
-      args,
-      id:
-        typeof record.call_id === "string"
-          ? record.call_id
-          : typeof record.id === "string"
-            ? record.id
-            : undefined,
-      name: record.name,
-    });
+    const item = event.item as Record<string, unknown> | undefined;
+    if (type === "response.output_item.added" && item?.type === "function_call") {
+      const key = String(item.id ?? item.call_id ?? "");
+      calls.set(key, {
+        args: typeof item.arguments === "string" ? item.arguments : "",
+        id: typeof item.call_id === "string" ? item.call_id : (item.id as string),
+        name: typeof item.name === "string" ? item.name : "",
+      });
+
+      return;
+    }
+    if (
+      type === "response.function_call_arguments.delta" &&
+      typeof event.delta === "string"
+    ) {
+      const entry = calls.get(String(event.item_id ?? ""));
+      if (entry) {
+        entry.args += event.delta;
+      }
+
+      return;
+    }
+    if (type === "response.output_item.done" && item?.type === "function_call") {
+      const entry = calls.get(String(item.id ?? item.call_id ?? ""));
+      if (entry && typeof item.arguments === "string" && item.arguments) {
+        entry.args = item.arguments;
+      }
+
+      return;
+    }
+    if (type === "response.completed") {
+      const completed = event.response as Record<string, unknown> | undefined;
+      if (completed?.usage && typeof completed.usage === "object") {
+        usage = completed.usage as Record<string, unknown>;
+      }
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    let separator = buffer.indexOf("\n\n");
+    while (separator !== -1) {
+      const rawEvent = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+      for (const line of rawEvent.split("\n")) {
+        const trimmed = line.trimStart();
+        if (trimmed.startsWith("data:")) {
+          const data = trimmed.slice(5).trim();
+          if (data && data !== "[DONE]") {
+            handleEvent(data);
+          }
+        }
+      }
+      separator = buffer.indexOf("\n\n");
+    }
   }
 
-  return toolCalls;
+  const toolCalls: VoiceAgentToolCall[] = [...calls.values()]
+    .filter((call) => call.name)
+    .map((call) => ({ args: parseToolArgs(call.args), id: call.id, name: call.name }));
+
+  return { assistantText, toolCalls, usage };
 };
 
 export const createOpenAIVoiceAssistantModel = <
@@ -1388,23 +1458,13 @@ export const createOpenAIVoiceAssistantModel = <
         {
           body: JSON.stringify({
             input: messagesToOpenAIInput(input.messages),
-            instructions: [
-              input.system,
-              "Return a JSON object with assistantText, complete, transfer, escalate, voicemail, noAnswer, and result when you are not calling tools.",
-            ]
+            instructions: [input.system, VOICE_SYSTEM_INSTRUCTIONS]
               .filter(Boolean)
               .join("\n\n"),
             max_output_tokens: options.maxOutputTokens,
             model,
+            stream: true,
             temperature: options.temperature,
-            text: {
-              format: {
-                name: "voice_route_result",
-                schema: OUTPUT_SCHEMA,
-                strict: false,
-                type: "json_schema",
-              },
-            },
             tool_choice: input.tools.length ? "auto" : "none",
             tools: input.tools.map((tool) => ({
               description: tool.description,
@@ -1418,6 +1478,7 @@ export const createOpenAIVoiceAssistantModel = <
             })),
           }),
           headers: {
+            accept: "text/event-stream",
             authorization: `Bearer ${options.apiKey}`,
             "content-type": "application/json",
           },
@@ -1429,19 +1490,16 @@ export const createOpenAIVoiceAssistantModel = <
         throw createHTTPError("OpenAI", response);
       }
 
-      const body = (await response.json()) as Record<string, unknown>;
-      if (body.usage && typeof body.usage === "object") {
-        await options.onUsage?.(body.usage as Record<string, unknown>);
+      const { assistantText, toolCalls, usage } =
+        await consumeOpenAIResponsesStream(response, input.onTextDelta);
+      if (usage) {
+        await options.onUsage?.(usage);
       }
 
-      const toolCalls = extractToolCalls(body);
-      if (toolCalls.length) {
-        return {
-          toolCalls,
-        };
-      }
-
-      return normalizeRouteOutput<TResult>(parseJSON(extractText(body)));
+      return {
+        ...(assistantText ? { assistantText } : {}),
+        ...(toolCalls.length ? { toolCalls } : {}),
+      };
     },
   };
 };
@@ -1566,11 +1624,11 @@ const extractGeminiCandidateParts = (response: Record<string, unknown>) => {
   if (!first || typeof first !== "object") {
     return [];
   }
-  const {content} = (first as Record<string, unknown>);
+  const { content } = first as Record<string, unknown>;
   if (!content || typeof content !== "object") {
     return [];
   }
-  const {parts} = (content as Record<string, unknown>);
+  const { parts } = content as Record<string, unknown>;
 
   return Array.isArray(parts) ? parts : [];
 };
@@ -1593,7 +1651,7 @@ const extractGeminiToolCalls = (response: Record<string, unknown>) => {
     if (!part || typeof part !== "object") {
       continue;
     }
-    const {functionCall} = (part as Record<string, unknown>);
+    const { functionCall } = part as Record<string, unknown>;
     if (!functionCall || typeof functionCall !== "object") {
       continue;
     }

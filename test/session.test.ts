@@ -731,7 +731,7 @@ test("voice session streams assistant audio chunks when a tts adapter is configu
   });
 });
 
-test("voice session streams assistantTextStream to TTS in sentence chunks", async () => {
+test("voice session streams onTextDelta replies to TTS in sentence chunks", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();
   const tts = createFakeTTSAdapter();
@@ -746,12 +746,6 @@ test("voice session streams assistantTextStream to TTS in sentence chunks", asyn
     " Anything else?",
   ];
   const fullText = deltas.join("");
-  async function* replyStream() {
-    for (const delta of deltas) {
-      await Bun.sleep(1);
-      yield delta;
-    }
-  }
 
   const session = createVoiceSession({
     context: {},
@@ -764,7 +758,16 @@ test("voice session streams assistantTextStream to TTS in sentence chunks", asyn
     },
     route: {
       onComplete: async () => {},
-      onTurn: async () => ({ assistantTextStream: replyStream() }),
+      // Stream the reply through onTextDelta (as a streaming model adapter
+      // would) while the run is in flight; return the full text as the result.
+      onTurn: async ({ onTextDelta }) => {
+        for (const delta of deltas) {
+          onTextDelta?.(delta);
+          await Bun.sleep(1);
+        }
+
+        return { assistantText: fullText };
+      },
     },
     socket: socket.socket,
     store,
