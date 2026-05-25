@@ -731,6 +731,89 @@ test("voice session streams assistant audio chunks when a tts adapter is configu
   });
 });
 
+test("voice session streams assistantTextStream to TTS in sentence chunks", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+
+  const deltas = [
+    "Hello there",
+    ".",
+    " How can ",
+    "I help you",
+    " today?",
+    " Anything else?",
+  ];
+  const fullText = deltas.join("");
+  async function* replyStream() {
+    for (const delta of deltas) {
+      await Bun.sleep(1);
+      yield delta;
+    }
+  }
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-tts-stream-chunks",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({ assistantTextStream: replyStream() }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      id: "final-stream",
+      isFinal: true,
+      text: "Say a few sentences",
+    },
+    type: "final",
+  });
+  await adapter.emitCurrent("endOfTurn", {
+    reason: "vendor",
+    receivedAt: Date.now(),
+    type: "endOfTurn",
+  });
+  await Bun.sleep(60);
+
+  const sent = tts.getSentTexts();
+  // Chunked: more than one send, the first arrives before the whole reply, and
+  // concatenating them reconstructs the full reply exactly.
+  expect(sent.length).toBeGreaterThan(1);
+  expect(sent.join("")).toBe(fullText);
+  expect(tts.getOpenCalls()).toBe(1);
+
+  // The accumulated text is persisted + emitted as the assistant transcript.
+  const assistantMessage = socket.messages
+    .map((message) => JSON.parse(message))
+    .find((message) => message.type === "assistant");
+  expect(assistantMessage).toMatchObject({ text: fullText, type: "assistant" });
+
+  const snapshot = await session.snapshot();
+  const lastTurn = snapshot.turns.at(-1);
+  expect(lastTurn?.result?.assistantText ?? lastTurn?.assistantText).toBe(
+    fullText,
+  );
+});
+
 test("voice session can use a realtime adapter for input transcripts and assistant audio", async () => {
   const store = createVoiceMemoryStore();
   const realtime = createFakeRealtimeAdapter();
@@ -2752,9 +2835,20 @@ test("voice session fires TTS cancel when user speech is detected during agent p
   await session.commitTurn("manual");
   expect(tts.getSentTexts()).toEqual(["Replying to hello there"]);
 
-  // simulate the next utterance starting before the agent finishes
-  await session.receiveAudio(createSpeechChunk(0));
-  await session.receiveAudio(createSpeechChunk(16_000));
+  // Barge-in is speech-gated: it fires on a partial transcript while the
+  // assistant is still speaking, NOT on raw audio energy (a telephony line's
+  // comfort noise crosses the speech threshold and would falsely interrupt).
+  // Simulate the caller cutting in mid-playback.
+  await adapter.emitCurrent("partial", {
+    receivedAt: Date.now(),
+    transcript: {
+      id: "barge-in-partial",
+      isFinal: false,
+      text: "actually wait",
+    },
+    type: "partial",
+  });
+  await Bun.sleep(10);
 
   expect(tts.getCancelReasons()).toEqual(["barge-in"]);
 });
