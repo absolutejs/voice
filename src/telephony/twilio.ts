@@ -191,6 +191,12 @@ export type TwilioMediaStreamBridgeOptions<
   sessionId?: string;
   stt: STTAdapter;
   telephonyMediaCarrier?: "plivo" | "telnyx" | "twilio";
+  /** Capture call audio (per-channel) to a recording store. */
+  recording?: import("../core/types").VoiceSessionRecordingConfig;
+  /** Per-call cost accounting (STT/LLM/TTS) — emits turn.cost/cost.ready traces. */
+  costAccountant?: import("../core/costAccounting").VoiceCostAccountant;
+  /** Telephony cost provider for the accountant (e.g. "twilio"). */
+  costTelephony?: { provider?: string };
 };
 
 export type TwilioMediaStreamBridge = {
@@ -1205,7 +1211,9 @@ export const createTwilioMediaStreamBridge = <
     sessionHandle = createVoiceSession({
       audioConditioning,
       context: options.context,
+      costAccountant: options.costAccountant,
       costTelemetry: options.costTelemetry,
+      costTelephony: options.costTelephony,
       greeting: options.greeting,
       id: bridgeState.sessionId,
       languageStrategy: options.languageStrategy,
@@ -1213,6 +1221,7 @@ export const createTwilioMediaStreamBridge = <
       logger,
       phraseHints,
       reconnect,
+      recording: options.recording,
       route,
       scenarioId: bridgeState.scenarioId ?? undefined,
       socket: voiceSocket,
@@ -1220,6 +1229,10 @@ export const createTwilioMediaStreamBridge = <
       stt: options.stt,
       sttFallback: resolveSTTFallbackConfig(options.sttFallback),
       sttLifecycle: options.sttLifecycle ?? runtimePreset.sttLifecycle,
+      // The session emits the rich per-turn traces (turn.transcript,
+      // turn_latency.stage, turn.cost, client.barge_in, session.error, …); the
+      // bridge previously kept `trace` to itself, so those never persisted.
+      trace: options.trace,
       tts: options.tts,
       turnDetection,
     } satisfies CreateVoiceSessionOptions<TContext, TSession, TResult>);
