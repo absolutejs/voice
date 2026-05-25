@@ -513,7 +513,7 @@ const applyLifecycleToolCall = <TResult>(
   output: VoiceAgentModelOutput<TResult>,
   toolCall: VoiceAgentToolCall,
 ) => {
-  const args = (toolCall.args ?? {}) as Record<string, unknown>;
+  const args = toolCall.args ?? {};
   switch (toolCall.name) {
     case "transfer_call":
       output.transfer = {
@@ -552,6 +552,24 @@ const isLifecycleRequested = <TResult>(
   Boolean(output.escalate) ||
   Boolean(output.voicemail) ||
   Boolean(output.noAnswer);
+
+// Split a round's tool calls: apply built-in lifecycle calls to the outcome,
+// return the user tool calls to dispatch + loop back to the model.
+const partitionAppToolCalls = <TResult>(
+  output: VoiceAgentModelOutput<TResult>,
+  toolCalls: VoiceAgentToolCall[] | undefined,
+) => {
+  const appToolCalls: VoiceAgentToolCall[] = [];
+  for (const toolCall of toolCalls ?? []) {
+    if (LIFECYCLE_TOOL_NAMES.has(toolCall.name)) {
+      applyLifecycleToolCall(output, toolCall);
+    } else {
+      appToolCalls.push(toolCall);
+    }
+  }
+
+  return appToolCalls;
+};
 
 export const createVoiceAgent = <
   TContext = unknown,
@@ -665,15 +683,7 @@ export const createVoiceAgent = <
 
       // Built-in lifecycle tools set the call outcome and end the turn; only
       // the user's own tools get dispatched + looped back to the model.
-      const appToolCalls = (output.toolCalls ?? []).filter((toolCall) => {
-        if (LIFECYCLE_TOOL_NAMES.has(toolCall.name)) {
-          applyLifecycleToolCall(output, toolCall);
-
-          return false;
-        }
-
-        return true;
-      });
+      const appToolCalls = partitionAppToolCalls(output, output.toolCalls);
 
       if (
         appToolCalls.length === 0 ||

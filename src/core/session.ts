@@ -2230,7 +2230,9 @@ export const createVoiceSession = <
 
     const flush = (text: string) => {
       if (!text.trim()) return;
-      sendChain = sendChain.then(async () => {
+      const previous = sendChain;
+      sendChain = (async () => {
+        await previous;
         // Stop once a barge-in (or a newer turn) has taken over the channel.
         if (started && activeTTSTurnId !== turn.id) return;
         const ttsSession = await ensure();
@@ -2255,7 +2257,7 @@ export const createVoiceSession = <
             turnId: turn.id,
           });
         }
-      });
+      })();
     };
 
     return {

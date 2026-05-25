@@ -1321,7 +1321,7 @@ const messageToGeminiContent = (message: VoiceAgentMessage) => {
 const VOICE_SYSTEM_INSTRUCTIONS =
   "You are on a live phone call. Reply with natural, concise spoken sentences — no markdown, lists, headings, or emoji. To take an action (transfer the call, escalate, record voicemail/no-answer, or end the call), CALL the matching tool rather than describing it in words. Call the complete tool once the conversation's goal is met.";
 
-const parseToolArgs = (raw: string): Record<string, unknown> => {
+const parseToolArgs = (raw: string) => {
   if (!raw.trim()) {
     return {};
   }
@@ -1336,18 +1336,12 @@ const parseToolArgs = (raw: string): Record<string, unknown> => {
   }
 };
 
-type StreamedResponse = {
-  assistantText: string;
-  toolCalls: VoiceAgentToolCall[];
-  usage?: Record<string, unknown>;
-};
-
 // Parse the OpenAI Responses SSE stream: forward text deltas as they arrive and
 // accumulate function (tool) calls + usage.
 const consumeOpenAIResponsesStream = async (
   response: Response,
   onTextDelta?: (delta: string) => void,
-): Promise<StreamedResponse> => {
+) => {
   const reader = response.body?.getReader();
   if (!reader) {
     throw new Error("OpenAI streaming response has no body");
