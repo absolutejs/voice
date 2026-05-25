@@ -1183,9 +1183,15 @@ export const createTwilioMediaStreamBridge = <
     const normalizedOnTurn = normalizeOnTurn(options.onTurn);
     const route: VoiceNormalizedRouteConfig<TContext, TSession, TResult> = {
       correctTurn: options.correctTurn,
+      onCallEnd: options.onCallEnd,
+      onCallStart: options.onCallStart,
       onComplete: options.onComplete,
       onError: options.onError,
+      onEscalation: options.onEscalation,
+      onNoAnswer: options.onNoAnswer,
       onSession: options.onSession,
+      onTransfer: options.onTransfer,
+      onVoicemail: options.onVoicemail,
       onTurn: async (input) => {
         bridgeState.reviewRecorder?.recordVoiceMessage({
           turn: input.turn,
