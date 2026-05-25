@@ -74,7 +74,7 @@ const createFakeSTTAdapter = (inputSpy: Uint8Array[]) => {
           }) => void
         >(),
       };
-      let delivered = false;
+      let sendCount = 0;
 
       return {
         close: async () => {
@@ -100,30 +100,47 @@ const createFakeSTTAdapter = (inputSpy: Uint8Array[]) => {
                     audio.byteLength,
                   );
           inputSpy.push(normalized);
+          sendCount += 1;
 
-          if (delivered) {
+          // First utterance → final transcript + end of turn (one reply).
+          if (sendCount === 1) {
+            const receivedAt = Date.now();
+            for (const handler of listeners.final) {
+              handler({
+                receivedAt,
+                transcript: {
+                  id: "telephony-final-1",
+                  isFinal: true,
+                  text: "hello from the phone",
+                },
+                type: "final",
+              });
+            }
+            for (const handler of listeners.endOfTurn) {
+              handler({
+                receivedAt,
+                reason: "vendor",
+                type: "endOfTurn",
+              });
+            }
+
             return;
           }
 
-          delivered = true;
-          const receivedAt = Date.now();
-          for (const handler of listeners.final) {
-            handler({
-              receivedAt,
-              transcript: {
-                id: "telephony-final-1",
-                isFinal: true,
-                text: "hello from the phone",
-              },
-              type: "final",
-            });
-          }
-          for (const handler of listeners.endOfTurn) {
-            handler({
-              receivedAt,
-              reason: "vendor",
-              type: "endOfTurn",
-            });
+          // Second utterance → a partial transcript while the assistant is
+          // speaking is the speech-gated barge-in signal.
+          if (sendCount === 2) {
+            for (const handler of listeners.partial) {
+              handler({
+                receivedAt: Date.now(),
+                transcript: {
+                  id: "telephony-partial-1",
+                  isFinal: false,
+                  text: "actually wait",
+                },
+                type: "partial",
+              });
+            }
           }
         },
       };

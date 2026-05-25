@@ -900,12 +900,23 @@ const createTwilioSocketAdapter = <TResult>(
     }
     // Twilio "clear" drops any outbound media still buffered for playback —
     // used on barge-in so the caller stops hearing the assistant at once.
+    const clearMessage = { event: "clear", streamSid: state.streamSid };
     state.reviewRecorder?.recordTwilioOutbound({ event: "clear" });
-    await Promise.resolve(
-      socket.send(
-        JSON.stringify({ event: "clear", streamSid: state.streamSid }),
-      ),
-    );
+    await state.trace?.append({
+      at: Date.now(),
+      payload: {
+        callSid: state.callSid ?? undefined,
+        carrier: state.carrier,
+        direction: "outbound",
+        envelope: clearMessage,
+        event: "clear",
+        streamId: state.streamSid,
+      },
+      scenarioId: state.scenarioId ?? undefined,
+      sessionId: state.sessionId ?? state.streamSid,
+      type: "client.telephony_media",
+    });
+    await Promise.resolve(socket.send(JSON.stringify(clearMessage)));
   },
   close: async (code?: number, reason?: string) => {
     await Promise.resolve(socket.close(code, reason));

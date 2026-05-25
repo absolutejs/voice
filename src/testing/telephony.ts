@@ -189,7 +189,7 @@ const createFakeSTTAdapter = (inputSpy: Uint8Array[], sttDelayMs: number) =>
           }) => void
         >(),
       };
-      let delivered = false;
+      let sendCount = 0;
 
       return {
         close: async () => {
@@ -206,34 +206,51 @@ const createFakeSTTAdapter = (inputSpy: Uint8Array[], sttDelayMs: number) =>
         },
         send: async (audio: AudioChunk) => {
           inputSpy.push(toUint8Array(audio));
+          sendCount += 1;
 
-          if (delivered) {
+          // First utterance: a final transcript + end of turn drives one reply.
+          if (sendCount === 1) {
+            if (sttDelayMs > 0) {
+              await Bun.sleep(sttDelayMs);
+            }
+            const receivedAt = Date.now();
+            for (const handler of listeners.final) {
+              handler({
+                receivedAt,
+                transcript: {
+                  id: "telephony-benchmark-final",
+                  isFinal: true,
+                  text: "hello from twilio",
+                },
+                type: "final",
+              });
+            }
+            for (const handler of listeners.endOfTurn) {
+              handler({
+                reason: "vendor",
+                receivedAt,
+                type: "endOfTurn",
+              });
+            }
+
             return;
           }
 
-          delivered = true;
-          if (sttDelayMs > 0) {
-            await Bun.sleep(sttDelayMs);
-          }
-
-          const receivedAt = Date.now();
-          for (const handler of listeners.final) {
-            handler({
-              receivedAt,
-              transcript: {
-                id: "telephony-benchmark-final",
-                isFinal: true,
-                text: "hello from twilio",
-              },
-              type: "final",
-            });
-          }
-          for (const handler of listeners.endOfTurn) {
-            handler({
-              reason: "vendor",
-              receivedAt,
-              type: "endOfTurn",
-            });
+          // Second utterance: a partial transcript while the assistant is still
+          // speaking is the barge-in signal (barge-in is speech-gated on a real
+          // partial, not raw audio energy, so comfort noise can't false-trigger).
+          if (sendCount === 2) {
+            for (const handler of listeners.partial) {
+              handler({
+                receivedAt: Date.now(),
+                transcript: {
+                  id: "telephony-benchmark-partial",
+                  isFinal: false,
+                  text: "actually wait",
+                },
+                type: "partial",
+              });
+            }
           }
         },
       };
