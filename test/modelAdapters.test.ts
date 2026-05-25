@@ -810,24 +810,21 @@ test("createAnthropicVoiceAssistantModel maps tool calls from content blocks", a
     apiKey: "test-key",
     fetch: async (_url, init) => {
       requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-      return new Response(
-        JSON.stringify({
-          content: [
-            {
-              id: "toolu-1",
-              input: {
-                orderId: "123",
-              },
-              name: "lookup_order",
-              type: "tool_use",
-            },
-          ],
-          usage: {
-            input_tokens: 8,
-            output_tokens: 4,
-          },
-        }),
-      );
+      return sseResponse([
+        { message: { usage: { input_tokens: 8 } }, type: "message_start" },
+        {
+          content_block: { id: "toolu-1", name: "lookup_order", type: "tool_use" },
+          index: 0,
+          type: "content_block_start",
+        },
+        {
+          delta: { partial_json: '{"orderId":"123"}', type: "input_json_delta" },
+          index: 0,
+          type: "content_block_delta",
+        },
+        { index: 0, type: "content_block_stop" },
+        { type: "message_delta", usage: { output_tokens: 4 } },
+      ]);
     },
   });
 
@@ -836,6 +833,7 @@ test("createAnthropicVoiceAssistantModel maps tool calls from content blocks", a
   expect(requests[0]).toMatchObject({
     max_tokens: 1024,
     model: "claude-sonnet-4-5",
+    stream: true,
     tool_choice: {
       type: "auto",
     },
@@ -935,26 +933,33 @@ test("createAnthropicVoiceAssistantModel sends tool results as tool_result block
   });
 });
 
-test("createAnthropicVoiceAssistantModel maps fenced JSON text into route results", async () => {
+test("createAnthropicVoiceAssistantModel streams assistant text via onTextDelta", async () => {
+  const deltas: string[] = [];
   const model = createAnthropicVoiceAssistantModel({
     apiKey: "test-key",
     fetch: async () =>
-      new Response(
-        JSON.stringify({
-          content: [
-            {
-              text: '```json\n{"assistantText":"Done.","complete":true}\n```',
-              type: "text",
-            },
-          ],
-        }),
-      ),
+      sseResponse([
+        { content_block: { type: "text" }, index: 0, type: "content_block_start" },
+        {
+          delta: { text: "Done", type: "text_delta" },
+          index: 0,
+          type: "content_block_delta",
+        },
+        {
+          delta: { text: " now.", type: "text_delta" },
+          index: 0,
+          type: "content_block_delta",
+        },
+        { index: 0, type: "content_block_stop" },
+      ]),
   });
 
-  expect(await model.generate(createInput())).toMatchObject({
-    assistantText: "Done.",
-    complete: true,
-  });
+  const input = createInput();
+  input.onTextDelta = (delta) => deltas.push(delta);
+  const result = await model.generate(input);
+
+  expect(deltas).toEqual(["Done", " now."]);
+  expect(result).toMatchObject({ assistantText: "Done now." });
 });
 
 test("createGeminiVoiceAssistantModel maps function calls from candidate parts", async () => {
@@ -963,17 +968,15 @@ test("createGeminiVoiceAssistantModel maps function calls from candidate parts",
     apiKey: "test-key",
     fetch: async (_url, init) => {
       requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-      return new Response(
-        JSON.stringify({
+      return sseResponse([
+        {
           candidates: [
             {
               content: {
                 parts: [
                   {
                     functionCall: {
-                      args: {
-                        orderId: "123",
-                      },
+                      args: { orderId: "123" },
                       id: "fn-1",
                       name: "lookup_order",
                     },
@@ -982,11 +985,9 @@ test("createGeminiVoiceAssistantModel maps function calls from candidate parts",
               },
             },
           ],
-          usageMetadata: {
-            promptTokenCount: 8,
-          },
-        }),
-      );
+        },
+        { usageMetadata: { promptTokenCount: 8 } },
+      ]);
     },
   });
 

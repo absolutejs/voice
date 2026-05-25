@@ -483,98 +483,6 @@ export type VoiceProviderRouterOptions<
   ) => TProvider | undefined | Promise<TProvider | undefined>;
 };
 
-const OUTPUT_SCHEMA = {
-  additionalProperties: false,
-  properties: {
-    assistantText: {
-      type: "string",
-    },
-    complete: {
-      type: "boolean",
-    },
-    escalate: {
-      additionalProperties: false,
-      properties: {
-        metadata: {
-          additionalProperties: true,
-          type: "object",
-        },
-        reason: {
-          type: "string",
-        },
-      },
-      required: ["reason"],
-      type: "object",
-    },
-    noAnswer: {
-      additionalProperties: false,
-      properties: {
-        metadata: {
-          additionalProperties: true,
-          type: "object",
-        },
-      },
-      type: "object",
-    },
-    result: {
-      additionalProperties: true,
-      type: "object",
-    },
-    transfer: {
-      additionalProperties: false,
-      properties: {
-        metadata: {
-          additionalProperties: true,
-          type: "object",
-        },
-        reason: {
-          type: "string",
-        },
-        target: {
-          type: "string",
-        },
-      },
-      required: ["target"],
-      type: "object",
-    },
-    voicemail: {
-      additionalProperties: false,
-      properties: {
-        metadata: {
-          additionalProperties: true,
-          type: "object",
-        },
-      },
-      type: "object",
-    },
-  },
-  type: "object",
-};
-
-const ROUTE_RESULT_INSTRUCTION =
-  "Return only a JSON object with assistantText, complete, transfer, escalate, voicemail, noAnswer, and result when you are not calling tools. Only set transfer, escalate, voicemail, or noAnswer when the user explicitly asks for that lifecycle outcome or a tool result says that exact outcome. Do not infer voicemail from generic words like voice, voice app, or voice integration.";
-
-const stripJSONCodeFence = (value: string) => {
-  const trimmed = value.trim();
-  const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-
-  return match?.[1]?.trim() ?? value;
-};
-
-const parseJSON = (value: string): Record<string, unknown> => {
-  try {
-    const parsed = JSON.parse(stripJSONCodeFence(value));
-
-    return parsed && typeof parsed === "object"
-      ? (parsed as Record<string, unknown>)
-      : {};
-  } catch {
-    return {
-      assistantText: value,
-    };
-  }
-};
-
 const parseJSONValue = (value: string): unknown => {
   try {
     return JSON.parse(value);
@@ -1336,102 +1244,108 @@ const parseToolArgs = (raw: string) => {
   }
 };
 
-// Parse the OpenAI Responses SSE stream: forward text deltas as they arrive and
-// accumulate function (tool) calls + usage.
-const consumeOpenAIResponsesStream = async (
+// Read an SSE response body, invoking onEvent with each parsed `data:` JSON
+// payload. Shared by the streaming model adapters.
+const readServerSentEvents = async (
   response: Response,
-  onTextDelta?: (delta: string) => void,
+  onEvent: (event: Record<string, unknown>) => void,
 ) => {
   const reader = response.body?.getReader();
   if (!reader) {
-    throw new Error("OpenAI streaming response has no body");
+    throw new Error("streaming response has no body");
   }
   const decoder = new TextDecoder();
   let buffer = "";
-  let assistantText = "";
-  let usage: Record<string, unknown> | undefined;
-  const calls = new Map<string, { args: string; id?: string; name: string }>();
 
-  const handleEvent = (data: string) => {
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(data) as Record<string, unknown>;
-    } catch {
-      return;
-    }
-    const type = typeof event.type === "string" ? event.type : "";
-    if (type === "response.output_text.delta" && typeof event.delta === "string") {
-      assistantText += event.delta;
-      onTextDelta?.(event.delta);
-
-      return;
-    }
-    const item = event.item as Record<string, unknown> | undefined;
-    if (type === "response.output_item.added" && item?.type === "function_call") {
-      const key = String(item.id ?? item.call_id ?? "");
-      calls.set(key, {
-        args: typeof item.arguments === "string" ? item.arguments : "",
-        id: typeof item.call_id === "string" ? item.call_id : (item.id as string),
-        name: typeof item.name === "string" ? item.name : "",
-      });
-
-      return;
-    }
-    if (
-      type === "response.function_call_arguments.delta" &&
-      typeof event.delta === "string"
-    ) {
-      const entry = calls.get(String(event.item_id ?? ""));
-      if (entry) {
-        entry.args += event.delta;
-      }
-
-      return;
-    }
-    if (type === "response.output_item.done" && item?.type === "function_call") {
-      const entry = calls.get(String(item.id ?? item.call_id ?? ""));
-      if (entry && typeof item.arguments === "string" && item.arguments) {
-        entry.args = item.arguments;
-      }
-
-      return;
-    }
-    if (type === "response.completed") {
-      const completed = event.response as Record<string, unknown> | undefined;
-      if (completed?.usage && typeof completed.usage === "object") {
-        usage = completed.usage as Record<string, unknown>;
+  const drain = (block: string) => {
+    for (const line of block.split("\n")) {
+      const trimmed = line.trimStart();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice("data:".length).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        onEvent(JSON.parse(data) as Record<string, unknown>);
+      } catch {
+        // Ignore keep-alive / non-JSON frames.
       }
     }
   };
 
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
+    if (done) break;
     buffer += decoder.decode(value, { stream: true });
     let separator = buffer.indexOf("\n\n");
     while (separator !== -1) {
-      const rawEvent = buffer.slice(0, separator);
+      drain(buffer.slice(0, separator));
       buffer = buffer.slice(separator + 2);
-      for (const line of rawEvent.split("\n")) {
-        const trimmed = line.trimStart();
-        if (trimmed.startsWith("data:")) {
-          const data = trimmed.slice(5).trim();
-          if (data && data !== "[DONE]") {
-            handleEvent(data);
-          }
-        }
-      }
       separator = buffer.indexOf("\n\n");
     }
   }
+  if (buffer.trim()) drain(buffer);
+};
 
-  const toolCalls: VoiceAgentToolCall[] = [...calls.values()]
+type StreamedToolCall = { args: string; id?: string; name: string };
+
+const finalizeToolCalls = (
+  calls: Map<string, StreamedToolCall>,
+): VoiceAgentToolCall[] =>
+  [...calls.values()]
     .filter((call) => call.name)
-    .map((call) => ({ args: parseToolArgs(call.args), id: call.id, name: call.name }));
+    .map((call) => ({
+      args: parseToolArgs(call.args),
+      id: call.id,
+      name: call.name,
+    }));
 
-  return { assistantText, toolCalls, usage };
+// Parse the OpenAI Responses SSE stream: forward text deltas + accumulate
+// function (tool) calls and usage.
+const consumeOpenAIResponsesStream = async (
+  response: Response,
+  onTextDelta?: (delta: string) => void,
+) => {
+  let assistantText = "";
+  let usage: Record<string, unknown> | undefined;
+  const calls = new Map<string, StreamedToolCall>();
+
+  await readServerSentEvents(response, (event) => {
+    const type = typeof event.type === "string" ? event.type : "";
+    const item = event.item as Record<string, unknown> | undefined;
+    if (type === "response.output_text.delta" && typeof event.delta === "string") {
+      assistantText += event.delta;
+      onTextDelta?.(event.delta);
+    } else if (
+      type === "response.output_item.added" &&
+      item?.type === "function_call"
+    ) {
+      calls.set(String(item.id ?? item.call_id ?? ""), {
+        args: typeof item.arguments === "string" ? item.arguments : "",
+        id: typeof item.call_id === "string" ? item.call_id : (item.id as string),
+        name: typeof item.name === "string" ? item.name : "",
+      });
+    } else if (
+      type === "response.function_call_arguments.delta" &&
+      typeof event.delta === "string"
+    ) {
+      const entry = calls.get(String(event.item_id ?? ""));
+      if (entry) entry.args += event.delta;
+    } else if (
+      type === "response.output_item.done" &&
+      item?.type === "function_call" &&
+      typeof item.arguments === "string" &&
+      item.arguments
+    ) {
+      const entry = calls.get(String(item.id ?? item.call_id ?? ""));
+      if (entry) entry.args = item.arguments;
+    } else if (type === "response.completed") {
+      const completed = event.response as Record<string, unknown> | undefined;
+      if (completed?.usage && typeof completed.usage === "object") {
+        usage = completed.usage as Record<string, unknown>;
+      }
+    }
+  });
+
+  return { assistantText, toolCalls: finalizeToolCalls(calls), usage };
 };
 
 export const createOpenAIVoiceAssistantModel = <
@@ -1498,45 +1412,51 @@ export const createOpenAIVoiceAssistantModel = <
   };
 };
 
-const extractAnthropicText = (response: Record<string, unknown>) => {
-  const content = Array.isArray(response.content) ? response.content : [];
+// Parse the Anthropic Messages SSE stream: forward text deltas + accumulate
+// tool_use blocks (keyed by content block index) and usage.
+const consumeAnthropicStream = async (
+  response: Response,
+  onTextDelta?: (delta: string) => void,
+) => {
+  let assistantText = "";
+  let usage: Record<string, unknown> | undefined;
+  const calls = new Map<string, StreamedToolCall>();
 
-  return content
-    .map((item) =>
-      item &&
-      typeof item === "object" &&
-      (item as Record<string, unknown>).type === "text" &&
-      typeof (item as Record<string, unknown>).text === "string"
-        ? ((item as Record<string, unknown>).text as string)
-        : "",
-    )
-    .filter(Boolean)
-    .join("\n");
-};
-
-const extractAnthropicToolCalls = (response: Record<string, unknown>) => {
-  const content = Array.isArray(response.content) ? response.content : [];
-  const toolCalls: VoiceAgentToolCall[] = [];
-
-  for (const item of content) {
-    if (!item || typeof item !== "object") {
-      continue;
+  await readServerSentEvents(response, (event) => {
+    const type = typeof event.type === "string" ? event.type : "";
+    const delta = event.delta as Record<string, unknown> | undefined;
+    if (type === "content_block_delta" && delta?.type === "text_delta") {
+      if (typeof delta.text === "string") {
+        assistantText += delta.text;
+        onTextDelta?.(delta.text);
+      }
+    } else if (
+      type === "content_block_delta" &&
+      delta?.type === "input_json_delta" &&
+      typeof delta.partial_json === "string"
+    ) {
+      const entry = calls.get(String(event.index ?? ""));
+      if (entry) entry.args += delta.partial_json;
+    } else if (type === "content_block_start") {
+      const block = event.content_block as Record<string, unknown> | undefined;
+      if (block?.type === "tool_use") {
+        calls.set(String(event.index ?? ""), {
+          args: "",
+          id: typeof block.id === "string" ? block.id : undefined,
+          name: typeof block.name === "string" ? block.name : "",
+        });
+      }
+    } else if (type === "message_start") {
+      const message = event.message as Record<string, unknown> | undefined;
+      if (message?.usage && typeof message.usage === "object") {
+        usage = message.usage as Record<string, unknown>;
+      }
+    } else if (type === "message_delta" && event.usage && typeof event.usage === "object") {
+      usage = { ...usage, ...(event.usage as Record<string, unknown>) };
     }
-    const record = item as Record<string, unknown>;
-    if (record.type !== "tool_use" || typeof record.name !== "string") {
-      continue;
-    }
-    toolCalls.push({
-      args:
-        record.input && typeof record.input === "object"
-          ? (record.input as Record<string, unknown>)
-          : {},
-      id: typeof record.id === "string" ? record.id : undefined,
-      name: record.name,
-    });
-  }
+  });
 
-  return toolCalls;
+  return { assistantText, toolCalls: finalizeToolCalls(calls), usage };
 };
 
 export const createAnthropicVoiceAssistantModel = <
@@ -1561,7 +1481,8 @@ export const createAnthropicVoiceAssistantModel = <
               .map(messageToAnthropicMessage)
               .filter(Boolean),
             model,
-            system: [input.system, ROUTE_RESULT_INSTRUCTION]
+            stream: true,
+            system: [input.system, VOICE_SYSTEM_INSTRUCTIONS]
               .filter(Boolean)
               .join("\n\n"),
             temperature: options.temperature,
@@ -1590,80 +1511,75 @@ export const createAnthropicVoiceAssistantModel = <
         throw createHTTPError("Anthropic", response);
       }
 
-      const body = (await response.json()) as Record<string, unknown>;
-      if (body.usage && typeof body.usage === "object") {
-        await options.onUsage?.(body.usage as Record<string, unknown>);
-      }
-
-      const toolCalls = extractAnthropicToolCalls(body);
-      if (toolCalls.length) {
-        return {
-          assistantText: extractAnthropicText(body) || undefined,
-          toolCalls,
-        };
-      }
-
-      return normalizeRouteOutput<TResult>(
-        parseJSON(extractAnthropicText(body)),
+      const { assistantText, toolCalls, usage } = await consumeAnthropicStream(
+        response,
+        input.onTextDelta,
       );
+      if (usage) {
+        await options.onUsage?.(usage);
+      }
+
+      return {
+        ...(assistantText ? { assistantText } : {}),
+        ...(toolCalls.length ? { toolCalls } : {}),
+      };
     },
   };
 };
 
-const extractGeminiCandidateParts = (response: Record<string, unknown>) => {
-  const candidates = Array.isArray(response.candidates)
-    ? response.candidates
-    : [];
-  const first = candidates[0];
-  if (!first || typeof first !== "object") {
-    return [];
-  }
-  const { content } = first as Record<string, unknown>;
-  if (!content || typeof content !== "object") {
-    return [];
-  }
-  const { parts } = content as Record<string, unknown>;
+const handleGeminiPart = (
+  part: unknown,
+  collect: { onTextDelta?: (delta: string) => void; toolCalls: VoiceAgentToolCall[] },
+) => {
+  if (!part || typeof part !== "object") return "";
+  const record = part as Record<string, unknown>;
+  if (typeof record.text === "string" && record.text) {
+    collect.onTextDelta?.(record.text);
 
-  return Array.isArray(parts) ? parts : [];
+    return record.text;
+  }
+  const { functionCall } = record;
+  if (functionCall && typeof functionCall === "object") {
+    const fn = functionCall as Record<string, unknown>;
+    if (typeof fn.name === "string") {
+      collect.toolCalls.push({
+        args:
+          fn.args && typeof fn.args === "object"
+            ? (fn.args as Record<string, unknown>)
+            : {},
+        id: typeof fn.id === "string" ? fn.id : undefined,
+        name: fn.name,
+      });
+    }
+  }
+
+  return "";
 };
 
-const extractGeminiText = (response: Record<string, unknown>) =>
-  extractGeminiCandidateParts(response)
-    .map((part) =>
-      part &&
-      typeof part === "object" &&
-      typeof (part as Record<string, unknown>).text === "string"
-        ? ((part as Record<string, unknown>).text as string)
-        : "",
-    )
-    .filter(Boolean)
-    .join("\n");
-
-const extractGeminiToolCalls = (response: Record<string, unknown>) => {
+// Parse the Gemini streamGenerateContent SSE stream: forward text part deltas +
+// accumulate functionCall parts and usage.
+const consumeGeminiStream = async (
+  response: Response,
+  onTextDelta?: (delta: string) => void,
+) => {
+  let assistantText = "";
+  let usage: Record<string, unknown> | undefined;
   const toolCalls: VoiceAgentToolCall[] = [];
-  for (const part of extractGeminiCandidateParts(response)) {
-    if (!part || typeof part !== "object") {
-      continue;
-    }
-    const { functionCall } = part as Record<string, unknown>;
-    if (!functionCall || typeof functionCall !== "object") {
-      continue;
-    }
-    const record = functionCall as Record<string, unknown>;
-    if (typeof record.name !== "string") {
-      continue;
-    }
-    toolCalls.push({
-      args:
-        record.args && typeof record.args === "object"
-          ? (record.args as Record<string, unknown>)
-          : {},
-      id: typeof record.id === "string" ? record.id : undefined,
-      name: record.name,
-    });
-  }
 
-  return toolCalls;
+  await readServerSentEvents(response, (event) => {
+    if (event.usageMetadata && typeof event.usageMetadata === "object") {
+      usage = event.usageMetadata as Record<string, unknown>;
+    }
+    const candidates = Array.isArray(event.candidates) ? event.candidates : [];
+    const first = candidates[0] as Record<string, unknown> | undefined;
+    const content = first?.content as Record<string, unknown> | undefined;
+    const parts = Array.isArray(content?.parts) ? content.parts : [];
+    for (const part of parts) {
+      assistantText += handleGeminiPart(part, { onTextDelta, toolCalls });
+    }
+  });
+
+  return { assistantText, toolCalls, usage };
 };
 
 export const createGeminiVoiceAssistantModel = <
@@ -1681,7 +1597,7 @@ export const createGeminiVoiceAssistantModel = <
 
   return {
     generate: async (input) => {
-      const endpoint = `${baseUrl.replace(/\/$/, "")}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(options.apiKey)}`;
+      const endpoint = `${baseUrl.replace(/\/$/, "")}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(options.apiKey)}`;
       let response: Response | undefined;
       for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
         response = await fetchImpl(endpoint, {
@@ -1691,18 +1607,12 @@ export const createGeminiVoiceAssistantModel = <
               .filter(Boolean),
             generationConfig: {
               maxOutputTokens: options.maxOutputTokens,
-              ...(input.tools.length
-                ? {}
-                : {
-                    responseMimeType: "application/json",
-                    responseSchema: toGeminiSchema(OUTPUT_SCHEMA),
-                  }),
               temperature: options.temperature,
             },
             systemInstruction: {
               parts: [
                 {
-                  text: [input.system, ROUTE_RESULT_INSTRUCTION]
+                  text: [input.system, VOICE_SYSTEM_INSTRUCTIONS]
                     .filter(Boolean)
                     .join("\n\n"),
                 },
@@ -1754,20 +1664,18 @@ export const createGeminiVoiceAssistantModel = <
         throw createHTTPError("Gemini", response);
       }
 
-      const body = (await response.json()) as Record<string, unknown>;
-      if (body.usageMetadata && typeof body.usageMetadata === "object") {
-        await options.onUsage?.(body.usageMetadata as Record<string, unknown>);
+      const { assistantText, toolCalls, usage } = await consumeGeminiStream(
+        response,
+        input.onTextDelta,
+      );
+      if (usage) {
+        await options.onUsage?.(usage);
       }
 
-      const toolCalls = extractGeminiToolCalls(body);
-      if (toolCalls.length) {
-        return {
-          assistantText: extractGeminiText(body) || undefined,
-          toolCalls,
-        };
-      }
-
-      return normalizeRouteOutput<TResult>(parseJSON(extractGeminiText(body)));
+      return {
+        ...(assistantText ? { assistantText } : {}),
+        ...(toolCalls.length ? { toolCalls } : {}),
+      };
     },
   };
 };
