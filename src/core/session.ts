@@ -481,7 +481,7 @@ export const createVoiceSession = <
   const phraseHints = options.phraseHints ?? [];
   const lexicon = options.lexicon ?? [];
 
-  let {socket} = options;
+  let { socket } = options;
   let sttSession: STTAdapterSession | RealtimeAdapterSession | null = null;
   let ttsSession: TTSAdapterSession | null = null;
   let ttsSessionPromise: Promise<TTSAdapterSession | null> | null = null;
@@ -748,7 +748,7 @@ export const createVoiceSession = <
       sessionId: options.id,
       sessionMetadata:
         session.metadata && typeof session.metadata === "object"
-          ? (session.metadata)
+          ? session.metadata
           : undefined,
       status: session.status,
       turns: session.turns,
@@ -982,6 +982,10 @@ export const createVoiceSession = <
       return;
     }
     activeTTSTurnId = undefined;
+    // Flush whatever is already buffered downstream (e.g. a telephony carrier's
+    // outbound audio) so barge-in silences the assistant for the caller
+    // immediately — even if the TTS adapter itself can't be cancelled.
+    void Promise.resolve(socket.clear?.()).catch(() => {});
     if (!ttsAdapterSessionCanCancel(activeSession)) {
       return;
     }
@@ -1826,7 +1830,7 @@ export const createVoiceSession = <
     committedTranscripts: Transcript[],
   ) => {
     session.lastCommittedTurn = {
-      ...((session.lastCommittedTurn) ?? {}),
+      ...(session.lastCommittedTurn ?? {}),
       committedAt: Date.now(),
       signature: buildTurnSignature(
         session,
@@ -2617,11 +2621,9 @@ export const createVoiceSession = <
     socket = nextSocket;
 
     const existingSession = await options.store.get(options.id);
-    let session = (existingSession ??
-      createVoiceSessionRecord<TSession>(
-        options.id,
-        options.scenarioId,
-      ));
+    let session =
+      existingSession ??
+      createVoiceSessionRecord<TSession>(options.id, options.scenarioId);
 
     if (options.scenarioId && session.scenarioId !== options.scenarioId) {
       session.scenarioId = options.scenarioId;
@@ -2715,7 +2717,7 @@ export const createVoiceSession = <
       status: session.status,
       sessionMetadata:
         session.metadata && typeof session.metadata === "object"
-          ? (session.metadata)
+          ? session.metadata
           : undefined,
       scenarioId: session.scenarioId,
       type: "session",
@@ -2750,6 +2752,37 @@ export const createVoiceSession = <
     warmTTSSession();
     kickCallSilenceWatchdog();
     startAmdEvaluationTimer();
+
+    // Assistant speaks first: on a fresh connect (no turns yet) emit the
+    // configured greeting as the opening assistant message + synthesize it, so
+    // the caller is welcomed before saying anything. A synthesis failure here
+    // must never abort the session.
+    if (shouldFireOnSession && options.greeting && session.turns.length === 0) {
+      const greetingText =
+        typeof options.greeting === "function"
+          ? await options.greeting()
+          : options.greeting;
+      const greetingTurnId = createId();
+      await send({
+        text: greetingText,
+        turnId: greetingTurnId,
+        type: "assistant",
+      });
+      try {
+        const greetingTTSSession = await ensureTTSSession();
+        if (greetingTTSSession) {
+          activeTTSTurnId = greetingTurnId;
+          await greetingTTSSession.send(greetingText);
+        } else if (options.realtime) {
+          const greetingRealtimeSession =
+            (await ensureAdapter()) as RealtimeAdapterSession;
+          activeTTSTurnId = greetingTurnId;
+          await greetingRealtimeSession.send(greetingText);
+        }
+      } catch {
+        // A greeting synthesis failure must not abort the session.
+      }
+    }
   };
 
   const disconnectInternal = async (event?: VoiceCloseEvent) => {

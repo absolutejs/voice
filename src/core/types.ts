@@ -659,6 +659,13 @@ export type VoiceResolvedAudioConditioningConfig = {
 export type VoiceSocket = {
   send: (data: string | Uint8Array | ArrayBuffer) => void | Promise<void>;
   close: (code?: number, reason?: string) => void | Promise<void>;
+  /**
+   * Discard any audio already buffered downstream (e.g. a telephony carrier's
+   * outbound media buffer). Called on barge-in so the caller stops hearing the
+   * assistant immediately, even when frames have already been flushed to the
+   * transport. Optional: transports without a flush concept omit it.
+   */
+  clear?: () => void | Promise<void>;
 };
 
 export type VoiceMonitorRuntimeSessionBinding = {
@@ -1093,6 +1100,11 @@ export type VoicePluginConfig<
 > = {
   costTelemetry?: VoiceCostTelemetryConfig<TContext, TSession, TResult>;
   path: string;
+  // Spoken once, by the assistant, the moment a fresh session connects — before
+  // the caller says anything ("assistant speaks first"). TTS'd via the configured
+  // tts/realtime adapter and surfaced as the first assistant message. A function
+  // is resolved per session, so the greeting can come from a live/DB source.
+  greeting?: string | (() => string | Promise<string>);
   languageStrategy?: VoiceLanguageStrategy;
   lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
   phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
@@ -1368,6 +1380,7 @@ export type CreateVoiceSessionOptions<
   id: string;
   context: TContext;
   socket: VoiceSocket;
+  greeting?: string | (() => string | Promise<string>);
   stt?: STTAdapter;
   realtime?: RealtimeAdapter;
   realtimeInputFormat?: AudioFormat;

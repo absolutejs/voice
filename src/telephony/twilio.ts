@@ -163,6 +163,14 @@ export type TwilioMediaStreamBridgeOptions<
   VoicePluginConfig<TContext, TSession, TResult>,
   "htmx" | "path" | "stt"
 > & {
+  /**
+   * Legacy barge-in: send the carrier a "clear" on every inbound media frame
+   * once the assistant has spoken. Defaults to `false` — a phone line streams
+   * inbound audio continuously (silence included), so this flushes the
+   * assistant constantly. Barge-in is handled speech-gated by the session
+   * (`socket.clear()` on detected speech); only set `true` to force the old
+   * frame-level behavior.
+   */
   clearOnInboundMedia?: boolean;
   context: TContext;
   logger?: VoiceLogger;
@@ -885,6 +893,20 @@ const createTwilioSocketAdapter = <TResult>(
     trace?: VoiceTraceEventStore;
   },
 ) => ({
+  clear: async () => {
+    const state = getState();
+    if (!state.streamSid) {
+      return;
+    }
+    // Twilio "clear" drops any outbound media still buffered for playback —
+    // used on barge-in so the caller stops hearing the assistant at once.
+    state.reviewRecorder?.recordTwilioOutbound({ event: "clear" });
+    await Promise.resolve(
+      socket.send(
+        JSON.stringify({ event: "clear", streamSid: state.streamSid }),
+      ),
+    );
+  },
   close: async (code?: number, reason?: string) => {
     await Promise.resolve(socket.close(code, reason));
   },
@@ -1256,7 +1278,11 @@ export const createTwilioMediaStreamBridge = <
             track: message.media.track,
           });
           if (
-            options.clearOnInboundMedia !== false &&
+            // Opt-in only. Clearing on raw inbound frames flushes the
+            // assistant on a phone line's continuous (often silent) inbound
+            // stream; barge-in is handled speech-gated via the session's
+            // socket.clear() instead. Set true to force the legacy behavior.
+            options.clearOnInboundMedia === true &&
             bridgeState.hasOutboundAudioSinceLastInbound &&
             bridgeState.streamSid
           ) {
