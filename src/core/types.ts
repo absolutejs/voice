@@ -1107,8 +1107,9 @@ export type VoicePluginConfig<
   // Spoken once, by the assistant, the moment a fresh session connects — before
   // the caller says anything ("assistant speaks first"). TTS'd via the configured
   // tts/realtime adapter and surfaced as the first assistant message. A function
-  // is resolved per session, so the greeting can come from a live/DB source.
-  greeting?: string | (() => string | Promise<string>);
+  // is resolved per session (it receives the session), so the greeting can come
+  // from a live/DB source or vary per call — e.g. a "welcome back" on resume.
+  greeting?: string | ((input: { session: TSession }) => string | Promise<string>);
   languageStrategy?: VoiceLanguageStrategy;
   lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
   phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
@@ -1384,7 +1385,7 @@ export type CreateVoiceSessionOptions<
   id: string;
   context: TContext;
   socket: VoiceSocket;
-  greeting?: string | (() => string | Promise<string>);
+  greeting?: string | ((input: { session: TSession }) => string | Promise<string>);
   stt?: STTAdapter;
   realtime?: RealtimeAdapter;
   realtimeInputFormat?: AudioFormat;

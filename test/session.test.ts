@@ -3191,3 +3191,43 @@ test("voice session falls back to raw audio when the suppressor throws", async (
     warnings.some((message) => message.includes("noise suppression failed")),
   ).toBe(true);
 });
+
+test("voice session greeting function receives the session", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    greeting: ({ session: current }) => `Hello ${current.id}`,
+    id: "session-greeting-fn",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await Bun.sleep(20);
+
+  const greetingMessage = socket.messages
+    .map((message) => JSON.parse(message))
+    .find((message) => message.type === "assistant");
+  expect(greetingMessage?.text).toBe("Hello session-greeting-fn");
+});

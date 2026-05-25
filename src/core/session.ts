@@ -2940,7 +2940,7 @@ export const createVoiceSession = <
     if (shouldFireOnSession && options.greeting && session.turns.length === 0) {
       const greetingText =
         typeof options.greeting === "function"
-          ? await options.greeting()
+          ? await options.greeting({ session })
           : options.greeting;
       const greetingTurnId = createId();
       await send({
