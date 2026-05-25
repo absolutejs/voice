@@ -1843,6 +1843,12 @@ export const createVoiceSession = <
   };
 
   const handlePartial = async (transcript: Transcript) => {
+    // Speech-gated barge-in: the first partial transcript while the assistant is
+    // speaking is real words (Deepgram doesn't transcribe noise), so interrupt
+    // now — cancelActiveTTS also flushes the carrier's buffered playback.
+    if (activeTTSTurnId !== undefined && transcript.text.trim()) {
+      void cancelActiveTTS("barge-in");
+    }
     const session = await writeSession((session) => {
       const nextPartialStartedAt =
         transcript.startedAtMs ?? session.currentTurn.partialStartedAt;
@@ -2881,9 +2887,11 @@ export const createVoiceSession = <
       if (amdFirstAudioAt === undefined) {
         amdFirstAudioAt = Date.now();
       }
-      if (!speechDetected && activeTTSTurnId !== undefined) {
-        void cancelActiveTTS("barge-in");
-      }
+      // Barge-in (interrupting the assistant) is gated on a real STT partial
+      // below, NOT on raw audio energy: a telephony line's continuous comfort
+      // noise crosses speechThreshold and would falsely flush the assistant's
+      // current utterance (e.g. cut the greeting). Energy still drives turn
+      // detection (speechDetected / silence timers) here.
       speechDetected = true;
       clearSilenceTimer();
       kickCallSilenceWatchdog();
