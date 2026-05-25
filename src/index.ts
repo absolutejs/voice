@@ -1681,6 +1681,15 @@ export {
   withVoiceOpsTaskId,
 } from "./core/ops";
 export { createVoiceSession } from "./core/session";
+export { createVoiceScribe } from "./core/scribe";
+export type {
+  VoiceScribeSession,
+  VoiceScribeOptions,
+  VoiceScribeTurn,
+  VoiceScribeEventMap,
+  VoiceScribePartialEvent,
+  VoiceScribeTurnEvent,
+} from "./core/scribe";
 export {
   createVoiceCallReviewFromSession,
   recordVoiceRuntimeOps,
