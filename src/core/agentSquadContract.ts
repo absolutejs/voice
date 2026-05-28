@@ -192,6 +192,11 @@ const createContractApi = <
   markNoAnswer: async () => {},
   markVoicemail: async () => {},
   receiveAudio: async () => {},
+  setTurnDetection: async () => ({
+    silenceMs: 0,
+    speechThreshold: 0,
+    transcriptStabilityMs: 0,
+  }),
   snapshot: async () => session,
   transfer: async () => {},
 });

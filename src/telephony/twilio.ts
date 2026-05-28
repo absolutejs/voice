@@ -197,6 +197,59 @@ export type TwilioMediaStreamBridgeOptions<
   costAccountant?: import("../core/costAccounting").VoiceCostAccountant;
   /** Telephony cost provider for the accountant (e.g. "twilio"). */
   costTelephony?: { provider?: string };
+  /**
+   * Per-transcript semantic end-of-turn detector. Called on every transcript
+   * event; an `endOfTurn=true` verdict EARLY-commits the turn (the runtime
+   * still falls back to `turnDetection.silenceMs` if the detector says
+   * `false`). Useful for raising silenceMs for thinking time while keeping
+   * snappy responses on clear-cut answers. See VoiceSemanticTurnDetector.
+   */
+  semanticTurnDetector?: import("../core/semanticTurn").VoiceSemanticTurnDetector;
+  /**
+   * Pre-rendered filler phrases ("Hmm.", "Got it.", "Let me think.") played
+   * in the gap between user-turn-commit and real assistant audio. Boardy's
+   * "the pause is character, not lag" pattern. See CreateVoiceSessionOptions
+   * for full semantics.
+   */
+  fillerPhrases?: ReadonlyArray<string>;
+  /** Milliseconds after turn-commit before the filler fires. Default 250ms. */
+  fillerDelayMs?: number;
+  /**
+   * Minimum word count in an STT partial transcript before barge-in
+   * cancels in-flight assistant TTS. Default 1 (any partial).
+   * Recommended 2 on phone routes — single-word partials ("you", "am i")
+   * cut the bot off mid-question per live-test 2026-05-27. See
+   * CreateVoiceSessionOptions for full semantics.
+   */
+  bargeInMinPartialWords?: number;
+  /**
+   * Content-aware filler (Latency Theater). Called in parallel with the
+   * main LLM turn; if it resolves within `fillerForTimeoutMs` the runtime
+   * speaks the result instead of a random `fillerPhrases` entry. Return
+   * `null` to skip filler for this turn. See CreateVoiceSessionOptions
+   * for full semantics.
+   */
+  fillerFor?: (input: {
+    sessionId: string;
+    turnId: string;
+    userText: string;
+  }) => Promise<string | null>;
+  /** Cap on the `fillerFor` race before falling back to a static phrase. Default 600ms. */
+  fillerForTimeoutMs?: number;
+  /**
+   * Default spoken ack if the model returns ONLY tool calls (no text) and
+   * the turn isn't ending. Without this, the caller hears silence and
+   * assumes the line dropped. Default "Sorry, one moment." — set to ""
+   * to opt out. See CreateVoiceSessionOptions for full semantics.
+   */
+  defaultSilentTurnAck?: string;
+  /**
+   * Hard timeout (ms) around `route.onTurn`. If onTurn doesn't resolve in
+   * this window, the runtime throws → defaultSilentTurnAck fires → caller
+   * hears the fallback instead of dead air. See CreateVoiceSessionOptions
+   * for full semantics. Default 45s.
+   */
+  routeOnTurnTimeoutMs?: number;
 };
 
 export type TwilioMediaStreamBridge = {
@@ -1235,6 +1288,39 @@ export const createTwilioMediaStreamBridge = <
       stt: options.stt,
       sttFallback: resolveSTTFallbackConfig(options.sttFallback),
       sttLifecycle: options.sttLifecycle ?? runtimePreset.sttLifecycle,
+      // Forward the semantic turn detector so callers can EARLY-commit on
+      // user intent (e.g. an LLM-backed detector that judges "clearly done"
+      // vs "still thinking"). Without this the runtime relies solely on
+      // turnDetection.silenceMs.
+      ...(options.semanticTurnDetector
+        ? { semanticTurnDetector: options.semanticTurnDetector }
+        : {}),
+      // Forward filler-phrase config (Boardy's "the pause is character"
+      // pattern). The runtime schedules a filler at fillerDelayMs after
+      // each turn commit and supersedes it with the real assistant audio
+      // when ready.
+      ...(options.fillerPhrases
+        ? { fillerPhrases: options.fillerPhrases }
+        : {}),
+      ...(options.fillerDelayMs !== undefined
+        ? { fillerDelayMs: options.fillerDelayMs }
+        : {}),
+      ...(options.bargeInMinPartialWords !== undefined
+        ? { bargeInMinPartialWords: options.bargeInMinPartialWords }
+        : {}),
+      // Latency Theater — content-aware filler hook. The runtime races this
+      // against fillerForTimeoutMs and prefers its output over a random
+      // static phrase.
+      ...(options.fillerFor ? { fillerFor: options.fillerFor } : {}),
+      ...(options.fillerForTimeoutMs !== undefined
+        ? { fillerForTimeoutMs: options.fillerForTimeoutMs }
+        : {}),
+      ...(options.defaultSilentTurnAck !== undefined
+        ? { defaultSilentTurnAck: options.defaultSilentTurnAck }
+        : {}),
+      ...(options.routeOnTurnTimeoutMs !== undefined
+        ? { routeOnTurnTimeoutMs: options.routeOnTurnTimeoutMs }
+        : {}),
       // The session emits the rich per-turn traces (turn.transcript,
       // turn_latency.stage, turn.cost, client.barge_in, session.error, …); the
       // bridge previously kept `trace` to itself, so those never persisted.

@@ -10,6 +10,7 @@ export class VoiceStreamService {
   ) {
     const stream = createVoiceStream<TResult>(path, options);
     const assistantAudioSignal = signal<typeof stream.assistantAudio>([]);
+    const assistantStreamingTextSignal = signal("");
     const assistantTextsSignal = signal<string[]>([]);
     const callSignal = signal<typeof stream.call>(null);
     const errorSignal = signal<string | null>(null);
@@ -23,6 +24,7 @@ export class VoiceStreamService {
 
     const sync = () => {
       assistantAudioSignal.set([...stream.assistantAudio]);
+      assistantStreamingTextSignal.set(stream.assistantStreamingText);
       assistantTextsSignal.set([...stream.assistantTexts]);
       callSignal.set(stream.call);
       errorSignal.set(stream.error);
@@ -40,6 +42,7 @@ export class VoiceStreamService {
 
     return {
       assistantAudio: computed(() => assistantAudioSignal()),
+      assistantStreamingText: computed(() => assistantStreamingTextSignal()),
       assistantTexts: computed(() => assistantTextsSignal()),
       call: computed(() => callSignal()),
       callControl: (message: Parameters<typeof stream.callControl>[0]) =>

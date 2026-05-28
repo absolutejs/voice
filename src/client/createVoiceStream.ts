@@ -82,6 +82,9 @@ export const createVoiceStream = <TResult = unknown>(
     get assistantTexts() {
       return store.getSnapshot().assistantTexts;
     },
+    get assistantStreamingText() {
+      return store.getSnapshot().assistantStreamingText;
+    },
     get call() {
       return store.getSnapshot().call;
     },

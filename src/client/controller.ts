@@ -13,6 +13,7 @@ const createInitialState = <TResult>(
   stream: ReturnType<typeof createVoiceStream<TResult>>,
 ): VoiceControllerState<TResult> => ({
   assistantAudio: [...stream.assistantAudio],
+  assistantStreamingText: stream.assistantStreamingText,
   assistantTexts: [...stream.assistantTexts],
   call: stream.call,
   error: stream.error,
@@ -51,6 +52,7 @@ export const createVoiceController = <TResult = unknown>(
     state = {
       ...state,
       assistantAudio: [...stream.assistantAudio],
+      assistantStreamingText: stream.assistantStreamingText,
       assistantTexts: [...stream.assistantTexts],
       call: stream.call,
       error: stream.error,
@@ -162,6 +164,9 @@ export const createVoiceController = <TResult = unknown>(
     },
     get assistantTexts() {
       return state.assistantTexts;
+    },
+    get assistantStreamingText() {
+      return state.assistantStreamingText;
     },
     bindHTMX(bindingOptions: VoiceHTMXBindingOptions) {
       return bindVoiceHTMX(stream, bindingOptions);

@@ -813,12 +813,19 @@ test("createAnthropicVoiceAssistantModel maps tool calls from content blocks", a
       return sseResponse([
         { message: { usage: { input_tokens: 8 } }, type: "message_start" },
         {
-          content_block: { id: "toolu-1", name: "lookup_order", type: "tool_use" },
+          content_block: {
+            id: "toolu-1",
+            name: "lookup_order",
+            type: "tool_use",
+          },
           index: 0,
           type: "content_block_start",
         },
         {
-          delta: { partial_json: '{"orderId":"123"}', type: "input_json_delta" },
+          delta: {
+            partial_json: '{"orderId":"123"}',
+            type: "input_json_delta",
+          },
           index: 0,
           type: "content_block_delta",
         },
@@ -939,7 +946,11 @@ test("createAnthropicVoiceAssistantModel streams assistant text via onTextDelta"
     apiKey: "test-key",
     fetch: async () =>
       sseResponse([
-        { content_block: { type: "text" }, index: 0, type: "content_block_start" },
+        {
+          content_block: { type: "text" },
+          index: 0,
+          type: "content_block_start",
+        },
         {
           delta: { text: "Done", type: "text_delta" },
           index: 0,

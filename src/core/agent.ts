@@ -481,7 +481,8 @@ const LIFECYCLE_TOOLS: ReadonlyArray<{
     },
   },
   {
-    description: "Record that the call reached voicemail or an answering machine.",
+    description:
+      "Record that the call reached voicemail or an answering machine.",
     name: "leave_voicemail",
     parameters: { additionalProperties: false, properties: {}, type: "object" },
   },
@@ -524,7 +525,9 @@ const applyLifecycleToolCall = <TResult>(
     case "escalate":
       output.escalate = {
         reason:
-          typeof args.reason === "string" ? args.reason : "escalation requested",
+          typeof args.reason === "string"
+            ? args.reason
+            : "escalation requested",
       };
       break;
     case "leave_voicemail":

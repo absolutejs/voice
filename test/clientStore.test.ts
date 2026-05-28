@@ -188,6 +188,36 @@ test("voice client store tracks reconnect observability messages", () => {
   });
 });
 
+test("voice client store streams assistant deltas before committed assistant text", () => {
+  const store = createVoiceStreamStore();
+  const first = serverMessageToAction({
+    delta: "Hello ",
+    turnId: "turn-1",
+    type: "assistant_delta",
+  });
+  const second = serverMessageToAction({
+    delta: "there.",
+    turnId: "turn-1",
+    type: "assistant_delta",
+  });
+  const final = serverMessageToAction({
+    text: "Hello there.",
+    turnId: "turn-1",
+    type: "assistant",
+  });
+
+  store.dispatch(first);
+  store.dispatch(second);
+
+  expect(store.getSnapshot().assistantStreamingText).toBe("Hello there.");
+  expect(store.getSnapshot().assistantTexts).toEqual([]);
+
+  store.dispatch(final);
+
+  expect(store.getSnapshot().assistantStreamingText).toBe("");
+  expect(store.getSnapshot().assistantTexts).toEqual(["Hello there."]);
+});
+
 test("voice workflow status store fetches scenario eval reports", async () => {
   const store = createVoiceWorkflowStatusStore("/evals/scenarios/json", {
     fetch: async () =>

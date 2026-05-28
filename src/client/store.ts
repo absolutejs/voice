@@ -13,6 +13,7 @@ const createInitialReconnectState = (): VoiceReconnectClientState => ({
 
 const createInitialState = (): VoiceStreamState => ({
   assistantAudio: [],
+  assistantStreamingText: "",
   assistantTexts: [],
   call: null,
   error: null,
@@ -53,7 +54,14 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
       case "assistant":
         state = {
           ...state,
+          assistantStreamingText: "",
           assistantTexts: [...state.assistantTexts, action.text],
+        };
+        break;
+      case "assistant_delta":
+        state = {
+          ...state,
+          assistantStreamingText: `${state.assistantStreamingText}${action.delta}`,
         };
         break;
       case "complete":
@@ -132,6 +140,7 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
       case "replay":
         state = {
           ...state,
+          assistantStreamingText: "",
           assistantTexts: [...action.assistantTexts],
           call: action.call ?? null,
           error: null,

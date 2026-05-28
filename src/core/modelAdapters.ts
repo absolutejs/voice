@@ -37,6 +37,14 @@ export type OpenAIVoiceAssistantModelOptions = {
   model?: string;
   onUsage?: (usage: Record<string, unknown>) => Promise<void> | void;
   temperature?: number;
+  /**
+   * Hard cap on a single /responses stream. Aborts via AbortController if
+   * the stream doesn't complete in time. Default 60s — generous for typical
+   * gpt-4.1-mini conversational turns (1-3s) but catches infinite hangs
+   * (server-side stream stalls observed on rare complex inputs). On timeout
+   * the agent loop falls through to default-silent-turn-ack.
+   */
+  timeoutMs?: number;
 };
 
 export type AnthropicVoiceAssistantModelOptions = {
@@ -1246,9 +1254,30 @@ const parseToolArgs = (raw: string) => {
 
 // Read an SSE response body, invoking onEvent with each parsed `data:` JSON
 // payload. Shared by the streaming model adapters.
+//
+// Two-layer abort handling — both are required because `await reader.read()`
+// is genuinely indefinite when the server stops sending (keeps the
+// connection alive but emits nothing, or stalls after a barge-in-driven
+// abort that didn't fully propagate):
+//
+//   1. `signal` (passed by the adapter's timeout AbortController): if it
+//      fires, we Promise.race the reader.read() against an abort-rejection
+//      and throw out of the loop immediately. Without this, modern fetch's
+//      "abort propagates to body stream" guarantee doesn't always hold in
+//      Bun's compiled binary, and the 60s parent timeout silently has no
+//      effect.
+//   2. `inactivityMs` (default 10s): if no chunk arrives within this
+//      window we throw an inactivity error. Catches the case where the
+//      server keeps the connection alive but sends no data (no heartbeat,
+//      no completion) — observed on OpenAI /responses after rare upstream
+//      hiccups. Live-traced 2026-05-27.
 const readServerSentEvents = async (
   response: Response,
   onEvent: (event: Record<string, unknown>) => void,
+  abortOptions?: {
+    signal?: AbortSignal;
+    inactivityMs?: number;
+  },
 ) => {
   const reader = response.body?.getReader();
   if (!reader) {
@@ -1256,6 +1285,8 @@ const readServerSentEvents = async (
   }
   const decoder = new TextDecoder();
   let buffer = "";
+  const signal = abortOptions?.signal;
+  const inactivityMs = abortOptions?.inactivityMs ?? 10_000;
 
   const drain = (block: string) => {
     for (const line of block.split("\n")) {
@@ -1271,8 +1302,59 @@ const readServerSentEvents = async (
     }
   };
 
+  // readWithRace: returns whatever resolves first between:
+  //   - reader.read() (real chunk or done)
+  //   - inactivity timeout (rejects)
+  //   - signal abort (rejects)
+  // Cancels the reader on any rejection path so the underlying connection
+  // is freed instead of leaked.
+  type ReadChunk =
+    | { done: false; value: Uint8Array }
+    | { done: true; value?: undefined };
+  const readWithRace = async (): Promise<ReadChunk> => {
+    if (signal?.aborted) {
+      try {
+        await reader.cancel();
+      } catch {
+        /* best-effort */
+      }
+      throw new Error("SSE read aborted by signal");
+    }
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+    let onAbort: (() => void) | null = null;
+    return new Promise<ReadChunk>((resolve, reject) => {
+      inactivityTimer = setTimeout(() => {
+        // Cancel the reader so the connection releases promptly.
+        reader.cancel().catch(() => {
+          /* best-effort */
+        });
+        reject(
+          new Error(
+            `SSE read inactivity timeout (${inactivityMs}ms with no chunk)`,
+          ),
+        );
+      }, inactivityMs);
+      if (signal) {
+        onAbort = () => {
+          reader.cancel().catch(() => {
+            /* best-effort */
+          });
+          reject(new Error("SSE read aborted by signal"));
+        };
+        signal.addEventListener("abort", onAbort);
+      }
+      reader.read().then(
+        (result) => resolve(result as ReadChunk),
+        (err) => reject(err),
+      );
+    }).finally(() => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      if (signal && onAbort) signal.removeEventListener("abort", onAbort);
+    });
+  };
+
   for (;;) {
-    const { done, value } = await reader.read();
+    const { done, value } = await readWithRace();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     let separator = buffer.indexOf("\n\n");
@@ -1303,47 +1385,58 @@ const finalizeToolCalls = (
 const consumeOpenAIResponsesStream = async (
   response: Response,
   onTextDelta?: (delta: string) => void,
+  abortOptions?: { signal?: AbortSignal; inactivityMs?: number },
 ) => {
   let assistantText = "";
   let usage: Record<string, unknown> | undefined;
   const calls = new Map<string, StreamedToolCall>();
 
-  await readServerSentEvents(response, (event) => {
-    const type = typeof event.type === "string" ? event.type : "";
-    const item = event.item as Record<string, unknown> | undefined;
-    if (type === "response.output_text.delta" && typeof event.delta === "string") {
-      assistantText += event.delta;
-      onTextDelta?.(event.delta);
-    } else if (
-      type === "response.output_item.added" &&
-      item?.type === "function_call"
-    ) {
-      calls.set(String(item.id ?? item.call_id ?? ""), {
-        args: typeof item.arguments === "string" ? item.arguments : "",
-        id: typeof item.call_id === "string" ? item.call_id : (item.id as string),
-        name: typeof item.name === "string" ? item.name : "",
-      });
-    } else if (
-      type === "response.function_call_arguments.delta" &&
-      typeof event.delta === "string"
-    ) {
-      const entry = calls.get(String(event.item_id ?? ""));
-      if (entry) entry.args += event.delta;
-    } else if (
-      type === "response.output_item.done" &&
-      item?.type === "function_call" &&
-      typeof item.arguments === "string" &&
-      item.arguments
-    ) {
-      const entry = calls.get(String(item.id ?? item.call_id ?? ""));
-      if (entry) entry.args = item.arguments;
-    } else if (type === "response.completed") {
-      const completed = event.response as Record<string, unknown> | undefined;
-      if (completed?.usage && typeof completed.usage === "object") {
-        usage = completed.usage as Record<string, unknown>;
+  await readServerSentEvents(
+    response,
+    (event) => {
+      const type = typeof event.type === "string" ? event.type : "";
+      const item = event.item as Record<string, unknown> | undefined;
+      if (
+        type === "response.output_text.delta" &&
+        typeof event.delta === "string"
+      ) {
+        assistantText += event.delta;
+        onTextDelta?.(event.delta);
+      } else if (
+        type === "response.output_item.added" &&
+        item?.type === "function_call"
+      ) {
+        calls.set(String(item.id ?? item.call_id ?? ""), {
+          args: typeof item.arguments === "string" ? item.arguments : "",
+          id:
+            typeof item.call_id === "string"
+              ? item.call_id
+              : (item.id as string),
+          name: typeof item.name === "string" ? item.name : "",
+        });
+      } else if (
+        type === "response.function_call_arguments.delta" &&
+        typeof event.delta === "string"
+      ) {
+        const entry = calls.get(String(event.item_id ?? ""));
+        if (entry) entry.args += event.delta;
+      } else if (
+        type === "response.output_item.done" &&
+        item?.type === "function_call" &&
+        typeof item.arguments === "string" &&
+        item.arguments
+      ) {
+        const entry = calls.get(String(item.id ?? item.call_id ?? ""));
+        if (entry) entry.args = item.arguments;
+      } else if (type === "response.completed") {
+        const completed = event.response as Record<string, unknown> | undefined;
+        if (completed?.usage && typeof completed.usage === "object") {
+          usage = completed.usage as Record<string, unknown>;
+        }
       }
-    }
-  });
+    },
+    abortOptions,
+  );
 
   return { assistantText, toolCalls: finalizeToolCalls(calls), usage };
 };
@@ -1358,12 +1451,29 @@ export const createOpenAIVoiceAssistantModel = <
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const baseUrl = options.baseUrl ?? "https://api.openai.com/v1";
   const model = options.model ?? "gpt-4.1-mini";
+  // OpenAI's `/responses` SSE stream has no built-in client timeout; if the
+  // server hangs after returning 200 (rare but possible — saw it on phone
+  // intake with merged adversarial input 2026-05-27), the await never
+  // resolves and the entire voice session blocks indefinitely. Bound the
+  // whole request+stream at this limit; on timeout, the AbortController
+  // throws and the agent loop falls through to the default-silent-turn-ack
+  // safeguard. 60s is generous for normal calls (gpt-4.1-mini typically
+  // streams in 1-3s) but catches infinite hangs.
+  const timeoutMs = options.timeoutMs ?? 60_000;
 
   return {
     generate: async (input) => {
-      const response = await fetchImpl(
-        `${baseUrl.replace(/\/$/, "")}/responses`,
-        {
+      const ac = new AbortController();
+      const timer = setTimeout(() => {
+        ac.abort(
+          new Error(
+            `OpenAI /responses timed out after ${timeoutMs}ms (no completion event received)`,
+          ),
+        );
+      }, timeoutMs);
+      let response: Response;
+      try {
+        response = await fetchImpl(`${baseUrl.replace(/\/$/, "")}/responses`, {
           body: JSON.stringify({
             input: messagesToOpenAIInput(input.messages),
             instructions: [input.system, VOICE_SYSTEM_INSTRUCTIONS]
@@ -1391,15 +1501,39 @@ export const createOpenAIVoiceAssistantModel = <
             "content-type": "application/json",
           },
           method: "POST",
-        },
-      );
+          signal: ac.signal,
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        throw error;
+      }
 
       if (!response.ok) {
+        clearTimeout(timer);
         throw createHTTPError("OpenAI", response);
       }
 
-      const { assistantText, toolCalls, usage } =
-        await consumeOpenAIResponsesStream(response, input.onTextDelta);
+      let assistantText: string | undefined;
+      let toolCalls: VoiceAgentToolCall[];
+      let usage: Record<string, unknown> | undefined;
+      try {
+        ({ assistantText, toolCalls, usage } =
+          await consumeOpenAIResponsesStream(response, input.onTextDelta, {
+            // Pass the abort signal to the stream reader so my parent
+            // timeout actually interrupts a stalled reader.read(). Without
+            // this, ac.abort() aborts the fetch REQUEST but the body
+            // stream's reader.read() can stay blocked indefinitely in
+            // Bun's compiled binary — confirmed live 2026-05-27.
+            signal: ac.signal,
+            // Inactivity sub-timeout — even if the parent timer is
+            // generous, kill the read if the server stalls for >10s with
+            // no chunk. Catches the post-barge-in OpenAI hang where the
+            // connection stays open but no events arrive.
+            inactivityMs: 10_000,
+          }));
+      } finally {
+        clearTimeout(timer);
+      }
       if (usage) {
         await options.onUsage?.(usage);
       }
@@ -1451,7 +1585,11 @@ const consumeAnthropicStream = async (
       if (message?.usage && typeof message.usage === "object") {
         usage = message.usage as Record<string, unknown>;
       }
-    } else if (type === "message_delta" && event.usage && typeof event.usage === "object") {
+    } else if (
+      type === "message_delta" &&
+      event.usage &&
+      typeof event.usage === "object"
+    ) {
       usage = { ...usage, ...(event.usage as Record<string, unknown>) };
     }
   });
@@ -1529,7 +1667,10 @@ export const createAnthropicVoiceAssistantModel = <
 
 const handleGeminiPart = (
   part: unknown,
-  collect: { onTextDelta?: (delta: string) => void; toolCalls: VoiceAgentToolCall[] },
+  collect: {
+    onTextDelta?: (delta: string) => void;
+    toolCalls: VoiceAgentToolCall[];
+  },
 ) => {
   if (!part || typeof part !== "object") return "";
   const record = part as Record<string, unknown>;

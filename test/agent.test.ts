@@ -1437,7 +1437,10 @@ test("createVoiceAgent maps a transfer_call lifecycle tool onto the result", asy
   });
 
   expect(result.assistantText).toBe("Sure, connecting you to billing now.");
-  expect(result.transfer).toEqual({ reason: "billing", target: "+15551230000" });
+  expect(result.transfer).toEqual({
+    reason: "billing",
+    target: "+15551230000",
+  });
   // Lifecycle tools are not dispatched as user tools.
   expect(result.toolResults ?? []).toHaveLength(0);
 });

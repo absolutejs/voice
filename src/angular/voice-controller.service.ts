@@ -10,6 +10,7 @@ export class VoiceControllerService {
   ) {
     const controller = createVoiceController<TResult>(path, options);
     const assistantAudioSignal = signal<typeof controller.assistantAudio>([]);
+    const assistantStreamingTextSignal = signal("");
     const assistantTextsSignal = signal<string[]>([]);
     const errorSignal = signal<string | null>(null);
     const isConnectedSignal = signal(false);
@@ -23,6 +24,7 @@ export class VoiceControllerService {
 
     const sync = () => {
       assistantAudioSignal.set([...controller.assistantAudio]);
+      assistantStreamingTextSignal.set(controller.assistantStreamingText);
       assistantTextsSignal.set([...controller.assistantTexts]);
       errorSignal.set(controller.error);
       isConnectedSignal.set(controller.isConnected);
@@ -40,6 +42,7 @@ export class VoiceControllerService {
 
     return {
       assistantAudio: computed(() => assistantAudioSignal()),
+      assistantStreamingText: computed(() => assistantStreamingTextSignal()),
       assistantTexts: computed(() => assistantTextsSignal()),
       bindHTMX: controller.bindHTMX,
       close: () => {

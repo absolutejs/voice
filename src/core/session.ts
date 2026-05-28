@@ -495,10 +495,14 @@ export const createVoiceSession = <
     session?: TSession;
     stage: string;
     turnId?: string;
+    /** Extra fields merged into the stage payload (e.g. `{reason: "barge-in"}`
+     *  on a `tts_canceled` stage). Lets one event type carry per-cause
+     *  debugging context without inflating the trace `type` union. */
+    metadata?: Record<string, unknown>;
   }) =>
     appendTrace({
       at: input.at,
-      payload: { stage: input.stage },
+      payload: { stage: input.stage, ...(input.metadata ?? {}) },
       session: input.session,
       turnId: input.turnId,
       type: "turn_latency.stage",
@@ -517,6 +521,34 @@ export const createVoiceSession = <
   let adapterGenerationCounter = 0;
   let activeAdapterGeneration = 0;
   let activeTTSTurnId: string | undefined;
+  // Filler-phrase state (Boardy-style "the pause is character, not lag").
+  // `fillerTimer` is the scheduled-but-not-yet-fired filler trigger.
+  // `fillerActive` is true once a filler has been sent to TTS for the current
+  // turn and not yet superseded by the real assistant audio. `fillerToken`
+  // invalidates any in-flight timer if a new turn commits before the previous
+  // filler logic resolves (token mismatch → skip).
+  let fillerTimer: ReturnType<typeof setTimeout> | null = null;
+  let fillerActive = false;
+  let fillerToken = 0;
+  const fillerPhrases = (options.fillerPhrases ?? []).filter(
+    (p): p is string => typeof p === "string" && p.trim().length > 0,
+  );
+  const fillerDelayMs = options.fillerDelayMs ?? 250;
+  // Minimum word count an STT partial must reach before barge-in cancels
+  // the in-flight TTS. Default 1 keeps backwards-compat. Phone routes
+  // typically set 2 — live-test 2026-05-27 had single-word partials
+  // ("you", "am i") cutting the bot off mid-question.
+  const bargeInMinPartialWords = Math.max(
+    1,
+    options.bargeInMinPartialWords ?? 1,
+  );
+  // Latency Theater (content-aware filler): when the host wires `fillerFor`,
+  // we race a per-turn cheap LLM call against `fillerForTimeoutMs` and
+  // prefer its output over a random static phrase. The static phrases stay
+  // wired as the fallback so a slow / failing acknowledgement call never
+  // costs you a filler entirely.
+  const fillerFor = options.fillerFor;
+  const fillerForTimeoutMs = options.fillerForTimeoutMs ?? 600;
   const currentTurnAudio: BufferedAudioChunk[] = [];
   const pendingUserAttachments: import("./agent").VoiceAgentMessageAttachment[] =
     [];
@@ -1007,6 +1039,15 @@ export const createVoiceSession = <
       return;
     }
     activeTTSTurnId = undefined;
+    // Trace the cancel BEFORE doing the work so it lands even if the
+    // adapter close hangs. Hosts use this to diagnose "got cut off
+    // mid-question" complaints — the `reason` ("barge-in",
+    // "filler-superseded", "barge-in clear") is the smoking gun.
+    void appendTurnLatencyStage({
+      metadata: { reason },
+      stage: "tts_canceled",
+      turnId: cancelledTurnId,
+    }).catch(() => {});
     // Flush whatever is already buffered downstream (e.g. a telephony carrier's
     // outbound audio) so barge-in silences the assistant for the caller
     // immediately — even if the TTS adapter itself can't be cancelled.
@@ -1022,6 +1063,26 @@ export const createVoiceSession = <
         reason,
         sessionId: options.id,
         turnId: cancelledTurnId,
+      });
+    }
+    // RESET THE SHARED TTS SESSION after a barge-in cancel. Several adapters
+    // (notably Deepgram Aura's streaming HTTP impl) leave the post-cancel
+    // session in a state where the NEXT send() silently hangs forever — no
+    // chunks, no errors. Closing the session + clearing the cache forces
+    // ensureTTSSession() to open a fresh session for the next turn, which is
+    // a clean state. Costs ~50-100ms of session-open latency on the next
+    // turn vs total dead air; clear win.
+    // Diagnosed 2026-05-27 live: Turn 1 worked, Turn 2 silent after barge-in;
+    // see project_voice_tester_outbound_mode.md.
+    try {
+      ttsSession = null;
+      ttsSessionPromise = null;
+      await activeSession.close("post-cancel-reset");
+    } catch (error) {
+      logger.warn("voice tts adapter close-after-cancel failed", {
+        error: toError(error).message,
+        reason,
+        sessionId: options.id,
       });
     }
   };
@@ -1871,8 +1932,40 @@ export const createVoiceSession = <
     // Speech-gated barge-in: the first partial transcript while the assistant is
     // speaking is real words (Deepgram doesn't transcribe noise), so interrupt
     // now — cancelActiveTTS also flushes the carrier's buffered playback.
-    if (activeTTSTurnId !== undefined && transcript.text.trim()) {
-      void cancelActiveTTS("barge-in");
+    // bargeInMinPartialWords gates short fragments (default 1 = any
+    // non-empty partial). Phone routes set 2+ to ignore single-word
+    // breath / filler mistranscriptions ("you", "am i") that were
+    // cutting the bot off mid-question per live-test 2026-05-27.
+    if (activeTTSTurnId !== undefined) {
+      const triggeringText = transcript.text.trim();
+      if (triggeringText) {
+        const wordCount = triggeringText.split(/\s+/).length;
+        if (wordCount >= bargeInMinPartialWords) {
+          void appendTurnLatencyStage({
+            metadata: {
+              partial: triggeringText.slice(0, 200),
+              source: "stt_partial",
+              wordCount,
+            },
+            stage: "barge_in",
+            turnId: activeTTSTurnId,
+          }).catch(() => {});
+          void cancelActiveTTS("barge-in");
+        } else {
+          // Below threshold — trace that we SAW a partial but suppressed
+          // barge-in. Useful for debugging the inverse complaint ("I
+          // started talking and the bot kept going").
+          void appendTurnLatencyStage({
+            metadata: {
+              partial: triggeringText.slice(0, 200),
+              reason: "below_min_words",
+              wordCount,
+            },
+            stage: "barge_in_suppressed",
+            turnId: activeTTSTurnId,
+          }).catch(() => {});
+        }
+      }
     }
     const session = await writeSession((session) => {
       const nextPartialStartedAt =
@@ -2238,6 +2331,23 @@ export const createVoiceSession = <
         const ttsSession = await ensure();
         if (!ttsSession || (started && activeTTSTurnId !== turn.id)) return;
         if (!started) {
+          // Real streamed assistant audio is about to start — invalidate any
+          // pending filler timer + flush any in-flight filler TTS via the
+          // carrier clear, so the caller hears the filler-end then the real
+          // reply instead of stacked overlap. Without this the streaming
+          // path leaves the filler TTS running concurrently with the real
+          // response on the same ttsSession, which on Aura silently jams
+          // the second-and-later turn's send (observed prod 2026-05-27 —
+          // Turn 1 works, Turn 2 sends never returns audio).
+          fillerToken += 1;
+          if (fillerTimer) {
+            clearTimeout(fillerTimer);
+            fillerTimer = null;
+          }
+          if (fillerActive) {
+            await cancelActiveTTS("filler-superseded").catch(() => {});
+            fillerActive = false;
+          }
           activeTTSTurnId = turn.id;
           await appendTurnLatencyStage({
             at: ttsStartedAt,
@@ -2294,6 +2404,7 @@ export const createVoiceSession = <
         if (!delta) return;
         streamed = true;
         full += delta;
+        void send({ delta, turnId: turn.id, type: "assistant_delta" });
         buffer += delta;
         let boundary = nextSpeakableBoundary(buffer);
         while (boundary !== -1) {
@@ -2314,6 +2425,9 @@ export const createVoiceSession = <
     session: TSession,
     turn: VoiceTurnRecord<TResult>,
   ) => {
+    console.error(
+      `[voice] completeTurn ENTER session=${options.id} turn=${turn.id} textLen=${turn.text?.length ?? 0}`,
+    );
     const liveOpsControl = await options.liveOps?.getControl(options.id);
     if (liveOpsControl?.assistantPaused || liveOpsControl?.operatorTakeover) {
       await appendTrace({
@@ -2342,19 +2456,173 @@ export const createVoiceSession = <
     const ttsStreamer = options.tts
       ? createTurnTTSStreamer(turn, session)
       : undefined;
-    const committedOutput = await options.route.onTurn({
-      api: api,
-      context: options.context,
-      liveOps: liveOpsControl
-        ? {
-            control: liveOpsControl,
-            injectedInstruction,
+
+    // Schedule a filler ("Hmm.", "Got it.") to bridge the silence while the
+    // LLM is generating. Fires once after fillerDelayMs; on the first real
+    // assistant audio chunk (below) we invalidate the token + cancel any
+    // in-flight filler TTS so the caller hears a brief filler then the real
+    // response, with the carrier-buffer flush ensuring a clean transition.
+    if (fillerPhrases.length > 0 && options.tts && !ttsStreamer) {
+      // ttsStreamer path streams deltas directly — no LLM gap to fill in
+      // that mode. Fillers only help the non-streaming path where we wait
+      // for the full assistant text before TTS starts.
+    }
+    if ((fillerPhrases.length > 0 || fillerFor) && options.tts) {
+      fillerToken += 1;
+      const myToken = fillerToken;
+      if (fillerTimer) clearTimeout(fillerTimer);
+      // Kick the content-aware acknowledgement call off RIGHT NOW (parallel
+      // to the main LLM call) so by the time the static-filler timer fires
+      // it's typically already resolved. Race against fillerForTimeoutMs so
+      // a slow / hung acknowledgement call never blocks the filler audio.
+      const fillerForPromise: Promise<string | null> | null = fillerFor
+        ? Promise.race<string | null>([
+            (async () => {
+              try {
+                const v = await fillerFor({
+                  sessionId: options.id,
+                  turnId: turn.id,
+                  userText: turn.text ?? "",
+                });
+
+                return v && v.trim().length > 0 ? v : null;
+              } catch {
+                return null;
+              }
+            })(),
+            new Promise<null>((resolve) =>
+              setTimeout(() => resolve(null), fillerForTimeoutMs),
+            ),
+          ])
+        : null;
+
+      fillerTimer = setTimeout(() => {
+        fillerTimer = null;
+        // Token mismatch means a newer turn started; abandon this filler.
+        if (myToken !== fillerToken) return;
+        // If real TTS for this turn has already started flowing, skip.
+        if (activeTTSTurnId === turn.id) return;
+        void runSerial("filler.send", async () => {
+          // Re-check inside the queue — between schedule and run the real
+          // assistant TTS may have started.
+          if (myToken !== fillerToken || activeTTSTurnId === turn.id) return;
+          // Prefer the content-aware phrase. If it's still pending we wait
+          // for the remaining timeout budget; if it returned null we fall
+          // through to a static random phrase.
+          let phrase: string | null = null;
+          let source: "fillerFor" | "static" = "static";
+          if (fillerForPromise) {
+            phrase = await fillerForPromise;
+            if (phrase) source = "fillerFor";
+            if (myToken !== fillerToken || activeTTSTurnId === turn.id) return;
           }
-        : undefined,
-      onTextDelta: ttsStreamer?.push,
-      session,
-      turn,
-    });
+          if (!phrase && fillerPhrases.length > 0) {
+            phrase =
+              fillerPhrases[Math.floor(Math.random() * fillerPhrases.length)] ??
+              null;
+            source = "static";
+          }
+          if (!phrase) return;
+          const adapterSession = await ensureTTSSession();
+          if (!adapterSession) return;
+          fillerActive = true;
+          // Trace BEFORE the send so hosts can correlate against
+          // tts_send_started / barge_in events even if the send itself
+          // throws. `phrase` is small (≤ ~30 chars) — fine to inline.
+          void appendTurnLatencyStage({
+            metadata: { phrase, source },
+            stage: "filler_sent",
+            turnId: turn.id,
+          }).catch(() => {});
+          try {
+            await adapterSession.send(phrase);
+          } catch {
+            // TTS errors on a filler are non-fatal — the real response still plays.
+            fillerActive = false;
+          }
+        });
+      }, fillerDelayMs);
+    }
+
+    // Wrap onTurn in try/catch + a HARD TIMEOUT + log to stderr so a
+    // thrown/hung LLM call is VISIBLE (silent failures here mean the caller
+    // sits in dead air). Anything we catch here also lets the safeguard
+    // below fire its default ack rather than just leaving the turn
+    // dangling.
+    //
+    // The hard timeout (default 45s) is defensive — the OpenAI/Anthropic
+    // model layers have their own 60s timeouts, but those have been
+    // observed to NOT fire in some hang scenarios (operationQueue
+    // serialization races, AbortController-doesn't-propagate-to-stream
+    // edge cases). This outer race guarantees a turn always resolves,
+    // pass or fail, within `routeOnTurnTimeoutMs` so the safeguard can
+    // speak. Set to 0 to disable.
+    const onTurnTimeoutMs = options.routeOnTurnTimeoutMs ?? 45_000;
+    let committedOutput:
+      | Awaited<ReturnType<typeof options.route.onTurn>>
+      | undefined;
+    const onTurnStartedAt = Date.now();
+    try {
+      const onTurnPromise = options.route.onTurn({
+        api: api,
+        context: options.context,
+        liveOps: liveOpsControl
+          ? {
+              control: liveOpsControl,
+              injectedInstruction,
+            }
+          : undefined,
+        onTextDelta: ttsStreamer?.push,
+        session,
+        turn,
+      });
+      if (onTurnTimeoutMs > 0) {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => {
+            reject(
+              new Error(`route.onTurn hard-timeout after ${onTurnTimeoutMs}ms`),
+            );
+          }, onTurnTimeoutMs);
+        });
+        try {
+          committedOutput = await Promise.race([onTurnPromise, timeoutPromise]);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      } else {
+        committedOutput = await onTurnPromise;
+      }
+    } catch (error) {
+      const message = toError(error).message;
+      logger.warn("voice route.onTurn failed", {
+        elapsedMs: Date.now() - onTurnStartedAt,
+        error: message,
+        sessionId: options.id,
+        turnId: turn.id,
+      });
+      // Also log to console.error so the failure shows up in stdout-only
+      // hosting (systemd journals, Docker logs) where the structured logger
+      // backend may swallow it.
+      console.error(
+        `[voice] onTurn failed for session ${options.id} turn ${turn.id} after ${Date.now() - onTurnStartedAt}ms:`,
+        message,
+      );
+      await appendTrace({
+        payload: {
+          elapsedMs: Date.now() - onTurnStartedAt,
+          error: message,
+          stage: "route.onTurn",
+        },
+        session,
+        turnId: turn.id,
+        type: "session.error",
+      });
+      committedOutput = undefined;
+      // Don't rethrow — fall through to the audio-wasn't-sent safeguard
+      // below so the caller hears the defaultSilentTurnAck instead of dead
+      // air.
+    }
     const output = {
       assistantText: committedOutput?.assistantText,
       citations: committedOutput?.citations,
@@ -2431,6 +2699,19 @@ export const createVoiceSession = <
       try {
         const activeTTSSession = await ensureTTSSession();
         if (activeTTSSession) {
+          // Real assistant audio is about to start — invalidate any pending
+          // filler timer + flush any in-flight filler TTS via the carrier
+          // clear, so the caller hears the filler-end then the real reply
+          // instead of a stacked overlap. fillerActive is also cleared.
+          fillerToken += 1;
+          if (fillerTimer) {
+            clearTimeout(fillerTimer);
+            fillerTimer = null;
+          }
+          if (fillerActive) {
+            await cancelActiveTTS("filler-superseded").catch(() => {});
+            fillerActive = false;
+          }
           const ttsStartedAt = Date.now();
           activeTTSTurnId = turn.id;
           await appendTurnLatencyStage({
@@ -2504,6 +2785,74 @@ export const createVoiceSession = <
           turnId: turn.id,
           type: "session.error",
         });
+      }
+    }
+
+    // SAFEGUARD: NEVER leave a turn with no spoken response.
+    //
+    // If the model returned ONLY tool calls (no assistantText, no streamed
+    // text) AND isn't ending the call (no complete/transfer/escalate/
+    // voicemail/noAnswer signal), the caller would hear silence after their
+    // turn — which they always read as "the line dropped" and bail out of
+    // the conversation. Speak a minimal default ack so there's something on
+    // the wire. Operators can configure this via `defaultSilentTurnAck`
+    // (default "Sorry, one moment.") — set to "" to opt out.
+    const audioWasSent =
+      Boolean(streamResult?.streamed) || Boolean(output?.assistantText?.trim());
+    const turnIsEnding =
+      Boolean(output?.complete) ||
+      Boolean(output?.transfer) ||
+      Boolean(output?.escalate) ||
+      Boolean(output?.voicemail) ||
+      Boolean(output?.noAnswer);
+    if (!audioWasSent && !turnIsEnding) {
+      const fallback =
+        typeof options.defaultSilentTurnAck === "string"
+          ? options.defaultSilentTurnAck
+          : "Sorry, one moment.";
+      if (fallback.trim() && options.tts) {
+        try {
+          const activeTTSSession = await ensureTTSSession();
+          if (activeTTSSession) {
+            // Same filler-cancel dance as the normal text path — we're now
+            // about to send real audio, so any in-flight filler should yield.
+            fillerToken += 1;
+            if (fillerTimer) {
+              clearTimeout(fillerTimer);
+              fillerTimer = null;
+            }
+            if (fillerActive) {
+              await cancelActiveTTS("filler-superseded").catch(() => {});
+              fillerActive = false;
+            }
+            activeTTSTurnId = turn.id;
+            await activeTTSSession.send(fallback);
+            await appendTrace({
+              payload: {
+                assistantMode: resolveVoiceAssistantMode(options),
+                fallback: true,
+                realtimeConfigured: Boolean(options.realtime),
+                reason: "model-returned-no-text",
+                text: fallback,
+                ttsConfigured: Boolean(options.tts),
+              },
+              session,
+              turnId: turn.id,
+              type: "turn.assistant",
+            });
+            if (options.costAccountant) {
+              options.costAccountant.recordTTS({
+                characters: fallback.length,
+              });
+            }
+          }
+        } catch (error) {
+          logger.warn("voice default-silent-turn-ack fallback send failed", {
+            error: toError(error).message,
+            sessionId: options.id,
+            turnId: turn.id,
+          });
+        }
       }
     }
 
@@ -3196,6 +3545,44 @@ export const createVoiceSession = <
     transfer: async (input) =>
       runSerial("api.transfer", async () => {
         await transferInternal(input);
+      }),
+    // Live-mutate turn detection. `turnDetection` is a mutable object held in
+    // closure; every silence-timer scheduler reads through it, so the patch
+    // takes effect on the next schedule. We clamp values defensively — a
+    // tool-call gone rogue shouldn't be able to set silenceMs to 0 (instant
+    // cut-off) or 5 minutes (effectively dead bot).
+    setTurnDetection: async (patch) =>
+      runSerial("api.setTurnDetection", async () => {
+        if (patch.silenceMs !== undefined && Number.isFinite(patch.silenceMs)) {
+          turnDetection.silenceMs = Math.max(
+            300,
+            Math.min(15000, Math.round(patch.silenceMs)),
+          );
+        }
+        if (
+          patch.speechThreshold !== undefined &&
+          Number.isFinite(patch.speechThreshold)
+        ) {
+          turnDetection.speechThreshold = Math.max(
+            0,
+            Math.min(1, patch.speechThreshold),
+          );
+        }
+        if (
+          patch.transcriptStabilityMs !== undefined &&
+          Number.isFinite(patch.transcriptStabilityMs)
+        ) {
+          turnDetection.transcriptStabilityMs = Math.max(
+            0,
+            Math.min(5000, Math.round(patch.transcriptStabilityMs)),
+          );
+        }
+
+        return {
+          silenceMs: turnDetection.silenceMs,
+          speechThreshold: turnDetection.speechThreshold,
+          transcriptStabilityMs: turnDetection.transcriptStabilityMs,
+        };
       }),
   };
 

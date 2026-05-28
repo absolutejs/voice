@@ -1608,6 +1608,12 @@ export type VoiceServerAssistantMessage = {
   turnId?: string;
 };
 
+export type VoiceServerAssistantDeltaMessage = {
+  type: "assistant_delta";
+  delta: string;
+  turnId?: string;
+};
+
 export type VoiceServerAudioMessage = {
   type: "audio";
   chunkBase64: string;
@@ -1649,6 +1655,7 @@ export type VoiceServerMessage<TResult = unknown> =
   | VoiceServerFinalMessage
   | VoiceServerTurnMessage<TResult>
   | VoiceServerAssistantMessage
+  | VoiceServerAssistantDeltaMessage
   | VoiceServerAudioMessage
   | VoiceServerCallLifecycleMessage
   | VoiceServerCompleteMessage
@@ -1857,6 +1864,7 @@ export type VoiceStreamState<TResult = unknown> = {
   partial: string;
   turns: VoiceTurnRecord<TResult>[];
   assistantTexts: string[];
+  assistantStreamingText: string;
   assistantAudio: Array<{
     chunk: Uint8Array;
     format: AudioFormat;
@@ -1888,6 +1896,7 @@ export type VoiceStream<TResult = unknown> = {
   subscribe: (subscriber: () => void) => () => void;
   turns: VoiceTurnRecord<TResult>[];
   assistantTexts: string[];
+  assistantStreamingText: string;
   assistantAudio: Array<{
     chunk: Uint8Array;
     format: AudioFormat;
@@ -1968,6 +1977,7 @@ export type VoiceController<TResult = unknown> = {
   toggleRecording: () => Promise<void>;
   turns: VoiceTurnRecord<TResult>[];
   assistantTexts: string[];
+  assistantStreamingText: string;
   assistantAudio: Array<{
     chunk: Uint8Array;
     format: AudioFormat;
@@ -2028,6 +2038,12 @@ export type VoiceStoreAction<TResult = unknown> =
   | {
       type: "assistant";
       text: string;
+      turnId?: string;
+    }
+  | {
+      type: "assistant_delta";
+      delta: string;
+      turnId?: string;
     }
   | {
       type: "audio";

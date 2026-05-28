@@ -8,6 +8,7 @@ export function useVoiceController<TResult = unknown>(
 ) {
   const controller = createVoiceController<TResult>(path, options);
   const assistantAudio = shallowRef<typeof controller.assistantAudio>([]);
+  const assistantStreamingText = ref("");
   const assistantTexts = shallowRef<string[]>([]);
   const error = ref<string | null>(null);
   const isConnected = ref(false);
@@ -21,6 +22,7 @@ export function useVoiceController<TResult = unknown>(
 
   const sync = () => {
     assistantAudio.value = [...controller.assistantAudio];
+    assistantStreamingText.value = controller.assistantStreamingText;
     assistantTexts.value = [...controller.assistantTexts];
     error.value = controller.error;
     isConnected.value = controller.isConnected;
@@ -45,6 +47,7 @@ export function useVoiceController<TResult = unknown>(
 
   return {
     assistantAudio,
+    assistantStreamingText,
     assistantTexts,
     bindHTMX: controller.bindHTMX,
     error,

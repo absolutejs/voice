@@ -51,7 +51,14 @@ export const serverMessageToAction = <TResult = unknown>(
     case "assistant":
       return {
         text: message.text,
+        turnId: message.turnId,
         type: "assistant" as const,
+      };
+    case "assistant_delta":
+      return {
+        delta: message.delta,
+        turnId: message.turnId,
+        type: "assistant_delta" as const,
       };
     case "complete":
       return {
