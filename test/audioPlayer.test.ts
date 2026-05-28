@@ -233,6 +233,34 @@ test("createVoiceAudioPlayer queues existing and incoming assistant audio once s
   expect(context.state).toBe("closed");
 });
 
+test("createVoiceAudioPlayer applies and updates output volume", async () => {
+  const fixture = createSource();
+  const context = new FakeAudioContext();
+  const player = createVoiceAudioPlayer(fixture.source, {
+    createAudioContext: () => context as never,
+    volume: 0.4,
+  });
+
+  await player.start();
+
+  expect(player.volume).toBe(0.4);
+  expect(context.gains[0]?.gain.value).toBe(0.4);
+
+  player.setVolume(0.7);
+  expect(player.volume).toBe(0.7);
+  expect(context.gains[0]?.gain.value).toBe(0.7);
+
+  player.setVolume(2);
+  expect(player.volume).toBe(1);
+  expect(context.gains[0]?.gain.value).toBe(1);
+
+  player.setVolume(-1);
+  expect(player.volume).toBe(0);
+  expect(context.gains[0]?.gain.value).toBe(0);
+
+  await player.close();
+});
+
 test("createVoiceAudioPlayer interrupt waits for source shutdown before reporting playback stop latency", async () => {
   const fixture = createSource();
   const context = new FakeAudioContext();

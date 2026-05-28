@@ -1777,6 +1777,7 @@ export type VoiceAudioPlayerOptions = {
   autoStart?: boolean;
   createAudioContext?: () => AudioContext;
   lookaheadMs?: number;
+  volume?: number;
 };
 
 export type VoiceDuplexControllerOptions = VoiceControllerOptions & {
@@ -1940,8 +1941,10 @@ export type VoiceAudioPlayer = {
   pause: () => Promise<void>;
   processedChunkCount: number;
   queuedChunkCount: number;
+  setVolume: (volume: number) => void;
   start: () => Promise<void>;
   subscribe: (subscriber: () => void) => () => void;
+  volume: number;
 };
 
 export type VoiceBargeInBinding = {

@@ -8,6 +8,7 @@ import type {
 } from "../core/types";
 
 const DEFAULT_LOOKAHEAD_MS = 15;
+const DEFAULT_VOLUME = 1;
 
 type VoiceAudioChunk = VoiceStreamState["assistantAudio"][number];
 
@@ -79,6 +80,14 @@ const getAudioContextCtor = () => {
   );
 };
 
+const clampVolume = (volume: number | undefined) => {
+  if (typeof volume !== "number" || !Number.isFinite(volume)) {
+    return DEFAULT_VOLUME;
+  }
+
+  return Math.min(1, Math.max(0, volume));
+};
+
 const decodePCM16LEChunk = (
   audioContext: MinimalAudioContext,
   chunk: VoiceAudioChunk,
@@ -130,6 +139,7 @@ export const createVoiceAudioPlayer = (
   let state = createInitialState();
   let audioContext: MinimalAudioContext | null = null;
   let outputNode: MinimalGainNode | null = null;
+  let volume = clampVolume(options.volume);
   let queueEndTime = 0;
   let syncPromise = Promise.resolve();
   let interruptStartedAt: number | null = null;
@@ -189,12 +199,12 @@ export const createVoiceAudioPlayer = (
     );
   };
 
-  const restoreOutputGain = (context: MinimalAudioContext | null) => {
+  const applyOutputGain = (context: MinimalAudioContext | null) => {
     if (!outputNode) {
       return;
     }
 
-    const gainValue = 1;
+    const gainValue = volume;
     if (outputNode.gain.setValueAtTime) {
       outputNode.gain.setValueAtTime(gainValue, context?.currentTime ?? 0);
 
@@ -456,11 +466,15 @@ export const createVoiceAudioPlayer = (
     get queuedChunkCount() {
       return state.queuedChunkCount;
     },
+    setVolume: (nextVolume: number) => {
+      volume = clampVolume(nextVolume);
+      applyOutputGain(audioContext);
+    },
     start: async () => {
       try {
         clearError();
         const context = await ensureAudioContext();
-        restoreOutputGain(context);
+        applyOutputGain(context);
         if (context.state === "suspended") {
           await context.resume();
         }
@@ -486,6 +500,9 @@ export const createVoiceAudioPlayer = (
       return () => {
         subscribers.delete(subscriber);
       };
+    },
+    get volume() {
+      return volume;
     },
   };
 
