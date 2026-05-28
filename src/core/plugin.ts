@@ -807,6 +807,26 @@ export const voice = <
       stt: config.stt,
       sttFallback: sessionOptions.sttFallback,
       sttLifecycle: sessionOptions.sttLifecycle,
+      ...(config.semanticTurnDetector
+        ? { semanticTurnDetector: config.semanticTurnDetector }
+        : {}),
+      ...(config.bargeInMinPartialWords !== undefined
+        ? { bargeInMinPartialWords: config.bargeInMinPartialWords }
+        : {}),
+      ...(config.fillerPhrases ? { fillerPhrases: config.fillerPhrases } : {}),
+      ...(config.fillerDelayMs !== undefined
+        ? { fillerDelayMs: config.fillerDelayMs }
+        : {}),
+      ...(config.fillerFor ? { fillerFor: config.fillerFor } : {}),
+      ...(config.fillerForTimeoutMs !== undefined
+        ? { fillerForTimeoutMs: config.fillerForTimeoutMs }
+        : {}),
+      ...(config.defaultSilentTurnAck !== undefined
+        ? { defaultSilentTurnAck: config.defaultSilentTurnAck }
+        : {}),
+      ...(config.routeOnTurnTimeoutMs !== undefined
+        ? { routeOnTurnTimeoutMs: config.routeOnTurnTimeoutMs }
+        : {}),
       tts: config.tts,
       turnDetection: sessionOptions.turnDetection,
     });

@@ -725,6 +725,18 @@ export type VoiceSessionHandle<
   }) => Promise<void>;
   close: (reason?: string) => Promise<void>;
   snapshot: () => Promise<TSession>;
+  /**
+   * Mutate the live turn-detection config for this session — useful when a
+   * tool call wants to dial silenceMs up ("the caller asked for more time")
+   * or down. The change takes effect on the NEXT silence-timer schedule, so
+   * an in-flight commit isn't cancelled. Returns the merged config so the
+   * caller can confirm.
+   */
+  setTurnDetection: (patch: Partial<VoiceTurnDetectionConfig>) => Promise<{
+    silenceMs: number;
+    speechThreshold: number;
+    transcriptStabilityMs: number;
+  }>;
 };
 
 export type VoiceRouteResult<TResult = unknown> = {
@@ -1109,7 +1121,9 @@ export type VoicePluginConfig<
   // tts/realtime adapter and surfaced as the first assistant message. A function
   // is resolved per session (it receives the session), so the greeting can come
   // from a live/DB source or vary per call — e.g. a "welcome back" on resume.
-  greeting?: string | ((input: { session: TSession }) => string | Promise<string>);
+  greeting?:
+    | string
+    | ((input: { session: TSession }) => string | Promise<string>);
   languageStrategy?: VoiceLanguageStrategy;
   lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
   phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
@@ -1123,6 +1137,18 @@ export type VoicePluginConfig<
   session: VoiceSessionStore<NoInfer<TSession>>;
   reconnect?: VoiceReconnectConfig;
   turnDetection?: VoiceTurnDetectionConfig;
+  semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
+  bargeInMinPartialWords?: number;
+  fillerPhrases?: ReadonlyArray<string>;
+  fillerDelayMs?: number;
+  fillerFor?: (input: {
+    sessionId: string;
+    turnId: string;
+    userText: string;
+  }) => Promise<string | null>;
+  fillerForTimeoutMs?: number;
+  defaultSilentTurnAck?: string;
+  routeOnTurnTimeoutMs?: number;
   audioConditioning?: VoiceAudioConditioningConfig;
   noiseSuppressor?: VoiceNoiseSuppressor;
   noiseSuppressorFormat?: AudioFormat;
@@ -1385,7 +1411,9 @@ export type CreateVoiceSessionOptions<
   id: string;
   context: TContext;
   socket: VoiceSocket;
-  greeting?: string | ((input: { session: TSession }) => string | Promise<string>);
+  greeting?:
+    | string
+    | ((input: { session: TSession }) => string | Promise<string>);
   stt?: STTAdapter;
   realtime?: RealtimeAdapter;
   realtimeInputFormat?: AudioFormat;
@@ -1402,6 +1430,83 @@ export type CreateVoiceSessionOptions<
   costTelephony?: { provider?: string };
   redact?: import("./redaction").VoiceTranscriptRedactor;
   semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
+  /**
+   * Pre-rendered filler phrases the runtime plays in the gap between
+   * user-turn-commit and real assistant audio (typically 800-1500ms). The
+   * caller hears something within ~150-300ms of stopping speaking, so the
+   * LLM/TTS latency feels like the bot thinking instead of dead air. Boardy's
+   * killer UX feature.
+   *
+   * Behavior:
+   *  - After a turn commits, a timer fires at `fillerDelayMs` (default
+   *    250ms). At that point, if the real assistant audio for this turn
+   *    hasn't started flowing yet, a random phrase is rendered via the
+   *    configured `tts` adapter and pushed to the socket.
+   *  - When the real assistant audio's first chunk arrives, any in-flight
+   *    filler is cancelled (`cancelActiveTTS` clears the carrier buffer).
+   *  - Cooldown protects against double-fillers per turn.
+   *
+   * Set `fillerPhrases: []` (or omit) to disable. Reasonable defaults if
+   * you enable: `["Hmm.", "Got it.", "Right.", "Mm-hm.", "Let me think.", "Okay."]`.
+   */
+  /**
+   * Minimum word count in an STT partial transcript before speech-gated
+   * barge-in cancels the in-flight assistant TTS. Default 1 (any non-empty
+   * partial triggers barge-in — backwards-compatible).
+   *
+   * Set to 2 (or higher) on phone routes where the caller's brief
+   * acknowledgements ("yeah", "uh-huh", "you", "am i") would otherwise
+   * cut the bot off mid-question. Each extra word added typically delays
+   * barge-in by ~100-200ms (one extra STT partial cycle) — cheap compared
+   * to losing the bot's response.
+   *
+   * Word splitting is whitespace-based. Punctuation is left attached.
+   */
+  bargeInMinPartialWords?: number;
+  fillerPhrases?: ReadonlyArray<string>;
+  /** Milliseconds after turn-commit before the filler fires. Default 250ms — short enough to feel instant, long enough to skip if the LLM is very fast. */
+  fillerDelayMs?: number;
+  /**
+   * Latency Theater — content-aware filler (Boardy parity move). When
+   * defined, the runtime calls `fillerFor({ userText, ... })` in parallel
+   * with the main LLM call to generate a brief acknowledgement of what the
+   * caller just said ("Freelance CFOs — interesting.", "Yeah, I hear you.").
+   * The runtime races the promise against `fillerForTimeoutMs` (default
+   * 600ms). If `fillerFor` returns a non-empty string in time, it's spoken
+   * INSTEAD of a random `fillerPhrases` entry. On timeout or null return,
+   * the runtime falls back to a static random phrase, so a slow / failed
+   * acknowledgement call never costs you the filler entirely.
+   *
+   * Return `null` (or an empty string) to explicitly skip filler for this
+   * turn — useful when `userText` is so short ("yes", "no", "okay") that
+   * acknowledging it back sounds robotic. Return throws are caught and
+   * treated as null.
+   *
+   * Cost-aware: callers typically wire this to a cheap nano/haiku model
+   * (gpt-4.1-nano, claude-haiku-4-5) that returns 2–5 words.
+   */
+  fillerFor?: (input: {
+    sessionId: string;
+    turnId: string;
+    userText: string;
+  }) => Promise<string | null>;
+  /** Ceiling for the `fillerFor` call before we fall back to a static phrase. Default 600ms. */
+  fillerForTimeoutMs?: number;
+  /**
+   * Default spoken ack if the model returns ONLY tool calls (no text) and the
+   * turn isn't ending. Without this, the caller hears total silence after
+   * their turn and assumes the line dropped. Default is "Sorry, one moment."
+   * Set to "" to opt out entirely.
+   */
+  defaultSilentTurnAck?: string;
+  /**
+   * Hard timeout on a single `route.onTurn` call. If onTurn hasn't resolved
+   * in this many ms, it's rejected with a hard-timeout error which falls
+   * through to defaultSilentTurnAck. Default 45s — generous for normal
+   * conversational LLM calls (1-3s typical), but catches hangs where the
+   * model adapter's own timeout doesn't fire. Set to 0 to disable.
+   */
+  routeOnTurnTimeoutMs?: number;
   assistantMode?: import("./assistantMode").VoiceAssistantMode;
   modalities?: ReadonlyArray<"audio" | "text">;
   prosody?: VoiceTTSProsody;
