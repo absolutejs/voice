@@ -12,7 +12,7 @@
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "license": "CC BY-NC 4.0",
+  "license": "BSL-1.1",
   "author": "Alex Kahn",
   "scripts": {
     "build": "rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts ./src/drizzle/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute --external @absolutejs/ai --external @absolutejs/media --external drizzle-orm && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && bun build ./src/embed/index.ts --outfile dist/embed/voice-widget.js --target browser --format iife --minify && bun build ./src/embed/index.ts --outdir dist/embed --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
