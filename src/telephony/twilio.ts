@@ -161,8 +161,18 @@ export type TwilioMediaStreamBridgeOptions<
   TResult = unknown,
 > = Omit<
   VoicePluginConfig<TContext, TSession, TResult>,
-  "htmx" | "path" | "stt"
+  "htmx" | "onTurn" | "path" | "stt"
 > & {
+  /**
+   * Per-turn handler. Receives the committed turn, session, context, and
+   * session `api` as a single object. The legacy positional form
+   * `(session, turn, api, context)` is still accepted at runtime via
+   * `normalizeOnTurn`, but only the object form is part of the typed
+   * surface — pinning it to a single (non-union) signature is what lets
+   * the `input` parameter infer at the call site instead of falling back
+   * to `any` (a union of function types defeats contextual typing).
+   */
+  onTurn: VoiceOnTurnObjectHandler<TContext, TSession, TResult>;
   /**
    * Legacy barge-in: send the carrier a "clear" on every inbound media frame
    * once the assistant has spoken. Defaults to `false` — a phone line streams
