@@ -126,10 +126,22 @@ export const createMicrophoneCapture = (
 
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
+        autoGainControl: true,
         channelCount: options.channelCount ?? 1,
+        echoCancellation: true,
+        noiseSuppression: true,
       },
     });
     audioContext = new AudioContextCtor();
+    // iOS Safari (and some Chromium autoplay policies) create the AudioContext
+    // in a "suspended" state. While suspended, the ScriptProcessor's
+    // onaudioprocess never fires, so NO microphone audio is captured and the
+    // assistant hears silence. start() runs inside the user gesture that began
+    // capture, so resuming here unlocks it. Without this, voice intake is
+    // effectively broken on iOS.
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
     sourceNode = audioContext.createMediaStreamSource(mediaStream);
     processorNode = audioContext.createScriptProcessor(4096, 1, 1);
 
