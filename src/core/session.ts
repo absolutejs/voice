@@ -521,6 +521,11 @@ export const createVoiceSession = <
   let adapterGenerationCounter = 0;
   let activeAdapterGeneration = 0;
   let activeTTSTurnId: string | undefined;
+  // Estimated wall-clock time the client finishes PLAYING all assistant audio
+  // we've sent so far (each chunk plays back-to-back in real time). A graceful
+  // complete (end_call / intake done) waits for this so the closing line is
+  // heard before the call tears down, instead of being cut mid-"goodbye".
+  let assistantSpeechEndsAt = 0;
   // Filler-phrase state (Boardy-style "the pause is character, not lag").
   // `fillerTimer` is the scheduled-but-not-yet-fired filler trigger.
   // `fillerActive` is true once a filler has been sent to TTS for the current
@@ -1039,6 +1044,9 @@ export const createVoiceSession = <
       return;
     }
     activeTTSTurnId = undefined;
+    // Barged-in audio won't finish playing — drop the pending playback estimate
+    // so a later graceful complete doesn't wait on speech that got cut off.
+    assistantSpeechEndsAt = Date.now();
     // Trace the cancel BEFORE doing the work so it lands even if the
     // adapter close hangs. Hosts use this to diagnose "got cut off
     // mid-question" complaints — the `reason` ("barge-in",
@@ -1116,6 +1124,16 @@ export const createVoiceSession = <
       turnId: activeTTSTurnId,
       type: "audio",
     });
+    // Extend the estimated playback-end clock by this chunk's real-time
+    // duration. raw pcm_s16le = 2 bytes/sample; a/mulaw = 1 byte/sample.
+    const bytesPerSample = input.format.encoding === "pcm_s16le" ? 2 : 1;
+    const bytesPerSecond =
+      input.format.sampleRateHz * input.format.channels * bytesPerSample;
+    if (bytesPerSecond > 0) {
+      const chunkMs = (normalizedChunk.byteLength / bytesPerSecond) * 1000;
+      assistantSpeechEndsAt =
+        Math.max(assistantSpeechEndsAt, Date.now()) + chunkMs;
+    }
     if (activeTTSTurnId) {
       await appendTurnLatencyStage({
         at: input.receivedAt,
@@ -1263,6 +1281,25 @@ export const createVoiceSession = <
     });
   };
 
+  // Wait for the assistant's already-sent audio to finish playing on the client
+  // before a graceful teardown, so the closing line ("talk to you soon!") is
+  // heard instead of cut off. Re-checks because TTS may still be streaming; a
+  // hard cap stops a stuck stream from holding the call open forever.
+  const DRAIN_POLL_MS = 200;
+  const DRAIN_TAIL_BUFFER_MS = 300;
+  const DRAIN_MAX_MS = 12_000;
+  const drainAssistantSpeech = async () => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < DRAIN_MAX_MS) {
+      const remaining =
+        assistantSpeechEndsAt + DRAIN_TAIL_BUFFER_MS - Date.now();
+      if (remaining <= 0) return;
+      await new Promise((resolve) => {
+        setTimeout(resolve, Math.min(remaining, DRAIN_POLL_MS));
+      });
+    }
+  };
+
   const completeInternal = async (
     result?: unknown,
     input: {
@@ -1314,6 +1351,12 @@ export const createVoiceSession = <
 
     if (!didComplete) {
       return;
+    }
+
+    // Only a graceful end (intake done / end_call) waits out the closing line —
+    // a caller hangup / transfer / failure should tear down immediately.
+    if (disposition === "completed") {
+      await drainAssistantSpeech();
     }
 
     await appendTrace({
