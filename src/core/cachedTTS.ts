@@ -165,7 +165,9 @@ export const createCachedTTS = (
           };
 
           const cached = cache.get(key) ?? (await loadFromStore(key));
-          if (cached) {
+          // Only replay a non-empty hit. A defensively-guarded length check so a
+          // stray empty entry can never short-circuit into silent playback.
+          if (cached && cached.length > 0) {
             await replayEvents(cached);
 
             return;
@@ -174,8 +176,16 @@ export const createCachedTTS = (
           capture = [];
           await session.send(text);
           const rendered = capture;
-          remember(key, rendered);
           capture = null;
+          // Never cache an empty render. A provider fault (quota, rate limit,
+          // dropped socket) that resolves `send` with zero audio events would
+          // otherwise be remembered as `[]` and replayed as permanent silence —
+          // `cache.get` returns that empty array as a "hit". Leaving it uncached
+          // lets the next send re-render once the provider recovers.
+          if (rendered.length === 0) {
+            return;
+          }
+          remember(key, rendered);
           // Write through to the persistent store so the next process/deploy
           // replays this render instead of paying the provider again.
           if (store) {
