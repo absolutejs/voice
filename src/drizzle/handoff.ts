@@ -13,8 +13,9 @@ export const voiceHandoffDeliveriesTable = voiceDocumentTable(
 
 const createDrizzleHandoffDeliveryStore = <
   TDelivery extends VoiceHandoffDeliveryRecord = VoiceHandoffDeliveryRecord,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceHandoffDeliveryStore<TDelivery> =>
   createVoiceDrizzleRecordStore<TDelivery>({
     db,

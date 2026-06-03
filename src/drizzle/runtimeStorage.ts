@@ -124,8 +124,9 @@ export type VoiceDrizzleRuntimeStorage<
 
 const createDrizzleSessionStore = <
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceSessionStore<TSession> => {
   const store = createVoiceDrizzleRecordStore<TSession>({
     db,
@@ -165,8 +166,9 @@ const createDrizzleSessionStore = <
 const createDrizzleReviewStore = <
   TArtifact extends StoredVoiceCallReviewArtifact =
     StoredVoiceCallReviewArtifact,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceCallReviewStore<TArtifact> =>
   createVoiceDrizzleRecordStore<TArtifact>({
     db,
@@ -178,8 +180,9 @@ const createDrizzleReviewStore = <
 
 const createDrizzleTaskStore = <
   TTask extends StoredVoiceOpsTask = StoredVoiceOpsTask,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceOpsTaskStore<TTask> =>
   createVoiceDrizzleRecordStore<TTask>({
     db,
@@ -191,8 +194,9 @@ const createDrizzleTaskStore = <
 
 const createDrizzleEventStore = <
   TEvent extends StoredVoiceIntegrationEvent = StoredVoiceIntegrationEvent,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceIntegrationEventStore<TEvent> =>
   createVoiceDrizzleRecordStore<TEvent>({
     db,
@@ -207,8 +211,9 @@ const createDrizzleEventStore = <
 
 const createDrizzleExternalObjectMapStore = <
   TMapping extends StoredVoiceExternalObjectMap = StoredVoiceExternalObjectMap,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceExternalObjectMapStore<TMapping> => {
   const store = createVoiceDrizzleRecordStore<TMapping>({
     db,
@@ -238,8 +243,9 @@ const createDrizzleExternalObjectMapStore = <
 
 const createDrizzleTraceEventStore = <
   TEvent extends StoredVoiceTraceEvent = StoredVoiceTraceEvent,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceTraceEventStore<TEvent> => {
   const store = createVoiceDrizzleRecordStore<TEvent>({
     db,
@@ -265,8 +271,9 @@ const createDrizzleTraceEventStore = <
 
 const createDrizzleTraceSinkDeliveryStore = <
   TDelivery extends VoiceTraceSinkDeliveryRecord = VoiceTraceSinkDeliveryRecord,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceTraceSinkDeliveryStore<TDelivery> =>
   createVoiceDrizzleRecordStore<TDelivery>({
     db,
@@ -280,8 +287,9 @@ const createDrizzleTraceSinkDeliveryStore = <
 
 const createDrizzleAuditEventStore = <
   TEvent extends StoredVoiceAuditEvent = StoredVoiceAuditEvent,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceAuditEventStore<TEvent> => {
   const store = createVoiceDrizzleRecordStore<TEvent>({
     db,
@@ -306,8 +314,9 @@ const createDrizzleAuditEventStore = <
 
 const createDrizzleAuditSinkDeliveryStore = <
   TDelivery extends VoiceAuditSinkDeliveryRecord = VoiceAuditSinkDeliveryRecord,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceAuditSinkDeliveryStore<TDelivery> =>
   createVoiceDrizzleRecordStore<TDelivery>({
     db,
@@ -319,8 +328,11 @@ const createDrizzleAuditSinkDeliveryStore = <
     table: voiceAuditDeliveriesTable,
   });
 
-const createDrizzleTelephonyWebhookIdempotencyStore = <TResult = unknown>(
-  db: VoiceDrizzleDatabase,
+const createDrizzleTelephonyWebhookIdempotencyStore = <
+  TResult = unknown,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
+>(
+  db: DB,
 ): VoiceTelephonyWebhookIdempotencyStore<TResult> =>
   createVoiceDrizzleRecordStore<StoredVoiceTelephonyWebhookDecision<TResult>>({
     db,
@@ -329,8 +341,8 @@ const createDrizzleTelephonyWebhookIdempotencyStore = <TResult = unknown>(
     table: voiceTelephonyWebhookIdempotencyTable,
   });
 
-const createDrizzleCampaignStore = (
-  db: VoiceDrizzleDatabase,
+const createDrizzleCampaignStore = <DB extends VoiceDrizzleDatabase>(
+  db: DB,
 ): VoiceCampaignStore =>
   createVoiceDrizzleRecordStore<VoiceCampaignRecord>({
     db,

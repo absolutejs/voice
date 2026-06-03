@@ -1609,12 +1609,80 @@ export const createTwilioVoiceRoutes = <
       }),
     );
 
-  if (!setupPath) {
-    if (!smokePath) {
-      return app;
+  // build() keeps the exact runtime branching; the single bridge cast at the
+  // end declares the honest public type. This plugin mounts Twilio voice
+  // routes whose paths are CONFIGURABLE (twimlPath, streamPath, …), so Elysia
+  // keys them by `string` — there is no literal route type to expose, and the
+  // four conditional returns below form a union that, mounted in a consumer's
+  // chain, tips the server type past TS2589. It adds no global context, so a
+  // base `Elysia` (routes reached by path at runtime) is the honest, concrete
+  // public type — never AnyElysia.
+  const build = () => {
+    if (!setupPath) {
+      if (!smokePath) {
+        return app;
+      }
+
+      return app.get(smokePath, async ({ query, request }) => {
+        const report = await runTwilioVoiceSmokeTest({
+          app,
+          options,
+          query,
+          request,
+          streamPath,
+          twimlPath,
+          webhookPath,
+        });
+
+        if (query.format === "html") {
+          return new Response(
+            renderTwilioVoiceSmokeHTML(
+              report,
+              options.smoke?.title ?? "AbsoluteJS Twilio Voice Smoke Test",
+            ),
+            {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+            },
+          );
+        }
+
+        return report;
+      });
     }
 
-    return app.get(smokePath, async ({ query, request }) => {
+    const withSetup = app.get(setupPath, async ({ query, request }) => {
+      const status = await buildTwilioVoiceSetupStatus(options, {
+        query,
+        request,
+        streamPath,
+        twimlPath,
+        webhookPath,
+      });
+
+      if (query.format === "html") {
+        return new Response(
+          renderTwilioVoiceSetupHTML(
+            status,
+            options.setup?.title ?? "AbsoluteJS Twilio Voice Setup",
+          ),
+          {
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+            },
+          },
+        );
+      }
+
+      return status;
+    });
+
+    if (!smokePath) {
+      return withSetup;
+    }
+
+    return withSetup.get(smokePath, async ({ query, request }) => {
       const report = await runTwilioVoiceSmokeTest({
         app,
         options,
@@ -1641,63 +1709,8 @@ export const createTwilioVoiceRoutes = <
 
       return report;
     });
-  }
+  };
 
-  const withSetup = app.get(setupPath, async ({ query, request }) => {
-    const status = await buildTwilioVoiceSetupStatus(options, {
-      query,
-      request,
-      streamPath,
-      twimlPath,
-      webhookPath,
-    });
-
-    if (query.format === "html") {
-      return new Response(
-        renderTwilioVoiceSetupHTML(
-          status,
-          options.setup?.title ?? "AbsoluteJS Twilio Voice Setup",
-        ),
-        {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-          },
-        },
-      );
-    }
-
-    return status;
-  });
-
-  if (!smokePath) {
-    return withSetup;
-  }
-
-  return withSetup.get(smokePath, async ({ query, request }) => {
-    const report = await runTwilioVoiceSmokeTest({
-      app,
-      options,
-      query,
-      request,
-      streamPath,
-      twimlPath,
-      webhookPath,
-    });
-
-    if (query.format === "html") {
-      return new Response(
-        renderTwilioVoiceSmokeHTML(
-          report,
-          options.smoke?.title ?? "AbsoluteJS Twilio Voice Smoke Test",
-        ),
-        {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-          },
-        },
-      );
-    }
-
-    return report;
-  });
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- see comment on build(); routes are configurable (string-keyed) and reached by path, so there is no typed surface to preserve — the honest public type is a base Elysia
+  return build() as unknown as Elysia;
 };

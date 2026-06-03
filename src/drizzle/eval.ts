@@ -16,8 +16,8 @@ export const voiceEvalBaselineTable = voiceDocumentTable("voice_eval_baseline");
 
 const VOICE_EVAL_BASELINE_ID = "baseline";
 
-const createDrizzleEvalBaselineStore = (
-  db: VoiceDrizzleDatabase,
+const createDrizzleEvalBaselineStore = <DB extends VoiceDrizzleDatabase>(
+  db: DB,
 ): VoiceEvalBaselineStore => {
   const store = createVoiceDrizzleRecordStore<VoiceEvalReport>({
     db,

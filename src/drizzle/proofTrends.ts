@@ -72,8 +72,10 @@ const matchesRealCallProfileRecoveryJobListOptions = (
   (!input.actionId || job.actionId === input.actionId) &&
   (!input.status || job.status === input.status);
 
-const createDrizzleRealCallProfileRecoveryJobStore = (
-  db: VoiceDrizzleDatabase,
+const createDrizzleRealCallProfileRecoveryJobStore = <
+  DB extends VoiceDrizzleDatabase,
+>(
+  db: DB,
   options: { idPrefix?: string; now?: () => Date } = {},
 ): VoiceRealCallProfileRecoveryJobStore => {
   const store = createVoiceDrizzleRecordStore<VoiceRealCallProfileRecoveryJob>({
@@ -135,8 +137,10 @@ const createDrizzleRealCallProfileRecoveryJobStore = (
   };
 };
 
-const createDrizzleRealCallProfileEvidenceStore = (
-  db: VoiceDrizzleDatabase,
+const createDrizzleRealCallProfileEvidenceStore = <
+  DB extends VoiceDrizzleDatabase,
+>(
+  db: DB,
   options: { idPrefix?: string; now?: () => Date } = {},
 ): VoiceRealCallProfileEvidenceStore => {
   const store =

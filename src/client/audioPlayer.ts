@@ -9,6 +9,9 @@ import type {
 
 const DEFAULT_LOOKAHEAD_MS = 15;
 const DEFAULT_VOLUME = 1;
+const DEFAULT_PLAYBACK_RATE = 1;
+const MIN_PLAYBACK_RATE = 0.5;
+const MAX_PLAYBACK_RATE = 2;
 
 type VoiceAudioChunk = VoiceStreamState["assistantAudio"][number];
 
@@ -22,6 +25,7 @@ type MinimalAudioBufferSourceNode = {
   connect: (destination: unknown) => void;
   disconnect?: () => void;
   onended: (() => void) | null;
+  playbackRate?: { value: number };
   start: (when?: number) => void;
   stop?: () => void;
 };
@@ -88,6 +92,14 @@ const clampVolume = (volume: number | undefined) => {
   return Math.min(1, Math.max(0, volume));
 };
 
+const clampPlaybackRate = (rate: number | undefined) => {
+  if (typeof rate !== "number" || !Number.isFinite(rate)) {
+    return DEFAULT_PLAYBACK_RATE;
+  }
+
+  return Math.min(MAX_PLAYBACK_RATE, Math.max(MIN_PLAYBACK_RATE, rate));
+};
+
 const decodePCM16LEChunk = (
   audioContext: MinimalAudioContext,
   chunk: VoiceAudioChunk,
@@ -140,6 +152,7 @@ export const createVoiceAudioPlayer = (
   let audioContext: MinimalAudioContext | null = null;
   let outputNode: MinimalGainNode | null = null;
   let volume = clampVolume(options.volume);
+  let playbackRate = clampPlaybackRate(options.playbackRate);
   let queueEndTime = 0;
   let syncPromise = Promise.resolve();
   let interruptStartedAt: number | null = null;
@@ -271,6 +284,9 @@ export const createVoiceAudioPlayer = (
     const buffer = decodePCM16LEChunk(context, chunk);
     const node = context.createBufferSource();
     node.buffer = buffer;
+    if (node.playbackRate) {
+      node.playbackRate.value = playbackRate;
+    }
     node.connect(outputNode ?? context.destination);
     node.onended = () => {
       sourceNodes.delete(node);
@@ -286,7 +302,10 @@ export const createVoiceAudioPlayer = (
       context.currentTime + lookaheadSeconds,
       queueEndTime,
     );
-    queueEndTime = startAt + buffer.duration;
+    // At rate r the buffer plays in buffer.duration / r real seconds, so the
+    // next chunk must be queued against that compressed/stretched wall-clock
+    // span — otherwise faster playback would leave gaps and slower would overlap.
+    queueEndTime = startAt + buffer.duration / playbackRate;
     sourceNodes.add(node);
     setState({
       activeSourceCount: sourceNodes.size,
@@ -460,11 +479,17 @@ export const createVoiceAudioPlayer = (
         isPlaying: false,
       });
     },
+    get playbackRate() {
+      return playbackRate;
+    },
     get processedChunkCount() {
       return state.processedChunkCount;
     },
     get queuedChunkCount() {
       return state.queuedChunkCount;
+    },
+    setPlaybackRate: (nextRate: number) => {
+      playbackRate = clampPlaybackRate(nextRate);
     },
     setVolume: (nextVolume: number) => {
       volume = clampVolume(nextVolume);

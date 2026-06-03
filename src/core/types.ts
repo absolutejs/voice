@@ -1777,6 +1777,14 @@ export type VoiceAudioPlayerOptions = {
   autoStart?: boolean;
   createAudioContext?: () => AudioContext;
   lookaheadMs?: number;
+  /**
+   * Playback speed multiplier for the assistant's speech. 1 = normal. Clamped
+   * to [0.5, 2]. Pitch shifts with the rate (Web Audio playbackRate), so keep
+   * UI ranges modest (≈0.85–1.25) to stay natural. Can be changed live via
+   * setPlaybackRate — already-scheduled chunks keep their rate; new chunks
+   * adopt the new one.
+   */
+  playbackRate?: number;
   volume?: number;
 };
 
@@ -1939,8 +1947,10 @@ export type VoiceAudioPlayer = {
   lastInterruptLatencyMs?: number;
   lastPlaybackStopLatencyMs?: number;
   pause: () => Promise<void>;
+  playbackRate: number;
   processedChunkCount: number;
   queuedChunkCount: number;
+  setPlaybackRate: (rate: number) => void;
   setVolume: (volume: number) => void;
   start: () => Promise<void>;
   subscribe: (subscriber: () => void) => () => void;

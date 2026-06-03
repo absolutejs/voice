@@ -33,8 +33,9 @@ const voiceAssistantMemoryId = (input: {
 
 const createDrizzleAssistantMemoryStore = <
   TRecord extends VoiceAssistantMemoryRecord = VoiceAssistantMemoryRecord,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
 >(
-  db: VoiceDrizzleDatabase,
+  db: DB,
 ): VoiceAssistantMemoryStore<TRecord> => {
   const get: VoiceAssistantMemoryStore<TRecord>["get"] = async (input) => {
     const rows = await db

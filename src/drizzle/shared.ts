@@ -1,11 +1,10 @@
-import { desc, eq, type TablesRelationalConfig } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import {
   bigint,
   jsonb,
   pgTable,
   text,
-  type PgDatabase,
-  type PgQueryResultHKT,
+  type PgAsyncDatabase,
 } from "drizzle-orm/pg-core";
 
 // Every voice store is a JSONB document table shaped (id, sort_at, payload),
@@ -24,18 +23,18 @@ export type VoiceDrizzleDocumentTable = ReturnType<typeof voiceDocumentTable>;
 // Any Drizzle Postgres database, regardless of the schema it was created with.
 // Widening TFullSchema/TSchema lets callers pass a `drizzle(client, { schema })`
 // instance (neon-http, node-postgres, pglite, …) carrying their own tables.
-export type VoiceDrizzleDatabase = PgDatabase<
-  PgQueryResultHKT,
-  Record<string, unknown>,
-  TablesRelationalConfig
->;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint bound only; concrete DB infers at the call site
+export type VoiceDrizzleDatabase = PgAsyncDatabase<any, any>;
 
 export type VoiceDrizzleStoreOptions = {
   db: VoiceDrizzleDatabase;
 };
 
-export const createVoiceDrizzleRecordStore = <T>(input: {
-  db: VoiceDrizzleDatabase;
+export const createVoiceDrizzleRecordStore = <
+  T,
+  DB extends VoiceDrizzleDatabase = VoiceDrizzleDatabase,
+>(input: {
+  db: DB;
   decorate: (id: string, value: T) => T;
   getSortAt: (value: T) => number;
   table: VoiceDrizzleDocumentTable;
