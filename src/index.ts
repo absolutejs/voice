@@ -1906,7 +1906,7 @@ export type {
   VoiceJSONAssistantModelHandler,
   VoiceJSONAssistantModelOptions,
 } from "./core/modelAdapters";
-export type { CachedTTSOptions } from "./core/cachedTTS";
+export type { CachedTTSOptions, CachedTTSStore } from "./core/cachedTTS";
 export type {
   OpenAIVoiceTTSOptions,
   OpenAIVoiceTTSVoice,

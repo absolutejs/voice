@@ -5,6 +5,30 @@ import type {
   TTSAudioEvent,
 } from "./types";
 
+/**
+ * Optional persistent backing store for the cache — an L2 behind the in-memory
+ * LRU. Lets rendered audio survive process restarts/deploys so a fixed prompt
+ * (e.g. a greeting) is synthesized once *ever* per content key, not once per
+ * process. The store is content-addressed by the same `keyFor` key, so a
+ * changed prompt/voice/model naturally lands on a new key and re-renders.
+ *
+ * The store is told `TTSAudioEvent[]` and must return the same on read; how it
+ * serializes the binary `chunk`s (base64 in JSON, bytea, a file, etc.) is up to
+ * the implementation. `get` returns `null`/`undefined` on a miss. Both may be
+ * sync or async; errors should be swallowed by the implementation (a store
+ * failure must never break playback — the wrapper falls back to live render).
+ */
+export type CachedTTSStore = {
+  get: (
+    key: string,
+  ) =>
+    | Promise<TTSAudioEvent[] | null | undefined>
+    | TTSAudioEvent[]
+    | null
+    | undefined;
+  set: (key: string, events: TTSAudioEvent[]) => Promise<void> | void;
+};
+
 export type CachedTTSOptions = {
   /**
    * Return a stable cache key for an utterance whose synthesized audio should
@@ -22,8 +46,15 @@ export type CachedTTSOptions = {
     text: string,
     openOptions: TTSAdapterOpenOptions,
   ) => string | null | undefined;
-  /** Max distinct utterances to retain (LRU by insertion). Default 32. */
+  /** Max distinct utterances to retain in memory (LRU by insertion). Default 32. */
   maxEntries?: number;
+  /**
+   * Optional persistent L2 store (see {@link CachedTTSStore}). When set, an
+   * in-memory miss consults the store before rendering; a store hit is replayed
+   * and promoted into memory, and a fresh render is written through to it. Omit
+   * for memory-only behaviour (unchanged).
+   */
+  store?: CachedTTSStore;
 };
 
 const DEFAULT_MAX_ENTRIES = 32;
@@ -44,6 +75,7 @@ export const createCachedTTS = (
   options: CachedTTSOptions,
 ): TTSAdapter<TTSAdapterOpenOptions> => {
   const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  const { store } = options;
   const cache = new Map<string, TTSAudioEvent[]>();
 
   const remember = (key: string, events: TTSAudioEvent[]) => {
@@ -56,6 +88,25 @@ export const createCachedTTS = (
       }
       cache.delete(oldest);
     }
+  };
+
+  // L2 read: consult the persistent store on an in-memory miss. A store hit is
+  // promoted into memory so later sends in this process skip the store too. Any
+  // store error degrades to a live render (returns null) — never throws.
+  const loadFromStore = async (key: string) => {
+    if (!store) return null;
+    try {
+      const events = await store.get(key);
+      if (events && events.length > 0) {
+        remember(key, events);
+
+        return events;
+      }
+    } catch {
+      // store unavailable — fall through to live render
+    }
+
+    return null;
   };
 
   return {
@@ -100,9 +151,8 @@ export const createCachedTTS = (
             return;
           }
 
-          const cached = cache.get(key);
-          if (cached) {
-            for (const event of cached) {
+          const replayEvents = async (events: TTSAudioEvent[]) => {
+            for (const event of events) {
               const replay: TTSAudioEvent = {
                 ...event,
                 receivedAt: Date.now(),
@@ -112,14 +162,29 @@ export const createCachedTTS = (
                 await Promise.resolve(handler(replay));
               }
             }
+          };
+
+          const cached = cache.get(key) ?? (await loadFromStore(key));
+          if (cached) {
+            await replayEvents(cached);
 
             return;
           }
 
           capture = [];
           await session.send(text);
-          remember(key, capture);
+          const rendered = capture;
+          remember(key, rendered);
           capture = null;
+          // Write through to the persistent store so the next process/deploy
+          // replays this render instead of paying the provider again.
+          if (store) {
+            try {
+              await store.set(key, rendered);
+            } catch {
+              // store write failed — memory cache still serves this process
+            }
+          }
         },
       };
     },
