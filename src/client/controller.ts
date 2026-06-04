@@ -105,6 +105,9 @@ export const createVoiceController = <TResult = unknown>(
       },
       sampleRateHz:
         options.capture?.sampleRateHz ?? preset.capture.sampleRateHz,
+      ...(options.capture?.stream
+        ? { stream: options.capture.stream }
+        : {}),
     });
 
     return capture;

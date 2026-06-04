@@ -1719,6 +1719,15 @@ export type VoiceCaptureOptions = {
   ) => void;
   onLevel?: (level: number) => void;
   sampleRateHz?: number;
+  /**
+   * A pre-acquired microphone MediaStream. When set, capture uses it instead of
+   * calling getUserMedia — so a host that requested permission UP FRONT (before
+   * connecting, so the prompt can't interrupt the assistant's greeting) can hand
+   * the SAME stream in rather than release-and-reacquire (a second getUserMedia
+   * + a track stop can trigger an audio-device change that suspends playback and
+   * cuts the greeting). Capture owns it after handoff and stops it on close.
+   */
+  stream?: MediaStream;
 };
 
 export type VoiceControllerOptions = {

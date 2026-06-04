@@ -5,6 +5,7 @@ type MicrophoneCaptureOptions = {
   onLevel?: VoiceCaptureOptions["onLevel"];
   onAudio: (audio: Uint8Array) => void;
   sampleRateHz?: VoiceCaptureOptions["sampleRateHz"];
+  stream?: VoiceCaptureOptions["stream"];
 };
 
 type MicrophoneCapture = {
@@ -104,8 +105,9 @@ export const createMicrophoneCapture = (
 
   const start = async () => {
     if (
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices?.getUserMedia
+      !options.stream &&
+      (typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.getUserMedia)
     ) {
       throw new Error(
         "Browser microphone capture requires navigator.mediaDevices.getUserMedia.",
@@ -124,14 +126,19 @@ export const createMicrophoneCapture = (
       );
     }
 
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        autoGainControl: true,
-        channelCount: options.channelCount ?? 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    });
+    // Reuse a host-provided stream (permission requested up front) when given,
+    // so we never release-and-reacquire the mic — that second getUserMedia + the
+    // pre-acquired track's stop can suspend playback and cut the greeting.
+    mediaStream =
+      options.stream ??
+      (await navigator.mediaDevices.getUserMedia({
+        audio: {
+          autoGainControl: true,
+          channelCount: options.channelCount ?? 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      }));
     audioContext = new AudioContextCtor();
     // iOS Safari (and some Chromium autoplay policies) create the AudioContext
     // in a "suspended" state. While suspended, the ScriptProcessor's
