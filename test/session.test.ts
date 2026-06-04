@@ -3231,3 +3231,88 @@ test("voice session greeting function receives the session", async () => {
     .find((message) => message.type === "assistant");
   expect(greetingMessage?.text).toBe("Hello session-greeting-fn");
 });
+
+test("voice session plays a backchannel cue during a long caller turn when enabled", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    backchannel: {
+      cueIntervalMs: 20,
+      cues: ["mm-hm"],
+      enabled: true,
+      minSpeechMs: 30,
+    },
+    context: {},
+    id: "session-backchannel-on",
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => ({ assistantText: `You said: ${turn.text}` }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    tts: tts.adapter,
+    // Long silence window so the turn stays OPEN — we're simulating the caller
+    // still mid-answer, which is when a backchannel cue should fire.
+    turnDetection: {
+      silenceMs: 5_000,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  // Caller keeps talking past minSpeechMs without the turn ending.
+  await session.receiveAudio(createSpeechChunk(1_000));
+  await Bun.sleep(45);
+  await session.receiveAudio(createSpeechChunk(1_000));
+  await Bun.sleep(20);
+
+  expect(tts.getSentTexts()).toContain("mm-hm");
+});
+
+test("voice session plays no backchannel cue when disabled", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-backchannel-off",
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => ({ assistantText: `You said: ${turn.text}` }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 5_000,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(1_000));
+  await Bun.sleep(45);
+  await session.receiveAudio(createSpeechChunk(1_000));
+  await Bun.sleep(20);
+
+  expect(tts.getSentTexts()).toEqual([]);
+});

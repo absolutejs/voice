@@ -1147,6 +1147,7 @@ export type VoicePluginConfig<
     userText: string;
   }) => Promise<string | null>;
   fillerForTimeoutMs?: number;
+  backchannel?: import("./backchannel").VoiceBackchannelConfig;
   defaultSilentTurnAck?: string;
   routeOnTurnTimeoutMs?: number;
   audioConditioning?: VoiceAudioConditioningConfig;
@@ -1492,6 +1493,14 @@ export type CreateVoiceSessionOptions<
   }) => Promise<string | null>;
   /** Ceiling for the `fillerFor` call before we fall back to a static phrase. Default 600ms. */
   fillerForTimeoutMs?: number;
+  /**
+   * Backchannel cues — short "mm-hm"/"right" acknowledgements played while the
+   * CALLER is mid-turn (a long answer) so they feel heard, the way a human
+   * listener interjects. Plays on the same non-turn TTS path as fillers, so it
+   * never registers as the assistant's turn or trips barge-in. Off unless
+   * `enabled` is set. Fires only while the assistant is silent.
+   */
+  backchannel?: import("./backchannel").VoiceBackchannelConfig;
   /**
    * Default spoken ack if the model returns ONLY tool calls (no text) and the
    * turn isn't ending. Without this, the caller hears total silence after

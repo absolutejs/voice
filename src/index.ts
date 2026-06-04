@@ -933,6 +933,7 @@ export type {
   VoiceOAuth2TokenSource,
 } from "./core/oauth2TokenSource";
 export type {
+  VoiceBackchannelConfig,
   VoiceBackchannelCue,
   VoiceBackchannelDriver,
   VoiceBackchannelDriverOptions,

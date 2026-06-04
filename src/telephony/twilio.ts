@@ -246,6 +246,9 @@ export type TwilioMediaStreamBridgeOptions<
   }) => Promise<string | null>;
   /** Cap on the `fillerFor` race before falling back to a static phrase. Default 600ms. */
   fillerForTimeoutMs?: number;
+  /** Backchannel cues played while the caller is mid-turn so they feel heard.
+   *  Non-turn TTS path (no barge-in interaction). Off unless `enabled`. */
+  backchannel?: import("../core/backchannel").VoiceBackchannelConfig;
   /**
    * Default spoken ack if the model returns ONLY tool calls (no text) and
    * the turn isn't ending. Without this, the caller hears silence and
@@ -1325,6 +1328,7 @@ export const createTwilioMediaStreamBridge = <
       ...(options.fillerForTimeoutMs !== undefined
         ? { fillerForTimeoutMs: options.fillerForTimeoutMs }
         : {}),
+      ...(options.backchannel ? { backchannel: options.backchannel } : {}),
       ...(options.defaultSilentTurnAck !== undefined
         ? { defaultSilentTurnAck: options.defaultSilentTurnAck }
         : {}),

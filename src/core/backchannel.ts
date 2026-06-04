@@ -12,6 +12,21 @@ export type VoiceBackchannelDriverOptions = {
   onCue: (cue: VoiceBackchannelCue) => Promise<void> | void;
 };
 
+// Route-facing (serializable) backchannel config. The runtime turns this into a
+// VoiceBackchannelDriver wired to the session's speech detection, playing short
+// "mm-hm"/"right" cues on the output channel during a long caller turn so the
+// caller feels heard. Plays via the same non-turn TTS path as fillers, so it
+// never registers as the assistant's turn or trips barge-in. Off unless enabled.
+export type VoiceBackchannelConfig = {
+  enabled?: boolean;
+  // Short phrases spoken as cues. Defaults to a natural set if omitted.
+  cues?: ReadonlyArray<string>;
+  // Min continuous caller-speech (ms) before the first cue fires. Default 2500.
+  minSpeechMs?: number;
+  // Min gap (ms) between cues so they don't pile up. Default 2500.
+  cueIntervalMs?: number;
+};
+
 export type VoiceBackchannelDriver = {
   noteSpeech: (timestampMs?: number) => void;
   noteSilence: (timestampMs?: number) => void;

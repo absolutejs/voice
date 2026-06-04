@@ -1,6 +1,10 @@
 import { Buffer } from "node:buffer";
 import { conditionAudioChunk } from "./audioConditioning";
 import {
+  createVoiceBackchannelDriver,
+  type VoiceBackchannelDriver,
+} from "./backchannel";
+import {
   applyVoiceHandoffDeliveryResult,
   createVoiceHandoffDeliveryRecord,
   deliverVoiceHandoff,
@@ -2329,6 +2333,52 @@ export const createVoiceSession = <
     });
   };
 
+  // Backchannel: short "mm-hm"/"right" cues played while the CALLER is mid-turn
+  // (a long answer) so they feel heard, the way a human listener interjects.
+  // Reuses the same non-turn TTS path as fillers (ensureTTSSession + send, never
+  // setting activeTTSTurnId), so a cue never registers as the assistant's turn
+  // or trips barge-in. Fired ONLY while the assistant is silent and no filler is
+  // mid-flight, so it can't collide with a real reply. Off unless enabled.
+  const emitBackchannelCue = (text: string | undefined) => {
+    if (!text || !options.tts) return;
+    if (activeTTSTurnId !== undefined || fillerActive) return;
+    void runSerial("backchannel.send", async () => {
+      // Re-check inside the queue: a real turn may have started between the
+      // driver firing and this send running.
+      if (activeTTSTurnId !== undefined || fillerActive) return;
+      const adapterSession = await ensureTTSSession();
+      if (!adapterSession) return;
+      try {
+        await adapterSession.send(text);
+      } catch {
+        // A dropped cue is non-fatal — the turn is unaffected.
+      }
+    });
+  };
+
+  const backchannelDriver: VoiceBackchannelDriver | null =
+    options.backchannel?.enabled && options.tts
+      ? createVoiceBackchannelDriver({
+          ...(options.backchannel.cueIntervalMs !== undefined
+            ? { cueIntervalMs: options.backchannel.cueIntervalMs }
+            : {}),
+          ...(options.backchannel.cues
+            ? {
+                cues: options.backchannel.cues
+                  .filter(
+                    (cue): cue is string =>
+                      typeof cue === "string" && cue.trim().length > 0,
+                  )
+                  .map((cue) => ({ text: cue })),
+              }
+            : {}),
+          ...(options.backchannel.minSpeechMs !== undefined
+            ? { minSpeechMs: options.backchannel.minSpeechMs }
+            : {}),
+          onCue: (cue) => emitBackchannelCue(cue.text),
+        })
+      : null;
+
   // Stream an assistant reply to TTS as the model generates it. The run pushes
   // prose deltas via `push`, which flushes complete sentences to the TTS adapter
   // in order (sends are serialized) so the caller hears the first phrase before
@@ -2955,6 +3005,9 @@ export const createVoiceSession = <
     reason: VoiceEndOfTurnEvent["reason"] = "manual",
   ) => {
     clearSilenceTimer();
+    // The caller's turn is ending — clear the backchannel speech window so cues
+    // don't carry over into (or fire at the seam of) the next turn.
+    backchannelDriver?.reset();
     amdLastTurnCommitAt = Date.now();
 
     const session = await readSession();
@@ -3461,7 +3514,11 @@ export const createVoiceSession = <
       speechDetected = true;
       clearSilenceTimer();
       kickCallSilenceWatchdog();
+      // Track the caller's ongoing speech so a backchannel cue can fire once
+      // they've been talking long enough (no-op unless backchannel is enabled).
+      backchannelDriver?.noteSpeech();
     } else if (speechDetected) {
+      backchannelDriver?.noteSilence();
       const currentSession = await readSession();
       const hasTurnText = Boolean(
         buildTurnText(

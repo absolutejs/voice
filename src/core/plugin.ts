@@ -821,6 +821,7 @@ export const voice = <
       ...(config.fillerForTimeoutMs !== undefined
         ? { fillerForTimeoutMs: config.fillerForTimeoutMs }
         : {}),
+      ...(config.backchannel ? { backchannel: config.backchannel } : {}),
       ...(config.defaultSilentTurnAck !== undefined
         ? { defaultSilentTurnAck: config.defaultSilentTurnAck }
         : {}),
