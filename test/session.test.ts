@@ -3316,3 +3316,135 @@ test("voice session plays no backchannel cue when disabled", async () => {
 
   expect(tts.getSentTexts()).toEqual([]);
 });
+
+// Regression: a streaming TTS provider accepts the closing text in send() but
+// emits the audio chunks ASYNCHRONOUSLY afterward. The graceful-complete drain
+// must wait for that delayed audio to arrive AND play out before tearing the
+// call down — otherwise the closing line ("talk to you soon!") is cut. The old
+// drain read the playback clock the instant complete fired (still zero, audio
+// not yet arrived) and returned immediately.
+const createDelayedStreamingTTSAdapter = (input: {
+  firstChunkDelayMs: number;
+  chunkBytes: number;
+}) => {
+  const sentTexts: string[] = [];
+
+  const adapter: TTSAdapter = {
+    kind: "tts",
+    open: () => {
+      const listeners: TTSListenerMap = {
+        audio: [],
+        close: [],
+        error: [],
+      };
+      const session: TTSAdapterSession = {
+        close: async () => {},
+        on: (event, handler) => {
+          listeners[event].push(handler as never);
+
+          return () => {
+            const index = listeners[event].indexOf(handler as never);
+            if (index >= 0) {
+              listeners[event].splice(index, 1);
+            }
+          };
+        },
+        send: async (text) => {
+          sentTexts.push(text);
+          // Resolve immediately; deliver the audio LATER, off the send() call —
+          // exactly how a streaming provider (ElevenLabs WS) behaves.
+          void (async () => {
+            await Bun.sleep(input.firstChunkDelayMs);
+            for (const handler of listeners.audio) {
+              await handler({
+                chunk: new Uint8Array(input.chunkBytes),
+                format: {
+                  channels: 1,
+                  container: "raw",
+                  encoding: "pcm_s16le",
+                  sampleRateHz: 16_000,
+                },
+                receivedAt: Date.now(),
+                type: "audio",
+              });
+            }
+          })();
+        },
+      };
+
+      return session;
+    },
+  };
+
+  return { adapter, getSentTexts: () => sentTexts };
+};
+
+test("voice graceful complete waits for asynchronously-arriving closing audio (no cut goodbye)", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  // 16 kHz mono pcm_s16le = 32000 bytes/sec, so 16000 bytes = 500ms of audio.
+  // The chunk only arrives 150ms AFTER send() resolves.
+  const tts = createDelayedStreamingTTSAdapter({
+    chunkBytes: 16_000,
+    firstChunkDelayMs: 150,
+  });
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    greeting: undefined,
+    id: "session-closing-drain",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({
+        assistantText: "Thanks so much — talk to you soon!",
+        complete: true,
+      }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.9,
+      id: "final-closing",
+      isFinal: true,
+      text: "okay sounds good",
+    },
+    type: "final",
+  });
+  await session.receiveAudio(createSpeechChunk(16_000));
+
+  const startedAt = Date.now();
+  // completeTurn -> onTurn (complete:true) -> completeInternal -> drain.
+  await session.commitTurn("manual");
+  const elapsedMs = Date.now() - startedAt;
+
+  // The closing text was sent to the provider...
+  expect(tts.getSentTexts()).toEqual(["Thanks so much — talk to you soon!"]);
+  // ...the delayed audio chunk reached the client BEFORE teardown...
+  const audioMessages = socket.messages
+    .map((message) => JSON.parse(message))
+    .filter((message) => message.type === "audio");
+  expect(audioMessages.length).toBeGreaterThan(0);
+  // ...and the drain held the call open until that audio (150ms arrival +
+  // 500ms playback) had played out. The old drain returned in ~0ms.
+  expect(elapsedMs).toBeGreaterThanOrEqual(400);
+  expect((await session.snapshot()).status).toBe("completed");
+});

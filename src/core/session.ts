@@ -530,6 +530,20 @@ export const createVoiceSession = <
   // complete (end_call / intake done) waits for this so the closing line is
   // heard before the call tears down, instead of being cut mid-"goodbye".
   let assistantSpeechEndsAt = 0;
+  // Wall-clock of the most recent assistant audio chunk RECEIVED from the TTS
+  // provider. The drain uses this to detect when the provider has stopped
+  // streaming (audio gone quiet) — `assistantSpeechEndsAt` alone is the
+  // playback estimate for audio already received, which underestimates while a
+  // closing line is still being rendered chunk-by-chunk after the text send
+  // resolved. Without tracking arrival activity, the drain reads a near-empty
+  // playback clock and tears the call down mid-closing.
+  let lastAssistantAudioAt = 0;
+  // Wall-clock of the most recent real-turn TTS text send (greeting, streamed
+  // reply tail, or one-shot reply). The drain treats this as "a render is
+  // pending": it waits for audio to actually start arriving for this send
+  // before trusting the quiescence/playback clocks, so a provider's
+  // text-sent→first-audio latency can't look like an already-drained stream.
+  let lastTtsSendAt = 0;
   // Filler-phrase state (Boardy-style "the pause is character, not lag").
   // `fillerTimer` is the scheduled-but-not-yet-fired filler trigger.
   // `fillerActive` is true once a filler has been sent to TTS for the current
@@ -921,6 +935,24 @@ export const createVoiceSession = <
     return result;
   };
 
+  // Assistant audio delivery runs on its OWN serial chain, NOT the main
+  // operationQueue. Routing audio through `runSerial` starves it behind the
+  // turn-commit op that produced it: for a normal turn the audio merely bursts
+  // out once the turn resolves, but a graceful complete runs the closing-drain
+  // INSIDE that op, so the closing audio can never arrive in time to be drained
+  // and the call tears down mid-"goodbye". A dedicated chain keeps chunks
+  // strictly ordered relative to each other while letting them flow
+  // concurrently with turn control (also why normal replies now stream in
+  // real time instead of bursting after the turn).
+  let assistantAudioQueue: Promise<void> = Promise.resolve();
+  const runAudioSerial = (operation: () => Promise<void> | void): void => {
+    const next = assistantAudioQueue.then(operation);
+    assistantAudioQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+  };
+
   const closeAdapter = async (reason?: string) => {
     if (!sttSession) {
       return;
@@ -1138,6 +1170,9 @@ export const createVoiceSession = <
       assistantSpeechEndsAt =
         Math.max(assistantSpeechEndsAt, Date.now()) + chunkMs;
     }
+    // Mark that audio is still actively arriving so the graceful-complete drain
+    // can tell "provider still streaming the closing" from "stream finished".
+    lastAssistantAudioAt = Date.now();
     if (activeTTSTurnId) {
       await appendTurnLatencyStage({
         at: input.receivedAt,
@@ -1285,22 +1320,45 @@ export const createVoiceSession = <
     });
   };
 
-  // Wait for the assistant's already-sent audio to finish playing on the client
-  // before a graceful teardown, so the closing line ("talk to you soon!") is
-  // heard instead of cut off. Re-checks because TTS may still be streaming; a
-  // hard cap stops a stuck stream from holding the call open forever.
-  const DRAIN_POLL_MS = 200;
+  // Wait for the assistant's closing line to finish playing on the client
+  // before a graceful teardown, so "talk to you soon!" is heard instead of cut
+  // off. The naive version — "return once the playback clock drains" — cut the
+  // closing because streaming TTS sends the text in `finish()` but the audio
+  // chunks arrive ASYNCHRONOUSLY afterward: at complete-time the playback clock
+  // only reflects the first chunk or two, reads as nearly drained, and the call
+  // tears down while the provider is still rendering the rest. The drain now
+  // waits on three conditions, re-checked each tick:
+  //   1. render started — audio for the just-sent closing has begun arriving
+  //      (or a startup cap elapsed), so a provider's text→first-audio latency
+  //      isn't mistaken for an empty stream;
+  //   2. stream quiet — no new audio chunk for DRAIN_QUIET_MS, i.e. the provider
+  //      finished streaming the closing;
+  //   3. playback drained — the received audio has played out (+ a tail buffer).
+  // A hard cap stops a stuck stream from holding the call open forever.
+  const DRAIN_POLL_MS = 100;
   const DRAIN_TAIL_BUFFER_MS = 300;
-  const DRAIN_MAX_MS = 12_000;
-  const drainAssistantSpeech = async () => {
+  const DRAIN_QUIET_MS = 600;
+  const DRAIN_RENDER_START_MS = 4_000;
+  const DRAIN_MAX_MS = 20_000;
+  const drainAssistantSpeech = async (renderPendingSince: number) => {
     const startedAt = Date.now();
-    while (Date.now() - startedAt < DRAIN_MAX_MS) {
-      const remaining =
-        assistantSpeechEndsAt + DRAIN_TAIL_BUFFER_MS - Date.now();
-      if (remaining <= 0) return;
-      await new Promise((resolve) => {
-        setTimeout(resolve, Math.min(remaining, DRAIN_POLL_MS));
+    const sleep = (delayMs: number) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, delayMs);
       });
+    while (Date.now() - startedAt < DRAIN_MAX_MS) {
+      const now = Date.now();
+      const renderStarted =
+        lastAssistantAudioAt >= renderPendingSince ||
+        now - renderPendingSince >= DRAIN_RENDER_START_MS;
+      if (!renderStarted) {
+        await sleep(DRAIN_POLL_MS);
+        continue;
+      }
+      const streamQuiet = now - lastAssistantAudioAt >= DRAIN_QUIET_MS;
+      const playbackDrained = assistantSpeechEndsAt + DRAIN_TAIL_BUFFER_MS <= now;
+      if (streamQuiet && playbackDrained) return;
+      await sleep(DRAIN_POLL_MS);
     }
   };
 
@@ -1360,7 +1418,10 @@ export const createVoiceSession = <
     // Only a graceful end (intake done / end_call) waits out the closing line —
     // a caller hangup / transfer / failure should tear down immediately.
     if (disposition === "completed") {
-      await drainAssistantSpeech();
+      await drainAssistantSpeech(lastTtsSendAt);
+      // Settle any in-flight audio delivery on the dedicated chain before the
+      // teardown lifecycle is sent, so the closing line lands before "end".
+      await assistantAudioQueue;
     }
 
     await appendTrace({
@@ -2241,7 +2302,14 @@ export const createVoiceSession = <
       (openedSession as RealtimeAdapterSession).on(
         "audio",
         ({ chunk, format, receivedAt }) => {
-          runAdapterEvent("adapter.audio", async () => {
+          // Same dedicated audio chain as the TTS bridge — keep the realtime
+          // adapter's stale-generation guard so audio from a superseded STT
+          // session is dropped.
+          runAudioSerial(async () => {
+            if (activeAdapterGeneration !== generation) {
+              return;
+            }
+
             await sendAssistantAudio(chunk, {
               format,
               receivedAt,
@@ -2277,7 +2345,7 @@ export const createVoiceSession = <
       ttsSession = openedSession;
 
       openedSession.on("audio", ({ chunk, format, receivedAt }) => {
-        void runSerial("tts.audio", async () => {
+        runAudioSerial(async () => {
           if (ttsSession !== openedSession) {
             return;
           }
@@ -2453,6 +2521,9 @@ export const createVoiceSession = <
         try {
           await ttsSession.send(text);
           charsSent += text.length;
+          // A render is now pending for this turn — the drain must wait for its
+          // audio to arrive before completing, not just for prior audio.
+          lastTtsSendAt = Date.now();
         } catch (error) {
           logger.warn("voice assistant audio send failed", {
             error: toError(error).message,
@@ -2814,6 +2885,7 @@ export const createVoiceSession = <
             turnId: turn.id,
           });
           await activeTTSSession.send(output.assistantText);
+          lastTtsSendAt = Date.now();
           if (options.costAccountant) {
             options.costAccountant.recordTTS({
               characters: output.assistantText.length,
@@ -3398,11 +3470,13 @@ export const createVoiceSession = <
         if (greetingTTSSession) {
           activeTTSTurnId = greetingTurnId;
           await greetingTTSSession.send(greetingText);
+          lastTtsSendAt = Date.now();
         } else if (options.realtime) {
           const greetingRealtimeSession =
             (await ensureAdapter()) as RealtimeAdapterSession;
           activeTTSTurnId = greetingTurnId;
           await greetingRealtimeSession.send(greetingText);
+          lastTtsSendAt = Date.now();
         }
       } catch {
         // A greeting synthesis failure must not abort the session.
