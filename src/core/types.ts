@@ -1957,6 +1957,9 @@ export type VoiceAudioPlayerSource = {
 export type VoiceAudioPlayer = {
   close: () => Promise<void>;
   error: string | null;
+  /** Instantaneous RMS amplitude (0..1) of the assistant's audio output — for
+   *  driving a visualizer from the actual voice. 0 when idle / no analyser. */
+  getOutputLevel: () => number;
   getSnapshot: () => VoiceAudioPlayerState;
   activeSourceCount: number;
   isActive: boolean;

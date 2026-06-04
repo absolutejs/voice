@@ -16,6 +16,9 @@ const MAX_PLAYBACK_RATE = 2;
 // Within this of 1.0 we skip the time-stretcher and play the decoded buffer
 // untouched, so the default (un-adjusted) path is byte-for-byte unchanged.
 const STRETCH_BYPASS_EPSILON = 0.01;
+// Small FFT — we only need a coarse RMS amplitude for a visualizer, cheaply.
+const ANALYSER_FFT_SIZE = 256;
+const PCM_BYTE_MIDPOINT = 128;
 
 type VoiceAudioChunk = VoiceStreamState["assistantAudio"][number];
 
@@ -43,9 +46,17 @@ type MinimalGainNode = {
   };
 };
 
+type MinimalAnalyserNode = {
+  connect?: (destination: unknown) => void;
+  disconnect?: () => void;
+  fftSize: number;
+  getByteTimeDomainData: (array: Uint8Array) => void;
+};
+
 type MinimalAudioContext = {
   baseLatency?: number;
   close: () => Promise<void>;
+  createAnalyser?: () => MinimalAnalyserNode;
   createBuffer: (
     numberOfChannels: number,
     length: number,
@@ -155,6 +166,11 @@ export const createVoiceAudioPlayer = (
   let state = createInitialState();
   let audioContext: MinimalAudioContext | null = null;
   let outputNode: MinimalGainNode | null = null;
+  // Side-tap on the assistant output so callers can drive a visualizer from the
+  // ACTUAL voice amplitude (not the mic). The analyser only observes; audio
+  // still flows outputNode -> destination.
+  let analyserNode: MinimalAnalyserNode | null = null;
+  let analyserBuffer: Uint8Array | null = null;
   let volume = clampVolume(options.volume);
   let playbackRate = clampPlaybackRate(options.playbackRate);
   let stretcher: TimeStretcher | null = null;
@@ -280,6 +296,12 @@ export const createVoiceAudioPlayer = (
     if (audioContext.createGain) {
       outputNode = audioContext.createGain();
       outputNode.connect?.(audioContext.destination);
+      if (audioContext.createAnalyser) {
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = ANALYSER_FFT_SIZE;
+        analyserBuffer = new Uint8Array(analyserNode.fftSize);
+        outputNode.connect?.(analyserNode);
+      }
     }
 
     queueEndTime = audioContext.currentTime;
@@ -461,6 +483,9 @@ export const createVoiceAudioPlayer = (
       audioContext = null;
       outputNode?.disconnect?.();
       outputNode = null;
+      analyserNode?.disconnect?.();
+      analyserNode = null;
+      analyserBuffer = null;
       queueEndTime = 0;
       setState({
         activeSourceCount: 0,
@@ -470,6 +495,22 @@ export const createVoiceAudioPlayer = (
     },
     get error() {
       return state.error;
+    },
+    // Instantaneous RMS amplitude (0..1) of the assistant's audio output, for
+    // driving a visualizer that tracks the actual VOICE. Returns 0 when nothing
+    // is playing or the analyser isn't available (SSR/tests).
+    getOutputLevel: () => {
+      if (!analyserNode || !analyserBuffer) {
+        return 0;
+      }
+      analyserNode.getByteTimeDomainData(analyserBuffer);
+      let sumSquares = 0;
+      for (const sample of analyserBuffer) {
+        const centered = (sample - PCM_BYTE_MIDPOINT) / PCM_BYTE_MIDPOINT;
+        sumSquares += centered * centered;
+      }
+
+      return Math.sqrt(sumSquares / analyserBuffer.length);
     },
     getSnapshot: () => state,
     interrupt: async () => {
