@@ -1,3 +1,4 @@
+import { createTimeStretcher, type TimeStretcher } from "./timeStretch";
 import type {
   AudioFormat,
   VoiceAudioPlayer,
@@ -12,6 +13,9 @@ const DEFAULT_VOLUME = 1;
 const DEFAULT_PLAYBACK_RATE = 1;
 const MIN_PLAYBACK_RATE = 0.5;
 const MAX_PLAYBACK_RATE = 2;
+// Within this of 1.0 we skip the time-stretcher and play the decoded buffer
+// untouched, so the default (un-adjusted) path is byte-for-byte unchanged.
+const STRETCH_BYPASS_EPSILON = 0.01;
 
 type VoiceAudioChunk = VoiceStreamState["assistantAudio"][number];
 
@@ -153,6 +157,7 @@ export const createVoiceAudioPlayer = (
   let outputNode: MinimalGainNode | null = null;
   let volume = clampVolume(options.volume);
   let playbackRate = clampPlaybackRate(options.playbackRate);
+  let stretcher: TimeStretcher | null = null;
   let queueEndTime = 0;
   let syncPromise = Promise.resolve();
   let interruptStartedAt: number | null = null;
@@ -190,6 +195,9 @@ export const createVoiceAudioPlayer = (
   const resolveInterrupt = (latencyMs: number) => {
     clearInterruptTimer();
     interruptStartedAt = null;
+    // Drop any audio the stretcher buffered for the interrupted turn so it can't
+    // bleed into the next utterance.
+    stretcher?.reset();
     setState({
       activeSourceCount: sourceNodes.size,
       isPlaying: false,
@@ -279,13 +287,19 @@ export const createVoiceAudioPlayer = (
     return audioContext;
   };
 
-  const scheduleChunk = async (chunk: VoiceAudioChunk) => {
-    const context = await ensureAudioContext();
-    const buffer = decodePCM16LEChunk(context, chunk);
+  // Schedule a ready-to-play buffer back-to-back on the lookahead timeline.
+  // `rate` is the AudioBufferSourceNode playbackRate: 1 for time-stretched audio
+  // (the duration is already adjusted in software) or the raw speed on the
+  // bypass path.
+  const scheduleBuffer = (
+    context: MinimalAudioContext,
+    buffer: MinimalAudioBuffer,
+    rate: number,
+  ) => {
     const node = context.createBufferSource();
     node.buffer = buffer;
     if (node.playbackRate) {
-      node.playbackRate.value = playbackRate;
+      node.playbackRate.value = rate;
     }
     node.connect(outputNode ?? context.destination);
     node.onended = () => {
@@ -303,15 +317,61 @@ export const createVoiceAudioPlayer = (
       queueEndTime,
     );
     // At rate r the buffer plays in buffer.duration / r real seconds, so the
-    // next chunk must be queued against that compressed/stretched wall-clock
-    // span — otherwise faster playback would leave gaps and slower would overlap.
-    queueEndTime = startAt + buffer.duration / playbackRate;
+    // next chunk must be queued against that wall-clock span — otherwise faster
+    // playback would leave gaps and slower would overlap.
+    queueEndTime = startAt + buffer.duration / rate;
     sourceNodes.add(node);
     setState({
       activeSourceCount: sourceNodes.size,
       isPlaying: true,
     });
     node.start(startAt);
+  };
+
+  const scheduleChunk = async (chunk: VoiceAudioChunk) => {
+    const context = await ensureAudioContext();
+    const buffer = decodePCM16LEChunk(context, chunk);
+
+    // Bypass: at (near) unity speed play the decoded buffer as-is so the common
+    // case is untouched. Resampling via playbackRate would shift pitch, so any
+    // real speed change instead time-stretches below at a fixed node rate of 1.
+    if (Math.abs(playbackRate - 1) <= STRETCH_BYPASS_EPSILON) {
+      stretcher?.reset();
+      scheduleBuffer(context, buffer, playbackRate);
+
+      return;
+    }
+
+    const channels = Math.max(1, chunk.format.channels);
+    const input: Float32Array[] = [];
+    for (let channelIndex = 0; channelIndex < channels; channelIndex += 1) {
+      input.push(buffer.getChannelData(channelIndex));
+    }
+
+    stretcher ??= createTimeStretcher();
+    const stretched = stretcher.process(
+      input,
+      playbackRate,
+      chunk.format.sampleRateHz,
+    );
+    const outLength = stretched[0]?.length ?? 0;
+    // The stretcher buffers across chunks; a short chunk may yield no finished
+    // grains yet. Nothing to schedule until enough input has accumulated.
+    if (outLength === 0) {
+      return;
+    }
+
+    const outBuffer = context.createBuffer(
+      channels,
+      outLength,
+      chunk.format.sampleRateHz,
+    );
+    for (let channelIndex = 0; channelIndex < channels; channelIndex += 1) {
+      const channelOut = stretched[channelIndex];
+      if (!channelOut) continue;
+      outBuffer.getChannelData(channelIndex).set(channelOut);
+    }
+    scheduleBuffer(context, outBuffer, 1);
   };
 
   const stopQueuedPlayback = (options?: { forceClear?: boolean }) => {

@@ -8,6 +8,7 @@ export type {
 } from "./reactiveSource";
 export { createVoiceConnection } from "./connection";
 export { createVoiceAudioPlayer, decodeVoiceAudioChunk } from "./audioPlayer";
+export { createTimeStretcher, type TimeStretcher } from "./timeStretch";
 export { createVoiceStream } from "./createVoiceStream";
 export { createVoiceBrowserMediaReporter } from "./browserMedia";
 export type { VoiceBrowserMediaReporter } from "./browserMedia";
