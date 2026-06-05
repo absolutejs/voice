@@ -6,6 +6,8 @@ import type {
   VoiceAgentToolCall,
 } from "./agent";
 import type { VoiceSessionRecord } from "./types";
+import { startVoiceTimer } from "./debugTiming";
+import { hardenFetch } from "./hardenedFetch";
 
 export type VoiceJSONAssistantModelHandler<
   TContext = unknown,
@@ -1448,7 +1450,9 @@ export const createOpenAIVoiceAssistantModel = <
 >(
   options: OpenAIVoiceAssistantModelOptions,
 ): VoiceAgentModel<TContext, TSession, TResult> => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
+  // hardenFetch: works around a Bun stale-keepalive hang — see hardenedFetch.ts
+  // / UPSTREAM_ISSUES.md. Wraps the caller's fetch too if they supplied one.
+  const fetchImpl = hardenFetch(options.fetch);
   const baseUrl = options.baseUrl ?? "https://api.openai.com/v1";
   const model = options.model ?? "gpt-4.1-mini";
   // OpenAI's `/responses` SSE stream has no built-in client timeout; if the
@@ -1463,6 +1467,7 @@ export const createOpenAIVoiceAssistantModel = <
 
   return {
     generate: async (input) => {
+      const stamp = startVoiceTimer(input.session.id);
       const ac = new AbortController();
       const timer = setTimeout(() => {
         ac.abort(
@@ -1508,6 +1513,11 @@ export const createOpenAIVoiceAssistantModel = <
         throw error;
       }
 
+      stamp("openai.fetch-returned", {
+        messages: input.messages.length,
+        status: response.status,
+      });
+
       if (!response.ok) {
         clearTimeout(timer);
         throw createHTTPError("OpenAI", response);
@@ -1516,9 +1526,21 @@ export const createOpenAIVoiceAssistantModel = <
       let assistantText: string | undefined;
       let toolCalls: VoiceAgentToolCall[];
       let usage: Record<string, unknown> | undefined;
+      // Stamp the FIRST text delta so we can separate "OpenAI is slow to first
+      // token" from "the stream is slow to drain".
+      let firstDeltaSeen = false;
+      const onTextDelta = input.onTextDelta
+        ? (delta: string) => {
+            if (!firstDeltaSeen) {
+              firstDeltaSeen = true;
+              stamp("openai.first-delta");
+            }
+            input.onTextDelta?.(delta);
+          }
+        : undefined;
       try {
         ({ assistantText, toolCalls, usage } =
-          await consumeOpenAIResponsesStream(response, input.onTextDelta, {
+          await consumeOpenAIResponsesStream(response, onTextDelta, {
             // Pass the abort signal to the stream reader so my parent
             // timeout actually interrupts a stalled reader.read(). Without
             // this, ac.abort() aborts the fetch REQUEST but the body
@@ -1531,6 +1553,10 @@ export const createOpenAIVoiceAssistantModel = <
             // connection stays open but no events arrive.
             inactivityMs: 10_000,
           }));
+        stamp("openai.stream-done", {
+          textChars: assistantText?.length ?? 0,
+          toolCalls: toolCalls.length,
+        });
       } finally {
         clearTimeout(timer);
       }
@@ -1604,7 +1630,9 @@ export const createAnthropicVoiceAssistantModel = <
 >(
   options: AnthropicVoiceAssistantModelOptions,
 ): VoiceAgentModel<TContext, TSession, TResult> => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
+  // hardenFetch: works around a Bun stale-keepalive hang — see hardenedFetch.ts
+  // / UPSTREAM_ISSUES.md. Wraps the caller's fetch too if they supplied one.
+  const fetchImpl = hardenFetch(options.fetch);
   const baseUrl = options.baseUrl ?? "https://api.anthropic.com/v1";
   const model = options.model ?? "claude-sonnet-4-5";
 
@@ -1730,7 +1758,9 @@ export const createGeminiVoiceAssistantModel = <
 >(
   options: GeminiVoiceAssistantModelOptions,
 ): VoiceAgentModel<TContext, TSession, TResult> => {
-  const fetchImpl = options.fetch ?? globalThis.fetch;
+  // hardenFetch: works around a Bun stale-keepalive hang — see hardenedFetch.ts
+  // / UPSTREAM_ISSUES.md. Wraps the caller's fetch too if they supplied one.
+  const fetchImpl = hardenFetch(options.fetch);
   const baseUrl =
     options.baseUrl ?? "https://generativelanguage.googleapis.com/v1beta";
   const model = options.model ?? "gemini-2.5-flash";

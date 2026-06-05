@@ -797,6 +797,12 @@ export type {
   VoiceSimulatorCallerModel,
   VoiceSimulatorCallerReply,
 } from "./core/conversationSimulator";
+export {
+  logVoiceTiming,
+  startVoiceTimer,
+  voiceTimingEnabled,
+} from "./core/debugTiming";
+export { hardenFetch } from "./core/hardenedFetch";
 export { createVoiceMCPToolset } from "./core/mcpToolset";
 export type {
   CreateVoiceMCPToolsetOptions,
