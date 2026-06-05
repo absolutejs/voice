@@ -10,7 +10,8 @@ upstream fix ships. Grep the codebase for the entry's anchor (e.g.
 ## bun-fetch-stale-keepalive — Bun `fetch()` hangs on a stale keep-alive socket
 
 **Status:** open (as of 2026-06-05) · **Runtime:** Bun (confirmed 1.3.14) ·
-**Severity:** high — silently breaks long-running voice sessions.
+**Severity:** high — silently breaks long-running voice sessions ·
+**Filed:** [oven-sh/bun#31894](https://github.com/oven-sh/bun/issues/31894).
 
 ### Symptom
 
@@ -64,13 +65,20 @@ direct provider fetches (e.g. a warmup ping) the same way.
 
 ### Tracking
 
-- bun #14538 — `fetch` does not respect `keepalive: false`:
-  https://github.com/oven-sh/bun/issues/14538
+- **oven-sh/bun#31894** — our dedicated report: a reused keep-alive socket isn't
+  liveness-checked, so a half-open pooled connection hangs the request (up to
+  Bun's 5-min ceiling) instead of reconnecting. Includes a deterministic
+  two-server repro (graceful-FIN reconnects ✅ vs half-open hangs ❌):
+  https://github.com/oven-sh/bun/issues/31894 — **watch this; the revert below
+  is gated on it being fixed + released.**
+- bun #14538 — `fetch` does not respect `keepalive: false` (why the header is the
+  only opt-out lever): https://github.com/oven-sh/bun/issues/14538
+- bun #16682 — `fetch` hardcodes a 5-min timeout (the ceiling the hang bottoms
+  out at; separate bug): https://github.com/oven-sh/bun/issues/16682
 - Bun fetch docs (documents `Connection: close` as the pooling opt-out):
   https://bun.com/docs/runtime/networking/fetch
-- TODO: file a dedicated Bun issue for "stale pooled keep-alive socket is reused
-  with no reconnect → request hangs until OS timeout" with the voice repro, and
-  link it here.
+- Deterministic repro kept at `test/repro/bun-fetch-stale-pool.ts` (mirror of the
+  script in #31894) — re-run after a Bun bump to check if it's fixed.
 
 ### When Bun fixes it (the revert)
 
