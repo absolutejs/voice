@@ -218,6 +218,51 @@ test("voice client store streams assistant deltas before committed assistant tex
   expect(store.getSnapshot().assistantTexts).toEqual(["Hello there."]);
 });
 
+test("voice client store accumulates the whole user turn live across segment finals", () => {
+  const store = createVoiceStreamStore();
+  const partial = (id: string, text: string) =>
+    serverMessageToAction({
+      transcript: { id, isFinal: false, text },
+      type: "partial",
+    });
+  const final = (id: string, text: string) =>
+    serverMessageToAction({
+      transcript: { id, isFinal: true, text },
+      type: "final",
+    });
+
+  // Segment 1 grows via interims, then finalizes.
+  store.dispatch(partial("s1", "I run"));
+  expect(store.getSnapshot().partial).toBe("I run");
+  store.dispatch(partial("s1", "I run a startup"));
+  expect(store.getSnapshot().partial).toBe("I run a startup");
+  store.dispatch(final("s1", "I run a startup."));
+  expect(store.getSnapshot().partial).toBe("I run a startup.");
+
+  // Segment 2 interims must EXTEND the finalized segment-1 text, not replace it
+  // (the bug: only the current phrase showed until the turn committed).
+  store.dispatch(partial("s2", "and we gamify"));
+  expect(store.getSnapshot().partial).toBe("I run a startup. and we gamify");
+  store.dispatch(final("s2", "And we gamify sales teams."));
+  expect(store.getSnapshot().partial).toBe(
+    "I run a startup. And we gamify sales teams.",
+  );
+
+  // Committing the turn clears the live accumulator for the next turn.
+  store.dispatch({
+    turn: {
+      committedAt: 300,
+      id: "turn-1",
+      text: "I run a startup. And we gamify sales teams.",
+      transcripts: [],
+    },
+    type: "turn",
+  });
+  expect(store.getSnapshot().partial).toBe("");
+  store.dispatch(partial("s3", "my audience is"));
+  expect(store.getSnapshot().partial).toBe("my audience is");
+});
+
 test("voice workflow status store fetches scenario eval reports", async () => {
   const store = createVoiceWorkflowStatusStore("/evals/scenarios/json", {
     fetch: async () =>

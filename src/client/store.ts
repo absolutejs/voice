@@ -11,6 +11,33 @@ const createInitialReconnectState = (): VoiceReconnectClientState => ({
   status: "idle",
 });
 
+// Within ONE user turn the STT provider (Deepgram) emits a "final" per detected
+// segment, interleaved with "partial" interims for the segment currently being
+// spoken. To render the WHOLE utterance live — not just the current phrase —
+// the client accumulates finalized segments and shows accumulated-finals +
+// current interim. appendSegmentText mirrors the server's mergeTranscriptTexts
+// dedup so a re-emitted or refined segment doesn't double up; the authoritative
+// committed turn still arrives via the "turn" action.
+const appendSegmentText = (accumulated: string, next: string) => {
+  const nextText = next.trim().replace(/\s+/g, " ");
+  if (!nextText) return accumulated;
+  if (!accumulated) return nextText;
+  if (accumulated === nextText || accumulated.endsWith(nextText)) {
+    return accumulated;
+  }
+  if (nextText.includes(accumulated)) return nextText;
+
+  return `${accumulated} ${nextText}`;
+};
+
+const joinPartial = (finalized: string, interim: string) => {
+  const interimText = interim.trim().replace(/\s+/g, " ");
+  if (!finalized) return interimText;
+  if (!interimText || finalized.endsWith(interimText)) return finalized;
+
+  return `${finalized} ${interimText}`;
+};
+
 const createInitialState = (): VoiceStreamState => ({
   assistantAudio: [],
   assistantStreamingText: "",
@@ -29,6 +56,9 @@ const createInitialState = (): VoiceStreamState => ({
 
 export const createVoiceStreamStore = <TResult = unknown>() => {
   let state = createInitialState() as VoiceStreamState<TResult>;
+  // Finalized segment text accumulated for the in-progress turn (drives the live
+  // `partial` display alongside the current interim). Reset when a turn commits.
+  let turnFinalText = "";
   const subscribers = new Set<() => void>();
 
   const notify = () => {
@@ -125,19 +155,27 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
         };
         break;
       case "final":
+        // Fold this finalized segment into the accumulated turn text so the
+        // whole utterance stays visible — don't replace it with just this
+        // segment (that's what made the live transcript show only the current
+        // phrase until the turn committed).
+        turnFinalText = appendSegmentText(turnFinalText, action.transcript.text);
         state = {
           ...state,
-          partial: action.transcript.text,
-          turns: state.turns.map((turn) => turn),
+          partial: turnFinalText,
         };
         break;
       case "partial":
         state = {
           ...state,
-          partial: action.transcript.text,
+          partial: joinPartial(turnFinalText, action.transcript.text),
         };
         break;
       case "replay":
+        // On reconnect the server replays the in-progress turn text; seed the
+        // accumulator from it so segments that finalize after the reconnect
+        // append to (rather than erase) what was already spoken.
+        turnFinalText = action.partial;
         state = {
           ...state,
           assistantStreamingText: "",
@@ -174,6 +212,9 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
         };
         break;
       case "turn":
+        // Turn committed — the assembled text now lives in `turns`; clear the
+        // in-progress accumulator for the next turn.
+        turnFinalText = "";
         state = {
           ...state,
           partial: "",
