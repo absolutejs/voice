@@ -1595,6 +1595,11 @@ export {
 } from "./core/s3Store";
 export { createVoiceMemoryStore } from "./core/memoryStore";
 export {
+  createVoiceWriteBehindStore,
+  type VoiceWriteBehindStore,
+  type VoiceWriteBehindStoreOptions,
+} from "./core/writeBehindStore";
+export {
   createVoiceCRMActivitySink,
   createVoiceHelpdeskTicketSink,
   createVoiceIntegrationHTTPSink,

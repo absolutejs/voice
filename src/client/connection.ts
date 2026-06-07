@@ -7,9 +7,22 @@ import type {
 const WS_OPEN = 1;
 const WS_CLOSED = 3;
 const WS_NORMAL_CLOSURE = 1000;
-const DEFAULT_MAX_RECONNECT_ATTEMPTS = 10;
+// 15 attempts of exponential backoff capped at 8s ≈ a 95s retry window — long
+// enough to ride out a server redeploy (build + drain + restart) so a caller
+// mid-intake reconnects to their resumed session instead of losing the call.
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = 15;
 const DEFAULT_PING_INTERVAL = 30_000;
-const RECONNECT_DELAY_MS = 500;
+const RECONNECT_BASE_DELAY_MS = 500;
+const DEFAULT_RECONNECT_MAX_DELAY_MS = 8_000;
+
+/** Exponential reconnect backoff for attempt N (1-based): baseMs doubles each
+ *  attempt, capped at maxDelayMs. Exported so the backoff window is unit-tested
+ *  without a DOM/WebSocket harness. */
+export const computeVoiceReconnectDelayMs = (
+  attempt: number,
+  baseMs: number,
+  maxDelayMs: number,
+) => Math.min(maxDelayMs, baseMs * 2 ** (Math.max(1, attempt) - 1));
 
 const DEFAULT_SCENARIO_QUERY_PARAM = "scenarioId";
 
@@ -127,7 +140,19 @@ export const createVoiceConnection = (
   const shouldReconnect = options.reconnect !== false;
   const maxReconnectAttempts =
     options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS;
+  const reconnectMaxDelayMs =
+    options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
   const pingInterval = options.pingInterval ?? DEFAULT_PING_INTERVAL;
+
+  // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, 8s… capped at reconnectMaxDelayMs.
+  // A short first retry recovers instantly from a blip; the cap keeps later
+  // retries spanning a long outage (a deploy) without hammering the server.
+  const computeReconnectDelayMs = (attempt: number) =>
+    computeVoiceReconnectDelayMs(
+      attempt,
+      RECONNECT_BASE_DELAY_MS,
+      reconnectMaxDelayMs,
+    );
 
   const state: VoiceConnectionState = {
     isConnected: false,
@@ -173,8 +198,9 @@ export const createVoiceConnection = (
   };
 
   const scheduleReconnect = () => {
-    const nextAttemptAt = Date.now() + RECONNECT_DELAY_MS;
     state.reconnectAttempts += 1;
+    const delayMs = computeReconnectDelayMs(state.reconnectAttempts);
+    const nextAttemptAt = Date.now() + delayMs;
     emitConnection({
       reconnect: {
         attempts: state.reconnectAttempts,
@@ -200,7 +226,7 @@ export const createVoiceConnection = (
       }
 
       connect();
-    }, RECONNECT_DELAY_MS);
+    }, delayMs);
   };
 
   const connect = () => {

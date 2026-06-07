@@ -1690,6 +1690,12 @@ export type VoiceConnectionOptions = {
   reconnect?: boolean;
   reconnectReportPath?: string;
   maxReconnectAttempts?: number;
+  /** Cap on the exponential reconnect backoff (ms). The delay doubles from 500ms
+   *  up to this ceiling each attempt, so the total retry window is roughly
+   *  maxReconnectAttempts spread across it. Default 8000 — with the default 15
+   *  attempts that's a ~95s window, enough to ride out a server redeploy without
+   *  the caller losing the call. */
+  reconnectMaxDelayMs?: number;
   pingInterval?: number;
   sessionId?: string;
 };

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { createMonologueAMDDetector } from "../src/core/amdDetector";
 import { createVoiceCostAccountant } from "../src/core/costAccounting";
 import { createVoiceMemoryStore } from "../src/core/memoryStore";
+import { createVoiceWriteBehindStore } from "../src/core/writeBehindStore";
 import { createVoiceMemoryRecordingStore } from "../src/core/recordingStore";
 import { createVoiceTranscriptRedactor } from "../src/core/redaction";
 import { createPunctuationSemanticTurnDetector } from "../src/core/semanticTurn";
@@ -3298,6 +3299,82 @@ test("voice session greeting function receives the session", async () => {
     .map((message) => JSON.parse(message))
     .find((message) => message.type === "assistant");
   expect(greetingMessage?.text).toBe("Hello session-greeting-fn");
+});
+
+test("voice session resumes from the persistent store after a restart without re-greeting", async () => {
+  // The persistent store is the durable layer that SURVIVES the simulated
+  // restart; each "process" gets its own fresh in-memory hot store on top.
+  const persistent = createVoiceMemoryStore();
+  const greeting = "Welcome — tell me about your work.";
+
+  const buildSession = (memory: ReturnType<typeof createVoiceMemoryStore>) => {
+    const adapter = createFakeAdapter();
+    const tts = createFakeTTSAdapter();
+    const socket = createMockSocket();
+    const store = createVoiceWriteBehindStore({
+      flushDebounceMs: 10,
+      memory,
+      persistent,
+    });
+    const session = createVoiceSession({
+      context: {},
+      greeting,
+      id: "session-resume",
+      logger: {},
+      reconnect: { maxAttempts: 3, strategy: "resume-last-turn", timeout: 5_000 },
+      route: { onComplete: async () => {}, onTurn: async () => ({}) },
+      socket: socket.socket,
+      store,
+      stt: adapter.adapter,
+      tts: tts.adapter,
+      turnDetection: { silenceMs: 20, speechThreshold: 0.01, transcriptStabilityMs: 5 },
+    });
+
+    return { adapter, session, socket, store };
+  };
+
+  // Process 1: greet, then the caller answers one turn.
+  const first = buildSession(createVoiceMemoryStore());
+  await first.session.connect(first.socket.socket);
+  await Bun.sleep(20);
+  expect(
+    first.socket.messages
+      .map((message) => JSON.parse(message))
+      .some((message) => message.type === "assistant" && message.text === greeting),
+  ).toBe(true);
+
+  await first.adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: { id: "final-1", isFinal: true, text: "I run a sales SaaS." },
+    type: "final",
+  });
+  await first.session.receiveAudio(createSpeechChunk(16_000));
+  await first.session.receiveAudio(createSpeechChunk(0));
+  await Bun.sleep(60);
+  expect((await first.session.snapshot()).turns).toHaveLength(1);
+
+  // Persist the committed turn, then the process "dies".
+  await first.store.flush();
+
+  // Process 2: brand-new hot store (memory wiped), same persistent layer. The
+  // client reconnects with the SAME id.
+  const second = buildSession(createVoiceMemoryStore());
+  await second.session.connect(second.socket.socket);
+  await Bun.sleep(20);
+
+  const secondMessages = second.socket.messages.map((message) =>
+    JSON.parse(message),
+  );
+  // No greeting re-fired — the session was found in the persistent store.
+  expect(
+    secondMessages.some(
+      (message) => message.type === "assistant" && message.text === greeting,
+    ),
+  ).toBe(false);
+  // The prior turn is replayed so the conversation continues where it left off.
+  const replay = secondMessages.find((message) => message.type === "replay");
+  expect(replay?.turns).toHaveLength(1);
+  expect(replay?.turns?.[0]?.text).toBe("I run a sales SaaS.");
 });
 
 test("voice session plays a backchannel cue during a long caller turn when enabled", async () => {
