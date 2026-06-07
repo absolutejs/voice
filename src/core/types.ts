@@ -874,6 +874,17 @@ export type VoiceRouteConfig<
     session: TSession;
     api: VoiceSessionHandle<TContext, TSession, TResult>;
   }) => Promise<void> | void;
+  /** Fires when a connect RESUMES an existing session (a reconnect, or a fresh
+   *  process after a restart finding the session in a persistent store) instead
+   *  of starting a new call — onCallStart/onSession do NOT fire on a resume.
+   *  Use it to rebuild any per-session in-memory state (caller context, paced
+   *  flags) that didn't survive the process, so the resumed call keeps the
+   *  personalization the original had. Runs before the resume re-greeting. */
+  onResume?: (input: {
+    context: TContext;
+    session: TSession;
+    api: VoiceSessionHandle<TContext, TSession, TResult>;
+  }) => Promise<void> | void;
   correctTurn?: VoiceTurnCorrectionHandler<TContext, TSession, TResult>;
   onTurn: VoiceOnTurnHandler<TContext, TSession, TResult>;
   onComplete: (input: {
@@ -1133,6 +1144,14 @@ export type VoicePluginConfig<
   // is resolved per session (it receives the session), so the greeting can come
   // from a live/DB source or vary per call — e.g. a "welcome back" on resume.
   greeting?:
+    | string
+    | ((input: { session: TSession }) => string | Promise<string>);
+  // Spoken when a call RESUMES (reconnect / restart) after it already had a
+  // committed turn — a short re-orientation so the caller knows they're back,
+  // since the in-flight assistant audio didn't survive the gap. Resolved per
+  // session (receives the session) so it can reference the last turn. Unset =
+  // silent resume.
+  resumeGreeting?:
     | string
     | ((input: { session: TSession }) => string | Promise<string>);
   languageStrategy?: VoiceLanguageStrategy;
@@ -1424,6 +1443,14 @@ export type CreateVoiceSessionOptions<
   context: TContext;
   socket: VoiceSocket;
   greeting?:
+    | string
+    | ((input: { session: TSession }) => string | Promise<string>);
+  /** Spoken on a RESUME (reconnect / restart) of a call that already had at
+   *  least one committed turn — a short re-orientation ("Sorry, you cut out —
+   *  you were telling me about X; go on") so the caller knows they're back,
+   *  since the in-flight assistant audio didn't survive. Receives the session so
+   *  it can reference the last turn. No resume greeting fires if unset. */
+  resumeGreeting?:
     | string
     | ((input: { session: TSession }) => string | Promise<string>);
   stt?: STTAdapter;

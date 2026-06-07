@@ -3571,6 +3571,9 @@ export const createVoiceSession = <
     });
     await sendReplay(session);
 
+    // shouldFireOnSession === false means we're CONTINUING an existing session
+    // (a reconnect, or a fresh process resuming it from a persistent store).
+    const isResume = !shouldFireOnSession;
     if (shouldFireOnSession) {
       await options.route.onCallStart?.({
         api,
@@ -3578,6 +3581,15 @@ export const createVoiceSession = <
         session,
       });
       await options.route.onSession?.({
+        api,
+        context: options.context,
+        session,
+      });
+    } else {
+      // onCallStart/onSession don't re-fire on a resume — give the app a chance
+      // to rebuild per-session in-memory state (caller context, paced flags)
+      // that didn't survive a process restart, BEFORE any resume re-greeting.
+      await options.route.onResume?.({
         api,
         context: options.context,
         session,
@@ -3600,37 +3612,53 @@ export const createVoiceSession = <
     kickCallSilenceWatchdog();
     startAmdEvaluationTimer();
 
-    // Assistant speaks first: on a fresh connect (no turns yet) emit the
-    // configured greeting as the opening assistant message + synthesize it, so
-    // the caller is welcomed before saying anything. A synthesis failure here
-    // must never abort the session.
-    if (shouldFireOnSession && options.greeting && session.turns.length === 0) {
-      const greetingText =
-        typeof options.greeting === "function"
-          ? await options.greeting({ session })
-          : options.greeting;
-      const greetingTurnId = createId();
-      await send({
-        text: greetingText,
-        turnId: greetingTurnId,
-        type: "assistant",
-      });
+    // Emit one assistant-spoken line (greeting or resume re-orientation) as an
+    // opening assistant message + synthesize it. A synthesis failure here must
+    // never abort the session.
+    const speakAssistantLine = async (text: string) => {
+      if (!text.trim()) {
+        return;
+      }
+
+      const lineTurnId = createId();
+      await send({ text, turnId: lineTurnId, type: "assistant" });
       try {
-        const greetingTTSSession = await ensureTTSSession();
-        if (greetingTTSSession) {
-          activeTTSTurnId = greetingTurnId;
-          await greetingTTSSession.send(greetingText);
+        const lineTTSSession = await ensureTTSSession();
+        if (lineTTSSession) {
+          activeTTSTurnId = lineTurnId;
+          await lineTTSSession.send(text);
           lastTtsSendAt = Date.now();
         } else if (options.realtime) {
-          const greetingRealtimeSession =
+          const lineRealtimeSession =
             (await ensureAdapter()) as RealtimeAdapterSession;
-          activeTTSTurnId = greetingTurnId;
-          await greetingRealtimeSession.send(greetingText);
+          activeTTSTurnId = lineTurnId;
+          await lineRealtimeSession.send(text);
           lastTtsSendAt = Date.now();
         }
       } catch {
-        // A greeting synthesis failure must not abort the session.
+        // A synthesis failure must not abort the session.
       }
+    };
+
+    const resolveLine = async (
+      line:
+        | string
+        | ((input: { session: TSession }) => string | Promise<string>),
+    ) => (typeof line === "function" ? line({ session }) : line);
+
+    // Assistant speaks first. With no committed turns the conversation hasn't
+    // started, so (re-)greet — covers a fresh call AND a restart that landed
+    // before the first answer. With turns already committed it's a resume after
+    // a real exchange: the in-flight audio was lost, so speak the (optional)
+    // re-orientation line instead of repeating the greeting.
+    if (options.greeting && session.turns.length === 0) {
+      await speakAssistantLine(await resolveLine(options.greeting));
+    } else if (
+      isResume &&
+      options.resumeGreeting &&
+      session.turns.length > 0
+    ) {
+      await speakAssistantLine(await resolveLine(options.resumeGreeting));
     }
   };
 

@@ -745,6 +745,7 @@ export const voice = <
       context,
       id: sessionId,
       greeting: config.greeting,
+      resumeGreeting: config.resumeGreeting,
       handoff: config.handoff,
       languageStrategy: config.languageStrategy,
       lexicon,

@@ -3377,6 +3377,126 @@ test("voice session resumes from the persistent store after a restart without re
   expect(replay?.turns?.[0]?.text).toBe("I run a sales SaaS.");
 });
 
+test("voice session speaks the resume re-orientation and fires onResume after a restart with turns", async () => {
+  const persistent = createVoiceMemoryStore();
+  const greeting = "Welcome — tell me about your work.";
+  const resumeGreeting = "Sorry, you cut out there — please go on.";
+  const onResumeIds: string[] = [];
+
+  const build = (memory: ReturnType<typeof createVoiceMemoryStore>) => {
+    const adapter = createFakeAdapter();
+    const tts = createFakeTTSAdapter();
+    const socket = createMockSocket();
+    const store = createVoiceWriteBehindStore({
+      flushDebounceMs: 10,
+      memory,
+      persistent,
+    });
+    const session = createVoiceSession({
+      context: {},
+      greeting,
+      id: "session-resume-line",
+      logger: {},
+      reconnect: { maxAttempts: 3, strategy: "resume-last-turn", timeout: 5_000 },
+      resumeGreeting,
+      route: {
+        onComplete: async () => {},
+        onResume: async ({ session: resumed }) => {
+          onResumeIds.push(resumed.id);
+        },
+        onTurn: async () => ({}),
+      },
+      socket: socket.socket,
+      store,
+      stt: adapter.adapter,
+      tts: tts.adapter,
+      turnDetection: { silenceMs: 20, speechThreshold: 0.01, transcriptStabilityMs: 5 },
+    });
+
+    return { adapter, session, socket, store };
+  };
+
+  const first = build(createVoiceMemoryStore());
+  await first.session.connect(first.socket.socket);
+  await Bun.sleep(20);
+  await first.adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: { id: "final-1", isFinal: true, text: "I run a sales SaaS." },
+    type: "final",
+  });
+  await first.session.receiveAudio(createSpeechChunk(16_000));
+  await first.session.receiveAudio(createSpeechChunk(0));
+  await Bun.sleep(60);
+  await first.store.flush();
+
+  const second = build(createVoiceMemoryStore());
+  await second.session.connect(second.socket.socket);
+  await Bun.sleep(20);
+
+  const assistantTexts = second.socket.messages
+    .map((message) => JSON.parse(message))
+    .filter((message) => message.type === "assistant")
+    .map((message) => message.text);
+
+  // onResume fired (so the app can rebuild per-session state)...
+  expect(onResumeIds).toEqual(["session-resume-line"]);
+  // ...the caller hears the re-orientation, NOT a repeat of the greeting.
+  expect(assistantTexts).toContain(resumeGreeting);
+  expect(assistantTexts).not.toContain(greeting);
+});
+
+test("voice session re-greets when a restart lands before the first turn", async () => {
+  const persistent = createVoiceMemoryStore();
+  const greeting = "Welcome — tell me about your work.";
+  const resumeGreeting = "Sorry, you cut out — go on.";
+
+  const build = (memory: ReturnType<typeof createVoiceMemoryStore>) => {
+    const adapter = createFakeAdapter();
+    const tts = createFakeTTSAdapter();
+    const socket = createMockSocket();
+    const store = createVoiceWriteBehindStore({
+      flushDebounceMs: 10,
+      memory,
+      persistent,
+    });
+    const session = createVoiceSession({
+      context: {},
+      greeting,
+      id: "session-resume-pregreet",
+      logger: {},
+      reconnect: { maxAttempts: 3, strategy: "resume-last-turn", timeout: 5_000 },
+      resumeGreeting,
+      route: { onComplete: async () => {}, onTurn: async () => ({}) },
+      socket: socket.socket,
+      store,
+      stt: adapter.adapter,
+      tts: tts.adapter,
+      turnDetection: { silenceMs: 20, speechThreshold: 0.01, transcriptStabilityMs: 5 },
+    });
+
+    return { session, socket, store };
+  };
+
+  // Process 1: greet, but the caller never answers — no committed turn.
+  const first = build(createVoiceMemoryStore());
+  await first.session.connect(first.socket.socket);
+  await Bun.sleep(20);
+  await first.store.flush();
+
+  // Process 2: restart landed before the first turn (turns === 0). Because the
+  // conversation hadn't started, re-greet from the top — not the resume line.
+  const second = build(createVoiceMemoryStore());
+  await second.session.connect(second.socket.socket);
+  await Bun.sleep(20);
+
+  const assistantTexts = second.socket.messages
+    .map((message) => JSON.parse(message))
+    .filter((message) => message.type === "assistant")
+    .map((message) => message.text);
+  expect(assistantTexts).toContain(greeting);
+  expect(assistantTexts).not.toContain(resumeGreeting);
+});
+
 test("voice session plays a backchannel cue during a long caller turn when enabled", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();
