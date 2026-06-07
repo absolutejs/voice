@@ -80,6 +80,13 @@ export type VoiceAgentTool<
   name: string;
   parameters?: Record<string, unknown>;
   resultToMessage?: (result: TToolResult) => string;
+  /** End the turn after this tool runs — do NOT loop back to the model for
+   *  another generation. Use for tools that wrap up the call (an app-defined
+   *  end_call) where the closing line is already in the SAME response: without
+   *  this the agent generates again off the tool result and the caller hears a
+   *  SECOND closing. Built-in lifecycle tools (complete/transfer/…) are already
+   *  terminal; this flag gives an app tool the same behavior. Default false. */
+  endsTurn?: boolean;
 };
 
 export type VoiceAgentModelInput<
@@ -709,6 +716,11 @@ export const createVoiceAgent = <
         break;
       }
 
+      // An app tool flagged endsTurn (e.g. an app-defined end_call whose closing
+      // line is already in this response) terminates the turn after dispatch,
+      // so the model isn't asked to generate again — which would emit a SECOND
+      // closing.
+      let endTurnAfterDispatch = false;
       for (const toolCall of appToolCalls) {
         const tool = toolMap.get(toolCall.name);
         if (!tool) {
@@ -837,6 +849,9 @@ export const createVoiceAgent = <
             role: "tool",
             toolCallId: toolCall.id,
           });
+          if (tool.endsTurn) {
+            endTurnAfterDispatch = true;
+          }
         } catch (error) {
           const errorMessage = toErrorMessage(error);
           toolResults.push({
@@ -876,6 +891,10 @@ export const createVoiceAgent = <
             toolCallId: toolCall.id,
           });
         }
+      }
+
+      if (endTurnAfterDispatch) {
+        break;
       }
     }
 

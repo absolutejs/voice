@@ -102,6 +102,41 @@ test("createVoiceAgent executes tools and feeds results into the next model pass
   ]);
 });
 
+test("createVoiceAgent stops after an endsTurn tool — no second closing", async () => {
+  let generateCalls = 0;
+  const endCall = createVoiceAgentTool({
+    endsTurn: true,
+    execute: () => ({ ended: true }),
+    name: "end_call",
+    parameters: { properties: {}, type: "object" },
+  });
+  // The model ALWAYS returns a closing line + the end_call tool call. Without
+  // the endsTurn break, the agent would loop back off the tool result and
+  // generate again (a SECOND closing the caller hears) until maxToolRounds.
+  const model: VoiceAgentModel = {
+    generate: () => {
+      generateCalls += 1;
+
+      return {
+        assistantText: `Closing #${generateCalls}. Talk to you soon!`,
+        toolCalls: [{ args: {}, id: `call-${generateCalls}`, name: "end_call" }],
+      };
+    },
+  };
+  const agent = createVoiceAgent({ id: "intake", model, tools: [endCall] });
+
+  const result = await agent.run({
+    api: createApi(),
+    context: {},
+    session: createVoiceSessionRecord("session-endsturn"),
+    turn: createTurn("ok, bye"),
+  });
+
+  // Generated exactly once; the turn ended right after the terminal tool.
+  expect(generateCalls).toBe(1);
+  expect(result.assistantText).toBe("Closing #1. Talk to you soon!");
+});
+
 test("createVoiceAgent can run tools through reliability runtime retries", async () => {
   let attempts = 0;
   const agent = createVoiceAgent({
