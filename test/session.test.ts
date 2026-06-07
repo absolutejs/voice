@@ -486,6 +486,74 @@ test("voice session commits a turn after silence and only once", async () => {
   ).toBe(true);
 });
 
+test("semantic veto defers a mid-thought silence commit until the cap", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const turnTexts: string[] = [];
+  let evaluateCalls = 0;
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-semantic-veto",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => {
+        turnTexts.push(turn.text);
+      },
+    },
+    // Always "still mid-thought" — exercises the veto/defer path.
+    semanticTurnDetector: {
+      evaluate: () => {
+        evaluateCalls += 1;
+
+        return { endOfTurn: false, reason: "test-mid-thought" };
+      },
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      semanticVetoMaxMs: 200,
+      semanticVetoRecheckMs: 30,
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      id: "final-1",
+      isFinal: true,
+      text: "we provide",
+    },
+    type: "final",
+  });
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await session.receiveAudio(createSpeechChunk(0));
+
+  // Past silenceMs (20ms) but well under the veto cap (200ms): the silence
+  // timer fired, the detector vetoed, and the commit was deferred.
+  await Bun.sleep(70);
+  expect(turnTexts).toEqual([]);
+  expect(evaluateCalls).toBeGreaterThan(0);
+
+  // Past the cap: the detector can no longer hold the turn — it commits once.
+  await Bun.sleep(300);
+  const snapshot = await session.snapshot();
+  expect(turnTexts).toEqual(["we provide"]);
+  expect(snapshot.turns).toHaveLength(1);
+});
+
 test("voice session records trace events for lifecycle, transcripts, turns, assistant replies, and cost", async () => {
   const store = createVoiceMemoryStore();
   const trace = createVoiceMemoryTraceEventStore();
@@ -3447,4 +3515,105 @@ test("voice graceful complete waits for asynchronously-arriving closing audio (n
   // 500ms playback) had played out. The old drain returned in ~0ms.
   expect(elapsedMs).toBeGreaterThanOrEqual(400);
   expect((await session.snapshot()).status).toBe("completed");
+});
+
+test("voice session reconnects the STT stream after a non-recoverable close instead of failing the call", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-stt-reconnect",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  // First inbound audio opens STT session #1.
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await Bun.sleep(20);
+  expect(adapter.getOpenCalls()).toBe(1);
+
+  // Deepgram recycles its socket mid-call with a normal (1000) close, which the
+  // adapter flags recoverable:false. For a live call that's a dropped stream,
+  // not a fatal error — the call must NOT fail.
+  await adapter.emitCurrent("close", {
+    code: 1000,
+    reason: "Speech-to-text session closed",
+    recoverable: false,
+    type: "close",
+  });
+  await Bun.sleep(20);
+  expect((await session.snapshot()).status).not.toBe("failed");
+
+  // The next inbound audio packet transparently re-opens a fresh STT session.
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await Bun.sleep(20);
+  expect(adapter.getOpenCalls()).toBe(2);
+  expect((await session.snapshot()).status).not.toBe("failed");
+});
+
+test("voice session fails the call once the STT close flap budget is exhausted", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-stt-flap",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+
+  // A socket that closes immediately every time it opens (e.g. a rejected API
+  // key) flaps. The budget tolerates a few reconnects within the window, then
+  // gives up and fails the call rather than looping forever.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await session.receiveAudio(createSpeechChunk(16_000));
+    await Bun.sleep(15);
+    await adapter.emitCurrent("close", {
+      code: 1000,
+      reason: "stt closed",
+      recoverable: false,
+      type: "close",
+    });
+    await Bun.sleep(15);
+  }
+
+  expect((await session.snapshot()).status).toBe("failed");
 });

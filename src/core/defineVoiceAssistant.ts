@@ -41,12 +41,16 @@ import type { VoiceRuntimeOpsConfig } from "./types";
 const DEFAULT_SPEECH_THRESHOLD = 0.015;
 const DEFAULT_SILENCE_MS = 700;
 const DEFAULT_TRANSCRIPT_STABILITY_MS = 200;
+const DEFAULT_SEMANTIC_VETO_RECHECK_MS = 1_200;
 
 const resolveTurnDetection = (
   input?: VoiceTurnDetectionConfig,
 ): VoiceResolvedTurnDetectionConfig => ({
   profile: input?.profile ?? "balanced",
   qualityProfile: input?.qualityProfile ?? "general",
+  semanticVetoMaxMs: input?.semanticVetoMaxMs ?? 0,
+  semanticVetoRecheckMs:
+    input?.semanticVetoRecheckMs ?? DEFAULT_SEMANTIC_VETO_RECHECK_MS,
   silenceMs: input?.silenceMs ?? DEFAULT_SILENCE_MS,
   speechThreshold: input?.speechThreshold ?? DEFAULT_SPEECH_THRESHOLD,
   transcriptStabilityMs:

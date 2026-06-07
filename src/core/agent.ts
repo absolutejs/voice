@@ -14,6 +14,7 @@ import {
   type VoiceAuditOutcome,
 } from "./audit";
 import { extractVoiceRAGCitations } from "./ragTool";
+import { startVoiceTimer } from "./debugTiming";
 
 export type VoiceAgentMessageRole = "assistant" | "system" | "tool" | "user";
 
@@ -588,8 +589,10 @@ export const createVoiceAgent = <
   const audit = resolveVoiceAgentAuditLogger(options.audit);
 
   const run: VoiceAgent<TContext, TSession, TResult>["run"] = async (input) => {
+    const stamp = startVoiceTimer(input.session.id);
     const messages =
       input.messages ?? createHistoryMessages(input.session, input.turn);
+    stamp("agent.history-built", { messages: messages.length });
     const toolResults: VoiceAgentToolResult[] = [];
     const baseSystem =
       typeof options.system === "function"
@@ -603,10 +606,12 @@ export const createVoiceAgent = <
       [baseSystem, input.system]
         .filter((value): value is string => Boolean(value?.trim()))
         .join("\n\n") || undefined;
+    stamp("agent.system-resolved", { systemChars: system?.length ?? 0 });
     let output: VoiceAgentModelOutput<TResult> = {};
 
     for (let round = 0; round <= maxToolRounds; round += 1) {
       const modelStartedAt = Date.now();
+      stamp(`agent.round${round}.generate-start`);
       try {
         output = await options.model.generate({
           agentId: options.id,
@@ -622,6 +627,11 @@ export const createVoiceAgent = <
           })),
           turn: input.turn,
         });
+        stamp(`agent.round${round}.generate-done`, {
+          ms: Date.now() - modelStartedAt,
+          textChars: output.assistantText?.length ?? 0,
+          toolCalls: output.toolCalls?.length ?? 0,
+        });
         await audit?.providerCall({
           actor: {
             id: options.id,
@@ -635,6 +645,9 @@ export const createVoiceAgent = <
           sessionId: input.session.id,
         });
       } catch (error) {
+        stamp(`agent.round${round}.generate-error`, {
+          ms: Date.now() - modelStartedAt,
+        });
         await audit?.providerCall({
           actor: {
             id: options.id,

@@ -2,6 +2,9 @@ import type { AudioChunk, Transcript } from "./types";
 
 export const DEFAULT_SILENCE_MS = 700;
 export const DEFAULT_SPEECH_THRESHOLD = 0.015;
+// Default re-check granularity for the semantic veto (see
+// VoiceTurnDetectionConfig.semanticVetoRecheckMs).
+export const DEFAULT_SEMANTIC_VETO_RECHECK_MS = 1200;
 
 const toUint8Array = (audio: AudioChunk) => {
   if (audio instanceof ArrayBuffer) {

@@ -630,6 +630,15 @@ export type VoiceTurnDetectionConfig = {
   silenceMs?: number;
   speechThreshold?: number;
   transcriptStabilityMs?: number;
+  // Semantic-veto: when > 0 AND a `semanticTurnDetector` is configured, the
+  // silence timer asks the detector before committing. If the detector says
+  // the caller is still mid-thought (endOfTurn === false), the commit is
+  // deferred and re-checked, up to `semanticVetoMaxMs` of total extra wait per
+  // turn. 0 (default) keeps the legacy behaviour: the silence timer commits
+  // unconditionally and the detector is an early-commit signal only.
+  semanticVetoMaxMs?: number;
+  // How long to wait before the next re-check after a veto. Default 1200ms.
+  semanticVetoRecheckMs?: number;
 };
 
 export type VoiceResolvedTurnDetectionConfig = {
@@ -638,6 +647,8 @@ export type VoiceResolvedTurnDetectionConfig = {
   silenceMs: number;
   speechThreshold: number;
   transcriptStabilityMs: number;
+  semanticVetoMaxMs: number;
+  semanticVetoRecheckMs: number;
 };
 
 export type VoiceAudioConditioningConfig = {

@@ -1,3 +1,4 @@
+import { DEFAULT_SEMANTIC_VETO_RECHECK_MS } from "./turnDetection";
 import type {
   VoiceResolvedTurnDetectionConfig,
   VoiceTurnDetectionConfig,
@@ -11,18 +12,24 @@ export const TURN_PROFILE_DEFAULTS: Record<
 > = {
   balanced: {
     qualityProfile: "general",
+    semanticVetoMaxMs: 0,
+    semanticVetoRecheckMs: DEFAULT_SEMANTIC_VETO_RECHECK_MS,
     silenceMs: 1_400,
     speechThreshold: 0.012,
     transcriptStabilityMs: 1_000,
   },
   fast: {
     qualityProfile: "general",
+    semanticVetoMaxMs: 0,
+    semanticVetoRecheckMs: DEFAULT_SEMANTIC_VETO_RECHECK_MS,
     silenceMs: 700,
     speechThreshold: 0.015,
     transcriptStabilityMs: 450,
   },
   "long-form": {
     qualityProfile: "general",
+    semanticVetoMaxMs: 0,
+    semanticVetoRecheckMs: DEFAULT_SEMANTIC_VETO_RECHECK_MS,
     silenceMs: 2_200,
     speechThreshold: 0.01,
     transcriptStabilityMs: 1_500,
@@ -65,6 +72,10 @@ export const resolveTurnDetectionConfig = (
   return {
     profile,
     qualityProfile,
+    semanticVetoMaxMs:
+      config?.semanticVetoMaxMs ?? preset.semanticVetoMaxMs,
+    semanticVetoRecheckMs:
+      config?.semanticVetoRecheckMs ?? preset.semanticVetoRecheckMs,
     silenceMs: config?.silenceMs ?? quality.silenceMs ?? preset.silenceMs,
     speechThreshold:
       config?.speechThreshold ??

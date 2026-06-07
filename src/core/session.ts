@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { conditionAudioChunk } from "./audioConditioning";
+import { logVoiceTiming } from "./debugTiming";
 import {
   createVoiceBackchannelDriver,
   type VoiceBackchannelDriver,
@@ -16,6 +17,7 @@ import {
   resetVoiceSessionRecord,
 } from "./store";
 import {
+  DEFAULT_SEMANTIC_VETO_RECHECK_MS,
   DEFAULT_SILENCE_MS,
   DEFAULT_SPEECH_THRESHOLD,
   buildTurnText,
@@ -66,6 +68,17 @@ const FALLBACK_CONFIDENCE_SELECTION_DELTA = 0.05;
 const FALLBACK_WORD_COUNT_SELECTION_MARGIN_RATIO = 0.12;
 const EXTENDED_VENDOR_COMMIT_SILENCE_THRESHOLD_MS = 200;
 const MAX_VENDOR_COMMIT_GRACE_MS = 1_200;
+// A live call whose speech-to-text socket drops should re-establish the stream,
+// not die. Providers (Deepgram) recycle their socket mid-call with a NORMAL
+// (1000) close that the adapter flags `recoverable:false` — but for an active
+// call that's just a dropped stream: closing our adapter lets the next audio
+// packet lazily re-open a fresh STT session (the same path a `recoverable:true`
+// close already uses). We only give up and fail the call when the socket FLAPS
+// — closes repeatedly within a short window without any transcript progress
+// (the signature of a genuinely fatal condition like a rejected API key),
+// rather than on a single benign drop.
+const STT_RECONNECT_FLAP_WINDOW_MS = 4_000;
+const MAX_STT_RECONNECTS_IN_FLAP_WINDOW = 3;
 
 const DEFAULT_FORMAT = {
   channels: 1,
@@ -441,7 +454,14 @@ export const createVoiceSession = <
     transcriptStabilityMs:
       options.turnDetection.transcriptStabilityMs ??
       DEFAULT_TRANSCRIPT_STABILITY_MS,
+    semanticVetoMaxMs: options.turnDetection.semanticVetoMaxMs ?? 0,
+    semanticVetoRecheckMs:
+      options.turnDetection.semanticVetoRecheckMs ??
+      DEFAULT_SEMANTIC_VETO_RECHECK_MS,
   };
+  // Total time the semantic detector has so far deferred the current turn's
+  // silence commit. Reset when the turn commits or the caller speaks again.
+  let semanticVetoElapsedMs = 0;
   const sttFallback: VoiceResolvedSTTFallbackConfig | undefined =
     options.sttFallback
       ? {
@@ -524,6 +544,9 @@ export const createVoiceSession = <
   let operationQueue = Promise.resolve();
   let adapterGenerationCounter = 0;
   let activeAdapterGeneration = 0;
+  // STT-reconnect flap tracking (see STT_RECONNECT_FLAP_WINDOW_MS).
+  let sttReconnectCount = 0;
+  let lastSttReconnectAt = 0;
   let activeTTSTurnId: string | undefined;
   // Estimated wall-clock time the client finishes PLAYING all assistant audio
   // we've sent so far (each chunk plays back-to-back in real time). A graceful
@@ -1199,7 +1222,7 @@ export const createVoiceSession = <
     silenceTimer = setTimeout(() => {
       silenceTimer = null;
       pendingCommitReason = null;
-      void api.commitTurn(reason);
+      void runScheduledCommit(reason);
     }, delayMs);
   };
 
@@ -1207,6 +1230,81 @@ export const createVoiceSession = <
     delayMs = turnDetection.silenceMs,
     reset = true,
   ) => scheduleTurnCommit(delayMs, "silence", reset);
+
+  // Root-cause fix for fragmented turns: when the silence timer fires, give the
+  // semantic turn detector a chance to VETO the commit if the caller is clearly
+  // still mid-thought (e.g. paused after "we provide…"). Previously the
+  // detector could only EARLY-commit on a transcript event; the silence timer
+  // committed unconditionally, so a mid-sentence pause longer than silenceMs
+  // chopped the turn. Now the timer defers and re-checks, up to
+  // `semanticVetoMaxMs` of total extra wait per turn. Disabled (0) by default.
+  const shouldDeferSilenceCommit = async (
+    reason: VoiceEndOfTurnEvent["reason"],
+  ) => {
+    if (
+      reason !== "silence" ||
+      turnDetection.semanticVetoMaxMs <= 0 ||
+      !options.semanticTurnDetector ||
+      semanticVetoElapsedMs >= turnDetection.semanticVetoMaxMs
+    ) {
+      return false;
+    }
+
+    const session = await readSession();
+    const { partialText, transcripts } = session.currentTurn;
+    const userText = buildTurnText(transcripts, partialText, {
+      partialEndedAtMs: session.currentTurn.partialEndedAt,
+      partialStartedAtMs: session.currentTurn.partialStartedAt,
+    });
+    if (!userText) {
+      return false;
+    }
+
+    const silenceMs =
+      session.currentTurn.silenceStartedAt !== undefined
+        ? Date.now() - session.currentTurn.silenceStartedAt
+        : turnDetection.silenceMs;
+
+    let endOfTurn = true;
+    try {
+      const verdict = await Promise.resolve(
+        options.semanticTurnDetector.evaluate({
+          lastFinalTranscript: transcripts.at(-1),
+          partialText,
+          silenceMs,
+          transcripts,
+        }),
+      );
+      endOfTurn = verdict.endOfTurn;
+    } catch {
+      // A detector failure must never block a commit — fall through and commit.
+      return false;
+    }
+
+    if (endOfTurn !== false) {
+      return false;
+    }
+
+    const remaining = turnDetection.semanticVetoMaxMs - semanticVetoElapsedMs;
+    const extendMs = Math.max(
+      1,
+      Math.min(turnDetection.semanticVetoRecheckMs, remaining),
+    );
+    semanticVetoElapsedMs += extendMs;
+    scheduleTurnCommit(extendMs, reason);
+
+    return true;
+  };
+
+  const runScheduledCommit = async (
+    reason: VoiceEndOfTurnEvent["reason"],
+  ) => {
+    if (await shouldDeferSilenceCommit(reason)) {
+      return;
+    }
+
+    await api.commitTurn(reason);
+  };
 
   const requestTurnCommit = async (reason: VoiceEndOfTurnEvent["reason"]) => {
     const session = await readSession();
@@ -1670,6 +1768,41 @@ export const createVoiceSession = <
   };
 
   const handleClose = async (event: VoiceCloseEvent) => {
+    const session = await readSession();
+    const callLive =
+      session.status !== "completed" && session.status !== "failed";
+
+    // For a still-live call, treat ANY STT close — even one the adapter flags
+    // unrecoverable — as a dropped stream we should re-establish, not a fatal
+    // error. closeAdapter() nulls the session so the next inbound audio packet
+    // re-opens a fresh STT stream via ensureAdapter(). Only when the socket is
+    // FLAPPING (repeated closes inside the flap window, no transcript progress
+    // resetting the count) do we stop and fail — that's a real fatal condition.
+    if (callLive && (options.stt || options.realtime)) {
+      const now = Date.now();
+      sttReconnectCount =
+        now - lastSttReconnectAt < STT_RECONNECT_FLAP_WINDOW_MS
+          ? sttReconnectCount + 1
+          : 1;
+      lastSttReconnectAt = now;
+
+      if (sttReconnectCount <= MAX_STT_RECONNECTS_IN_FLAP_WINDOW) {
+        await appendTrace({
+          payload: {
+            action: "stt-reconnect",
+            attempt: sttReconnectCount,
+            reason: event.reason ?? "stt stream closed",
+            recoverable: event.recoverable,
+          },
+          session,
+          type: "session.error",
+        });
+        await closeAdapter(event.reason ?? "stt stream closed; reconnecting");
+
+        return;
+      }
+    }
+
     if (event.recoverable === false) {
       await failInternal(
         new Error(event.reason ?? "Speech-to-text session closed"),
@@ -2125,6 +2258,9 @@ export const createVoiceSession = <
   };
 
   const handleFinal = async (transcript: Transcript) => {
+    // A real final transcript means STT is healthy again — clear the reconnect
+    // flap budget so an earlier benign drop never counts against a later one.
+    sttReconnectCount = 0;
     const session = await writeSession((session) => {
       const alreadyPresent = session.currentTurn.transcripts.some(
         (existing) => existing.id === transcript.id,
@@ -2153,6 +2289,10 @@ export const createVoiceSession = <
       session.lastActivityAt = Date.now();
       session.status = "active";
     });
+
+    // The caller produced more words — refresh the semantic-veto budget so each
+    // genuine pause within the turn gets its own deferral allowance.
+    semanticVetoElapsedMs = 0;
 
     if (silenceTimer && pendingCommitReason === "vendor") {
       scheduleTurnCommit(getVendorCommitDelayMs(), "vendor");
@@ -2726,6 +2866,15 @@ export const createVoiceSession = <
       | Awaited<ReturnType<typeof options.route.onTurn>>
       | undefined;
     const onTurnStartedAt = Date.now();
+    // How long between the user's turn committing and us actually invoking the
+    // route — if THIS is the slow part, the delay is upstream of the model (e.g.
+    // operationQueue serialization behind the greeting audio), not the LLM.
+    logVoiceTiming(
+      session.id,
+      "session.commit-to-onturn",
+      onTurnStartedAt - (turn.committedAt || onTurnStartedAt),
+      { fillerScheduled: fillerTimer !== null },
+    );
     try {
       const onTurnPromise = options.route.onTurn({
         api: api,
@@ -3077,6 +3226,7 @@ export const createVoiceSession = <
     reason: VoiceEndOfTurnEvent["reason"] = "manual",
   ) => {
     clearSilenceTimer();
+    semanticVetoElapsedMs = 0;
     // The caller's turn is ending — clear the backchannel speech window so cues
     // don't carry over into (or fire at the seam of) the next turn.
     backchannelDriver?.reset();
