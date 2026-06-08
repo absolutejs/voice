@@ -136,10 +136,20 @@ const getBufferedAudioDurationMs = (chunks: Uint8Array[]) =>
 // reply. A chunk is flushed when a sentence terminator is followed by
 // whitespace — requiring the trailing space avoids cutting mid-token while the
 // model is still streaming (e.g. "3.5" or "U.S." never trigger a flush). A long
-// run-on without punctuation is soft-cut at the last word boundary so latency
-// stays bounded. The final partial chunk is flushed when the stream ends.
+// run-on past MAX_TTS_CHUNK_CHARS is soft-cut at a clause boundary (see below)
+// so latency stays bounded. The final partial chunk is flushed when the stream
+// ends.
 const STREAM_SENTENCE_BOUNDARY = /[.!?…]['")\]]*\s/;
-const MAX_TTS_CHUNK_CHARS = 220;
+// Clause-level breaks (comma/semicolon/colon followed by whitespace) — natural
+// prosodic pause points where a forced soft-cut sounds clean. Cutting mid-clause
+// and stranding a tiny tail fragment (e.g. flushing "...part of your " and
+// leaving "playbook." as its own send) makes the streaming TTS model emit a
+// garbled/foreign-sounding phoneme at the seam — the word before the split is
+// synthesised without the following word's context. The threshold is set above a
+// typical single sentence so a normal recap sentence flushes whole at its period
+// rather than being split.
+const STREAM_CLAUSE_BOUNDARY = /[,;:]\s/g;
+const MAX_TTS_CHUNK_CHARS = 320;
 
 const nextSpeakableBoundary = (buffer: string) => {
   const match = STREAM_SENTENCE_BOUNDARY.exec(buffer);
@@ -150,6 +160,13 @@ const nextSpeakableBoundary = (buffer: string) => {
 const softCutBoundary = (buffer: string) => {
   if (buffer.length < MAX_TTS_CHUNK_CHARS) return -1;
   const window = buffer.slice(0, MAX_TTS_CHUNK_CHARS);
+  // Prefer the last clause boundary in the window so the cut lands on a natural
+  // pause and both halves stay whole phrases.
+  let lastClause = -1;
+  for (const match of window.matchAll(STREAM_CLAUSE_BOUNDARY)) {
+    lastClause = match.index + match[0].length;
+  }
+  if (lastClause > 0) return lastClause;
   const lastSpace = window.lastIndexOf(" ");
 
   return lastSpace > 0 ? lastSpace + 1 : MAX_TTS_CHUNK_CHARS;
