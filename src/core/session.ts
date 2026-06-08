@@ -1432,30 +1432,50 @@ export const createVoiceSession = <
   //   2. stream quiet — no new audio chunk for DRAIN_QUIET_MS, i.e. the provider
   //      finished streaming the closing;
   //   3. playback drained — the received audio has played out (+ a tail buffer).
-  // A hard cap stops a stuck stream from holding the call open forever.
+  // The caps below guard ONLY the unbounded failure modes (a stream that never
+  // renders, or one that never stops streaming). A healthy closing that is still
+  // playing out is NOT cut off, however long it is: once the stream has gone
+  // quiet, `assistantSpeechEndsAt` is fixed and the remaining wait is finite, so
+  // we let it finish. Previously a single absolute 20s ceiling guillotined any
+  // closing whose spoken audio ran past 20s — a long recap + sign-off would
+  // render fully on screen (text is one block) but get torn down mid-speech.
   const DRAIN_POLL_MS = 100;
   const DRAIN_TAIL_BUFFER_MS = 300;
   const DRAIN_QUIET_MS = 600;
   const DRAIN_RENDER_START_MS = 4_000;
-  const DRAIN_MAX_MS = 20_000;
+  // Cap on the unbounded cases only: how long we wait while audio has NOT yet
+  // started, or is STILL actively streaming (provider never goes quiet). Does
+  // not bound healthy playback of an already-received closing.
+  const DRAIN_STREAMING_MAX_MS = 20_000;
+  // Absolute safety net for all cases (e.g. a corrupt playback clock). Set far
+  // above any real closing so it never truncates a genuine goodbye.
+  const DRAIN_HARD_MAX_MS = 120_000;
   const drainAssistantSpeech = async (renderPendingSince: number) => {
     const startedAt = Date.now();
     const sleep = (delayMs: number) =>
       new Promise((resolve) => {
         setTimeout(resolve, delayMs);
       });
-    while (Date.now() - startedAt < DRAIN_MAX_MS) {
+    while (Date.now() - startedAt < DRAIN_HARD_MAX_MS) {
       const now = Date.now();
       const renderStarted =
         lastAssistantAudioAt >= renderPendingSince ||
         now - renderPendingSince >= DRAIN_RENDER_START_MS;
       if (!renderStarted) {
+        // No audio has rendered yet. Give the provider its startup window, then
+        // bail rather than hold the call open on a stream that never began.
+        if (now - startedAt >= DRAIN_STREAMING_MAX_MS) return;
         await sleep(DRAIN_POLL_MS);
         continue;
       }
       const streamQuiet = now - lastAssistantAudioAt >= DRAIN_QUIET_MS;
       const playbackDrained = assistantSpeechEndsAt + DRAIN_TAIL_BUFFER_MS <= now;
       if (streamQuiet && playbackDrained) return;
+      // Backstop the only remaining unbounded case: a stream that keeps arriving
+      // and never goes quiet (runaway/stuck provider). Once the stream IS quiet,
+      // the wait is bounded by the fixed `assistantSpeechEndsAt`, so a long-but-
+      // finite closing is allowed to play out fully.
+      if (!streamQuiet && now - startedAt >= DRAIN_STREAMING_MAX_MS) return;
       await sleep(DRAIN_POLL_MS);
     }
   };
