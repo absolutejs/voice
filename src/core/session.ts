@@ -3801,11 +3801,46 @@ export const createVoiceSession = <
       // current utterance (e.g. cut the greeting). Energy still drives turn
       // detection (speechDetected / silence timers) here.
       speechDetected = true;
-      clearSilenceTimer();
       kickCallSilenceWatchdog();
       // Track the caller's ongoing speech so a backchannel cue can fire once
       // they've been talking long enough (no-op unless backchannel is enabled).
       backchannelDriver?.noteSpeech();
+      // Energy above threshold normally means the caller is mid-utterance, so we
+      // clear the pending silence commit to defer end-of-turn. But raw energy
+      // WITHOUT new STT words is almost always background/line noise — on a noisy
+      // mic it crosses the threshold continuously and would defer the commit for
+      // many seconds (observed: 12–13s after a terse answer like "no"). So only
+      // treat energy as "still talking" while STT is actually producing words:
+      // once we already have turn text and STT has gone quiet (no new transcript)
+      // for >= silenceMs, the turn is over even though noise persists — fire the
+      // silence commit instead of clearing it. STT word cadence (Deepgram emits
+      // partials every ~100-300ms during real speech) is the truth signal; a
+      // >= silenceMs gap in transcripts means they stopped, noise or not.
+      const latest = await readSession();
+      const sttQuietMs =
+        latest.currentTurn.lastTranscriptAt !== undefined
+          ? Date.now() - latest.currentTurn.lastTranscriptAt
+          : Number.POSITIVE_INFINITY;
+      const hasTurnTextDespiteNoise = Boolean(
+        buildTurnText(
+          latest.currentTurn.transcripts,
+          latest.currentTurn.partialText,
+          {
+            partialEndedAtMs: latest.currentTurn.partialEndedAt,
+            partialStartedAtMs: latest.currentTurn.partialStartedAt,
+          },
+        ),
+      );
+      if (
+        hasTurnTextDespiteNoise &&
+        sttQuietMs >= turnDetection.silenceMs
+      ) {
+        if (!silenceTimer) {
+          scheduleSilenceCommit(0);
+        }
+      } else {
+        clearSilenceTimer();
+      }
     } else if (speechDetected) {
       backchannelDriver?.noteSilence();
       const currentSession = await readSession();
