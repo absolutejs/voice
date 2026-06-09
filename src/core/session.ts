@@ -1550,20 +1550,23 @@ export const createVoiceSession = <
       return;
     }
 
-    // Persist the outcome BEFORE draining the closing audio. onComplete is the
-    // route's durable save (e.g. extract + write the intake); it has no reason to
-    // wait out the ~20s+ of closing playback, and gating it there meant a caller
-    // who navigated away during the goodbye lost their result. Running it now —
-    // while the closing still plays — makes the save prompt and independent of
-    // whether the client survives to the teardown. The client-facing "complete"
-    // signal still waits for the drain below so the goodbye isn't cut.
-    if (shouldInvokeOnComplete) {
-      await options.route.onComplete({
-        api,
-        context: options.context,
-        session,
-      });
-    }
+    // Kick off the durable save NOW, concurrently with the closing-audio drain.
+    // onComplete is the route's persistence hook (e.g. extract + write the
+    // intake); it has no reason to wait out the ~20s+ of closing playback, and
+    // gating it behind the drain meant a caller who navigated away during the
+    // goodbye lost their result. Starting it here (not awaiting yet) makes the
+    // save prompt and independent of whether the client survives — WITHOUT
+    // delaying the client-facing "complete" below (that fires at drain-end), so a
+    // slow extraction never extends the perceived call. Awaited before onCallEnd.
+    const onCompletePromise = shouldInvokeOnComplete
+      ? Promise.resolve(
+          options.route.onComplete({
+            api,
+            context: options.context,
+            session,
+          }),
+        )
+      : Promise.resolve();
 
     // Only a graceful end (intake done / end_call) waits out the closing line —
     // a caller hangup / transfer / failure should tear down immediately.
@@ -1632,6 +1635,9 @@ export const createVoiceSession = <
         session,
       });
     }
+    // Ensure the durable save (started concurrently with the drain above)
+    // finished before the final teardown / onCallEnd.
+    await onCompletePromise;
     await options.route.onCallEnd?.({
       api,
       context: options.context,
