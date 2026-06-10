@@ -1,4 +1,4 @@
-import type { Transcript } from "./types";
+import type { AudioFormat, Transcript } from "./types";
 
 export type VoiceSemanticTurnInput = {
   audioLevel?: number;
@@ -6,6 +6,16 @@ export type VoiceSemanticTurnInput = {
   partialText: string;
   silenceMs: number;
   transcripts: Transcript[];
+  /**
+   * The current turn's buffered user audio (PCM chunks, oldest→newest) and its
+   * format. Lets an AUDIO-based end-of-turn detector (e.g. a smart-turn / Whisper
+   * EOT model) judge completion from prosody — pitch, pace, trailing intonation —
+   * which a transcript-only judge fundamentally cannot see. Undefined when no
+   * audio was buffered for the turn (the runtime only stores chunks above the
+   * speech threshold).
+   */
+  turnAudio?: ReadonlyArray<Uint8Array>;
+  turnAudioFormat?: AudioFormat;
 };
 
 export type VoiceSemanticTurnVerdict = {

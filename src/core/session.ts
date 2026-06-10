@@ -830,6 +830,27 @@ export const createVoiceSession = <
     return currentTurnAudio.map((audio) => audio.chunk);
   };
 
+  // The current turn's buffered user audio (PCM, oldest→newest) + its format, for
+  // an audio-based semantic turn detector. Undefined when nothing's buffered.
+  const turnAudioInputFormat =
+    recordingConfig?.userInputFormat ??
+    options.realtimeInputFormat ??
+    DEFAULT_REALTIME_FORMAT;
+  const getTurnAudioForDetector = () => {
+    if (!options.semanticTurnDetector || currentTurnAudio.length === 0) {
+      return { turnAudio: undefined, turnAudioFormat: undefined };
+    }
+    const turnAudio = currentTurnAudio.map((audio) => {
+      const c = audio.chunk;
+
+      return c instanceof ArrayBuffer
+        ? new Uint8Array(c)
+        : new Uint8Array(c.buffer, c.byteOffset, c.byteLength);
+    });
+
+    return { turnAudio, turnAudioFormat: turnAudioInputFormat };
+  };
+
   const clearSilenceTimer = () => {
     if (!silenceTimer) {
       return;
@@ -1313,6 +1334,7 @@ export const createVoiceSession = <
           partialText,
           silenceMs,
           transcripts,
+          ...getTurnAudioForDetector(),
         }),
       );
       endOfTurn = verdict.endOfTurn;
@@ -2401,6 +2423,7 @@ export const createVoiceSession = <
               ? Date.now() - session.currentTurn.silenceStartedAt
               : 0,
           transcripts: session.currentTurn.transcripts,
+          ...getTurnAudioForDetector(),
         }),
       );
       if (verdict.endOfTurn) {
