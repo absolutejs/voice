@@ -79,6 +79,16 @@ const MAX_VENDOR_COMMIT_GRACE_MS = 1_200;
 // rather than on a single benign drop.
 const STT_RECONNECT_FLAP_WINDOW_MS = 4_000;
 const MAX_STT_RECONNECTS_IN_FLAP_WINDOW = 3;
+// STT-health watchdog: a streaming STT (e.g. Deepgram) can go DEAD without ever
+// emitting a close event — it idle-closes a half-open socket, or wedges, and the
+// caller's speech vanishes into a stream that never transcribes. Unlike a clean
+// close (handled by handleClose), nothing tells us. So we watch the truth signal:
+// if the caller produces continuous speech energy for STT_HEALTH_STALE_MS without
+// a SINGLE transcript landing, the stream is dead — force-reconnect it. A new
+// speaking phase starts after a gap of STT_HEALTH_SPEECH_GAP_MS so brief pauses
+// don't reset the window.
+const STT_HEALTH_STALE_MS = 6_000;
+const STT_HEALTH_SPEECH_GAP_MS = 2_000;
 
 const DEFAULT_FORMAT = {
   channels: 1,
@@ -564,6 +574,9 @@ export const createVoiceSession = <
   // STT-reconnect flap tracking (see STT_RECONNECT_FLAP_WINDOW_MS).
   let sttReconnectCount = 0;
   let lastSttReconnectAt = 0;
+  // STT-health watchdog state (see STT_HEALTH_STALE_MS).
+  let lastSpeechEnergyAt = 0;
+  let sttHealthPhaseStart = 0;
   let activeTTSTurnId: string | undefined;
   // Estimated wall-clock time the client finishes PLAYING all assistant audio
   // we've sent so far (each chunk plays back-to-back in real time). A graceful
@@ -3854,6 +3867,49 @@ export const createVoiceSession = <
         }
       } else {
         clearSilenceTimer();
+      }
+
+      // ── STT-health watchdog ──────────────────────────────────────────────
+      // The caller is producing speech energy. Track the continuous-speech phase
+      // (a gap > STT_HEALTH_SPEECH_GAP_MS starts a new one), and if the phase has
+      // run STT_HEALTH_STALE_MS with NO transcript landing in it, the STT stream
+      // is dead — not merely quiet. Force-reconnect it (flap-budgeted, shared with
+      // handleClose): closeAdapter nulls the session so the next inbound packet
+      // re-opens a fresh stream, and we skip this chunk's send into the dead one.
+      // Only the discrete-STT path can wedge like this; realtime adapters manage
+      // their own transport.
+      const nowMs = Date.now();
+      if (nowMs - lastSpeechEnergyAt > STT_HEALTH_SPEECH_GAP_MS) {
+        sttHealthPhaseStart = nowMs;
+      }
+      lastSpeechEnergyAt = nowMs;
+      const lastTranscriptAt = latest.currentTurn.lastTranscriptAt ?? 0;
+      if (
+        !options.realtime &&
+        sttSession &&
+        lastTranscriptAt < sttHealthPhaseStart &&
+        nowMs - sttHealthPhaseStart >= STT_HEALTH_STALE_MS
+      ) {
+        sttReconnectCount =
+          nowMs - lastSttReconnectAt < STT_RECONNECT_FLAP_WINDOW_MS
+            ? sttReconnectCount + 1
+            : 1;
+        lastSttReconnectAt = nowMs;
+        sttHealthPhaseStart = nowMs; // give the fresh stream a clean window
+        if (sttReconnectCount <= MAX_STT_RECONNECTS_IN_FLAP_WINDOW) {
+          await appendTrace({
+            payload: {
+              action: "stt-health-reconnect",
+              attempt: sttReconnectCount,
+              reason: `no transcript for ${STT_HEALTH_STALE_MS}ms of continuous speech`,
+            },
+            session: latest,
+            type: "session.error",
+          });
+          await closeAdapter("stt stale; health-reconnect");
+
+          return; // skip the send into the now-closed stream; next packet re-opens
+        }
       }
     } else if (speechDetected) {
       backchannelDriver?.noteSilence();
