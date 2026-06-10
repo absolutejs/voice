@@ -160,6 +160,16 @@ const STREAM_SENTENCE_BOUNDARY = /[.!?…]['")\]]*\s/;
 // rather than being split.
 const STREAM_CLAUSE_BOUNDARY = /[,;:]\s/g;
 const MAX_TTS_CHUNK_CHARS = 320;
+// A complete sentence sitting in the buffer (terminator at the very end, no
+// trailing space yet) — e.g. a whole short reply like "Go on." The normal flush
+// needs a terminator FOLLOWED BY whitespace, which a short reply that IS the
+// entire turn never gets, so it would wait for the stream to formally close.
+// gpt-4.1 can hold a stream open ~4-5s after a tiny completion (slow stop / tool
+// deliberation), so the caller hears a 2-word nudge 5s late ("Go on… then
+// paused"). If the model goes quiet for STREAM_IDLE_FLUSH_MS with a complete
+// sentence buffered, speak it instead of waiting for the close.
+const STREAM_SENTENCE_END = /[.!?…]['")\]]*$/;
+const STREAM_IDLE_FLUSH_MS = 350;
 
 const nextSpeakableBoundary = (buffer: string) => {
   const match = STREAM_SENTENCE_BOUNDARY.exec(buffer);
@@ -2666,6 +2676,7 @@ export const createVoiceSession = <
     let charsSent = 0;
     let started = false;
     let streamed = false;
+    let idleFlushTimer: ReturnType<typeof setTimeout> | null = null;
     let sendChain: Promise<void> = Promise.resolve();
     let ttsSessionRequest: Promise<TTSAdapterSession | null> | null = null;
     const ttsStartedAt = Date.now();
@@ -2738,8 +2749,28 @@ export const createVoiceSession = <
       })();
     };
 
+    const clearIdleFlush = () => {
+      if (idleFlushTimer) {
+        clearTimeout(idleFlushTimer);
+        idleFlushTimer = null;
+      }
+    };
+
+    // The model has paused mid-stream. If a COMPLETE sentence is buffered, speak
+    // it now rather than waiting for the (possibly slow) stream close — only a
+    // whole sentence, so we never split mid-clause and seam-garble the audio.
+    const flushOnIdle = () => {
+      idleFlushTimer = null;
+      const pending = buffer.trim();
+      if (pending && STREAM_SENTENCE_END.test(pending)) {
+        flush(buffer);
+        buffer = "";
+      }
+    };
+
     return {
       finish: async () => {
+        clearIdleFlush();
         if (buffer.trim()) {
           flush(buffer);
         }
@@ -2784,6 +2815,13 @@ export const createVoiceSession = <
         if (cut !== -1) {
           flush(buffer.slice(0, cut));
           buffer = buffer.slice(cut);
+        }
+        // Arm the idle-flush so a complete-but-unterminated-by-space sentence
+        // (a short whole reply) doesn't wait on a slow stream close. Re-armed on
+        // every delta, so it only fires once the model has actually gone quiet.
+        clearIdleFlush();
+        if (buffer.trim()) {
+          idleFlushTimer = setTimeout(flushOnIdle, STREAM_IDLE_FLUSH_MS);
         }
       },
     };
