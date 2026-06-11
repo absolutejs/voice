@@ -235,6 +235,13 @@ export type VoiceAssistant<
   agent: VoiceAgent<TContext, TSession, TResult>;
   id: string;
   onTurn: VoiceOnTurnObjectHandler<TContext, TSession, TResult>;
+  /**
+   * Speculative, side-effect-free generation for eager replies (P3) — forwards
+   * to the agent's `runSpeculative` (raw model text; guardrails/memory are NOT
+   * applied, so only safe to reuse when the assistant has none, or the caller
+   * re-applies them). Undefined if the underlying agent can't speculate.
+   */
+  speculate?: NonNullable<VoiceAgent<TContext, TSession, TResult>["runSpeculative"]>;
   ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
   route: (
     overrides: Omit<
@@ -608,6 +615,7 @@ export const createVoiceAssistant = <
     agent,
     id: options.id,
     onTurn,
+    speculate: agent.runSpeculative,
     ops,
     route: (overrides) => ({
       ...overrides,

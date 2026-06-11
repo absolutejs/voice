@@ -170,6 +170,10 @@ const MAX_TTS_CHUNK_CHARS = 320;
 // sentence buffered, speak it instead of waiting for the close.
 const STREAM_SENTENCE_END = /[.!?…]['")\]]*$/;
 const STREAM_IDLE_FLUSH_MS = 350;
+// P3 eager generation: fire the speculative reply this far into the silence
+// window (0.5 = halfway to commit). Earlier = bigger LLM head start but more
+// wasted speculations when the caller resumes; later = smaller win.
+const SPECULATIVE_FRACTION = 0.5;
 
 const nextSpeakableBoundary = (buffer: string) => {
   const match = STREAM_SENTENCE_BOUNDARY.exec(buffer);
@@ -519,6 +523,14 @@ export const createVoiceSession = <
 
     return Math.round(minSilenceMs + (silenceMs - minSilenceMs) * (1 - complete));
   };
+
+  // P3 eager generation: a reply the route pre-generated during the silence
+  // window, tagged with the pending text it saw. Reused on commit ONLY if the
+  // committed transcript still equals `pendingText` (the caller stayed quiet);
+  // a resume changes the text and discards it. `speculativeTimer` fires the
+  // speculation partway through the silence window.
+  let speculativeReply: { pendingText: string; text: string } | null = null;
+  let speculativeTimer: ReturnType<typeof setTimeout> | null = null;
   const sttFallback: VoiceResolvedSTTFallbackConfig | undefined =
     options.sttFallback
       ? {
@@ -1307,10 +1319,73 @@ export const createVoiceSession = <
     }, delayMs);
   };
 
+  // P3: discard any pending/stored speculation (timer + result).
+  const clearSpeculation = () => {
+    if (speculativeTimer) {
+      clearTimeout(speculativeTimer);
+      speculativeTimer = null;
+    }
+    speculativeReply = null;
+  };
+
+  // P3: fire the route's speculate hook on the caller's utterance-so-far and
+  // stash the reply. Pure — the route generates text only; we never play it
+  // here. Kept only if the turn hasn't already produced a stored speculation.
+  const runSpeculation = async () => {
+    if (!options.route.speculate || speculativeReply) {
+      return;
+    }
+    const session = await readSession();
+    const pendingText = buildTurnText(
+      session.currentTurn.transcripts,
+      session.currentTurn.partialText,
+      {
+        partialEndedAtMs: session.currentTurn.partialEndedAt,
+        partialStartedAtMs: session.currentTurn.partialStartedAt,
+      },
+    );
+    if (!pendingText) {
+      return;
+    }
+    const provisionalTurn: VoiceTurnRecord<TResult> = {
+      committedAt: Date.now(),
+      id: createId(),
+      text: pendingText,
+      transcripts: session.currentTurn.transcripts,
+    };
+    try {
+      const result = await Promise.resolve(
+        options.route.speculate({
+          api,
+          context: options.context,
+          session,
+          turn: provisionalTurn,
+        }),
+      );
+      if (result && result.text.trim() && !speculativeReply) {
+        speculativeReply = { pendingText, text: result.text };
+      }
+    } catch {
+      // A speculation failure is non-fatal — the real turn regenerates.
+    }
+  };
+
   const scheduleSilenceCommit = (
     delayMs = adaptiveSilenceMs(),
     reset = true,
-  ) => scheduleTurnCommit(delayMs, "silence", reset);
+  ) => {
+    scheduleTurnCommit(delayMs, "silence", reset);
+    // P3: arm eager generation partway through the silence window. Re-armed on
+    // each reset (a new transcript) so it only fires once the caller has truly
+    // paused; the stale stored result is dropped because the pending text moved.
+    if (options.route.speculate && reset) {
+      clearSpeculation();
+      speculativeTimer = setTimeout(() => {
+        speculativeTimer = null;
+        void runSpeculation();
+      }, Math.max(1, Math.round(delayMs * SPECULATIVE_FRACTION)));
+    }
+  };
 
   // The silence window is now adaptive (see adaptiveSilenceMs): the detector's
   // completion-confidence already lengthens the wait for a mid-thought pause and
@@ -2341,8 +2416,10 @@ export const createVoiceSession = <
     });
 
     // The caller produced more words — drop the stale completion-confidence so
-    // the adaptive window widens again until the detector re-weighs in.
+    // the adaptive window widens again until the detector re-weighs in, and
+    // discard any speculation (it was generated for the shorter utterance).
     lastTurnCompleteConfidence = null;
+    clearSpeculation();
 
     if (silenceTimer && pendingCommitReason === "vendor") {
       scheduleTurnCommit(getVendorCommitDelayMs(), "vendor");
@@ -2963,6 +3040,16 @@ export const createVoiceSession = <
       onTurnStartedAt - (turn.committedAt || onTurnStartedAt),
       { fillerScheduled: fillerTimer !== null },
     );
+    // P3: if eager generation ran during the silence window and the caller
+    // stayed quiet (the committed text equals what we speculated on), hand the
+    // pre-generated reply to onTurn so it can skip its own model call. Any
+    // divergence (the caller resumed and said more) leaves it undefined and the
+    // turn generates normally. Consumed either way.
+    const reusableSpeculation =
+      speculativeReply && speculativeReply.pendingText === turn.text
+        ? { text: speculativeReply.text }
+        : undefined;
+    clearSpeculation();
     try {
       const onTurnPromise = options.route.onTurn({
         api: api,
@@ -2975,6 +3062,7 @@ export const createVoiceSession = <
           : undefined,
         onTextDelta: ttsStreamer?.push,
         session,
+        speculativeReply: reusableSpeculation,
         turn,
       });
       if (onTurnTimeoutMs > 0) {

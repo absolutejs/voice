@@ -196,6 +196,23 @@ export type VoiceAgent<
     system?: string;
     turn: VoiceTurnRecord;
   }) => Promise<VoiceAgentRunResult<TResult>>;
+  /**
+   * Speculative, side-effect-free generation for eager replies (P3). Runs a
+   * SINGLE model round and returns the text the model would say — but executes
+   * NOTHING: no tools, no streaming to TTS, no traces, no commit. Returns null
+   * if the model wants any tool (the real turn must run so tools fire exactly
+   * once) or on any error. Optional — agents that don't implement it simply
+   * can't be speculated against. Honors no abort itself; the caller discards
+   * the result if the user resumes.
+   */
+  runSpeculative?: (input: {
+    api: VoiceSessionHandle<TContext, TSession, TResult>;
+    context: TContext;
+    messages?: VoiceAgentMessage[];
+    session: TSession;
+    system?: string;
+    turn: VoiceTurnRecord;
+  }) => Promise<{ text: string } | null>;
 };
 
 export type VoiceAgentOptions<
@@ -933,9 +950,57 @@ export const createVoiceAgent = <
     };
   };
 
+  // P3: pure, single-round generation for eager/speculative replies. Produces the
+  // text the model WOULD say but executes NOTHING — no tools, no streaming to TTS,
+  // no traces, no commit. If the model wants any tool (app OR lifecycle), the
+  // speculation is unusable (the real turn must run so tools fire exactly once).
+  const runSpeculative: NonNullable<
+    VoiceAgent<TContext, TSession, TResult>["runSpeculative"]
+  > = async (input) => {
+    let output: VoiceAgentModelOutput<TResult>;
+    try {
+      const messages =
+        input.messages ?? createHistoryMessages(input.session, input.turn);
+      const baseSystem =
+        typeof options.system === "function"
+          ? await options.system({
+              context: input.context,
+              session: input.session,
+              turn: input.turn,
+            })
+          : options.system;
+      const system =
+        [baseSystem, input.system]
+          .filter((value): value is string => Boolean(value?.trim()))
+          .join("\n\n") || undefined;
+      output = await options.model.generate({
+        agentId: options.id,
+        context: input.context,
+        messages,
+        session: input.session,
+        system,
+        tools: [...LIFECYCLE_TOOLS, ...toolMap.values()].map((tool) => ({
+          description: tool.description,
+          name: tool.name,
+          parameters: tool.parameters,
+        })),
+        turn: input.turn,
+      });
+    } catch {
+      return null;
+    }
+    if (output.toolCalls?.length) {
+      return null;
+    }
+    const text = output.assistantText?.trim();
+
+    return text ? { text } : null;
+  };
+
   return {
     id: options.id,
     run,
+    runSpeculative,
     onTurn: async (input) => run(input),
   };
 };

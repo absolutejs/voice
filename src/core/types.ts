@@ -828,6 +828,12 @@ export type VoiceOnTurnObjectHandler<
   session: TSession;
   turn: VoiceTurnRecord;
   api: VoiceSessionHandle<TContext, TSession, TResult>;
+  // P3 eager generation: when `route.speculate` ran during the silence window and
+  // the committed transcript still matches what it saw, the session hands the
+  // pre-generated reply here. A route that wants the latency win streams this
+  // text straight to TTS (via onTextDelta) and does its side effects, SKIPPING
+  // its own model call. Absent on a divergence/resume or when no speculation ran.
+  speculativeReply?: { text: string };
 }) =>
   | Promise<VoiceRouteResult<TResult> | void>
   | VoiceRouteResult<TResult>
@@ -885,6 +891,20 @@ export type VoiceRouteConfig<
     api: VoiceSessionHandle<TContext, TSession, TResult>;
   }) => Promise<void> | void;
   correctTurn?: VoiceTurnCorrectionHandler<TContext, TSession, TResult>;
+  // P3 eager generation (optional). Fired during the silence window once the
+  // caller appears done, with a PROVISIONAL turn carrying their utterance so far.
+  // Must generate ONLY the reply text — no tools, no persistence, no audio (the
+  // session never plays it directly). Return null to decline (e.g. the model
+  // wants a tool, so the real turn must run). If the caller then stays quiet and
+  // the committed transcript matches, the session passes the text to onTurn as
+  // `speculativeReply`; if they resume, it's discarded. Wire to
+  // `assistant.speculate`.
+  speculate?: (input: {
+    api: VoiceSessionHandle<TContext, TSession, TResult>;
+    context: TContext;
+    session: TSession;
+    turn: VoiceTurnRecord;
+  }) => Promise<{ text: string } | null | void>;
   onTurn: VoiceOnTurnHandler<TContext, TSession, TResult>;
   onComplete: (input: {
     context: TContext;
