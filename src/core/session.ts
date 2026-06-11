@@ -536,6 +536,9 @@ export const createVoiceSession = <
   // Guards "arm once per pause" — set when the speculative timer is armed,
   // cleared on resume/commit so the next pause can speculate afresh.
   let speculationAttempted = false;
+  console.info(
+    `[voice][p3dbg] session ${options.id} route.speculate wired=${Boolean(options.route.speculate)}`,
+  );
   const sttFallback: VoiceResolvedSTTFallbackConfig | undefined =
     options.sttFallback
       ? {
@@ -1394,6 +1397,9 @@ export const createVoiceSession = <
     // can speculate again.
     if (options.route.speculate && reset && !speculationAttempted) {
       speculationAttempted = true;
+      console.info(
+        `[voice][p3dbg] armed speculation delay=${SPECULATIVE_DELAY_MS} reason=silence session=${options.id}`,
+      );
       speculativeTimer = setTimeout(() => {
         speculativeTimer = null;
         void runSpeculation();
