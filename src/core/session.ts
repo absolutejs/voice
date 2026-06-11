@@ -170,10 +170,12 @@ const MAX_TTS_CHUNK_CHARS = 320;
 // sentence buffered, speak it instead of waiting for the close.
 const STREAM_SENTENCE_END = /[.!?…]['")\]]*$/;
 const STREAM_IDLE_FLUSH_MS = 350;
-// P3 eager generation: fire the speculative reply this far into the silence
-// window (0.5 = halfway to commit). Earlier = bigger LLM head start but more
-// wasted speculations when the caller resumes; later = smaller win.
-const SPECULATIVE_FRACTION = 0.5;
+// P3 eager generation: fire the speculative reply this long after the caller
+// goes quiet. Short enough to beat the end-of-turn commit (giving the model a
+// real head start), long enough that a brief mid-thought pause usually doesn't
+// trigger a wasted generation. Armed ONCE per pause (the silence scheduler runs
+// per audio frame, so re-arming each tick would never let the timer mature).
+const SPECULATIVE_DELAY_MS = 350;
 
 const nextSpeakableBoundary = (buffer: string) => {
   const match = STREAM_SENTENCE_BOUNDARY.exec(buffer);
@@ -531,6 +533,9 @@ export const createVoiceSession = <
   // speculation partway through the silence window.
   let speculativeReply: { pendingText: string; text: string } | null = null;
   let speculativeTimer: ReturnType<typeof setTimeout> | null = null;
+  // Guards "arm once per pause" — set when the speculative timer is armed,
+  // cleared on resume/commit so the next pause can speculate afresh.
+  let speculationAttempted = false;
   const sttFallback: VoiceResolvedSTTFallbackConfig | undefined =
     options.sttFallback
       ? {
@@ -1319,13 +1324,15 @@ export const createVoiceSession = <
     }, delayMs);
   };
 
-  // P3: discard any pending/stored speculation (timer + result).
+  // P3: discard any pending/stored speculation (timer + result) and allow the
+  // next pause to arm a fresh one.
   const clearSpeculation = () => {
     if (speculativeTimer) {
       clearTimeout(speculativeTimer);
       speculativeTimer = null;
     }
     speculativeReply = null;
+    speculationAttempted = false;
   };
 
   // P3: fire the route's speculate hook on the caller's utterance-so-far and
@@ -1362,11 +1369,17 @@ export const createVoiceSession = <
           turn: provisionalTurn,
         }),
       );
+      console.info(
+        `[voice][p3] speculate fired session=${session.id} -> ${result?.text ? `${result.text.length} chars` : "null"} for "${pendingText.slice(0, 30)}"`,
+      );
       if (result && result.text.trim() && !speculativeReply) {
         speculativeReply = { pendingText, text: result.text };
       }
-    } catch {
+    } catch (error) {
       // A speculation failure is non-fatal — the real turn regenerates.
+      console.info(
+        `[voice][p3] speculate error: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
 
@@ -1375,15 +1388,16 @@ export const createVoiceSession = <
     reset = true,
   ) => {
     scheduleTurnCommit(delayMs, "silence", reset);
-    // P3: arm eager generation partway through the silence window. Re-armed on
-    // each reset (a new transcript) so it only fires once the caller has truly
-    // paused; the stale stored result is dropped because the pending text moved.
-    if (options.route.speculate && reset) {
-      clearSpeculation();
+    // P3: arm eager generation ONCE per pause. This scheduler runs per audio
+    // frame, so `speculationAttempted` stops each tick from resetting the timer;
+    // a resume/commit clears the flag (via clearSpeculation) so the next pause
+    // can speculate again.
+    if (options.route.speculate && reset && !speculationAttempted) {
+      speculationAttempted = true;
       speculativeTimer = setTimeout(() => {
         speculativeTimer = null;
         void runSpeculation();
-      }, Math.max(1, Math.round(delayMs * SPECULATIVE_FRACTION)));
+      }, SPECULATIVE_DELAY_MS);
     }
   };
 
