@@ -1357,7 +1357,6 @@ export const createVoiceSession = <
       text: pendingText,
       transcripts: session.currentTurn.transcripts,
     };
-    const startedAt = Date.now();
     const speculate = options.route.speculate;
     const promise = Promise.resolve(
       speculate({
@@ -1367,17 +1366,19 @@ export const createVoiceSession = <
         turn: provisionalTurn,
       }),
     )
-      .then((result) => {
-        console.info(
-          `[voice][p3] speculate done session=${session.id} -> ${result?.text ? `${result.text.length} chars` : "null"} in ${Date.now() - startedAt}ms for "${pendingText.slice(0, 30)}"`,
-        );
-
-        return result && result.text.trim() ? { text: result.text } : null;
-      })
+      // No per-speculation log here: many speculations are wasted (mid-utterance
+      // pauses / divergence) and would flood the journal. The outcomes that
+      // actually shape a call ARE logged — a reuse is recorded at commit
+      // (p3.adopted-speculation timing + the route's "reused eager reply"), and
+      // every turn's latency/text is in the per-turn diag + the call transcript.
+      .then((result) =>
+        result && result.text.trim() ? { text: result.text } : null,
+      )
       .catch((error) => {
-        // A speculation failure is non-fatal — the turn regenerates.
+        // A speculation failure is non-fatal — the turn regenerates — but it IS
+        // worth surfacing (a recurring error would silently kill the latency win).
         console.info(
-          `[voice][p3] speculate error: ${error instanceof Error ? error.message : String(error)}`,
+          `[voice][p3] speculate error session=${session.id}: ${error instanceof Error ? error.message : String(error)}`,
         );
 
         return null;
