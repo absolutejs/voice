@@ -535,9 +535,6 @@ export const createVoiceSession = <
   // Guards "speculate once per pause" — set when speculation fires, cleared on
   // resume/commit so the next pause can speculate afresh.
   let speculationAttempted = false;
-  console.info(
-    `[voice][p3dbg] session ${options.id} route.speculate wired=${Boolean(options.route.speculate)}`,
-  );
   const sttFallback: VoiceResolvedSTTFallbackConfig | undefined =
     options.sttFallback
       ? {
