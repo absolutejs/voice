@@ -102,6 +102,10 @@ export type VoiceAgentModelInput<
   onTextDelta?: (delta: string) => void;
   session: TSession;
   system?: string;
+  // When set, the adapter aborts the in-flight generation if the signal fires —
+  // used to cancel a speculative reply that's been superseded (see runSpeculative)
+  // so a wasted speculation never holds the model slot or delays the real turn.
+  signal?: AbortSignal;
   tools: Array<{
     description?: string;
     name: string;
@@ -212,6 +216,7 @@ export type VoiceAgent<
     session: TSession;
     system?: string;
     turn: VoiceTurnRecord;
+    signal?: AbortSignal;
   }) => Promise<{ text: string } | null>;
 };
 
@@ -978,6 +983,7 @@ export const createVoiceAgent = <
         context: input.context,
         messages,
         session: input.session,
+        signal: input.signal,
         system,
         tools: [...LIFECYCLE_TOOLS, ...toolMap.values()].map((tool) => ({
           description: tool.description,
@@ -987,6 +993,8 @@ export const createVoiceAgent = <
         turn: input.turn,
       });
     } catch {
+      // Aborted (superseded speculation) or any error → unusable; the real turn
+      // generates normally.
       return null;
     }
     if (output.toolCalls?.length) {

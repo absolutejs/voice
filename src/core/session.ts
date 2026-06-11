@@ -176,6 +176,11 @@ const STREAM_IDLE_FLUSH_MS = 350;
 // long enough that brief mid-sentence pauses (TTS commas etc.) usually don't
 // trigger a wasted generation. Fires ONCE per pause (cleared on resume/commit).
 const SPECULATIVE_DELAY_MS = 500;
+// P3: hard cap on how long commit will wait to adopt an in-flight speculation.
+// It's normally already done or seconds from done; this only fires if the
+// speculative call has wedged — then we abort it and generate fresh, so a stuck
+// speculation can never hang the turn (the bug behind "let me catch up" + silence).
+const SPECULATION_ADOPT_TIMEOUT_MS = 6_000;
 // P4: after a backchannel cue is suppressed mid-TTS, drop its matching STT final
 // only if the final lands within this window (the final follows the partial by a
 // few hundred ms). Past it, an incoming "yeah" is treated as a real answer.
@@ -539,6 +544,10 @@ export const createVoiceSession = <
   let speculation: {
     pendingText: string;
     promise: Promise<{ text: string } | null>;
+    // Aborts this speculation's model call when it's superseded (resume or a
+    // divergent commit), so a wasted speculation never holds the model slot or
+    // delays the real turn.
+    controller: AbortController;
   } | null = null;
   // Guards "speculate once per pause" — set when speculation fires, cleared on
   // resume/commit so the next pause can speculate afresh.
@@ -1339,8 +1348,10 @@ export const createVoiceSession = <
     }, delayMs);
   };
 
-  // P3: discard any stored speculation and allow the next pause to speculate.
+  // P3: discard any stored speculation (aborting its in-flight model call) and
+  // allow the next pause to speculate.
   const clearSpeculation = () => {
+    speculation?.controller.abort();
     speculation = null;
     speculationAttempted = false;
   };
@@ -1371,12 +1382,14 @@ export const createVoiceSession = <
       transcripts: session.currentTurn.transcripts,
     };
     const speculate = options.route.speculate;
+    const controller = new AbortController();
     const promise = Promise.resolve(
       speculate({
         api,
         context: options.context,
         session,
         turn: provisionalTurn,
+        signal: controller.signal,
       }),
     )
       // No per-speculation log here: many speculations are wasted (mid-utterance
@@ -1396,7 +1409,7 @@ export const createVoiceSession = <
 
         return null;
       });
-    speculation = { pendingText, promise };
+    speculation = { controller, pendingText, promise };
   };
 
   const scheduleSilenceCommit = (
@@ -3100,22 +3113,36 @@ export const createVoiceSession = <
     // P3: if eager generation ran on this exact utterance (the caller stayed
     // quiet — committed text equals what we speculated on), ADOPT it: await the
     // single already-running generation and hand its text to onTurn, which skips
-    // its own model call. This is the latency win AND it avoids a second
-    // concurrent per-session generation. On divergence we don't await — the
-    // stale generation settles in the background and onTurn generates normally.
+    // its own model call. This is the latency win AND it keeps one generation per
+    // turn. On any other outcome we ABORT the speculation so a wasted/stuck call
+    // never holds the model slot or delays onTurn's fresh generation.
     const pendingSpeculation = speculation;
-    clearSpeculation();
+    // Detach from state WITHOUT aborting (the adopt path below needs it alive).
+    speculation = null;
+    speculationAttempted = false;
     let reusableSpeculation: { text: string } | undefined;
     if (pendingSpeculation && pendingSpeculation.pendingText === turn.text) {
-      const speculated = await pendingSpeculation.promise;
+      // Adopt — but never wait forever: a wedged speculation is aborted and the
+      // turn generates fresh instead of hanging.
+      const speculated = await Promise.race([
+        pendingSpeculation.promise,
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), SPECULATION_ADOPT_TIMEOUT_MS);
+        }),
+      ]);
       if (speculated?.text) {
         reusableSpeculation = { text: speculated.text };
         logVoiceTiming(session.id, "p3.adopted-speculation", 0, {
           chars: speculated.text.length,
         });
+      } else {
+        // Timed out or produced nothing — cancel it, onTurn generates fresh.
+        pendingSpeculation.controller.abort();
       }
-    } else {
-      void pendingSpeculation?.promise;
+    } else if (pendingSpeculation) {
+      // Diverged — the caller said more. Cancel the wasted speculation so it
+      // doesn't run concurrently with / queue ahead of onTurn's real generation.
+      pendingSpeculation.controller.abort();
     }
     try {
       const onTurnPromise = options.route.onTurn({

@@ -904,6 +904,10 @@ export type VoiceRouteConfig<
     context: TContext;
     session: TSession;
     turn: VoiceTurnRecord;
+    // Fires when the speculation is superseded (the caller resumed, or the turn
+    // diverged at commit). Forward it to the model generation so the wasted call
+    // is cancelled instead of holding the model slot / delaying the real turn.
+    signal?: AbortSignal;
   }) => Promise<{ text: string } | null | void>;
   onTurn: VoiceOnTurnHandler<TContext, TSession, TResult>;
   onComplete: (input: {

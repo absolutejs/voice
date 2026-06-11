@@ -113,7 +113,9 @@ export const createAIVoiceModel = <
     const stream = options.provider.stream({
       messages: toProviderMessages(input.messages),
       model: options.model,
-      signal: options.signal,
+      // Per-call signal (a superseded speculation) takes precedence over the
+      // model-wide one, so aborting one generation never touches the others.
+      signal: input.signal ?? options.signal,
       systemPrompt,
       tools: toProviderTools(input.tools),
     });
