@@ -532,9 +532,8 @@ export const createVoiceSession = <
   // a resume changes the text and discards it. `speculativeTimer` fires the
   // speculation partway through the silence window.
   let speculativeReply: { pendingText: string; text: string } | null = null;
-  let speculativeTimer: ReturnType<typeof setTimeout> | null = null;
-  // Guards "arm once per pause" — set when the speculative timer is armed,
-  // cleared on resume/commit so the next pause can speculate afresh.
+  // Guards "speculate once per pause" — set when speculation fires, cleared on
+  // resume/commit so the next pause can speculate afresh.
   let speculationAttempted = false;
   console.info(
     `[voice][p3dbg] session ${options.id} route.speculate wired=${Boolean(options.route.speculate)}`,
@@ -1327,13 +1326,8 @@ export const createVoiceSession = <
     }, delayMs);
   };
 
-  // P3: discard any pending/stored speculation (timer + result) and allow the
-  // next pause to arm a fresh one.
+  // P3: discard any stored speculation and allow the next pause to speculate.
   const clearSpeculation = () => {
-    if (speculativeTimer) {
-      clearTimeout(speculativeTimer);
-      speculativeTimer = null;
-    }
     speculativeReply = null;
     speculationAttempted = false;
   };
@@ -1391,20 +1385,6 @@ export const createVoiceSession = <
     reset = true,
   ) => {
     scheduleTurnCommit(delayMs, "silence", reset);
-    // P3: arm eager generation ONCE per pause. This scheduler runs per audio
-    // frame, so `speculationAttempted` stops each tick from resetting the timer;
-    // a resume/commit clears the flag (via clearSpeculation) so the next pause
-    // can speculate again.
-    if (options.route.speculate && reset && !speculationAttempted) {
-      speculationAttempted = true;
-      console.info(
-        `[voice][p3dbg] armed speculation delay=${SPECULATIVE_DELAY_MS} reason=silence session=${options.id}`,
-      );
-      speculativeTimer = setTimeout(() => {
-        speculativeTimer = null;
-        void runSpeculation();
-      }, SPECULATIVE_DELAY_MS);
-    }
   };
 
   // The silence window is now adaptive (see adaptiveSilenceMs): the detector's
@@ -3915,6 +3895,7 @@ export const createVoiceSession = <
     const shouldStoreAudio =
       speechDetected || audioLevel >= turnDetection.speechThreshold;
 
+    let silenceElapsedMs: number | undefined;
     await writeSession((currentSession) => {
       currentSession.currentTurn.lastAudioAt = Date.now();
       currentSession.lastActivityAt = Date.now();
@@ -3929,7 +3910,25 @@ export const createVoiceSession = <
       ) {
         currentSession.currentTurn.silenceStartedAt = Date.now();
       }
+      const startedAt = currentSession.currentTurn.silenceStartedAt;
+      silenceElapsedMs =
+        startedAt === undefined ? undefined : Date.now() - startedAt;
     });
+
+    // P3 eager generation: the caller spoke and has now gone quiet for a beat —
+    // generate the reply NOW so the model overlaps the rest of the silence + the
+    // commit, regardless of which commit path (vendor early-commit or silence)
+    // ultimately fires. Once per pause; cleared on resume/commit.
+    if (
+      options.route.speculate &&
+      !speculationAttempted &&
+      speechDetected &&
+      silenceElapsedMs !== undefined &&
+      silenceElapsedMs >= SPECULATIVE_DELAY_MS
+    ) {
+      speculationAttempted = true;
+      void runSpeculation();
+    }
 
     if (shouldStoreAudio) {
       pushTurnAudio(conditionedAudio);
