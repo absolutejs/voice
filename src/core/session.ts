@@ -170,12 +170,11 @@ const MAX_TTS_CHUNK_CHARS = 320;
 // sentence buffered, speak it instead of waiting for the close.
 const STREAM_SENTENCE_END = /[.!?…]['")\]]*$/;
 const STREAM_IDLE_FLUSH_MS = 350;
-// P3 eager generation: fire the speculative reply this long after the caller
-// goes quiet. Short enough to beat the end-of-turn commit (giving the model a
-// real head start), long enough that a brief mid-thought pause usually doesn't
-// trigger a wasted generation. Armed ONCE per pause (the silence scheduler runs
-// per audio frame, so re-arming each tick would never let the timer mature).
-const SPECULATIVE_DELAY_MS = 350;
+// P3 eager generation: speculate this long after the caller goes quiet. Short
+// enough to beat the end-of-turn commit (giving the model a real head start),
+// long enough that brief mid-sentence pauses (TTS commas etc.) usually don't
+// trigger a wasted generation. Fires ONCE per pause (cleared on resume/commit).
+const SPECULATIVE_DELAY_MS = 500;
 
 const nextSpeakableBoundary = (buffer: string) => {
   const match = STREAM_SENTENCE_BOUNDARY.exec(buffer);
@@ -526,12 +525,16 @@ export const createVoiceSession = <
     return Math.round(minSilenceMs + (silenceMs - minSilenceMs) * (1 - complete));
   };
 
-  // P3 eager generation: a reply the route pre-generated during the silence
-  // window, tagged with the pending text it saw. Reused on commit ONLY if the
-  // committed transcript still equals `pendingText` (the caller stayed quiet);
-  // a resume changes the text and discards it. `speculativeTimer` fires the
-  // speculation partway through the silence window.
-  let speculativeReply: { pendingText: string; text: string } | null = null;
+  // P3 eager generation: the IN-FLIGHT (or settled) speculative reply generation,
+  // tagged with the pending text it was started on. On commit, if the committed
+  // transcript still equals `pendingText`, onTurn ADOPTS this promise — it awaits
+  // the already-running call instead of starting a second one (that adoption is
+  // both the latency win and what avoids two concurrent per-session generations).
+  // A resume discards it. The promise never rejects (errors resolve to null).
+  let speculation: {
+    pendingText: string;
+    promise: Promise<{ text: string } | null>;
+  } | null = null;
   // Guards "speculate once per pause" — set when speculation fires, cleared on
   // resume/commit so the next pause can speculate afresh.
   let speculationAttempted = false;
@@ -1325,15 +1328,15 @@ export const createVoiceSession = <
 
   // P3: discard any stored speculation and allow the next pause to speculate.
   const clearSpeculation = () => {
-    speculativeReply = null;
+    speculation = null;
     speculationAttempted = false;
   };
 
-  // P3: fire the route's speculate hook on the caller's utterance-so-far and
-  // stash the reply. Pure — the route generates text only; we never play it
-  // here. Kept only if the turn hasn't already produced a stored speculation.
+  // P3: kick off the route's speculate hook on the caller's utterance-so-far and
+  // STORE THE PROMISE (don't await) — onTurn adopts it at commit if the text
+  // still matches. Pure: the route generates text only; we never play it here.
   const runSpeculation = async () => {
-    if (!options.route.speculate || speculativeReply) {
+    if (!options.route.speculate || speculation) {
       return;
     }
     const session = await readSession();
@@ -1354,27 +1357,32 @@ export const createVoiceSession = <
       text: pendingText,
       transcripts: session.currentTurn.transcripts,
     };
-    try {
-      const result = await Promise.resolve(
-        options.route.speculate({
-          api,
-          context: options.context,
-          session,
-          turn: provisionalTurn,
-        }),
-      );
-      console.info(
-        `[voice][p3] speculate fired session=${session.id} -> ${result?.text ? `${result.text.length} chars` : "null"} for "${pendingText.slice(0, 30)}"`,
-      );
-      if (result && result.text.trim() && !speculativeReply) {
-        speculativeReply = { pendingText, text: result.text };
-      }
-    } catch (error) {
-      // A speculation failure is non-fatal — the real turn regenerates.
-      console.info(
-        `[voice][p3] speculate error: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+    const startedAt = Date.now();
+    const speculate = options.route.speculate;
+    const promise = Promise.resolve(
+      speculate({
+        api,
+        context: options.context,
+        session,
+        turn: provisionalTurn,
+      }),
+    )
+      .then((result) => {
+        console.info(
+          `[voice][p3] speculate done session=${session.id} -> ${result?.text ? `${result.text.length} chars` : "null"} in ${Date.now() - startedAt}ms for "${pendingText.slice(0, 30)}"`,
+        );
+
+        return result && result.text.trim() ? { text: result.text } : null;
+      })
+      .catch((error) => {
+        // A speculation failure is non-fatal — the turn regenerates.
+        console.info(
+          `[voice][p3] speculate error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+
+        return null;
+      });
+    speculation = { pendingText, promise };
   };
 
   const scheduleSilenceCommit = (
@@ -3037,16 +3045,26 @@ export const createVoiceSession = <
       onTurnStartedAt - (turn.committedAt || onTurnStartedAt),
       { fillerScheduled: fillerTimer !== null },
     );
-    // P3: if eager generation ran during the silence window and the caller
-    // stayed quiet (the committed text equals what we speculated on), hand the
-    // pre-generated reply to onTurn so it can skip its own model call. Any
-    // divergence (the caller resumed and said more) leaves it undefined and the
-    // turn generates normally. Consumed either way.
-    const reusableSpeculation =
-      speculativeReply && speculativeReply.pendingText === turn.text
-        ? { text: speculativeReply.text }
-        : undefined;
+    // P3: if eager generation ran on this exact utterance (the caller stayed
+    // quiet — committed text equals what we speculated on), ADOPT it: await the
+    // single already-running generation and hand its text to onTurn, which skips
+    // its own model call. This is the latency win AND it avoids a second
+    // concurrent per-session generation. On divergence we don't await — the
+    // stale generation settles in the background and onTurn generates normally.
+    const pendingSpeculation = speculation;
     clearSpeculation();
+    let reusableSpeculation: { text: string } | undefined;
+    if (pendingSpeculation && pendingSpeculation.pendingText === turn.text) {
+      const speculated = await pendingSpeculation.promise;
+      if (speculated?.text) {
+        reusableSpeculation = { text: speculated.text };
+        logVoiceTiming(session.id, "p3.adopted-speculation", 0, {
+          chars: speculated.text.length,
+        });
+      }
+    } else {
+      void pendingSpeculation?.promise;
+    }
     try {
       const onTurnPromise = options.route.onTurn({
         api: api,
