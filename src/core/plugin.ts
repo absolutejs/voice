@@ -763,6 +763,7 @@ export const voice = <
         onSession: config.onSession,
         onTransfer: config.onTransfer,
         onTurn,
+        speculate: config.speculate,
         onVoicemail: config.onVoicemail,
         onCallEnd: async (input) => {
           let hookError: unknown;
