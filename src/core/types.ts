@@ -627,28 +627,27 @@ export type VoiceResolvedSTTFallbackConfig = {
 export type VoiceTurnDetectionConfig = {
   profile?: VoiceTurnProfile;
   qualityProfile?: VoiceTurnQualityProfile;
+  // Adaptive endpointing: the silence-before-commit window is no longer fixed.
+  // When a `semanticTurnDetector` returns a `confidence` (0-1 ≈ P(turn complete)),
+  // the window scales between `minSilenceMs` (floor — commit fast when the caller
+  // is clearly done) and `silenceMs` (ceiling — wait longer when they look
+  // mid-thought). This replaces the old binary semantic-veto: instead of waiting
+  // a fixed window then deferring, the wait IS the confidence. Set `silenceMs`
+  // high to keep patience for genuine thinking pauses; the floor keeps confident
+  // turns snappy. With no detector / no confidence, the window is `silenceMs`.
   silenceMs?: number;
+  minSilenceMs?: number;
   speechThreshold?: number;
   transcriptStabilityMs?: number;
-  // Semantic-veto: when > 0 AND a `semanticTurnDetector` is configured, the
-  // silence timer asks the detector before committing. If the detector says
-  // the caller is still mid-thought (endOfTurn === false), the commit is
-  // deferred and re-checked, up to `semanticVetoMaxMs` of total extra wait per
-  // turn. 0 (default) keeps the legacy behaviour: the silence timer commits
-  // unconditionally and the detector is an early-commit signal only.
-  semanticVetoMaxMs?: number;
-  // How long to wait before the next re-check after a veto. Default 1200ms.
-  semanticVetoRecheckMs?: number;
 };
 
 export type VoiceResolvedTurnDetectionConfig = {
   qualityProfile: VoiceTurnQualityProfile;
   profile: VoiceTurnProfile;
   silenceMs: number;
+  minSilenceMs: number;
   speechThreshold: number;
   transcriptStabilityMs: number;
-  semanticVetoMaxMs: number;
-  semanticVetoRecheckMs: number;
 };
 
 export type VoiceAudioConditioningConfig = {

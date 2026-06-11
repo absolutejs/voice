@@ -17,7 +17,7 @@ import {
   resetVoiceSessionRecord,
 } from "./store";
 import {
-  DEFAULT_SEMANTIC_VETO_RECHECK_MS,
+  DEFAULT_MIN_SILENCE_MS,
   DEFAULT_SILENCE_MS,
   DEFAULT_SPEECH_THRESHOLD,
   buildTurnText,
@@ -484,21 +484,41 @@ export const createVoiceSession = <
     strategy: options.reconnect.strategy ?? "resume-last-turn",
     timeout: options.reconnect.timeout ?? DEFAULT_RECONNECT_TIMEOUT,
   };
+  const resolvedSilenceMs = options.turnDetection.silenceMs ?? DEFAULT_SILENCE_MS;
   const turnDetection = {
-    silenceMs: options.turnDetection.silenceMs ?? DEFAULT_SILENCE_MS,
+    silenceMs: resolvedSilenceMs,
+    // Floor of the adaptive endpointing window. Defaults to the smaller of the
+    // ceiling and DEFAULT_MIN_SILENCE_MS so existing callers (no minSilenceMs)
+    // still get a snappy floor without ever exceeding their configured ceiling.
+    minSilenceMs: Math.min(
+      resolvedSilenceMs,
+      options.turnDetection.minSilenceMs ?? DEFAULT_MIN_SILENCE_MS,
+    ),
     speechThreshold:
       options.turnDetection.speechThreshold ?? DEFAULT_SPEECH_THRESHOLD,
     transcriptStabilityMs:
       options.turnDetection.transcriptStabilityMs ??
       DEFAULT_TRANSCRIPT_STABILITY_MS,
-    semanticVetoMaxMs: options.turnDetection.semanticVetoMaxMs ?? 0,
-    semanticVetoRecheckMs:
-      options.turnDetection.semanticVetoRecheckMs ??
-      DEFAULT_SEMANTIC_VETO_RECHECK_MS,
   };
-  // Total time the semantic detector has so far deferred the current turn's
-  // silence commit. Reset when the turn commits or the caller speaks again.
-  let semanticVetoElapsedMs = 0;
+  // Latest P(turn complete) from the semantic detector (its `confidence`), used
+  // to scale the adaptive silence window. null until the detector has weighed in
+  // on the current turn; reset when the turn commits or the caller speaks again.
+  let lastTurnCompleteConfidence: number | null = null;
+
+  // Adaptive endpointing: map the latest completion-confidence to a silence
+  // window between the floor (commit fast when clearly done) and the ceiling
+  // (wait longer when the caller looks mid-thought). No confidence yet → the
+  // full ceiling, so we never commit faster than the caller's configured wait
+  // until the detector says it's safe.
+  const adaptiveSilenceMs = () => {
+    const { minSilenceMs, silenceMs } = turnDetection;
+    if (lastTurnCompleteConfidence === null || silenceMs <= minSilenceMs) {
+      return silenceMs;
+    }
+    const complete = Math.max(0, Math.min(1, lastTurnCompleteConfidence));
+
+    return Math.round(minSilenceMs + (silenceMs - minSilenceMs) * (1 - complete));
+  };
   const sttFallback: VoiceResolvedSTTFallbackConfig | undefined =
     options.sttFallback
       ? {
@@ -1288,83 +1308,17 @@ export const createVoiceSession = <
   };
 
   const scheduleSilenceCommit = (
-    delayMs = turnDetection.silenceMs,
+    delayMs = adaptiveSilenceMs(),
     reset = true,
   ) => scheduleTurnCommit(delayMs, "silence", reset);
 
-  // Root-cause fix for fragmented turns: when the silence timer fires, give the
-  // semantic turn detector a chance to VETO the commit if the caller is clearly
-  // still mid-thought (e.g. paused after "we provide…"). Previously the
-  // detector could only EARLY-commit on a transcript event; the silence timer
-  // committed unconditionally, so a mid-sentence pause longer than silenceMs
-  // chopped the turn. Now the timer defers and re-checks, up to
-  // `semanticVetoMaxMs` of total extra wait per turn. Disabled (0) by default.
-  const shouldDeferSilenceCommit = async (
-    reason: VoiceEndOfTurnEvent["reason"],
-  ) => {
-    if (
-      reason !== "silence" ||
-      turnDetection.semanticVetoMaxMs <= 0 ||
-      !options.semanticTurnDetector ||
-      semanticVetoElapsedMs >= turnDetection.semanticVetoMaxMs
-    ) {
-      return false;
-    }
-
-    const session = await readSession();
-    const { partialText, transcripts } = session.currentTurn;
-    const userText = buildTurnText(transcripts, partialText, {
-      partialEndedAtMs: session.currentTurn.partialEndedAt,
-      partialStartedAtMs: session.currentTurn.partialStartedAt,
-    });
-    if (!userText) {
-      return false;
-    }
-
-    const silenceMs =
-      session.currentTurn.silenceStartedAt !== undefined
-        ? Date.now() - session.currentTurn.silenceStartedAt
-        : turnDetection.silenceMs;
-
-    let endOfTurn = true;
-    try {
-      const verdict = await Promise.resolve(
-        options.semanticTurnDetector.evaluate({
-          lastFinalTranscript: transcripts.at(-1),
-          partialText,
-          silenceMs,
-          transcripts,
-          ...getTurnAudioForDetector(),
-        }),
-      );
-      endOfTurn = verdict.endOfTurn;
-    } catch {
-      // A detector failure must never block a commit — fall through and commit.
-      return false;
-    }
-
-    if (endOfTurn !== false) {
-      return false;
-    }
-
-    const remaining = turnDetection.semanticVetoMaxMs - semanticVetoElapsedMs;
-    const extendMs = Math.max(
-      1,
-      Math.min(turnDetection.semanticVetoRecheckMs, remaining),
-    );
-    semanticVetoElapsedMs += extendMs;
-    scheduleTurnCommit(extendMs, reason);
-
-    return true;
-  };
-
+  // The silence window is now adaptive (see adaptiveSilenceMs): the detector's
+  // completion-confidence already lengthens the wait for a mid-thought pause and
+  // shortens it when the caller is clearly done, so the timer firing IS the
+  // decision — no separate binary veto/defer loop.
   const runScheduledCommit = async (
     reason: VoiceEndOfTurnEvent["reason"],
   ) => {
-    if (await shouldDeferSilenceCommit(reason)) {
-      return;
-    }
-
     await api.commitTurn(reason);
   };
 
@@ -2386,9 +2340,9 @@ export const createVoiceSession = <
       session.status = "active";
     });
 
-    // The caller produced more words — refresh the semantic-veto budget so each
-    // genuine pause within the turn gets its own deferral allowance.
-    semanticVetoElapsedMs = 0;
+    // The caller produced more words — drop the stale completion-confidence so
+    // the adaptive window widens again until the detector re-weighs in.
+    lastTurnCompleteConfidence = null;
 
     if (silenceTimer && pendingCommitReason === "vendor") {
       scheduleTurnCommit(getVendorCommitDelayMs(), "vendor");
@@ -2426,6 +2380,15 @@ export const createVoiceSession = <
           ...getTurnAudioForDetector(),
         }),
       );
+      // Feed the detector's completion-confidence into the adaptive silence
+      // window (see adaptiveSilenceMs), and re-arm any pending silence timer at
+      // the freshly-computed window so a high-confidence verdict commits sooner.
+      if (typeof verdict.confidence === "number") {
+        lastTurnCompleteConfidence = verdict.confidence;
+        if (silenceTimer && pendingCommitReason === "silence") {
+          scheduleSilenceCommit();
+        }
+      }
       if (verdict.endOfTurn) {
         clearSilenceTimer();
         await requestTurnCommit("vendor");
@@ -3351,7 +3314,7 @@ export const createVoiceSession = <
     reason: VoiceEndOfTurnEvent["reason"] = "manual",
   ) => {
     clearSilenceTimer();
-    semanticVetoElapsedMs = 0;
+    lastTurnCompleteConfidence = null;
     // The caller's turn is ending — clear the backchannel speech window so cues
     // don't carry over into (or fire at the seam of) the next turn.
     backchannelDriver?.reset();
