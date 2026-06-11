@@ -40,6 +40,56 @@ const DEFAULT_CUES: VoiceBackchannelCue[] = [
   { text: "go on" },
 ];
 
+// ── Input-side backchannel detection ──────────────────────────────────────────
+// The INVERSE of the cue driver above: classify what the CALLER says while the
+// assistant is talking. A pure listening cue ("mm-hm", "yeah", "right", "got it")
+// is an affirmation, NOT an interruption — the assistant should keep going rather
+// than cut itself off. Used by the session to suppress barge-in (and drop the
+// cue so it doesn't pollute the caller's next real turn). A bare "yeah" said
+// AFTER the assistant finishes is a normal answer and is handled elsewhere — this
+// only runs while the assistant is mid-utterance.
+
+// Single-word affirmations / listening noises.
+const BACKCHANNEL_TOKENS = new Set([
+  "mm", "mmm", "mhm", "mmhm", "mmhmm", "hm", "hmm", "uh-huh", "uhhuh", "uh",
+  "huh", "ah", "oh", "yeah", "yep", "yup", "yes", "ya", "yah", "ok", "okay",
+  "k", "kay", "right", "sure", "totally", "exactly", "absolutely", "definitely",
+  "gotcha", "cool", "nice", "wow", "true", "fair", "aha", "perfect", "awesome",
+  "great", "good", "wonderful", "amazing", "interesting", "understood", "agreed",
+]);
+
+// Multi-word listening phrases (normalized: lowercased, punctuation stripped).
+const BACKCHANNEL_PHRASES = new Set([
+  "i see", "got it", "makes sense", "of course", "for sure", "fair enough",
+  "sounds good", "i know", "oh ok", "oh okay", "that's right", "thats right",
+  "oh wow", "oh nice", "oh cool", "uh huh", "mm hm", "mm hmm", "i hear you",
+  "for real", "no way", "makes total sense", "got you", "i get it", "right right",
+  "yeah yeah", "ok ok", "oh i see", "oh got it", "yeah totally", "yeah exactly",
+]);
+
+// True when `text` is a pure listening cue of at most `maxWords` words.
+export const isBackchannelUtterance = (text: string, maxWords = 3): boolean => {
+  // Split on anything that isn't a letter/apostrophe (so hyphens in "mm-hm" /
+  // "uh-huh" become word breaks and match the single-token set).
+  const normalized = text
+    .toLowerCase()
+    .replace(/[^a-z']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    return false;
+  }
+  if (BACKCHANNEL_PHRASES.has(normalized)) {
+    return true;
+  }
+  const words = normalized.split(" ");
+  if (words.length > maxWords) {
+    return false;
+  }
+
+  return words.every((word) => BACKCHANNEL_TOKENS.has(word));
+};
+
 export const createVoiceBackchannelDriver = (
   options: VoiceBackchannelDriverOptions,
 ): VoiceBackchannelDriver => {

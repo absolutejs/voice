@@ -815,6 +815,9 @@ export const voice = <
       ...(config.bargeInMinPartialWords !== undefined
         ? { bargeInMinPartialWords: config.bargeInMinPartialWords }
         : {}),
+      ...(config.backchannelBargeInGuard !== undefined
+        ? { backchannelBargeInGuard: config.backchannelBargeInGuard }
+        : {}),
       ...(config.fillerPhrases ? { fillerPhrases: config.fillerPhrases } : {}),
       ...(config.fillerDelayMs !== undefined
         ? { fillerDelayMs: config.fillerDelayMs }

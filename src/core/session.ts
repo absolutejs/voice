@@ -3,6 +3,7 @@ import { conditionAudioChunk } from "./audioConditioning";
 import { logVoiceTiming } from "./debugTiming";
 import {
   createVoiceBackchannelDriver,
+  isBackchannelUtterance,
   type VoiceBackchannelDriver,
 } from "./backchannel";
 import {
@@ -175,6 +176,10 @@ const STREAM_IDLE_FLUSH_MS = 350;
 // long enough that brief mid-sentence pauses (TTS commas etc.) usually don't
 // trigger a wasted generation. Fires ONCE per pause (cleared on resume/commit).
 const SPECULATIVE_DELAY_MS = 500;
+// P4: after a backchannel cue is suppressed mid-TTS, drop its matching STT final
+// only if the final lands within this window (the final follows the partial by a
+// few hundred ms). Past it, an incoming "yeah" is treated as a real answer.
+const BACKCHANNEL_DROP_WINDOW_MS = 2_000;
 
 const nextSpeakableBoundary = (buffer: string) => {
   const match = STREAM_SENTENCE_BOUNDARY.exec(buffer);
@@ -667,6 +672,14 @@ export const createVoiceSession = <
     1,
     options.bargeInMinPartialWords ?? 1,
   );
+  // P4: when on, a pure listening cue ("mm-hm", "yeah", "got it") spoken WHILE
+  // the assistant is talking does not interrupt it (and is dropped so it never
+  // becomes the caller's next turn). `backchannelSuppressedAt` timestamps the
+  // last in-speech cue we suppressed; handleFinal drops the matching final only
+  // within BACKCHANNEL_DROP_WINDOW_MS so a stale flag can never swallow a genuine
+  // "yeah" answer spoken later (after the assistant has finished).
+  const backchannelBargeInGuard = options.backchannelBargeInGuard ?? false;
+  let backchannelSuppressedAt: number | null = null;
   // Latency Theater (content-aware filler): when the host wires `fillerFor`,
   // we race a per-turn cheap LLM call against `fillerForTimeoutMs` and
   // prefer its output over a random static phrase. The static phrases stay
@@ -2312,7 +2325,29 @@ export const createVoiceSession = <
       const triggeringText = transcript.text.trim();
       if (triggeringText) {
         const wordCount = triggeringText.split(/\s+/).length;
-        if (wordCount >= bargeInMinPartialWords) {
+        if (
+          wordCount >= bargeInMinPartialWords &&
+          backchannelBargeInGuard &&
+          isBackchannelUtterance(triggeringText)
+        ) {
+          // P4: a pure listening cue ("mm-hm", "yeah", "got it") while the
+          // assistant is speaking is an affirmation, not an interruption — keep
+          // talking. Timestamp it so handleFinal drops the matching final and the
+          // cue never becomes the caller's next turn.
+          backchannelSuppressedAt = Date.now();
+          void appendTurnLatencyStage({
+            metadata: {
+              partial: triggeringText.slice(0, 200),
+              reason: "backchannel",
+              wordCount,
+            },
+            stage: "barge_in_suppressed",
+            turnId: activeTTSTurnId,
+          }).catch(() => {});
+        } else if (wordCount >= bargeInMinPartialWords) {
+          // A real interruption — cancel the in-flight TTS. Any earlier
+          // suppressed cue is now part of a genuine turn, so stop dropping.
+          backchannelSuppressedAt = null;
           void appendTurnLatencyStage({
             metadata: {
               partial: triggeringText.slice(0, 200),
@@ -2392,6 +2427,22 @@ export const createVoiceSession = <
     // A real final transcript means STT is healthy again — clear the reconnect
     // flap budget so an earlier benign drop never counts against a later one.
     sttReconnectCount = 0;
+
+    // P4: this is the final for a listening cue we suppressed mid-TTS (and it's
+    // still a pure cue, within the drop window) — discard it entirely so it never
+    // lands in the caller's transcript or becomes a turn. The barge-in was
+    // already suppressed in handlePartial; this just keeps the books clean.
+    if (
+      backchannelBargeInGuard &&
+      backchannelSuppressedAt !== null &&
+      Date.now() - backchannelSuppressedAt < BACKCHANNEL_DROP_WINDOW_MS &&
+      isBackchannelUtterance(transcript.text.trim())
+    ) {
+      backchannelSuppressedAt = null;
+
+      return;
+    }
+    backchannelSuppressedAt = null;
     const session = await writeSession((session) => {
       const alreadyPresent = session.currentTurn.transcripts.some(
         (existing) => existing.id === transcript.id,

@@ -1188,6 +1188,14 @@ export type VoicePluginConfig<
   turnDetection?: VoiceTurnDetectionConfig;
   semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
   bargeInMinPartialWords?: number;
+  /**
+   * When true, a pure listening cue ("mm-hm", "yeah", "right", "got it") spoken
+   * WHILE the assistant is talking does NOT barge-in — the assistant keeps going
+   * and the cue is dropped so it never becomes the caller's next turn. A bare
+   * "yeah" said AFTER the assistant finishes is a normal answer, unaffected.
+   * Default false (any in-speech words interrupt, the prior behavior).
+   */
+  backchannelBargeInGuard?: boolean;
   fillerPhrases?: ReadonlyArray<string>;
   fillerDelayMs?: number;
   fillerFor?: (input: {
@@ -1521,6 +1529,14 @@ export type CreateVoiceSessionOptions<
    * Word splitting is whitespace-based. Punctuation is left attached.
    */
   bargeInMinPartialWords?: number;
+  /**
+   * When true, a pure listening cue ("mm-hm", "yeah", "right", "got it") spoken
+   * WHILE the assistant is talking does NOT barge-in — the assistant keeps going
+   * and the cue is dropped so it never becomes the caller's next turn. A bare
+   * "yeah" said AFTER the assistant finishes is a normal answer, unaffected.
+   * Default false (any in-speech words interrupt, the prior behavior).
+   */
+  backchannelBargeInGuard?: boolean;
   fillerPhrases?: ReadonlyArray<string>;
   /** Milliseconds after turn-commit before the filler fires. Default 250ms — short enough to feel instant, long enough to skip if the LLM is very fast. */
   fillerDelayMs?: number;
