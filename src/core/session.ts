@@ -171,11 +171,13 @@ const MAX_TTS_CHUNK_CHARS = 320;
 // sentence buffered, speak it instead of waiting for the close.
 const STREAM_SENTENCE_END = /[.!?…]['")\]]*$/;
 const STREAM_IDLE_FLUSH_MS = 350;
-// P3 eager generation: speculate this long after the caller goes quiet. Short
-// enough to beat the end-of-turn commit (giving the model a real head start),
-// long enough that brief mid-sentence pauses (TTS commas etc.) usually don't
-// trigger a wasted generation. Fires ONCE per pause (cleared on resume/commit).
-const SPECULATIVE_DELAY_MS = 500;
+// P3 eager generation: speculate this long after the caller goes quiet. Earlier
+// = more head start before the end-of-turn commit (so the speculation is more
+// likely to FINISH before commit → an instant turn, esp. when Deepgram endpoints
+// fast). A brief mid-sentence pause that fires this early just gets aborted when
+// the caller resumes (the per-call AbortSignal cancels it), so firing eagerly is
+// now cheap. Fires ONCE per pause (cleared on resume/commit).
+const SPECULATIVE_DELAY_MS = 350;
 // P3: hard cap on how long commit will wait to adopt an in-flight speculation.
 // It's normally already done or seconds from done; this only fires if the
 // speculative call has wedged — then we abort it and generate fresh, so a stuck
