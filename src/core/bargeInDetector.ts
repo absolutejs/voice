@@ -42,7 +42,14 @@ export type CreateAcousticBargeInDetectorOptions = {
   noiseFloorRms?: number;
 };
 
-// One pass over the PCM16 chunks → speech duration + normalized RMS energy.
+// |sample| (0-1) above this counts as voiced. The buffered turn audio includes
+// the silence the mic streams between/around words, so duration must be measured
+// over VOICED samples only — otherwise leading/trailing silence inflates a short
+// backchannel into a "sustained" interruption.
+const VOICED_FLOOR = 0.02;
+
+// One pass over the PCM16 chunks → voiced speech duration + RMS over the voiced
+// samples (so silence neither stretches the duration nor dilutes the energy).
 const measureTurnAudio = (
   chunks: ReadonlyArray<Uint8Array>,
   format: AudioFormat,
@@ -50,24 +57,26 @@ const measureTurnAudio = (
   const channels = format.channels ?? 1;
   const sampleRate = format.sampleRateHz ?? 16_000;
   let sumSquares = 0;
-  let sampleCount = 0;
+  let voicedSamples = 0;
   for (const chunk of chunks) {
     // 16-bit little-endian; a chunk boundary can leave a stray odd byte.
     const usableBytes = chunk.byteLength - (chunk.byteLength % 2);
     const view = new DataView(chunk.buffer, chunk.byteOffset, usableBytes);
     for (let offset = 0; offset < usableBytes; offset += 2) {
       const sample = view.getInt16(offset, true) / 32_768;
-      sumSquares += sample * sample;
-      sampleCount += 1;
+      if (Math.abs(sample) >= VOICED_FLOOR) {
+        sumSquares += sample * sample;
+        voicedSamples += 1;
+      }
     }
   }
-  if (sampleCount === 0) {
+  if (voicedSamples === 0) {
     return { durationMs: 0, rms: 0 };
   }
 
   return {
-    durationMs: (sampleCount / channels / sampleRate) * 1000,
-    rms: Math.sqrt(sumSquares / sampleCount),
+    durationMs: (voicedSamples / channels / sampleRate) * 1000,
+    rms: Math.sqrt(sumSquares / voicedSamples),
   };
 };
 

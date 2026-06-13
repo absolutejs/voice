@@ -75,6 +75,25 @@ describe("createAcousticBargeInDetector", () => {
     });
   });
 
+  test("leading silence does not inflate a short cue to sustained", () => {
+    // The live failure case: the buffered turn audio is mostly the silence the
+    // mic streams, with only a short real cue. Voiced-duration must stay short.
+    const silence = [
+      new Uint8Array(new Int16Array(1.5 * FORMAT.sampleRateHz).buffer),
+    ];
+    const v = detector.evaluate({
+      isBackchannelByText: true,
+      partialText: "got it",
+      turnAudio: [...silence, ...pcm(300, 3000)],
+      turnAudioFormat: FORMAT,
+      wordCount: 2,
+    });
+    expect(v).toMatchObject({
+      reason: "acoustic_backchannel",
+      shouldCancel: false,
+    });
+  });
+
   test("no audio defers to the text signal", () => {
     expect(
       detector.evaluate({
