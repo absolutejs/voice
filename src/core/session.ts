@@ -2376,7 +2376,11 @@ export const createVoiceSession = <
                   ...getTurnAudioForDetector(),
                 }),
               )
-            : { reason: undefined, shouldCancel: !isBackchannelByText };
+            : {
+                metrics: undefined,
+                reason: undefined,
+                shouldCancel: !isBackchannelByText,
+              };
           const reason =
             verdict.reason ??
             (verdict.shouldCancel ? "stt_partial" : "backchannel");
@@ -2386,6 +2390,7 @@ export const createVoiceSession = <
             backchannelSuppressedAt = null;
             void appendTurnLatencyStage({
               metadata: {
+                ...verdict.metrics,
                 partial: triggeringText.slice(0, 200),
                 source: reason,
                 wordCount,
@@ -2400,6 +2405,7 @@ export const createVoiceSession = <
             backchannelSuppressedAt = Date.now();
             void appendTurnLatencyStage({
               metadata: {
+                ...verdict.metrics,
                 partial: triggeringText.slice(0, 200),
                 reason,
                 wordCount,

@@ -25,6 +25,11 @@ export type VoiceBargeInVerdict = {
   shouldCancel: boolean;
   /** Diagnostic label, surfaced on the barge_in / barge_in_suppressed trace. */
   reason?: string;
+  /**
+   * The acoustic measurements the decision used, surfaced on the trace for
+   * tuning the thresholds against real audio. Omitted when no audio was judged.
+   */
+  metrics?: { voicedMs: number; rms: number };
 };
 
 export type VoiceBargeInDetector = {
@@ -108,21 +113,22 @@ export const createAcousticBargeInDetector = (
           : { reason: "text_only", shouldCancel: true };
       }
       const { durationMs, rms } = measureTurnAudio(turnAudio, turnAudioFormat);
+      const metrics = { rms, voicedMs: Math.round(durationMs) };
 
       if (durationMs >= sustainedMs) {
-        return { reason: "acoustic_sustained", shouldCancel: true };
+        return { metrics, reason: "acoustic_sustained", shouldCancel: true };
       }
       if (input.isBackchannelByText) {
-        return { reason: "acoustic_backchannel", shouldCancel: false };
+        return { metrics, reason: "acoustic_backchannel", shouldCancel: false };
       }
       if (rms >= emphaticRms) {
-        return { reason: "acoustic_emphatic", shouldCancel: true };
+        return { metrics, reason: "acoustic_emphatic", shouldCancel: true };
       }
       if (rms <= noiseFloorRms) {
-        return { reason: "acoustic_noise_floor", shouldCancel: false };
+        return { metrics, reason: "acoustic_noise_floor", shouldCancel: false };
       }
 
-      return { reason: "acoustic_ambiguous", shouldCancel: true };
+      return { metrics, reason: "acoustic_ambiguous", shouldCancel: true };
     },
   };
 };
