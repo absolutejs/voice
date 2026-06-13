@@ -902,6 +902,13 @@ export {
   createPunctuationSemanticTurnDetector,
   createRegexSemanticTurnDetector,
 } from "./core/semanticTurn";
+export { createAcousticBargeInDetector } from "./core/bargeInDetector";
+export type {
+  CreateAcousticBargeInDetectorOptions,
+  VoiceBargeInDetector,
+  VoiceBargeInInput,
+  VoiceBargeInVerdict,
+} from "./core/bargeInDetector";
 export {
   VOICE_WEBHOOK_SIGNATURE_HEADER,
   VOICE_WEBHOOK_TIMESTAMP_HEADER,

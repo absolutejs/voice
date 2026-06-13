@@ -1191,6 +1191,7 @@ export type VoicePluginConfig<
   reconnect?: VoiceReconnectConfig;
   turnDetection?: VoiceTurnDetectionConfig;
   semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
+  bargeInDetector?: import("./bargeInDetector").VoiceBargeInDetector;
   bargeInMinPartialWords?: number;
   /**
    * When true, a pure listening cue ("mm-hm", "yeah", "right", "got it") spoken
@@ -1500,6 +1501,7 @@ export type CreateVoiceSessionOptions<
   costTelephony?: { provider?: string };
   redact?: import("./redaction").VoiceTranscriptRedactor;
   semanticTurnDetector?: import("./semanticTurn").VoiceSemanticTurnDetector;
+  bargeInDetector?: import("./bargeInDetector").VoiceBargeInDetector;
   /**
    * Pre-rendered filler phrases the runtime plays in the gap between
    * user-turn-commit and real assistant audio (typically 800-1500ms). The

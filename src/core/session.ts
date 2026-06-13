@@ -501,7 +501,8 @@ export const createVoiceSession = <
     strategy: options.reconnect.strategy ?? "resume-last-turn",
     timeout: options.reconnect.timeout ?? DEFAULT_RECONNECT_TIMEOUT,
   };
-  const resolvedSilenceMs = options.turnDetection.silenceMs ?? DEFAULT_SILENCE_MS;
+  const resolvedSilenceMs =
+    options.turnDetection.silenceMs ?? DEFAULT_SILENCE_MS;
   const turnDetection = {
     silenceMs: resolvedSilenceMs,
     // Floor of the adaptive endpointing window. Defaults to the smaller of the
@@ -534,7 +535,9 @@ export const createVoiceSession = <
     }
     const complete = Math.max(0, Math.min(1, lastTurnCompleteConfidence));
 
-    return Math.round(minSilenceMs + (silenceMs - minSilenceMs) * (1 - complete));
+    return Math.round(
+      minSilenceMs + (silenceMs - minSilenceMs) * (1 - complete),
+    );
   };
 
   // P3 eager generation: the IN-FLIGHT (or settled) speculative reply generation,
@@ -900,7 +903,10 @@ export const createVoiceSession = <
     options.realtimeInputFormat ??
     DEFAULT_REALTIME_FORMAT;
   const getTurnAudioForDetector = () => {
-    if (!options.semanticTurnDetector || currentTurnAudio.length === 0) {
+    if (
+      (!options.semanticTurnDetector && !options.bargeInDetector) ||
+      currentTurnAudio.length === 0
+    ) {
       return { turnAudio: undefined, turnAudioFormat: undefined };
     }
     const turnAudio = currentTurnAudio.map((audio) => {
@@ -1425,9 +1431,7 @@ export const createVoiceSession = <
   // completion-confidence already lengthens the wait for a mid-thought pause and
   // shortens it when the caller is clearly done, so the timer firing IS the
   // decision — no separate binary veto/defer loop.
-  const runScheduledCommit = async (
-    reason: VoiceEndOfTurnEvent["reason"],
-  ) => {
+  const runScheduledCommit = async (reason: VoiceEndOfTurnEvent["reason"]) => {
     await api.commitTurn(reason);
   };
 
@@ -1594,7 +1598,8 @@ export const createVoiceSession = <
         continue;
       }
       const streamQuiet = now - lastAssistantAudioAt >= DRAIN_QUIET_MS;
-      const playbackDrained = assistantSpeechEndsAt + DRAIN_TAIL_BUFFER_MS <= now;
+      const playbackDrained =
+        assistantSpeechEndsAt + DRAIN_TAIL_BUFFER_MS <= now;
       if (streamQuiet && playbackDrained) return;
       // Backstop the only remaining unbounded case: a stream that keeps arriving
       // and never goes quiet (runaway/stuck provider). Once the stream IS quiet,
@@ -2340,43 +2345,11 @@ export const createVoiceSession = <
       const triggeringText = transcript.text.trim();
       if (triggeringText) {
         const wordCount = triggeringText.split(/\s+/).length;
-        if (
-          wordCount >= bargeInMinPartialWords &&
-          backchannelBargeInGuard &&
-          isBackchannelUtterance(triggeringText)
-        ) {
-          // P4: a pure listening cue ("mm-hm", "yeah", "got it") while the
-          // assistant is speaking is an affirmation, not an interruption — keep
-          // talking. Timestamp it so handleFinal drops the matching final and the
-          // cue never becomes the caller's next turn.
-          backchannelSuppressedAt = Date.now();
-          void appendTurnLatencyStage({
-            metadata: {
-              partial: triggeringText.slice(0, 200),
-              reason: "backchannel",
-              wordCount,
-            },
-            stage: "barge_in_suppressed",
-            turnId: activeTTSTurnId,
-          }).catch(() => {});
-        } else if (wordCount >= bargeInMinPartialWords) {
-          // A real interruption — cancel the in-flight TTS. Any earlier
-          // suppressed cue is now part of a genuine turn, so stop dropping.
-          backchannelSuppressedAt = null;
-          void appendTurnLatencyStage({
-            metadata: {
-              partial: triggeringText.slice(0, 200),
-              source: "stt_partial",
-              wordCount,
-            },
-            stage: "barge_in",
-            turnId: activeTTSTurnId,
-          }).catch(() => {});
-          void cancelActiveTTS("barge-in");
-        } else {
+        if (wordCount < bargeInMinPartialWords) {
           // Below threshold — trace that we SAW a partial but suppressed
-          // barge-in. Useful for debugging the inverse complaint ("I
-          // started talking and the bot kept going").
+          // barge-in (the word floor ignores single-word breath/filler
+          // mistranscriptions). Useful for the inverse complaint ("I started
+          // talking and the bot kept going").
           void appendTurnLatencyStage({
             metadata: {
               partial: triggeringText.slice(0, 200),
@@ -2386,6 +2359,55 @@ export const createVoiceSession = <
             stage: "barge_in_suppressed",
             turnId: activeTTSTurnId,
           }).catch(() => {});
+        } else {
+          // At/above the word floor: decide real interruption vs backchannel.
+          // An acoustic detector (if provided) reads the user's audio for this
+          // window — duration + onset energy — which catches cues the text
+          // lexicon misses and lets an emphatic short burst through. Without one,
+          // fall back to the transcript-only backchannel guard.
+          const isBackchannelByText =
+            backchannelBargeInGuard && isBackchannelUtterance(triggeringText);
+          const verdict = options.bargeInDetector
+            ? await Promise.resolve(
+                options.bargeInDetector.evaluate({
+                  isBackchannelByText,
+                  partialText: triggeringText,
+                  wordCount,
+                  ...getTurnAudioForDetector(),
+                }),
+              )
+            : { reason: undefined, shouldCancel: !isBackchannelByText };
+          const reason =
+            verdict.reason ??
+            (verdict.shouldCancel ? "stt_partial" : "backchannel");
+          if (verdict.shouldCancel) {
+            // A real interruption — cancel the in-flight TTS. Any earlier
+            // suppressed cue is now part of a genuine turn, so stop dropping.
+            backchannelSuppressedAt = null;
+            void appendTurnLatencyStage({
+              metadata: {
+                partial: triggeringText.slice(0, 200),
+                source: reason,
+                wordCount,
+              },
+              stage: "barge_in",
+              turnId: activeTTSTurnId,
+            }).catch(() => {});
+            void cancelActiveTTS("barge-in");
+          } else {
+            // A listening cue — keep talking. Timestamp it so handleFinal drops
+            // the matching final and the cue never becomes the caller's turn.
+            backchannelSuppressedAt = Date.now();
+            void appendTurnLatencyStage({
+              metadata: {
+                partial: triggeringText.slice(0, 200),
+                reason,
+                wordCount,
+              },
+              stage: "barge_in_suppressed",
+              turnId: activeTTSTurnId,
+            }).catch(() => {});
+          }
         }
       }
     }
@@ -3925,11 +3947,7 @@ export const createVoiceSession = <
     // re-orientation line instead of repeating the greeting.
     if (options.greeting && session.turns.length === 0) {
       await speakAssistantLine(await resolveLine(options.greeting));
-    } else if (
-      isResume &&
-      options.resumeGreeting &&
-      session.turns.length > 0
-    ) {
+    } else if (isResume && options.resumeGreeting && session.turns.length > 0) {
       await speakAssistantLine(await resolveLine(options.resumeGreeting));
     }
   };
@@ -4085,10 +4103,7 @@ export const createVoiceSession = <
           },
         ),
       );
-      if (
-        hasTurnTextDespiteNoise &&
-        sttQuietMs >= turnDetection.silenceMs
-      ) {
+      if (hasTurnTextDespiteNoise && sttQuietMs >= turnDetection.silenceMs) {
         if (!silenceTimer) {
           scheduleSilenceCommit(0);
         }

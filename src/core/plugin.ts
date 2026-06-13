@@ -812,6 +812,9 @@ export const voice = <
       ...(config.semanticTurnDetector
         ? { semanticTurnDetector: config.semanticTurnDetector }
         : {}),
+      ...(config.bargeInDetector
+        ? { bargeInDetector: config.bargeInDetector }
+        : {}),
       ...(config.bargeInMinPartialWords !== undefined
         ? { bargeInMinPartialWords: config.bargeInMinPartialWords }
         : {}),
