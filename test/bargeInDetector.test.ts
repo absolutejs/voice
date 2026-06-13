@@ -9,89 +9,76 @@ const FORMAT: AudioFormat = {
   sampleRateHz: 16_000,
 };
 
-// Constant-level PCM16: RMS == |amplitude| / 32768, duration == ms.
-const pcm = (ms: number, amplitude: number) => {
+// Constant-level voiced PCM16 (amp 3000 ≈ 0.09, above the voiced floor).
+const voiced = (ms: number) => {
   const samples = Math.round((ms / 1000) * FORMAT.sampleRateHz);
-  const buf = new Int16Array(samples).fill(amplitude);
-  return [new Uint8Array(buf.buffer)];
+  return [new Uint8Array(new Int16Array(samples).fill(3000).buffer)];
 };
 
 describe("createAcousticBargeInDetector", () => {
   const detector = createAcousticBargeInDetector();
 
-  test("sustained speech cancels regardless of words", () => {
-    const v = detector.evaluate({
-      isBackchannelByText: false,
-      partialText: "so the thing is i really think we should",
-      turnAudio: pcm(800, 3000),
-      turnAudioFormat: FORMAT,
-      wordCount: 8,
-    });
-    expect(v).toMatchObject({
-      reason: "acoustic_sustained",
-      shouldCancel: true,
-    });
+  test("sustained voiced speech cancels", () => {
+    expect(
+      detector.evaluate({
+        isBackchannelByText: false,
+        partialText: "so the thing is i really think we should look at",
+        turnAudio: voiced(800),
+        turnAudioFormat: FORMAT,
+        wordCount: 10,
+      }),
+    ).toMatchObject({ reason: "acoustic_sustained", shouldCancel: true });
   });
 
-  test("short known cue keeps talking", () => {
-    const v = detector.evaluate({
-      isBackchannelByText: true,
-      partialText: "mm hm",
-      turnAudio: pcm(300, 3000),
-      turnAudioFormat: FORMAT,
-      wordCount: 2,
-    });
-    expect(v).toMatchObject({
-      reason: "acoustic_backchannel",
-      shouldCancel: false,
-    });
+  test("short known backchannel cue keeps talking", () => {
+    expect(
+      detector.evaluate({
+        isBackchannelByText: true,
+        partialText: "got it",
+        turnAudio: voiced(300),
+        turnAudioFormat: FORMAT,
+        wordCount: 2,
+      }),
+    ).toMatchObject({ reason: "acoustic_backchannel", shouldCancel: false });
   });
 
-  test("short but loud onset cancels (emphatic interruption)", () => {
-    const v = detector.evaluate({
-      isBackchannelByText: false,
-      partialText: "wait stop",
-      turnAudio: pcm(300, 9000), // rms ~0.27 >= 0.16
-      turnAudioFormat: FORMAT,
-      wordCount: 2,
-    });
-    expect(v).toMatchObject({
-      reason: "acoustic_emphatic",
-      shouldCancel: true,
-    });
+  test("short utterance starting with an interruption cue cancels", () => {
+    expect(
+      detector.evaluate({
+        isBackchannelByText: false,
+        partialText: "wait hold on",
+        turnAudio: voiced(350),
+        turnAudioFormat: FORMAT,
+        wordCount: 3,
+      }),
+    ).toMatchObject({ reason: "acoustic_interruption", shouldCancel: true });
   });
 
-  test("short and quiet is incidental noise", () => {
-    const v = detector.evaluate({
-      isBackchannelByText: false,
-      partialText: "uh",
-      turnAudio: pcm(300, 500), // rms ~0.015 <= 0.035
-      turnAudioFormat: FORMAT,
-      wordCount: 1,
-    });
-    expect(v).toMatchObject({
-      reason: "acoustic_noise_floor",
-      shouldCancel: false,
-    });
+  test("short ambiguous non-cue HOLDS (keep talking, wait for persistence)", () => {
+    expect(
+      detector.evaluate({
+        isBackchannelByText: false,
+        partialText: "the data",
+        turnAudio: voiced(300),
+        turnAudioFormat: FORMAT,
+        wordCount: 2,
+      }),
+    ).toMatchObject({ reason: "acoustic_hold", shouldCancel: false });
   });
 
   test("leading silence does not inflate a short cue to sustained", () => {
-    // The live failure case: the buffered turn audio is mostly the silence the
-    // mic streams, with only a short real cue. Voiced-duration must stay short.
     const silence = [
       new Uint8Array(new Int16Array(1.5 * FORMAT.sampleRateHz).buffer),
     ];
-    const v = detector.evaluate({
-      isBackchannelByText: true,
-      partialText: "got it",
-      turnAudio: [...silence, ...pcm(300, 3000)],
-      turnAudioFormat: FORMAT,
-      wordCount: 2,
-    });
-    expect(v).toMatchObject({
-      reason: "acoustic_backchannel",
-      shouldCancel: false,
-    });
+    expect(
+      detector.evaluate({
+        isBackchannelByText: true,
+        partialText: "got it",
+        turnAudio: [...silence, ...voiced(300)],
+        turnAudioFormat: FORMAT,
+        wordCount: 2,
+      }),
+    ).toMatchObject({ reason: "acoustic_backchannel", shouldCancel: false });
   });
 
   test("no audio defers to the text signal", () => {
@@ -105,9 +92,9 @@ describe("createAcousticBargeInDetector", () => {
     expect(
       detector.evaluate({
         isBackchannelByText: false,
-        partialText: "actually i disagree",
-        wordCount: 3,
+        partialText: "wait i have a question",
+        wordCount: 5,
       }),
-    ).toMatchObject({ reason: "text_only", shouldCancel: true });
+    ).toMatchObject({ reason: "text_interruption", shouldCancel: true });
   });
 });

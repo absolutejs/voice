@@ -215,6 +215,7 @@ export type TwilioMediaStreamBridgeOptions<
    * snappy responses on clear-cut answers. See VoiceSemanticTurnDetector.
    */
   semanticTurnDetector?: import("../core/semanticTurn").VoiceSemanticTurnDetector;
+  bargeInDetector?: import("../core/bargeInDetector").VoiceBargeInDetector;
   /**
    * Pre-rendered filler phrases ("Hmm.", "Got it.", "Let me think.") played
    * in the gap between user-turn-commit and real assistant audio. Boardy's
@@ -1307,6 +1308,9 @@ export const createTwilioMediaStreamBridge = <
       // turnDetection.silenceMs.
       ...(options.semanticTurnDetector
         ? { semanticTurnDetector: options.semanticTurnDetector }
+        : {}),
+      ...(options.bargeInDetector
+        ? { bargeInDetector: options.bargeInDetector }
         : {}),
       // Forward filler-phrase config (Boardy's "the pause is character"
       // pattern). The runtime schedules a filler at fillerDelayMs after
