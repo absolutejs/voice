@@ -88,21 +88,28 @@ export type VoiceCostBreakdown = {
     cachedInputTokens: number;
     inputTokens: number;
     outputTokens: number;
+    // The vendor that carried the most $ of this channel for the call (so a
+    // mid-call failover attributes to whoever actually did the work). Undefined
+    // when nothing was recorded for the channel.
+    provider?: string;
     usd: number;
   };
   sessionId?: string;
   stt: {
     audioMs: number;
+    provider?: string;
     usd: number;
   };
   telephony: {
     minutes: number;
+    provider?: string;
     usd: number;
   };
   totalUsd: number;
   tts: {
     audioMs: number;
     characters: number;
+    provider?: string;
     usd: number;
   };
 };
@@ -164,6 +171,41 @@ export const createVoiceCostAccountant = (
   let telephonyMinutes = 0;
   let telephonyUsd = 0;
 
+  // Per-channel $-by-vendor so the snapshot can report WHO carried each channel
+  // (the dominant spender). `last*` is the fallback when a channel ran but priced
+  // to $0 (e.g. no rate in the book) so the vendor is still surfaced.
+  const llmByProvider = new Map<string, number>();
+  const ttsByProvider = new Map<string, number>();
+  const sttByProvider = new Map<string, number>();
+  const telephonyByProvider = new Map<string, number>();
+  let lastLlmProvider: string | undefined;
+  let lastTtsProvider: string | undefined;
+  let lastSttProvider: string | undefined;
+  let lastTelephonyProvider: string | undefined;
+  const addProvider = (
+    byProvider: Map<string, number>,
+    provider: string | undefined,
+    usd: number,
+  ) => {
+    if (!provider) return;
+    byProvider.set(provider, (byProvider.get(provider) ?? 0) + usd);
+  };
+  const dominant = (
+    byProvider: Map<string, number>,
+    fallback: string | undefined,
+  ): string | undefined => {
+    let best: string | undefined;
+    let bestUsd = -1;
+    for (const [provider, usd] of byProvider) {
+      if (usd > bestUsd) {
+        bestUsd = usd;
+        best = provider;
+      }
+    }
+
+    return best ?? fallback;
+  };
+
   return {
     recordLLM: (usage) => {
       const input = usage.inputTokens ?? 0;
@@ -172,63 +214,79 @@ export const createVoiceCostAccountant = (
       llmInput += input;
       llmCachedInput += cached;
       llmOutput += output;
+      if (usage.provider) lastLlmProvider = usage.provider;
       const rates = lookupRates(priceBook, usage.provider, usage.model)?.llm;
       if (!rates) {
         return;
       }
       const cachedRate =
         rates.cachedInputPerMillionTokensUsd ?? rates.inputPerMillionTokensUsd;
-      llmUsd +=
+      const delta =
         (Math.max(0, input - cached) * rates.inputPerMillionTokensUsd) /
           1_000_000 +
         (cached * cachedRate) / 1_000_000 +
         (output * rates.outputPerMillionTokensUsd) / 1_000_000;
+      llmUsd += delta;
+      addProvider(llmByProvider, usage.provider, delta);
     },
     recordSTT: (input) => {
       sttAudioMs += Math.max(0, input.audioMs);
+      if (input.provider) lastSttProvider = input.provider;
       const rates = lookupRates(priceBook, input.provider, input.model)?.stt;
       if (!rates) {
         return;
       }
-      sttUsd += (Math.max(0, input.audioMs) / 1_000) * rates.perSecondUsd;
+      const delta = (Math.max(0, input.audioMs) / 1_000) * rates.perSecondUsd;
+      sttUsd += delta;
+      addProvider(sttByProvider, input.provider, delta);
     },
     recordTelephony: (input) => {
       telephonyMinutes += Math.max(0, input.minutes);
+      if (input.provider) lastTelephonyProvider = input.provider;
       const rates = lookupRates(priceBook, input.provider)?.telephony;
       if (!rates) {
         return;
       }
-      telephonyUsd += Math.max(0, input.minutes) * rates.perMinuteUsd;
+      const delta = Math.max(0, input.minutes) * rates.perMinuteUsd;
+      telephonyUsd += delta;
+      addProvider(telephonyByProvider, input.provider, delta);
     },
     recordTTS: (input) => {
       const chars = input.characters ?? 0;
       const audioMs = input.audioMs ?? 0;
       ttsCharacters += chars;
       ttsAudioMs += audioMs;
+      if (input.provider) lastTtsProvider = input.provider;
       const rates = lookupRates(priceBook, input.provider, input.voice)?.tts;
       if (!rates) {
         return;
       }
+      let delta = 0;
       if (rates.perMillionCharactersUsd !== undefined && chars > 0) {
-        ttsUsd += (chars * rates.perMillionCharactersUsd) / 1_000_000;
+        delta = (chars * rates.perMillionCharactersUsd) / 1_000_000;
       } else if (rates.perSecondUsd !== undefined && audioMs > 0) {
-        ttsUsd += (audioMs / 1_000) * rates.perSecondUsd;
+        delta = (audioMs / 1_000) * rates.perSecondUsd;
       }
+      ttsUsd += delta;
+      addProvider(ttsByProvider, input.provider, delta);
     },
     snapshot: () => ({
       llm: {
         cachedInputTokens: llmCachedInput,
         inputTokens: llmInput,
         outputTokens: llmOutput,
+        provider: dominant(llmByProvider, lastLlmProvider),
         usd: Math.round(llmUsd * 1_000_000) / 1_000_000,
       },
       sessionId: options.sessionId,
       stt: {
         audioMs: sttAudioMs,
+        provider: dominant(sttByProvider, lastSttProvider),
         usd: Math.round(sttUsd * 1_000_000) / 1_000_000,
       },
       telephony: {
         minutes: telephonyMinutes,
+        provider: dominant(telephonyByProvider, lastTelephonyProvider),
         usd: Math.round(telephonyUsd * 1_000_000) / 1_000_000,
       },
       totalUsd:
@@ -237,6 +295,7 @@ export const createVoiceCostAccountant = (
       tts: {
         audioMs: ttsAudioMs,
         characters: ttsCharacters,
+        provider: dominant(ttsByProvider, lastTtsProvider),
         usd: Math.round(ttsUsd * 1_000_000) / 1_000_000,
       },
     }),
