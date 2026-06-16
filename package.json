@@ -6,6 +6,10 @@
     "type": "git",
     "url": "https://github.com/absolutejs/voice.git"
   },
+  "homepage": "https://github.com/absolutejs/voice",
+  "bugs": {
+    "url": "https://github.com/absolutejs/voice/issues"
+  },
   "files": [
     "dist",
     "README.md"

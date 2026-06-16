@@ -241,7 +241,9 @@ export type VoiceAssistant<
    * applied, so only safe to reuse when the assistant has none, or the caller
    * re-applies them). Undefined if the underlying agent can't speculate.
    */
-  speculate?: NonNullable<VoiceAgent<TContext, TSession, TResult>["runSpeculative"]>;
+  speculate?: NonNullable<
+    VoiceAgent<TContext, TSession, TResult>["runSpeculative"]
+  >;
   ops?: VoiceRuntimeOpsConfig<TContext, TSession, TResult>;
   route: (
     overrides: Omit<

@@ -119,7 +119,9 @@ test("createVoiceAgent stops after an endsTurn tool — no second closing", asyn
 
       return {
         assistantText: `Closing #${generateCalls}. Talk to you soon!`,
-        toolCalls: [{ args: {}, id: `call-${generateCalls}`, name: "end_call" }],
+        toolCalls: [
+          { args: {}, id: `call-${generateCalls}`, name: "end_call" },
+        ],
       };
     },
   };

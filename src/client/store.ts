@@ -159,7 +159,10 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
         // whole utterance stays visible — don't replace it with just this
         // segment (that's what made the live transcript show only the current
         // phrase until the turn committed).
-        turnFinalText = appendSegmentText(turnFinalText, action.transcript.text);
+        turnFinalText = appendSegmentText(
+          turnFinalText,
+          action.transcript.text,
+        );
         state = {
           ...state,
           partial: turnFinalText,

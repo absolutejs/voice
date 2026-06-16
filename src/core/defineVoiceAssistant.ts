@@ -51,7 +51,10 @@ const resolveTurnDetection = (
   return {
     profile: input?.profile ?? "balanced",
     qualityProfile: input?.qualityProfile ?? "general",
-    minSilenceMs: Math.min(silenceMs, input?.minSilenceMs ?? DEFAULT_MIN_SILENCE_MS),
+    minSilenceMs: Math.min(
+      silenceMs,
+      input?.minSilenceMs ?? DEFAULT_MIN_SILENCE_MS,
+    ),
     silenceMs,
     speechThreshold: input?.speechThreshold ?? DEFAULT_SPEECH_THRESHOLD,
     transcriptStabilityMs:

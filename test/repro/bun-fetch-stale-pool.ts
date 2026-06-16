@@ -21,7 +21,9 @@ const listen = (port: number, onReuse: (s: any) => void) =>
       data(socket: any) {
         socket.n = (socket.n ?? 0) + 1;
         if (socket.n === 1) {
-          socket.write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok");
+          socket.write(
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok",
+          );
         } else {
           onReuse(socket); // behaviour on the REUSED connection
         }
@@ -36,14 +38,18 @@ listen(38131, () => {});
 
 const probe = async (label: string, port: number) => {
   const url = `http://127.0.0.1:${port}/`;
-  await (await fetch(url)).text();   // open + pool the connection
-  await Bun.sleep(200);              // connection now idle in the pool
+  await (await fetch(url)).text(); // open + pool the connection
+  await Bun.sleep(200); // connection now idle in the pool
   const t = performance.now();
   try {
     await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    console.log(`${label}: reconnected/responded in ${(performance.now() - t).toFixed(0)}ms  ✅`);
+    console.log(
+      `${label}: reconnected/responded in ${(performance.now() - t).toFixed(0)}ms  ✅`,
+    );
   } catch {
-    console.log(`${label}: HUNG ${((performance.now() - t) / 1000).toFixed(0)}s+ on the reused pooled socket  ❌`);
+    console.log(
+      `${label}: HUNG ${((performance.now() - t) / 1000).toFixed(0)}s+ on the reused pooled socket  ❌`,
+    );
   }
 };
 

@@ -3321,13 +3321,21 @@ test("voice session resumes from the persistent store after a restart without re
       greeting,
       id: "session-resume",
       logger: {},
-      reconnect: { maxAttempts: 3, strategy: "resume-last-turn", timeout: 5_000 },
+      reconnect: {
+        maxAttempts: 3,
+        strategy: "resume-last-turn",
+        timeout: 5_000,
+      },
       route: { onComplete: async () => {}, onTurn: async () => ({}) },
       socket: socket.socket,
       store,
       stt: adapter.adapter,
       tts: tts.adapter,
-      turnDetection: { silenceMs: 20, speechThreshold: 0.01, transcriptStabilityMs: 5 },
+      turnDetection: {
+        silenceMs: 20,
+        speechThreshold: 0.01,
+        transcriptStabilityMs: 5,
+      },
     });
 
     return { adapter, session, socket, store };
@@ -3340,7 +3348,9 @@ test("voice session resumes from the persistent store after a restart without re
   expect(
     first.socket.messages
       .map((message) => JSON.parse(message))
-      .some((message) => message.type === "assistant" && message.text === greeting),
+      .some(
+        (message) => message.type === "assistant" && message.text === greeting,
+      ),
   ).toBe(true);
 
   await first.adapter.emitCurrent("final", {
@@ -3397,7 +3407,11 @@ test("voice session speaks the resume re-orientation and fires onResume after a 
       greeting,
       id: "session-resume-line",
       logger: {},
-      reconnect: { maxAttempts: 3, strategy: "resume-last-turn", timeout: 5_000 },
+      reconnect: {
+        maxAttempts: 3,
+        strategy: "resume-last-turn",
+        timeout: 5_000,
+      },
       resumeGreeting,
       route: {
         onComplete: async () => {},
@@ -3410,7 +3424,11 @@ test("voice session speaks the resume re-orientation and fires onResume after a 
       store,
       stt: adapter.adapter,
       tts: tts.adapter,
-      turnDetection: { silenceMs: 20, speechThreshold: 0.01, transcriptStabilityMs: 5 },
+      turnDetection: {
+        silenceMs: 20,
+        speechThreshold: 0.01,
+        transcriptStabilityMs: 5,
+      },
     });
 
     return { adapter, session, socket, store };
@@ -3464,14 +3482,22 @@ test("voice session re-greets when a restart lands before the first turn", async
       greeting,
       id: "session-resume-pregreet",
       logger: {},
-      reconnect: { maxAttempts: 3, strategy: "resume-last-turn", timeout: 5_000 },
+      reconnect: {
+        maxAttempts: 3,
+        strategy: "resume-last-turn",
+        timeout: 5_000,
+      },
       resumeGreeting,
       route: { onComplete: async () => {}, onTurn: async () => ({}) },
       socket: socket.socket,
       store,
       stt: adapter.adapter,
       tts: tts.adapter,
-      turnDetection: { silenceMs: 20, speechThreshold: 0.01, transcriptStabilityMs: 5 },
+      turnDetection: {
+        silenceMs: 20,
+        speechThreshold: 0.01,
+        transcriptStabilityMs: 5,
+      },
     });
 
     return { session, socket, store };

@@ -56,7 +56,12 @@ const seed = (id: string, mutate?: (record: VoiceSessionRecord) => void) => {
 const addTurn = (record: VoiceSessionRecord, text: string) => {
   record.turns = [
     ...record.turns,
-    { committedAt: record.turns.length + 1, id: `t${record.turns.length}`, text, transcripts: [] },
+    {
+      committedAt: record.turns.length + 1,
+      id: `t${record.turns.length}`,
+      text,
+      transcripts: [],
+    },
   ];
 };
 
@@ -72,7 +77,10 @@ test("write-behind store hydrates a cold session from the persistent store", asy
   // Fresh write-behind store (simulating a process that just restarted): memory
   // is empty, so get() must fall back to the persistent store and repopulate.
   const memory = createVoiceMemoryStore();
-  const store = createVoiceWriteBehindStore({ memory, persistent: persistent.store });
+  const store = createVoiceWriteBehindStore({
+    memory,
+    persistent: persistent.store,
+  });
 
   const resumed = await store.get("call-1");
   expect(resumed?.turns).toHaveLength(1);
@@ -92,9 +100,12 @@ test("write-behind store coalesces a burst of partial writes into the latest sna
 
   // Five rapid partial-style writes (no turn growth) within the debounce window.
   for (let index = 0; index < 5; index += 1) {
-    await store.set("call-2", seed("call-2", (record) => {
-      record.currentTurn.partialText = `word ${index}`;
-    }));
+    await store.set(
+      "call-2",
+      seed("call-2", (record) => {
+        record.currentTurn.partialText = `word ${index}`;
+      }),
+    );
   }
 
   // Nothing persisted synchronously.
@@ -104,7 +115,9 @@ test("write-behind store coalesces a burst of partial writes into the latest sna
 
   // Collapsed into a single flush carrying the LAST snapshot.
   expect(persistent.setCalls).toHaveLength(1);
-  expect(persistent.getStored("call-2")?.currentTurn.partialText).toBe("word 4");
+  expect(persistent.getStored("call-2")?.currentTurn.partialText).toBe(
+    "word 4",
+  );
 
   store.dispose();
 });
@@ -135,8 +148,14 @@ test("write-behind store flush() drains all pending writes (shutdown path)", asy
     persistent: persistent.store,
   });
 
-  await store.set("a", seed("a", (r) => (r.currentTurn.partialText = "pa")));
-  await store.set("b", seed("b", (r) => (r.currentTurn.partialText = "pb")));
+  await store.set(
+    "a",
+    seed("a", (r) => (r.currentTurn.partialText = "pa")),
+  );
+  await store.set(
+    "b",
+    seed("b", (r) => (r.currentTurn.partialText = "pb")),
+  );
   expect(persistent.setCalls).toHaveLength(0);
 
   await store.flush();
@@ -156,12 +175,17 @@ test("write-behind store retries a failed flush instead of losing the session", 
   });
 
   persistent.failUpcoming(1);
-  await store.set("call-4", seed("call-4", (r) => (r.currentTurn.partialText = "keep me")));
+  await store.set(
+    "call-4",
+    seed("call-4", (r) => (r.currentTurn.partialText = "keep me")),
+  );
 
   await Bun.sleep(40); // first flush fails, re-queues
   await store.flush(); // subsequent flush succeeds
 
-  expect(persistent.getStored("call-4")?.currentTurn.partialText).toBe("keep me");
+  expect(persistent.getStored("call-4")?.currentTurn.partialText).toBe(
+    "keep me",
+  );
 
   store.dispose();
 });
