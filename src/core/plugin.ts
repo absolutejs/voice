@@ -123,6 +123,17 @@ type VoiceRuntime = {
     string,
     VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>
   >;
+  // In-flight session creations keyed by sessionId. createManagedSession awaits
+  // (profile-switch guard, phrase hints, lexicon) BEFORE the result is put in
+  // activeSessions, so concurrent WS events for the same session (the `open`
+  // handler racing the first mic-audio frames that stream in immediately on call
+  // start) would each see no active session and each create one — firing the
+  // greeting 2-3x ("the agent spammed the intro"). Concurrent creators await this
+  // shared promise instead, so create + connect + greeting happen exactly once.
+  pendingSessions: Map<
+    string,
+    Promise<VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>>
+  >;
   logger: ReturnType<typeof resolveLogger>;
   profileSwitchGuardAutoSwitchCounts: Map<string, number>;
   profileSwitchGuardedSessions: Set<string>;
@@ -621,6 +632,7 @@ export const voice = <
   >();
   const runtime: VoiceRuntime = {
     activeSessions: new Map(),
+    pendingSessions: new Map(),
     logger: resolveLogger(config.logger),
     profileSwitchGuardAutoSwitchCounts: new Map(),
     profileSwitchGuardedSessions: new Set(),
@@ -839,6 +851,61 @@ export const voice = <
       tts: config.tts,
       turnDetection: sessionOptions.turnDetection,
     });
+  };
+
+  // Create, register, and connect a managed session for a sessionId EXACTLY once,
+  // even when several WS events for the same session arrive during the async
+  // createManagedSession gap (the `open` handler racing the first mic-audio
+  // frames). The first caller installs an in-flight promise; concurrent callers
+  // await it instead of creating their own session (which would re-fire the
+  // greeting). Returns the live session. On failure the pending entry is cleared
+  // so a later frame can retry.
+  const createAndConnectSession = async (
+    ws: {
+      data?: unknown;
+      close: (code?: number, reason?: string) => void;
+      send: (data: string | Uint8Array | ArrayBuffer) => unknown;
+    },
+    sessionId: string,
+    scenarioId?: string,
+  ) => {
+    const session = await createManagedSession(ws, sessionId, scenarioId);
+    const typedSession = session as VoiceSessionHandle<
+      unknown,
+      VoiceSessionRecord,
+      unknown
+    >;
+    runtime.activeSessions.set(sessionId, typedSession);
+    registerMonitorSession(sessionId, typedSession);
+    await session.connect(buildSocketAdapter(ws, sessionId));
+
+    return typedSession;
+  };
+
+  const ensureManagedSession = async (
+    ws: {
+      data?: unknown;
+      close: (code?: number, reason?: string) => void;
+      send: (data: string | Uint8Array | ArrayBuffer) => unknown;
+    },
+    sessionId: string,
+    scenarioId?: string,
+  ) => {
+    const active = runtime.activeSessions.get(sessionId);
+    if (active) {
+      return active;
+    }
+    const inFlight = runtime.pendingSessions.get(sessionId);
+    if (inFlight) {
+      return inFlight;
+    }
+    const creation = createAndConnectSession(ws, sessionId, scenarioId);
+    runtime.pendingSessions.set(sessionId, creation);
+    try {
+      return await creation;
+    } finally {
+      runtime.pendingSessions.delete(sessionId);
+    }
   };
 
   // Type-safety for surfaces is enforced on the VoicePluginConfig keys
@@ -1327,22 +1394,11 @@ export const voice = <
 
         const session =
           current ??
-          (await createManagedSession(
+          (await ensureManagedSession(
             ws,
             sessionState.sessionId,
             sessionState.scenarioId ?? undefined,
           ));
-
-        if (!current) {
-          const typedSession = session as VoiceSessionHandle<
-            unknown,
-            VoiceSessionRecord,
-            unknown
-          >;
-          runtime.activeSessions.set(sessionState.sessionId, typedSession);
-          registerMonitorSession(sessionState.sessionId, typedSession);
-          await session.connect(buildSocketAdapter(ws, sessionState.sessionId));
-        }
 
         await session.receiveAudio(audio);
       },
@@ -1350,26 +1406,23 @@ export const voice = <
         const sessionState = resolveSessionId(runtime, ws);
         const existing = runtime.activeSessions.get(sessionState.sessionId);
 
+        // A genuinely new socket for a session that still has a live one (a
+        // reconnect that raced the old close): retire the old session bound to
+        // the dead socket before standing up the new one.
         if (existing) {
           await existing.close("superseded");
           runtime.activeSessions.delete(sessionState.sessionId);
           deregisterMonitorSession(sessionState.sessionId, "superseded");
         }
 
-        const session = await createManagedSession(
+        // Single deduped creation path: if the first mic-audio frames already
+        // kicked off (or completed) session creation, await that instead of
+        // creating a second session and re-firing the greeting.
+        await ensureManagedSession(
           ws,
           sessionState.sessionId,
           sessionState.scenarioId ?? undefined,
         );
-
-        const typedSession = session as VoiceSessionHandle<
-          unknown,
-          VoiceSessionRecord,
-          unknown
-        >;
-        runtime.activeSessions.set(sessionState.sessionId, typedSession);
-        registerMonitorSession(sessionState.sessionId, typedSession);
-        await session.connect(buildSocketAdapter(ws, sessionState.sessionId));
       },
     })
     .use(htmxRoutes())
