@@ -75,6 +75,10 @@ export type VoiceProviderRouterEvent<TProvider extends string = string> = {
   at: number;
   attempt: number;
   elapsedMs: number;
+  /** Set when this event marks a provider returning an empty completion (no text
+   *  and no tool call) that triggered a same-provider retry — so consumers can
+   *  track how often the model glitches empty, and whether the retry recovered. */
+  emptyCompletion?: boolean;
   error?: string;
   fallbackProvider?: TProvider;
   latencyBudgetMs?: number;
@@ -466,6 +470,14 @@ export type VoiceProviderRouterOptions<
         input: VoiceAgentModelInput<TContext, TSession>,
       ) => readonly TProvider[] | Promise<readonly TProvider[]>);
   fallbackMode?: VoiceProviderRouterFallbackMode;
+  /** Retry the SAME provider this many times when it returns a non-error but
+   *  EMPTY completion (no assistant text AND no tool call) before accepting it.
+   *  An empty completion is a transient model glitch (observed on OpenAI
+   *  /responses returning a 200 with zero output items mid-conversation), NOT a
+   *  provider error — so it bypasses fallbackMode and never suppresses provider
+   *  health. Without this a one-off empty surfaces to the app as a dead turn
+   *  (the caller hears a re-engage / "go on, I'm listening" loop). Default 1. */
+  emptyCompletionRetries?: number;
   isProviderError?: (error: unknown, provider: TProvider) => boolean;
   isRateLimitError?: (error: unknown, provider: TProvider) => boolean;
   isTimeoutError?: (error: unknown, provider: TProvider) => boolean;
@@ -629,6 +641,11 @@ export const createJSONVoiceAssistantModel = <
   },
 });
 
+// A completion that came back with neither assistant text nor a tool call. The
+// turn produced nothing usable — distinct from a thrown provider error.
+const isEmptyModelOutput = (output: VoiceAgentModelOutput<unknown>) =>
+  !output.assistantText?.trim() && !output.toolCalls?.length;
+
 export const createVoiceProviderRouter = <
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -651,6 +668,10 @@ export const createVoiceProviderRouter = <
     options.fallbackMode ??
     orchestrationSurface?.fallbackMode ??
     "provider-error";
+  const emptyCompletionRetries = Math.max(
+    0,
+    options.emptyCompletionRetries ?? 1,
+  );
   const providerProfiles = {
     ...(orchestrationSurface?.providerProfiles ?? {}),
     ...(options.providerProfiles ?? {}),
@@ -968,6 +989,46 @@ export const createVoiceProviderRouter = <
     }
   };
 
+  // Run a provider, retrying the SAME provider on a non-error but EMPTY
+  // completion (no text, no tool call) up to emptyCompletionRetries times. An
+  // empty completion is a transient model glitch (not a provider error), so it
+  // deliberately bypasses fallbackMode + provider-health — it must neither switch
+  // providers nor suppress this one. Each retry emits an observability event.
+  const runProviderWithEmptyRetry = async (
+    provider: TProvider,
+    model: VoiceAgentModel<TContext, TSession, TResult>,
+    input: VoiceAgentModelInput<TContext, TSession>,
+    index: number,
+    selectedProvider: TProvider,
+    startedAt: number,
+  ) => {
+    let output = await runProvider(provider, model, input);
+    let emptyAttempt = 0;
+    while (
+      emptyAttempt < emptyCompletionRetries &&
+      isEmptyModelOutput(output)
+    ) {
+      emptyAttempt += 1;
+      // eslint-disable-next-line no-await-in-loop -- retries are sequential
+      await emit(
+        {
+          at: Date.now(),
+          attempt: index + 1,
+          elapsedMs: Date.now() - startedAt,
+          emptyCompletion: true,
+          provider,
+          selectedProvider,
+          status: "success",
+        },
+        input,
+      );
+      // eslint-disable-next-line no-await-in-loop -- retry the same provider serially
+      output = await runProvider(provider, model, input);
+    }
+
+    return output;
+  };
+
   return {
     generate: async (input) => {
       const { order, selectedProvider } = await resolveOrder(input);
@@ -983,7 +1044,14 @@ export const createVoiceProviderRouter = <
         }
         const startedAt = Date.now();
         try {
-          const output = await runProvider(provider, model, input);
+          const output = await runProviderWithEmptyRetry(
+            provider,
+            model,
+            input,
+            index,
+            selectedProvider,
+            startedAt,
+          );
           const providerHealth = recordProviderSuccess(provider);
           await emit(
             {
@@ -1391,6 +1459,16 @@ const consumeOpenAIResponsesStream = async (
 ) => {
   let assistantText = "";
   let usage: Record<string, unknown> | undefined;
+  // Diagnostics for an EMPTY completion: the terminal status (completed /
+  // incomplete / failed), the reason an incomplete one stopped early
+  // (max_output_tokens / content_filter), any model refusal text, and how many
+  // output items the response carried. Lets a caller see WHY a turn came back
+  // with no text/tools instead of guessing.
+  let status: string | undefined;
+  let incompleteReason: string | undefined;
+  let refusal = "";
+  let failureMessage: string | undefined;
+  let outputItems = 0;
   const calls = new Map<string, StreamedToolCall>();
 
   await readServerSentEvents(
@@ -1398,6 +1476,16 @@ const consumeOpenAIResponsesStream = async (
     (event) => {
       const type = typeof event.type === "string" ? event.type : "";
       const item = event.item as Record<string, unknown> | undefined;
+      if (type === "response.output_item.added") {
+        outputItems += 1;
+      }
+      if (
+        (type === "response.refusal.delta" ||
+          type === "response.refusal.done") &&
+        typeof event.delta === "string"
+      ) {
+        refusal += event.delta;
+      }
       if (
         type === "response.output_text.delta" &&
         typeof event.delta === "string"
@@ -1430,17 +1518,43 @@ const consumeOpenAIResponsesStream = async (
       ) {
         const entry = calls.get(String(item.id ?? item.call_id ?? ""));
         if (entry) entry.args = item.arguments;
-      } else if (type === "response.completed") {
+      } else if (
+        type === "response.completed" ||
+        type === "response.incomplete" ||
+        type === "response.failed"
+      ) {
         const completed = event.response as Record<string, unknown> | undefined;
         if (completed?.usage && typeof completed.usage === "object") {
           usage = completed.usage as Record<string, unknown>;
+        }
+        if (typeof completed?.status === "string") {
+          status = completed.status;
+        }
+        const incomplete = completed?.incomplete_details as
+          | Record<string, unknown>
+          | undefined;
+        if (typeof incomplete?.reason === "string") {
+          incompleteReason = incomplete.reason;
+        }
+        const failure = completed?.error as Record<string, unknown> | undefined;
+        if (typeof failure?.message === "string") {
+          failureMessage = failure.message;
         }
       }
     },
     abortOptions,
   );
 
-  return { assistantText, toolCalls: finalizeToolCalls(calls), usage };
+  return {
+    assistantText,
+    failureMessage,
+    incompleteReason,
+    outputItems,
+    refusal: refusal || undefined,
+    status,
+    toolCalls: finalizeToolCalls(calls),
+    usage,
+  };
 };
 
 export const createOpenAIVoiceAssistantModel = <
@@ -1526,6 +1640,11 @@ export const createOpenAIVoiceAssistantModel = <
       let assistantText: string | undefined;
       let toolCalls: VoiceAgentToolCall[];
       let usage: Record<string, unknown> | undefined;
+      let status: string | undefined;
+      let incompleteReason: string | undefined;
+      let refusal: string | undefined;
+      let failureMessage: string | undefined;
+      let outputItems = 0;
       // Stamp the FIRST text delta so we can separate "OpenAI is slow to first
       // token" from "the stream is slow to drain".
       let firstDeltaSeen = false;
@@ -1539,24 +1658,44 @@ export const createOpenAIVoiceAssistantModel = <
           }
         : undefined;
       try {
-        ({ assistantText, toolCalls, usage } =
-          await consumeOpenAIResponsesStream(response, onTextDelta, {
-            // Pass the abort signal to the stream reader so my parent
-            // timeout actually interrupts a stalled reader.read(). Without
-            // this, ac.abort() aborts the fetch REQUEST but the body
-            // stream's reader.read() can stay blocked indefinitely in
-            // Bun's compiled binary — confirmed live 2026-05-27.
-            signal: ac.signal,
-            // Inactivity sub-timeout — even if the parent timer is
-            // generous, kill the read if the server stalls for >10s with
-            // no chunk. Catches the post-barge-in OpenAI hang where the
-            // connection stays open but no events arrive.
-            inactivityMs: 10_000,
-          }));
+        ({
+          assistantText,
+          toolCalls,
+          usage,
+          status,
+          incompleteReason,
+          refusal,
+          failureMessage,
+          outputItems,
+        } = await consumeOpenAIResponsesStream(response, onTextDelta, {
+          // Pass the abort signal to the stream reader so my parent
+          // timeout actually interrupts a stalled reader.read(). Without
+          // this, ac.abort() aborts the fetch REQUEST but the body
+          // stream's reader.read() can stay blocked indefinitely in
+          // Bun's compiled binary — confirmed live 2026-05-27.
+          signal: ac.signal,
+          // Inactivity sub-timeout — even if the parent timer is
+          // generous, kill the read if the server stalls for >10s with
+          // no chunk. Catches the post-barge-in OpenAI hang where the
+          // connection stays open but no events arrive.
+          inactivityMs: 10_000,
+        }));
         stamp("openai.stream-done", {
           textChars: assistantText?.length ?? 0,
           toolCalls: toolCalls.length,
         });
+        // Empty completion (no text, no tool call) — record WHY so a recurring
+        // glitch is diagnosable instead of a mystery. The router retries this;
+        // the stamp survives whether or not the retry recovers.
+        if (!assistantText?.trim() && !toolCalls.length) {
+          stamp("openai.empty-completion", {
+            failureMessage: failureMessage ?? "none",
+            incompleteReason: incompleteReason ?? "none",
+            outputItems,
+            refusal: refusal ? refusal.slice(0, 200) : "none",
+            status: status ?? "unknown",
+          });
+        }
       } finally {
         clearTimeout(timer);
       }
