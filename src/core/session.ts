@@ -3236,6 +3236,13 @@ export const createVoiceSession = <
       // below so the caller hears the defaultSilentTurnAck instead of dead
       // air.
     }
+    // Meter the conversational LLM cost for this turn. The model adapter reports
+    // token usage on the turn result; record it into the per-session cost
+    // accountant (correct attribution) so it lands in the `llm` cost channel —
+    // previously never recorded, so voice conversation spend was invisible.
+    if (options.costAccountant && committedOutput?.usage) {
+      options.costAccountant.recordLLM(committedOutput.usage);
+    }
     const output = {
       assistantText: committedOutput?.assistantText,
       citations: committedOutput?.citations,

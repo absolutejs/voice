@@ -749,10 +749,26 @@ export type VoiceSessionHandle<
   }>;
 };
 
+// Normalized conversational-LLM token usage for a turn, carried back on the turn
+// result so the session can meter it (the per-session cost accountant records it
+// into the `llm` cost channel). Shape matches VoiceCostLLMRecord so it can be
+// passed straight to costAccountant.recordLLM.
+export type VoiceLLMUsage = {
+  provider?: string;
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedInputTokens?: number;
+};
+
 export type VoiceRouteResult<TResult = unknown> = {
   complete?: boolean;
   result?: TResult;
   assistantText?: string;
+  // Conversational-LLM usage for this turn (set by the model adapter). The
+  // session reads it to meter LLM cost — previously dropped, so voice
+  // conversation spend was invisible.
+  usage?: VoiceLLMUsage;
   citations?: ReadonlyArray<VoiceTurnCitation>;
   transfer?: {
     metadata?: Record<string, unknown>;

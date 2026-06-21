@@ -5,9 +5,42 @@ import type {
   VoiceAgentModelOutput,
   VoiceAgentToolCall,
 } from "./agent";
-import type { VoiceSessionRecord } from "./types";
+import type { VoiceLLMUsage, VoiceSessionRecord } from "./types";
 import { startVoiceTimer } from "./debugTiming";
 import { hardenFetch } from "./hardenedFetch";
+
+// Normalize a provider's raw usage object into VoiceLLMUsage so the session can
+// meter LLM cost. Handles Anthropic + OpenAI (input_tokens/output_tokens, with
+// OpenAI's cached_tokens nested under input_tokens_details) and Gemini
+// (usageMetadata.promptTokenCount/candidatesTokenCount/cachedContentTokenCount).
+const normalizeVoiceUsage = (
+  provider: string,
+  model: string | undefined,
+  raw: Record<string, unknown> | undefined,
+): VoiceLLMUsage | undefined => {
+  if (!raw) return undefined;
+  const toNum = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  const details =
+    typeof raw.input_tokens_details === "object" &&
+    raw.input_tokens_details !== null
+      ? (raw.input_tokens_details as Record<string, unknown>)
+      : undefined;
+  const inputTokens =
+    toNum(raw.input_tokens) ??
+    toNum(raw.prompt_tokens) ??
+    toNum(raw.promptTokenCount);
+  const outputTokens =
+    toNum(raw.output_tokens) ??
+    toNum(raw.completion_tokens) ??
+    toNum(raw.candidatesTokenCount);
+  const cachedInputTokens =
+    toNum(raw.cache_read_input_tokens) ??
+    toNum(details?.cached_tokens) ??
+    toNum(raw.cachedContentTokenCount);
+
+  return { cachedInputTokens, inputTokens, model, outputTokens, provider };
+};
 
 export type VoiceJSONAssistantModelHandler<
   TContext = unknown,
@@ -1706,6 +1739,9 @@ export const createOpenAIVoiceAssistantModel = <
       return {
         ...(assistantText ? { assistantText } : {}),
         ...(toolCalls.length ? { toolCalls } : {}),
+        ...(usage
+          ? { usage: normalizeVoiceUsage("openai", options.model, usage) }
+          : {}),
       };
     },
   };
@@ -1827,6 +1863,9 @@ export const createAnthropicVoiceAssistantModel = <
       return {
         ...(assistantText ? { assistantText } : {}),
         ...(toolCalls.length ? { toolCalls } : {}),
+        ...(usage
+          ? { usage: normalizeVoiceUsage("anthropic", options.model, usage) }
+          : {}),
       };
     },
   };
@@ -1985,6 +2024,9 @@ export const createGeminiVoiceAssistantModel = <
       return {
         ...(assistantText ? { assistantText } : {}),
         ...(toolCalls.length ? { toolCalls } : {}),
+        ...(usage
+          ? { usage: normalizeVoiceUsage("google", options.model, usage) }
+          : {}),
       };
     },
   };

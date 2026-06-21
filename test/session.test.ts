@@ -3840,3 +3840,62 @@ test("voice session fails the call once the STT close flap budget is exhausted",
 
   expect((await session.snapshot()).status).toBe("failed");
 });
+
+test("records conversational LLM usage from the turn result into the cost accountant", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const costAccountant = createVoiceCostAccountant();
+
+  const session = createVoiceSession({
+    context: {},
+    costAccountant,
+    id: "session-llm-usage",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      // The model adapter now reports per-turn token usage on the result; the
+      // session must record it so voice conversation cost is metered.
+      onTurn: async () => ({
+        assistantText: "sure, here you go",
+        usage: {
+          inputTokens: 1_000,
+          model: "claude-haiku-4-5-20251001",
+          outputTokens: 200,
+          provider: "anthropic",
+        },
+      }),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: { id: "final-1", isFinal: true, text: "hello there" },
+    type: "final",
+  });
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await session.receiveAudio(createSpeechChunk(0));
+  await Bun.sleep(60);
+
+  const breakdown = costAccountant.snapshot();
+  expect(breakdown.llm.inputTokens).toBe(1_000);
+  expect(breakdown.llm.outputTokens).toBe(200);
+  expect(breakdown.llm.usd).toBeGreaterThan(0);
+  expect(
+    breakdown.llm.byProvider.some((slice) => slice.provider === "anthropic"),
+  ).toBe(true);
+});

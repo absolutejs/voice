@@ -1,10 +1,33 @@
 import type {
+  VoiceLLMUsage,
   VoiceOnTurnObjectHandler,
   VoiceRouteResult,
   VoiceSessionHandle,
   VoiceSessionRecord,
   VoiceTurnRecord,
 } from "./types";
+
+// Sum LLM usage across a turn's tool rounds (each round is a billed model call).
+// Provider/model from the latest round; token counts summed.
+const addVoiceUsage = (
+  acc: VoiceLLMUsage | undefined,
+  next: VoiceLLMUsage | undefined,
+): VoiceLLMUsage | undefined => {
+  if (!next) return acc;
+  if (!acc) return next;
+  const sum = (left?: number, right?: number) =>
+    left === undefined && right === undefined
+      ? undefined
+      : (left ?? 0) + (right ?? 0);
+
+  return {
+    cachedInputTokens: sum(acc.cachedInputTokens, next.cachedInputTokens),
+    inputTokens: sum(acc.inputTokens, next.inputTokens),
+    model: next.model ?? acc.model,
+    outputTokens: sum(acc.outputTokens, next.outputTokens),
+    provider: next.provider ?? acc.provider,
+  };
+};
 import type { VoiceTraceEventStore } from "./trace";
 import type { VoiceToolRuntime } from "./toolRuntime";
 import {
@@ -637,6 +660,9 @@ export const createVoiceAgent = <
         .join("\n\n") || undefined;
     stamp("agent.system-resolved", { systemChars: system?.length ?? 0 });
     let output: VoiceAgentModelOutput<TResult> = {};
+    // Sum LLM token usage across every tool round so the session meters the whole
+    // turn's conversational cost, not just the final round.
+    let turnUsage: VoiceLLMUsage | undefined;
 
     for (let round = 0; round <= maxToolRounds; round += 1) {
       const modelStartedAt = Date.now();
@@ -656,6 +682,7 @@ export const createVoiceAgent = <
           })),
           turn: input.turn,
         });
+        turnUsage = addVoiceUsage(turnUsage, output.usage);
         stamp(`agent.round${round}.generate-done`, {
           ms: Date.now() - modelStartedAt,
           textChars: output.assistantText?.length ?? 0,
@@ -951,6 +978,7 @@ export const createVoiceAgent = <
       result: output.result,
       toolResults,
       transfer: output.transfer,
+      ...(turnUsage ? { usage: turnUsage } : {}),
       voicemail: output.voicemail,
     };
   };

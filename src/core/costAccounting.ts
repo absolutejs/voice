@@ -19,6 +19,13 @@ export type VoiceProviderRates = {
 export type VoicePriceBook = Record<string, VoiceProviderRates>;
 
 export const DEFAULT_VOICE_PRICE_BOOK: VoicePriceBook = {
+  "anthropic:claude-haiku-4-5-20251001": {
+    llm: {
+      cachedInputPerMillionTokensUsd: 0.1,
+      inputPerMillionTokensUsd: 1,
+      outputPerMillionTokensUsd: 5,
+    },
+  },
   "anthropic:claude-opus-4-5": {
     llm: {
       cachedInputPerMillionTokensUsd: 1.5,
@@ -26,7 +33,21 @@ export const DEFAULT_VOICE_PRICE_BOOK: VoicePriceBook = {
       outputPerMillionTokensUsd: 75,
     },
   },
+  "anthropic:claude-opus-4-6": {
+    llm: {
+      cachedInputPerMillionTokensUsd: 0.5,
+      inputPerMillionTokensUsd: 5,
+      outputPerMillionTokensUsd: 25,
+    },
+  },
   "anthropic:claude-sonnet-4-5": {
+    llm: {
+      cachedInputPerMillionTokensUsd: 0.3,
+      inputPerMillionTokensUsd: 3,
+      outputPerMillionTokensUsd: 15,
+    },
+  },
+  "anthropic:claude-sonnet-4-6": {
     llm: {
       cachedInputPerMillionTokensUsd: 0.3,
       inputPerMillionTokensUsd: 3,
@@ -38,6 +59,13 @@ export const DEFAULT_VOICE_PRICE_BOOK: VoicePriceBook = {
   "cartesia:sonic-2": { tts: { perMillionCharactersUsd: 65 } },
   "deepgram:nova-3": { stt: { perSecondUsd: 0.000_077 } },
   "elevenlabs:flash-v2-5": { tts: { perMillionCharactersUsd: 50 } },
+  "openai:gpt-4.1": {
+    llm: {
+      cachedInputPerMillionTokensUsd: 0.5,
+      inputPerMillionTokensUsd: 2,
+      outputPerMillionTokensUsd: 8,
+    },
+  },
   "openai:gpt-4o-mini": {
     llm: {
       cachedInputPerMillionTokensUsd: 0.075,
