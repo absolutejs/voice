@@ -1823,9 +1823,21 @@ export const createAnthropicVoiceAssistantModel = <
               .filter(Boolean),
             model,
             stream: true,
-            system: [input.system, VOICE_SYSTEM_INSTRUCTIONS]
-              .filter(Boolean)
-              .join("\n\n"),
+            // Mark the system prompt with an ephemeral cache breakpoint. Voice is
+            // a multi-turn loop that re-sends the SAME (often large) system prompt
+            // every turn — caching it means turns 2..N read it at ~0.10x instead
+            // of full input price. Anthropic simply doesn't cache prompts below
+            // the per-model minimum (1024 tok Sonnet/Opus, 2048 Haiku), so this
+            // is pure upside / no-op, never a regression.
+            system: [
+              {
+                cache_control: { type: "ephemeral" },
+                text: [input.system, VOICE_SYSTEM_INSTRUCTIONS]
+                  .filter(Boolean)
+                  .join("\n\n"),
+                type: "text",
+              },
+            ],
             temperature: options.temperature,
             tool_choice: input.tools.length
               ? { type: "auto" }
