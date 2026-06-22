@@ -816,6 +816,11 @@ export const voice = <
       socket: createSocketAdapter(ws),
       store: config.session,
       trace: config.trace,
+      // Per-call cost accounting — without this the session emits no cost.ready,
+      // so browser/WS voice (LLM + STT + TTS) goes unmetered. (Phone routes wire
+      // this via createTwilioVoiceRoutes; the plugin path needs it threaded too.)
+      costAccountant: config.costAccountant,
+      costTelephony: config.costTelephony,
       realtime: config.realtime,
       realtimeInputFormat: config.realtimeInputFormat,
       stt: config.stt,

@@ -1175,6 +1175,12 @@ export type VoicePluginConfig<
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
   TResult = unknown,
 > = {
+  // Per-call cost accounting for the runtime sessions this plugin creates. Set it
+  // (+ optional costTelephony) so the session emits cost.ready and a metered trace
+  // store can record LLM/STT/TTS spend — the plugin path was previously unable to
+  // meter at all, only createTwilioVoiceRoutes accepted these.
+  costAccountant?: import("./costAccounting").VoiceCostAccountant;
+  costTelephony?: { provider?: string };
   costTelemetry?: VoiceCostTelemetryConfig<TContext, TSession, TResult>;
   path: string;
   // Spoken once, by the assistant, the moment a fresh session connects — before
