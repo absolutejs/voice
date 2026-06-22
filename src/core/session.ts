@@ -90,6 +90,10 @@ const MAX_STT_RECONNECTS_IN_FLAP_WINDOW = 3;
 // don't reset the window.
 const STT_HEALTH_STALE_MS = 6_000;
 const STT_HEALTH_SPEECH_GAP_MS = 2_000;
+// Min gap between spoken STT-deaf recovery re-prompts. Longer than the stale
+// window so a single deaf episode (which can trigger several reconnect attempts
+// in a flap) re-prompts the caller only once, not on every attempt.
+const STT_RECOVERY_COOLDOWN_MS = 15_000;
 
 const DEFAULT_FORMAT = {
   channels: 1,
@@ -645,6 +649,9 @@ export const createVoiceSession = <
   // STT-health watchdog state (see STT_HEALTH_STALE_MS).
   let lastSpeechEnergyAt = 0;
   let sttHealthPhaseStart = 0;
+  // Wall-clock of the last spoken STT-deaf recovery line, so we re-prompt at most
+  // once per stale episode rather than on every reconnect attempt in a flap.
+  let lastSttRecoverySpokenAt = 0;
   let activeTTSTurnId: string | undefined;
   // Estimated wall-clock time the client finishes PLAYING all assistant audio
   // we've sent so far (each chunk plays back-to-back in real time). A graceful
@@ -3768,6 +3775,67 @@ export const createVoiceSession = <
     await completeTurn(updatedSession, turn);
   };
 
+  // Emit one assistant-spoken line (greeting, resume re-orientation, or STT-deaf
+  // recovery) as an assistant message + synthesize it, out of band from the turn
+  // loop. Closure-scoped so both connectInternal and the STT-health watchdog can
+  // use it. A synthesis failure must never abort the session.
+  const speakAssistantLine = async (text: string) => {
+    if (!text.trim()) {
+      return;
+    }
+
+    const lineTurnId = createId();
+    await send({ text, turnId: lineTurnId, type: "assistant" });
+    try {
+      const lineTTSSession = await ensureTTSSession();
+      if (lineTTSSession) {
+        activeTTSTurnId = lineTurnId;
+        await lineTTSSession.send(text);
+        lastTtsSendAt = Date.now();
+      } else if (options.realtime) {
+        const lineRealtimeSession =
+          (await ensureAdapter()) as RealtimeAdapterSession;
+        activeTTSTurnId = lineTurnId;
+        await lineRealtimeSession.send(text);
+        lastTtsSendAt = Date.now();
+      }
+    } catch {
+      // A synthesis failure must not abort the session.
+    }
+  };
+
+  const resolveSessionLine = async (
+    line:
+      | string
+      | ((input: { session: TSession }) => string | Promise<string>),
+    sessionForLine: TSession,
+  ) => (typeof line === "function" ? line({ session: sessionForLine }) : line);
+
+  // Resolve + speak a configured line, swallowing any error from the resolver
+  // itself (speakAssistantLine already swallows synthesis errors).
+  const speakResolvedLine = async (
+    line:
+      | string
+      | ((input: { session: TSession }) => string | Promise<string>),
+    sessionForLine: TSession,
+  ) => {
+    try {
+      await speakAssistantLine(await resolveSessionLine(line, sessionForLine));
+    } catch {
+      // Never abort the session over a recovery/greeting line.
+    }
+  };
+
+  // Fire the configured STT-deaf recovery re-prompt, cooldown-guarded so a single
+  // stale episode (which can trigger several reconnect attempts in a flap) only
+  // re-prompts once. Extracted so the watchdog call site stays a flat statement.
+  const maybeSpeakSttRecovery = (nowMs: number, sessionForLine: TSession) => {
+    if (!options.sttRecoveryLine) return;
+    if (nowMs - lastSttRecoverySpokenAt < STT_RECOVERY_COOLDOWN_MS) return;
+    lastSttRecoverySpokenAt = nowMs;
+    void speakResolvedLine(options.sttRecoveryLine, sessionForLine);
+  };
+
   const connectInternal = async (nextSocket: {
     close: (code?: number, reason?: string) => void | Promise<void>;
     send: (data: string | Uint8Array | ArrayBuffer) => void | Promise<void>;
@@ -3919,49 +3987,16 @@ export const createVoiceSession = <
     kickCallSilenceWatchdog();
     startAmdEvaluationTimer();
 
-    // Emit one assistant-spoken line (greeting or resume re-orientation) as an
-    // opening assistant message + synthesize it. A synthesis failure here must
-    // never abort the session.
-    const speakAssistantLine = async (text: string) => {
-      if (!text.trim()) {
-        return;
-      }
-
-      const lineTurnId = createId();
-      await send({ text, turnId: lineTurnId, type: "assistant" });
-      try {
-        const lineTTSSession = await ensureTTSSession();
-        if (lineTTSSession) {
-          activeTTSTurnId = lineTurnId;
-          await lineTTSSession.send(text);
-          lastTtsSendAt = Date.now();
-        } else if (options.realtime) {
-          const lineRealtimeSession =
-            (await ensureAdapter()) as RealtimeAdapterSession;
-          activeTTSTurnId = lineTurnId;
-          await lineRealtimeSession.send(text);
-          lastTtsSendAt = Date.now();
-        }
-      } catch {
-        // A synthesis failure must not abort the session.
-      }
-    };
-
-    const resolveLine = async (
-      line:
-        | string
-        | ((input: { session: TSession }) => string | Promise<string>),
-    ) => (typeof line === "function" ? line({ session }) : line);
-
-    // Assistant speaks first. With no committed turns the conversation hasn't
-    // started, so (re-)greet — covers a fresh call AND a restart that landed
-    // before the first answer. With turns already committed it's a resume after
-    // a real exchange: the in-flight audio was lost, so speak the (optional)
-    // re-orientation line instead of repeating the greeting.
+    // Assistant speaks first (via the closure-scoped speakResolvedLine). With no
+    // committed turns the conversation hasn't started, so (re-)greet — covers a
+    // fresh call AND a restart that landed before the first answer. With turns
+    // already committed it's a resume after a real exchange: the in-flight audio
+    // was lost, so speak the (optional) re-orientation line instead of the
+    // greeting.
     if (options.greeting && session.turns.length === 0) {
-      await speakAssistantLine(await resolveLine(options.greeting));
+      await speakResolvedLine(options.greeting, session);
     } else if (isResume && options.resumeGreeting && session.turns.length > 0) {
-      await speakAssistantLine(await resolveLine(options.resumeGreeting));
+      await speakResolvedLine(options.resumeGreeting, session);
     }
   };
 
@@ -4151,6 +4186,12 @@ export const createVoiceSession = <
             : 1;
         lastSttReconnectAt = nowMs;
         sttHealthPhaseStart = nowMs; // give the fresh stream a clean window
+        // Audibly re-prompt the caller so a deaf stream doesn't leave them
+        // talking into silence. Fired even when the reconnect budget below is
+        // spent (the worst case for silent abandonment). Speech is TTS —
+        // independent of the STT adapter we're about to close — so it plays
+        // while the stream re-opens.
+        maybeSpeakSttRecovery(nowMs, latest);
         if (sttReconnectCount <= MAX_STT_RECONNECTS_IN_FLAP_WINDOW) {
           await appendTrace({
             payload: {

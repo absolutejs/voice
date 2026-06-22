@@ -1199,6 +1199,17 @@ export type VoicePluginConfig<
   resumeGreeting?:
     | string
     | ((input: { session: TSession }) => string | Promise<string>);
+  // Spoken by the assistant when the STT-health watchdog detects the stream has
+  // gone DEAF mid-call — the caller is producing continuous speech energy but no
+  // transcripts are landing (see STT_HEALTH_STALE_MS). Without this the caller's
+  // words are silently lost, no turn commits, and the call hangs until the ping
+  // timeout disposes it "abandoned". A short re-prompt ("Sorry, I think I missed
+  // that — go ahead?") gets the caller to repeat into the freshly reconnected
+  // stream. Cooldown-guarded so it fires at most once per stale episode. Resolved
+  // per session. Unset = silent reconnect only (prior behaviour).
+  sttRecoveryLine?:
+    | string
+    | ((input: { session: TSession }) => string | Promise<string>);
   languageStrategy?: VoiceLanguageStrategy;
   lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
   phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
@@ -1505,6 +1516,15 @@ export type CreateVoiceSessionOptions<
    *  since the in-flight assistant audio didn't survive. Receives the session so
    *  it can reference the last turn. No resume greeting fires if unset. */
   resumeGreeting?:
+    | string
+    | ((input: { session: TSession }) => string | Promise<string>);
+  /** Spoken when the STT-health watchdog detects the stream has gone DEAF
+   *  mid-call (continuous speech energy, no transcripts landing — see
+   *  STT_HEALTH_STALE_MS). A short re-prompt ("Sorry, I think I missed that — go
+   *  ahead?") so the caller repeats into the freshly reconnected stream instead
+   *  of talking into a silently dead call. Cooldown-guarded to fire at most once
+   *  per stale episode. Receives the session. Unset = silent reconnect only. */
+  sttRecoveryLine?:
     | string
     | ((input: { session: TSession }) => string | Promise<string>);
   stt?: STTAdapter;
