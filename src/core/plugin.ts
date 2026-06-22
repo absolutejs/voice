@@ -759,6 +759,7 @@ export const voice = <
       greeting: config.greeting,
       resumeGreeting: config.resumeGreeting,
       sttRecoveryLine: config.sttRecoveryLine,
+      stuckCallClose: config.stuckCallClose,
       handoff: config.handoff,
       languageStrategy: config.languageStrategy,
       lexicon,

@@ -813,6 +813,67 @@ export const createVoiceSession = <
     );
   };
 
+  // ── Stuck-call graceful-close watchdog ─────────────────────────────────────
+  // Distinct from callSilence (which hard-closes on TOTAL silence without saving):
+  // this fires when a LIVE call makes no CALLER-side progress for `afterMs` — no
+  // committed turn and no user partial transcript — which is the wedged/deaf case
+  // (STT permanently deaf, or the caller walked away). On fire it speaks a warm
+  // sign-off and COMPLETES the session (disposition "completed") so onComplete
+  // still persists the result. Deliberately NOT reset by the assistant's own
+  // speech, so repeated STT-recovery re-prompts can't keep deferring it forever.
+  const stuckCloseConfig = options.stuckCallClose;
+  const stuckCloseAfterMs =
+    stuckCloseConfig && stuckCloseConfig.afterMs > 0
+      ? stuckCloseConfig.afterMs
+      : undefined;
+  let stuckCloseWatchdog: ReturnType<typeof setTimeout> | null = null;
+  let stuckCloseFired = false;
+  const clearStuckCloseWatchdog = () => {
+    if (stuckCloseWatchdog) {
+      clearTimeout(stuckCloseWatchdog);
+      stuckCloseWatchdog = null;
+    }
+  };
+  const fireStuckClose = () => {
+    stuckCloseWatchdog = null;
+    if (stuckCloseFired) {
+      return;
+    }
+    stuckCloseFired = true;
+    void runSerial("stuck-call-close", async () => {
+      const snapshot = await readSession();
+      if (
+        snapshot.status === "completed" ||
+        snapshot.status === "failed" ||
+        snapshot.call?.endedAt
+      ) {
+        return;
+      }
+      await appendTrace({
+        payload: {
+          action: "stuck-call-close",
+          reason: `no caller progress for ${stuckCloseAfterMs}ms`,
+        },
+        session: snapshot,
+        type: "session.error",
+      });
+      if (stuckCloseConfig?.line) {
+        await speakResolvedLine(stuckCloseConfig.line, snapshot);
+      }
+      await completeInternal(undefined, {
+        disposition: "completed",
+        reason: stuckCloseConfig?.reason ?? "stuck-call-close",
+      });
+    });
+  };
+  const kickStuckCloseWatchdog = () => {
+    if (stuckCloseAfterMs === undefined || stuckCloseFired) {
+      return;
+    }
+    clearStuckCloseWatchdog();
+    stuckCloseWatchdog = setTimeout(fireStuckClose, stuckCloseAfterMs);
+  };
+
   const recordingConfig = options.recording;
   const recordingChannels = new Set<"assistant" | "user">(
     recordingConfig?.channels ?? ["assistant", "user"],
@@ -1532,6 +1593,7 @@ export const createVoiceSession = <
       type: "error",
     });
     clearCallSilenceWatchdog();
+    clearStuckCloseWatchdog();
     clearAmdEvaluationTimer();
     await closeTTSSession("failed");
     await closeAdapter("failed");
@@ -1714,6 +1776,7 @@ export const createVoiceSession = <
       type: "complete",
     });
     clearCallSilenceWatchdog();
+    clearStuckCloseWatchdog();
     clearAmdEvaluationTimer();
     await closeTTSSession("complete");
     await closeAdapter("complete");
@@ -2341,6 +2404,12 @@ export const createVoiceSession = <
   };
 
   const handlePartial = async (transcript: Transcript) => {
+    // A partial with real text means STT is alive and the caller is getting
+    // through — reset the wedged-call deadline (raw audio energy does not, so a
+    // deaf stream that produces no transcripts still trips it).
+    if (transcript.text.trim()) {
+      kickStuckCloseWatchdog();
+    }
     // Speech-gated barge-in: the first partial transcript while the assistant is
     // speaking is real words (Deepgram doesn't transcribe noise), so interrupt
     // now — cancelActiveTTS also flushes the carrier's buffered playback.
@@ -3004,6 +3073,9 @@ export const createVoiceSession = <
     console.error(
       `[voice] completeTurn ENTER session=${options.id} turn=${turn.id} textLen=${turn.text?.length ?? 0}`,
     );
+    // A committed turn is real conversational progress — reset the wedged-call
+    // deadline so a normally-flowing call never auto-closes.
+    kickStuckCloseWatchdog();
     const liveOpsControl = await options.liveOps?.getControl(options.id);
     if (liveOpsControl?.assistantPaused || liveOpsControl?.operatorTakeover) {
       await appendTrace({
@@ -3985,6 +4057,10 @@ export const createVoiceSession = <
     await ensureAdapter();
     warmTTSSession();
     kickCallSilenceWatchdog();
+    // Start the wedged-call deadline at connect so the greeting + first answer
+    // window is covered; real caller progress (partials / committed turns) resets
+    // it, the assistant's own speech does not.
+    kickStuckCloseWatchdog();
     startAmdEvaluationTimer();
 
     // Assistant speaks first (via the closure-scoped speakResolvedLine). With no
@@ -4250,6 +4326,7 @@ export const createVoiceSession = <
     });
     clearSilenceTimer();
     clearCallSilenceWatchdog();
+    clearStuckCloseWatchdog();
     clearAmdEvaluationTimer();
     if (options.noiseSuppressor?.close) {
       try {

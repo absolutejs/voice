@@ -1210,6 +1210,22 @@ export type VoicePluginConfig<
   sttRecoveryLine?:
     | string
     | ((input: { session: TSession }) => string | Promise<string>);
+  // Last-resort GRACEFUL terminal close for a wedged call. If the call makes no
+  // caller-side progress (no committed turn and no user partial transcript) for
+  // `afterMs` on a live call — e.g. STT is permanently deaf, or the caller left —
+  // the assistant speaks `line` (a warm sign-off) and the session COMPLETES with
+  // disposition "completed", so onComplete still runs (the intake is saved) and
+  // the call ends with a real goodbye instead of dead air + an "abandoned" row.
+  // Reset by real conversational progress (committed turn / user partial / a
+  // (re)connect), NOT by the assistant's own speech, so repeated STT recovery
+  // re-prompts can't keep deferring it forever. Unset = no auto-close.
+  stuckCallClose?: {
+    afterMs: number;
+    line?:
+      | string
+      | ((input: { session: TSession }) => string | Promise<string>);
+    reason?: string;
+  };
   languageStrategy?: VoiceLanguageStrategy;
   lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
   phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
@@ -1527,6 +1543,20 @@ export type CreateVoiceSessionOptions<
   sttRecoveryLine?:
     | string
     | ((input: { session: TSession }) => string | Promise<string>);
+  /** Last-resort GRACEFUL terminal close for a wedged call. If no caller-side
+   *  progress (committed turn / user partial) lands for `afterMs` on a live call
+   *  — STT permanently deaf, or the caller left — the assistant speaks `line` and
+   *  the session COMPLETES (disposition "completed") so onComplete still saves and
+   *  the call ends with a real goodbye instead of dead air + "abandoned". Reset by
+   *  real progress (committed turn / user partial / (re)connect), NOT by the
+   *  assistant's own speech, so STT recovery re-prompts can't defer it forever. */
+  stuckCallClose?: {
+    afterMs: number;
+    line?:
+      | string
+      | ((input: { session: TSession }) => string | Promise<string>);
+    reason?: string;
+  };
   stt?: STTAdapter;
   realtime?: RealtimeAdapter;
   realtimeInputFormat?: AudioFormat;

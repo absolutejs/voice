@@ -3899,3 +3899,117 @@ test("records conversational LLM usage from the turn result into the cost accoun
     breakdown.llm.byProvider.some((slice) => slice.provider === "anthropic"),
   ).toBe(true);
 });
+
+test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and saves", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+  let completeCalls = 0;
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-stuck-close",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {
+        completeCalls += 1;
+      },
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    stuckCallClose: {
+      afterMs: 60,
+      line: "Thanks, I have what I need. Talk soon.",
+      reason: "stuck-test",
+    },
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  // No caller audio or transcripts ever land — the call is wedged.
+  await Bun.sleep(160);
+
+  // onComplete (the persistence hook) ran exactly once, so the intake is saved.
+  expect(completeCalls).toBe(1);
+  // The warm sign-off was spoken (not dead air).
+  expect(tts.getSentTexts()).toContain("Thanks, I have what I need. Talk soon.");
+
+  const messages = socket.messages.map((message) => JSON.parse(message));
+  expect(
+    messages.some(
+      (message) =>
+        message.type === "assistant" &&
+        message.text === "Thanks, I have what I need. Talk soon.",
+    ),
+  ).toBe(true);
+  // And it ended as a COMPLETED call (not failed / abandoned) — status is set
+  // synchronously at completion, ahead of the closing-audio drain.
+  expect((await session.snapshot()).status).toBe("completed");
+});
+
+test("stuckCallClose is reset by caller progress and never fires on a flowing call", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+  let completeCalls = 0;
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-stuck-no-false-fire",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {
+        completeCalls += 1;
+      },
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    stuckCallClose: {
+      afterMs: 120,
+      line: "Should not be spoken.",
+    },
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  // A live partial keeps landing well inside the window — the caller is getting
+  // through, so the deadline must keep resetting and never auto-close them.
+  for (let tick = 0; tick < 4; tick += 1) {
+    await adapter.emitCurrent("partial", {
+      receivedAt: Date.now(),
+      transcript: { id: `p-${tick}`, isFinal: false, text: "still talking" },
+      type: "partial",
+    });
+    await Bun.sleep(70);
+  }
+
+  expect(completeCalls).toBe(0);
+  expect(tts.getSentTexts()).not.toContain("Should not be spoken.");
+  expect((await session.snapshot()).status).not.toBe("completed");
+});
