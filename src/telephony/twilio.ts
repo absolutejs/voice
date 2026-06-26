@@ -1302,6 +1302,13 @@ export const createTwilioMediaStreamBridge = <
       stt: options.stt,
       sttFallback: resolveSTTFallbackConfig(options.sttFallback),
       sttLifecycle: options.sttLifecycle ?? runtimePreset.sttLifecycle,
+      // Session-resilience options were previously dropped on the telephony path
+      // (only the browser plugin forwarded them) — so a phone call never got the
+      // STT-deaf recovery line, the graceful stuck-call close, or idle re-prompts.
+      // Forward them so phone + browser behave identically.
+      sttRecoveryLine: options.sttRecoveryLine,
+      stuckCallClose: options.stuckCallClose,
+      idleReprompt: options.idleReprompt,
       // Forward the semantic turn detector so callers can EARLY-commit on
       // user intent (e.g. an LLM-backed detector that judges "clearly done"
       // vs "still thinking"). Without this the runtime relies solely on

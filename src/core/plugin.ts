@@ -760,6 +760,7 @@ export const voice = <
       resumeGreeting: config.resumeGreeting,
       sttRecoveryLine: config.sttRecoveryLine,
       stuckCallClose: config.stuckCallClose,
+      idleReprompt: config.idleReprompt,
       handoff: config.handoff,
       languageStrategy: config.languageStrategy,
       lexicon,
