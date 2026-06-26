@@ -1226,6 +1226,21 @@ export type VoicePluginConfig<
       | ((input: { session: TSession }) => string | Promise<string>);
     reason?: string;
   };
+  /** Gentle re-engagement before a silent call is given up on. When the caller
+   *  makes no progress (no committed turn / user partial) for `afterMs`, the
+   *  assistant speaks `line` ("still there?") instead of ending, and the close
+   *  deadline (stuckCallClose) is pushed out — up to `maxReprompts` times (default
+   *  1). After the budget is spent the normal close path runs. Caller speech
+   *  resets the budget. Assistant speech does NOT, so this can only extend a
+   *  bounded amount. `afterMs` should be < stuckCallClose.afterMs so the nudge
+   *  fires first. */
+  idleReprompt?: {
+    afterMs: number;
+    line:
+      | string
+      | ((input: { session: TSession }) => string | Promise<string>);
+    maxReprompts?: number;
+  };
   languageStrategy?: VoiceLanguageStrategy;
   lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
   phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
@@ -1556,6 +1571,21 @@ export type CreateVoiceSessionOptions<
       | string
       | ((input: { session: TSession }) => string | Promise<string>);
     reason?: string;
+  };
+  /** Gentle re-engagement before a silent call is given up on. When the caller
+   *  makes no progress (no committed turn / user partial) for `afterMs`, the
+   *  assistant speaks `line` ("still there?") instead of ending, and the close
+   *  deadline (stuckCallClose) is pushed out — up to `maxReprompts` times (default
+   *  1). After the budget is spent the normal close path runs. Caller speech
+   *  resets the budget. Assistant speech does NOT, so this can only extend a
+   *  bounded amount. `afterMs` should be < stuckCallClose.afterMs so the nudge
+   *  fires first. */
+  idleReprompt?: {
+    afterMs: number;
+    line:
+      | string
+      | ((input: { session: TSession }) => string | Promise<string>);
+    maxReprompts?: number;
   };
   stt?: STTAdapter;
   realtime?: RealtimeAdapter;

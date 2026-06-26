@@ -874,6 +874,65 @@ export const createVoiceSession = <
     stuckCloseWatchdog = setTimeout(fireStuckClose, stuckCloseAfterMs);
   };
 
+  // ── Idle re-prompt watchdog ────────────────────────────────────────────────
+  // Before a silent call is given up on (stuckCallClose), gently re-engage: when
+  // the caller makes no progress (no committed turn / user partial) for
+  // `afterMs`, the assistant speaks a nudge and the close deadline is pushed out,
+  // up to `maxReprompts` times. Caller speech resets the budget; assistant speech
+  // does NOT (so this can only extend a bounded amount). Mirrors the
+  // stuckCallClose reset points so the two share the same "caller progress" signal.
+  const idleRepromptConfig = options.idleReprompt;
+  const idleRepromptAfterMs =
+    idleRepromptConfig && idleRepromptConfig.afterMs > 0
+      ? idleRepromptConfig.afterMs
+      : undefined;
+  const idleRepromptMax = Math.max(1, idleRepromptConfig?.maxReprompts ?? 1);
+  let idleRepromptsUsed = 0;
+  let idleRepromptWatchdog: ReturnType<typeof setTimeout> | null = null;
+  const clearIdleRepromptWatchdog = () => {
+    if (idleRepromptWatchdog) {
+      clearTimeout(idleRepromptWatchdog);
+      idleRepromptWatchdog = null;
+    }
+  };
+  // resetBudget=true on genuine caller progress (so a later idle gets fresh
+  // nudges); the nudge's own restart passes false so the budget actually depletes.
+  const kickIdleRepromptWatchdog = (resetBudget = false) => {
+    if (idleRepromptAfterMs === undefined) {
+      return;
+    }
+    if (resetBudget) {
+      idleRepromptsUsed = 0;
+    }
+    clearIdleRepromptWatchdog();
+    if (idleRepromptsUsed >= idleRepromptMax) {
+      return;
+    }
+    idleRepromptWatchdog = setTimeout(() => {
+      idleRepromptWatchdog = null;
+      if (idleRepromptConfig === undefined || idleRepromptsUsed >= idleRepromptMax) {
+        return;
+      }
+      void runSerial("idle-reprompt", async () => {
+        const snapshot = await readSession();
+        if (
+          snapshot.status === "completed" ||
+          snapshot.status === "failed" ||
+          snapshot.call?.endedAt
+        ) {
+          return;
+        }
+        idleRepromptsUsed += 1;
+        await speakResolvedLine(idleRepromptConfig.line, snapshot);
+        // The nudge is an active re-engagement attempt — push the give-up
+        // deadline out so the caller has time to respond, then re-arm for the
+        // next nudge (or, once the budget is spent, let stuckCallClose end it).
+        kickStuckCloseWatchdog();
+        kickIdleRepromptWatchdog();
+      });
+    }, idleRepromptAfterMs);
+  };
+
   const recordingConfig = options.recording;
   const recordingChannels = new Set<"assistant" | "user">(
     recordingConfig?.channels ?? ["assistant", "user"],
@@ -1594,6 +1653,7 @@ export const createVoiceSession = <
     });
     clearCallSilenceWatchdog();
     clearStuckCloseWatchdog();
+    clearIdleRepromptWatchdog();
     clearAmdEvaluationTimer();
     await closeTTSSession("failed");
     await closeAdapter("failed");
@@ -1777,6 +1837,7 @@ export const createVoiceSession = <
     });
     clearCallSilenceWatchdog();
     clearStuckCloseWatchdog();
+    clearIdleRepromptWatchdog();
     clearAmdEvaluationTimer();
     await closeTTSSession("complete");
     await closeAdapter("complete");
@@ -2409,6 +2470,7 @@ export const createVoiceSession = <
     // deaf stream that produces no transcripts still trips it).
     if (transcript.text.trim()) {
       kickStuckCloseWatchdog();
+      kickIdleRepromptWatchdog(true);
     }
     // Speech-gated barge-in: the first partial transcript while the assistant is
     // speaking is real words (Deepgram doesn't transcribe noise), so interrupt
@@ -3076,6 +3138,7 @@ export const createVoiceSession = <
     // A committed turn is real conversational progress — reset the wedged-call
     // deadline so a normally-flowing call never auto-closes.
     kickStuckCloseWatchdog();
+    kickIdleRepromptWatchdog(true);
     const liveOpsControl = await options.liveOps?.getControl(options.id);
     if (liveOpsControl?.assistantPaused || liveOpsControl?.operatorTakeover) {
       await appendTrace({
@@ -4061,6 +4124,7 @@ export const createVoiceSession = <
     // window is covered; real caller progress (partials / committed turns) resets
     // it, the assistant's own speech does not.
     kickStuckCloseWatchdog();
+    kickIdleRepromptWatchdog(true);
     startAmdEvaluationTimer();
 
     // Assistant speaks first (via the closure-scoped speakResolvedLine). With no
@@ -4327,6 +4391,7 @@ export const createVoiceSession = <
     clearSilenceTimer();
     clearCallSilenceWatchdog();
     clearStuckCloseWatchdog();
+    clearIdleRepromptWatchdog();
     clearAmdEvaluationTimer();
     if (options.noiseSuppressor?.close) {
       try {
