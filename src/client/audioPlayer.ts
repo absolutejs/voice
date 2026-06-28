@@ -1,12 +1,21 @@
 import { createTimeStretcher, type TimeStretcher } from "./timeStretch";
 import type {
   AudioFormat,
+  VoiceAudioIntegrity,
   VoiceAudioPlayer,
   VoiceAudioPlayerOptions,
   VoiceAudioPlayerSource,
   VoiceAudioPlayerState,
   VoiceStreamState,
 } from "../core/types";
+
+// Process-wide registry of audio players that are live AT ONCE. For a single
+// voice call there should only ever be ONE assistant player; 2+ means two
+// streams are playing together = the "overlapping voices" garble. The set holds
+// each live player's re-sample callback so that when one goes active, EVERY live
+// player records the new peak (otherwise an already-playing player wouldn't
+// notice a second one starting after it).
+const activeAudioPlayers = new Set<() => void>();
 
 const DEFAULT_LOOKAHEAD_MS = 15;
 const DEFAULT_VOLUME = 1;
@@ -19,6 +28,9 @@ const STRETCH_BYPASS_EPSILON = 0.01;
 // Small FFT — we only need a coarse RMS amplitude for a visualizer, cheaply.
 const ANALYSER_FFT_SIZE = 256;
 const PCM_BYTE_MIDPOINT = 128;
+// A scheduling lag larger than this (between when a chunk could start and where
+// the queue ended) counts as an audible gap/underrun, not normal jitter.
+const GAP_EPSILON_S = 0.03;
 
 type VoiceAudioChunk = VoiceStreamState["assistantAudio"][number];
 
@@ -181,6 +193,40 @@ export const createVoiceAudioPlayer = (
   let resolveInterruptPromise: (() => void) | null = null;
   let interruptFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // --- Playback-integrity tracking (see getIntegritySummary) ---
+  let concurrencyCounted = false;
+  let observedPeakConcurrency = 0;
+  let scheduledDurationMs = 0;
+  let gapCount = 0;
+  let totalGapMs = 0;
+  let maxGapMs = 0;
+  let errorCount = 0;
+  let hasScheduledAnyChunk = false;
+
+  const sampleConcurrency = () => {
+    if (activeAudioPlayers.size > observedPeakConcurrency) {
+      observedPeakConcurrency = activeAudioPlayers.size;
+    }
+  };
+  const markPlayerActive = () => {
+    if (concurrencyCounted) {
+      return;
+    }
+    concurrencyCounted = true;
+    activeAudioPlayers.add(sampleConcurrency);
+    // Re-sample EVERY live player so an already-playing one notices this start.
+    for (const sample of activeAudioPlayers) {
+      sample();
+    }
+  };
+  const markPlayerInactive = () => {
+    if (!concurrencyCounted) {
+      return;
+    }
+    concurrencyCounted = false;
+    activeAudioPlayers.delete(sampleConcurrency);
+  };
+
   const notify = () => {
     for (const subscriber of subscribers) {
       subscriber();
@@ -334,10 +380,20 @@ export const createVoiceAudioPlayer = (
       maybeResolveInterrupt();
     };
 
-    const startAt = Math.max(
-      context.currentTime + lookaheadSeconds,
-      queueEndTime,
-    );
+    const earliestStart = context.currentTime + lookaheadSeconds;
+    const startAt = Math.max(earliestStart, queueEndTime);
+    // Integrity: if the queue had already drained (earliestStart is past where
+    // the last chunk ended) AND we'd played before, there was an audible gap —
+    // a late/dropped packet. (First chunk has no preceding audio, so skip it.)
+    if (hasScheduledAnyChunk && earliestStart > queueEndTime + GAP_EPSILON_S) {
+      const gapMs = (earliestStart - queueEndTime) * 1_000;
+      gapCount += 1;
+      totalGapMs += gapMs;
+      maxGapMs = Math.max(maxGapMs, gapMs);
+    }
+    hasScheduledAnyChunk = true;
+    scheduledDurationMs += (buffer.duration / rate) * 1_000;
+    sampleConcurrency();
     // At rate r the buffer plays in buffer.duration / r real seconds, so the
     // next chunk must be queued against that wall-clock span — otherwise faster
     // playback would leave gaps and slower would overlap.
@@ -432,6 +488,7 @@ export const createVoiceAudioPlayer = (
         queuedChunkCount: state.queuedChunkCount + nextChunks.length,
       });
     } catch (error) {
+      errorCount += 1;
       setState({
         error: error instanceof Error ? error.message : String(error),
       });
@@ -468,6 +525,7 @@ export const createVoiceAudioPlayer = (
       return state.activeSourceCount;
     },
     close: async () => {
+      markPlayerInactive();
       unsubscribeSource();
       stopQueuedPlayback({ forceClear: true });
       clearInterruptTimer();
@@ -513,6 +571,27 @@ export const createVoiceAudioPlayer = (
       return Math.sqrt(sumSquares / analyserBuffer.length);
     },
     getSnapshot: () => state,
+    getIntegritySummary: (): VoiceAudioIntegrity => {
+      const chunksReceived = source.assistantAudio.length;
+      const chunksScheduled = state.processedChunkCount;
+      return {
+        chunksReceived,
+        chunksScheduled,
+        errorCount,
+        gapCount,
+        maxConcurrentPlayers: observedPeakConcurrency,
+        maxGapMs: Math.round(maxGapMs),
+        // All-clear: every received chunk played, nothing overlapped, no errors.
+        // (Gaps alone don't fail it — a slow network can cause benign underruns —
+        // but they're reported for inspection.)
+        ok:
+          observedPeakConcurrency <= 1 &&
+          errorCount === 0 &&
+          chunksScheduled >= chunksReceived,
+        scheduledDurationMs: Math.round(scheduledDurationMs),
+        totalGapMs: Math.round(totalGapMs),
+      };
+    },
     interrupt: async () => {
       const startedAt = Date.now();
       const context = await ensureAudioContext();
@@ -574,6 +653,7 @@ export const createVoiceAudioPlayer = (
       }
 
       await audioContext.suspend();
+      markPlayerInactive();
       setState({
         activeSourceCount: sourceNodes.size,
         isActive: false,
@@ -605,6 +685,7 @@ export const createVoiceAudioPlayer = (
           await context.resume();
         }
 
+        markPlayerActive();
         setState({
           activeSourceCount: sourceNodes.size,
           isActive: true,
@@ -612,6 +693,8 @@ export const createVoiceAudioPlayer = (
         });
         await queueSync();
       } catch (error) {
+        errorCount += 1;
+        markPlayerInactive();
         setState({
           error: error instanceof Error ? error.message : String(error),
           isActive: false,

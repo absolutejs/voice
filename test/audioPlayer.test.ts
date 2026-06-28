@@ -298,3 +298,74 @@ test("createVoiceAudioPlayer interrupt waits for source shutdown before reportin
 
   await player.close();
 });
+
+const pcmChunk = (turnId: string) => ({
+  chunk: new Uint8Array([1, 0, 255, 255]),
+  format: {
+    channels: 1,
+    container: "raw" as const,
+    encoding: "pcm_s16le" as const,
+    sampleRateHz: 16_000,
+  },
+  receivedAt: 1,
+  turnId,
+});
+
+test("getIntegritySummary reports a clean single-player call as ok", async () => {
+  const fixture = createSource();
+  const context = new FakeAudioContext();
+  const player = createVoiceAudioPlayer(fixture.source, {
+    createAudioContext: () => context as never,
+  });
+
+  fixture.push(pcmChunk("turn-1"));
+  await player.start();
+  fixture.push(pcmChunk("turn-1"));
+  await Bun.sleep(0);
+
+  const integrity = player.getIntegritySummary();
+  expect(integrity.maxConcurrentPlayers).toBe(1);
+  expect(integrity.chunksReceived).toBe(2);
+  expect(integrity.chunksScheduled).toBe(2);
+  expect(integrity.errorCount).toBe(0);
+  expect(integrity.ok).toBe(true);
+
+  await player.close();
+});
+
+test("getIntegritySummary flags overlapping players (the two-voices garble)", async () => {
+  const fixtureA = createSource();
+  const fixtureB = createSource();
+  const contextA = new FakeAudioContext();
+  const contextB = new FakeAudioContext();
+  const playerA = createVoiceAudioPlayer(fixtureA.source, {
+    createAudioContext: () => contextA as never,
+  });
+  const playerB = createVoiceAudioPlayer(fixtureB.source, {
+    createAudioContext: () => contextB as never,
+  });
+
+  // Two assistant players live AT ONCE = overlapping audio.
+  fixtureA.push(pcmChunk("turn-1"));
+  await playerA.start();
+  fixtureB.push(pcmChunk("turn-1"));
+  await playerB.start();
+
+  expect(playerA.getIntegritySummary().maxConcurrentPlayers).toBe(2);
+  expect(playerA.getIntegritySummary().ok).toBe(false);
+  expect(playerB.getIntegritySummary().maxConcurrentPlayers).toBe(2);
+
+  await playerA.close();
+  await playerB.close();
+
+  // After both close the global counter resets, so a later call reads clean.
+  const fixtureC = createSource();
+  const contextC = new FakeAudioContext();
+  const playerC = createVoiceAudioPlayer(fixtureC.source, {
+    createAudioContext: () => contextC as never,
+  });
+  fixtureC.push(pcmChunk("turn-1"));
+  await playerC.start();
+  expect(playerC.getIntegritySummary().maxConcurrentPlayers).toBe(1);
+  await playerC.close();
+});

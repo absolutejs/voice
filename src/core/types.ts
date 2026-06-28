@@ -2164,6 +2164,29 @@ export type VoiceAudioPlayerSource = {
   subscribe: (subscriber: () => void) => () => void;
 };
 
+/** Post-call playback integrity, for verifying the assistant audio actually
+ *  played cleanly (no overlap, no dropped/stalled packets) — emit it as a trace
+ *  so a garbled call is provable, not guessed. `ok` is the all-clear roll-up. */
+export type VoiceAudioIntegrity = {
+  ok: boolean;
+  // assistant audio chunks the player received vs actually scheduled to play.
+  // A gap means the source delivered chunks the player never got to (drop/stall).
+  chunksReceived: number;
+  chunksScheduled: number;
+  // Total real-time audio scheduled, ms.
+  scheduledDurationMs: number;
+  // Underruns: the playback queue drained before the next chunk arrived → an
+  // audible gap / choppy playback.
+  gapCount: number;
+  totalGapMs: number;
+  maxGapMs: number;
+  // Peak number of audio players live AT ONCE while this one was active. >1 means
+  // two assistant streams overlapped (the "overlapping voices" garble).
+  maxConcurrentPlayers: number;
+  // Decode/schedule errors during the call.
+  errorCount: number;
+};
+
 export type VoiceAudioPlayer = {
   close: () => Promise<void>;
   error: string | null;
@@ -2171,6 +2194,8 @@ export type VoiceAudioPlayer = {
    *  driving a visualizer from the actual voice. 0 when idle / no analyser. */
   getOutputLevel: () => number;
   getSnapshot: () => VoiceAudioPlayerState;
+  /** Post-call playback-integrity roll-up (overlap, gaps, drops). */
+  getIntegritySummary: () => VoiceAudioIntegrity;
   activeSourceCount: number;
   isActive: boolean;
   isPlaying: boolean;
