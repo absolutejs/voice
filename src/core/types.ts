@@ -1261,6 +1261,10 @@ export type VoicePluginConfig<
   sttLifecycle?: VoiceSTTLifecycle;
   realtime?: RealtimeAdapter;
   realtimeInputFormat?: AudioFormat;
+  // Persist the call audio (assistant + caller) via a recording store, so a
+  // failed/garbled call leaves an artifact to triage. Already supported on the
+  // Twilio path; exposing it here records browser/WS plugin calls too.
+  recording?: VoiceSessionRecordingConfig;
   tts?: TTSAdapter;
   session: VoiceSessionStore<NoInfer<TSession>>;
   reconnect?: VoiceReconnectConfig;

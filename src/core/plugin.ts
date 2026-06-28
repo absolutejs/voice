@@ -855,6 +855,7 @@ export const voice = <
       costTelephony: config.costTelephony,
       realtime: config.realtime,
       realtimeInputFormat: config.realtimeInputFormat,
+      recording: config.recording,
       stt: config.stt,
       sttFallback: sessionOptions.sttFallback,
       sttLifecycle: sessionOptions.sttLifecycle,
