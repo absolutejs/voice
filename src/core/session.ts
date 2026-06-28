@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { conditionAudioChunk } from "./audioConditioning";
+import { normalizeSpokenNumbers } from "./numberNormalizer";
 import { logVoiceTiming } from "./debugTiming";
 import {
   createVoiceBackchannelDriver,
@@ -595,6 +596,7 @@ export const createVoiceSession = <
       | "call.lifecycle"
       | "cost.ready"
       | "operator.action"
+      | "recording.failed"
       | "recording.ready"
       | "session.error"
       | "turn.assistant"
@@ -1315,10 +1317,22 @@ export const createVoiceSession = <
           type: "recording.ready",
         });
       } catch (error) {
+        // Surface the failure as a TRACE, not just a warn — otherwise a dropped
+        // recording (e.g. a channel that silently fails to upload) leaves no
+        // queryable record of WHY, making the call impossible to triage.
         logger.warn("voice recording persist failed", {
           channel,
           error: toError(error).message,
           sessionId: options.id,
+        });
+        await appendTrace({
+          payload: {
+            channel,
+            error: toError(error).message,
+            sessionId: options.id,
+            sizeBytes: merged.byteLength,
+          },
+          type: "recording.failed",
         });
       } finally {
         recordingBuffers[channel] = [];
@@ -3135,6 +3149,12 @@ export const createVoiceSession = <
     console.error(
       `[voice] completeTurn ENTER session=${options.id} turn=${turn.id} textLen=${turn.text?.length ?? 0}`,
     );
+    // Digitize spelled-out numbers/currency/percent in the user's utterance so
+    // the LLM + post-call extraction read metrics consistently (Flux STT emits
+    // them as words). Applied once here, before the text feeds anything.
+    if (options.normalizeNumbers && turn.text) {
+      turn.text = normalizeSpokenNumbers(turn.text);
+    }
     // A committed turn is real conversational progress — reset the wedged-call
     // deadline so a normally-flowing call never auto-closes.
     kickStuckCloseWatchdog();

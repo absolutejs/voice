@@ -814,6 +814,7 @@ export type {
 } from "./core/mcpToolset";
 export { createAIVoiceModel } from "./core/aiVoiceModel";
 export type { CreateAIVoiceModelOptions } from "./core/aiVoiceModel";
+export { normalizeSpokenNumbers } from "./core/numberNormalizer";
 export {
   createVoiceAIJudgeCompletion,
   createVoiceLLMJudge,

@@ -20,6 +20,7 @@ export type VoiceTraceEventType =
   | "cost.ready"
   | "operator.action"
   | "provider.decision"
+  | "recording.failed"
   | "recording.ready"
   | "session.error"
   | "turn.assistant"
