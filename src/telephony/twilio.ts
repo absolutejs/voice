@@ -1239,6 +1239,20 @@ export const createTwilioMediaStreamBridge = <
     return normalizePhraseHints(options.phraseHints);
   };
 
+  const resolveLanguageStrategy = async () => {
+    if (typeof options.languageStrategy === "function") {
+      return (
+        (await options.languageStrategy({
+          context: options.context,
+          scenarioId: bridgeState.scenarioId ?? undefined,
+          sessionId: bridgeState.sessionId ?? "",
+        })) ?? undefined
+      );
+    }
+
+    return options.languageStrategy;
+  };
+
   const ensureSession = async () => {
     if (sessionHandle) {
       return sessionHandle;
@@ -1247,6 +1261,7 @@ export const createTwilioMediaStreamBridge = <
     bridgeState.sessionId ??= `phone-${Date.now().toString(36)}`;
     const lexicon = await resolveLexicon();
     const phraseHints = await resolvePhraseHints();
+    const languageStrategy = await resolveLanguageStrategy();
     const normalizedOnTurn = normalizeOnTurn(options.onTurn);
     const route: VoiceNormalizedRouteConfig<TContext, TSession, TResult> = {
       correctTurn: options.correctTurn,
@@ -1283,13 +1298,14 @@ export const createTwilioMediaStreamBridge = <
 
     sessionHandle = createVoiceSession({
       audioConditioning,
+      normalizeNumbers: options.normalizeNumbers,
       context: options.context,
       costAccountant: options.costAccountant,
       costTelemetry: options.costTelemetry,
       costTelephony: options.costTelephony,
       greeting: options.greeting,
       id: bridgeState.sessionId,
-      languageStrategy: options.languageStrategy,
+      languageStrategy,
       lexicon,
       logger,
       phraseHints,

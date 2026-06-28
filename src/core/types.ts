@@ -78,6 +78,15 @@ export type VoiceLanguageStrategy =
       secondaryLanguages: string[];
     };
 
+export type VoiceLanguageStrategyResolver<TContext = unknown> = (input: {
+  context: TContext;
+  scenarioId?: string;
+  sessionId: string;
+}) =>
+  | Promise<VoiceLanguageStrategy | void>
+  | VoiceLanguageStrategy
+  | void;
+
 export type VoicePhraseHint = {
   text: string;
   aliases?: string[];
@@ -1241,7 +1250,9 @@ export type VoicePluginConfig<
       | ((input: { session: TSession }) => string | Promise<string>);
     maxReprompts?: number;
   };
-  languageStrategy?: VoiceLanguageStrategy;
+  languageStrategy?:
+    | VoiceLanguageStrategy
+    | VoiceLanguageStrategyResolver<TContext>;
   lexicon?: VoiceLexiconEntry[] | VoiceLexiconResolver<TContext>;
   phraseHints?: VoicePhraseHint[] | VoicePhraseHintResolver<TContext>;
   preset?: VoiceRuntimePreset;
@@ -1277,6 +1288,12 @@ export type VoicePluginConfig<
   defaultSilentTurnAck?: string;
   routeOnTurnTimeoutMs?: number;
   audioConditioning?: VoiceAudioConditioningConfig;
+  /* Rewrite spelled-out numbers / currency / percentages in each committed
+     user turn to digit form ("ten million" -> "10 million", "forty percent"
+     -> "40%"). Conversational STT models like Deepgram Flux don't format
+     numerals, so downstream extraction otherwise reads the same metric
+     inconsistently across calls. Off by default. */
+  normalizeNumbers?: boolean;
   noiseSuppressor?: VoiceNoiseSuppressor;
   noiseSuppressorFormat?: AudioFormat;
   logger?: VoiceLogger;
@@ -1707,6 +1724,8 @@ export type CreateVoiceSessionOptions<
   sttLifecycle: VoiceSTTLifecycle;
   turnDetection: VoiceResolvedTurnDetectionConfig;
   audioConditioning?: VoiceResolvedAudioConditioningConfig;
+  /* Digitize spelled-out numbers in committed user turns (see VoicePluginConfig). */
+  normalizeNumbers?: boolean;
   noiseSuppressor?: VoiceNoiseSuppressor;
   noiseSuppressorFormat?: AudioFormat;
   handoff?: VoiceHandoffConfig<TContext, TSession, TResult>;

@@ -403,6 +403,7 @@ const resolveSessionOptions = <
       config.audioConditioning !== undefined
         ? resolveAudioConditioningConfig(config.audioConditioning)
         : preset.audioConditioning,
+    normalizeNumbers: config.normalizeNumbers,
     noiseSuppressor: config.noiseSuppressor,
     noiseSuppressorFormat: config.noiseSuppressorFormat,
     costTelemetry: config.costTelemetry,
@@ -498,6 +499,25 @@ const resolveLexicon = async <
   }
 
   return normalizeLexicon(config.lexicon);
+};
+
+const resolveLanguageStrategy = async <
+  TContext,
+  TSession extends VoiceSessionRecord,
+  TResult,
+>(
+  config: VoicePluginConfig<TContext, TSession, TResult>,
+  input: {
+    context: TContext;
+    scenarioId?: string;
+    sessionId: string;
+  },
+) => {
+  if (typeof config.languageStrategy === "function") {
+    return (await config.languageStrategy(input)) ?? undefined;
+  }
+
+  return config.languageStrategy;
 };
 
 const resolveProfileSwitchGuard = async <
@@ -749,9 +769,18 @@ export const voice = <
       scenarioId,
       sessionId,
     });
+    // Resolved per-call so the app can pick the STT language/model (e.g. Deepgram
+    // flux-general-en vs flux-general-multi) from the caller — a static value
+    // still works unchanged.
+    const languageStrategy = await resolveLanguageStrategy(config, {
+      context,
+      scenarioId,
+      sessionId,
+    });
 
     return createVoiceSession<TContext, TSession, TResult>({
       audioConditioning: sessionOptions.audioConditioning,
+      normalizeNumbers: sessionOptions.normalizeNumbers,
       noiseSuppressor: sessionOptions.noiseSuppressor,
       noiseSuppressorFormat: sessionOptions.noiseSuppressorFormat,
       context,
@@ -762,7 +791,7 @@ export const voice = <
       stuckCallClose: config.stuckCallClose,
       idleReprompt: config.idleReprompt,
       handoff: config.handoff,
-      languageStrategy: config.languageStrategy,
+      languageStrategy,
       lexicon,
       liveOps: config.liveOps,
       logger: sessionOptions.logger,
