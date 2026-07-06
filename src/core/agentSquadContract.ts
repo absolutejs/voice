@@ -191,7 +191,9 @@ const createContractApi = <
   fail: async () => {},
   markNoAnswer: async () => {},
   markVoicemail: async () => {},
+  pause: async () => {},
   receiveAudio: async () => {},
+  resume: async () => {},
   setTurnDetection: async () => ({
     silenceMs: 0,
     speechThreshold: 0,

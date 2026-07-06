@@ -743,6 +743,17 @@ export type VoiceSessionHandle<
     transferMode?: "cold" | "warm";
   }) => Promise<void>;
   close: (reason?: string) => Promise<void>;
+  /**
+   * Caller-driven in-call pause: the session stays LIVE (socket, state,
+   * transcript) but every idle/silence watchdog is suspended and turn
+   * processing is skipped, so a paused caller is never nudged or hung up on.
+   * Past `pause.maxMs` (default 10 min) the session closes gracefully with
+   * reason "pause-timeout" — completed turns stay durably persisted, so the
+   * host's normal draft/resume path takes over.
+   */
+  pause: () => Promise<void>;
+  /** Lift a caller-driven pause: watchdogs re-arm and turns process again. */
+  resume: () => Promise<void>;
   snapshot: () => Promise<TSession>;
   /**
    * Mutate the live turn-detection config for this session — useful when a
@@ -1608,6 +1619,12 @@ export type CreateVoiceSessionOptions<
       | ((input: { session: TSession }) => string | Promise<string>);
     maxReprompts?: number;
   };
+  /** Caller-driven in-call pause (VoiceSessionHandle.pause/resume). `maxMs`
+   *  bounds how long a session may sit paused before it closes gracefully
+   *  with reason "pause-timeout" (default 10 minutes). */
+  pause?: {
+    maxMs?: number;
+  };
   stt?: STTAdapter;
   realtime?: RealtimeAdapter;
   realtimeInputFormat?: AudioFormat;
@@ -1763,7 +1780,14 @@ export type VoiceClientCloseMessage = {
 
 export type VoiceClientCallControlMessage = {
   type: "call_control";
-  action: "complete" | "escalate" | "no-answer" | "transfer" | "voicemail";
+  action:
+    | "complete"
+    | "escalate"
+    | "no-answer"
+    | "pause"
+    | "resume"
+    | "transfer"
+    | "voicemail";
   metadata?: Record<string, unknown>;
   reason?: string;
   target?: string;

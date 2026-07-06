@@ -251,6 +251,8 @@ const isVoiceClientMessage = (value: unknown): value is VoiceClientMessage => {
         value.action !== "complete" &&
         value.action !== "escalate" &&
         value.action !== "no-answer" &&
+        value.action !== "pause" &&
+        value.action !== "resume" &&
         value.action !== "transfer" &&
         value.action !== "voicemail"
       ) {
@@ -1385,6 +1387,17 @@ export const voice = <
 
             if (message.action === "complete") {
               await current.complete();
+            }
+
+            // Caller-driven in-call pause/resume — the session stays live but
+            // its watchdogs sleep, so a paused caller is never nudged or
+            // hung up on (see VoiceSessionHandle.pause).
+            if (message.action === "pause") {
+              await current.pause();
+            }
+
+            if (message.action === "resume") {
+              await current.resume();
             }
           }
 

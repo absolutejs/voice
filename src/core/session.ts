@@ -808,6 +808,10 @@ export const createVoiceSession = <
     if (callSilenceTimeoutMs === undefined || callSilenceFired) {
       return;
     }
+    // A caller-paused session is INTENTIONALLY silent — no deadline may arm.
+    if (callerPaused) {
+      return;
+    }
     clearCallSilenceWatchdog();
     callSilenceWatchdog = setTimeout(
       fireCallSilenceTimeout,
@@ -872,6 +876,10 @@ export const createVoiceSession = <
     if (stuckCloseAfterMs === undefined || stuckCloseFired) {
       return;
     }
+    // A caller-paused session is INTENTIONALLY silent — no deadline may arm.
+    if (callerPaused) {
+      return;
+    }
     clearStuckCloseWatchdog();
     stuckCloseWatchdog = setTimeout(fireStuckClose, stuckCloseAfterMs);
   };
@@ -907,6 +915,10 @@ export const createVoiceSession = <
       idleRepromptsUsed = 0;
     }
     clearIdleRepromptWatchdog();
+    // A caller-paused session is INTENTIONALLY silent — never nudge it.
+    if (callerPaused) {
+      return;
+    }
     if (idleRepromptsUsed >= idleRepromptMax) {
       return;
     }
@@ -933,6 +945,77 @@ export const createVoiceSession = <
         kickIdleRepromptWatchdog();
       });
     }, idleRepromptAfterMs);
+  };
+
+  // ── Caller-driven pause ────────────────────────────────────────────────────
+  // A REAL pause, not "hang up and resume later": the session stays live
+  // (socket, state, transcript) but every idle/silence watchdog above is
+  // suspended and turn processing is skipped, so a paused caller is never
+  // nudged ("still there?") or hung up on. The client stops sending mic audio
+  // while paused; on resume the next audio packet re-opens STT via the normal
+  // reconnect path. Bounded by pauseMaxMs — past it the session closes
+  // gracefully ("pause-timeout"): completed turns are already durably
+  // persisted, so the host's draft/resume flow takes over from there.
+  const PAUSE_MAX_MS_DEFAULT = 600_000;
+  const pauseMaxMs =
+    options.pause?.maxMs && options.pause.maxMs > 0
+      ? options.pause.maxMs
+      : PAUSE_MAX_MS_DEFAULT;
+  let callerPaused = false;
+  let pauseTimeout: ReturnType<typeof setTimeout> | null = null;
+  const clearPauseTimeout = () => {
+    if (pauseTimeout) {
+      clearTimeout(pauseTimeout);
+      pauseTimeout = null;
+    }
+  };
+  const pauseInternal = async () => {
+    if (callerPaused) {
+      return;
+    }
+    const snapshot = await readSession();
+    if (
+      snapshot.status === "completed" ||
+      snapshot.status === "failed" ||
+      snapshot.call?.endedAt
+    ) {
+      return;
+    }
+    callerPaused = true;
+    clearCallSilenceWatchdog();
+    clearStuckCloseWatchdog();
+    clearIdleRepromptWatchdog();
+    clearPauseTimeout();
+    pauseTimeout = setTimeout(() => {
+      pauseTimeout = null;
+      void api.close("pause-timeout");
+    }, pauseMaxMs);
+    await appendTrace({
+      payload: {
+        action: "call.paused",
+        maxMs: pauseMaxMs,
+      },
+      session: snapshot,
+      type: "call.lifecycle",
+    });
+  };
+  const resumeInternal = async () => {
+    if (!callerPaused) {
+      return;
+    }
+    callerPaused = false;
+    clearPauseTimeout();
+    kickCallSilenceWatchdog();
+    kickStuckCloseWatchdog();
+    kickIdleRepromptWatchdog(true);
+    const snapshot = await readSession();
+    await appendTrace({
+      payload: {
+        action: "call.resumed",
+      },
+      session: snapshot,
+      type: "call.lifecycle",
+    });
   };
 
   const recordingConfig = options.recording;
@@ -1668,6 +1751,7 @@ export const createVoiceSession = <
     clearCallSilenceWatchdog();
     clearStuckCloseWatchdog();
     clearIdleRepromptWatchdog();
+    clearPauseTimeout();
     clearAmdEvaluationTimer();
     await closeTTSSession("failed");
     await closeAdapter("failed");
@@ -1852,6 +1936,7 @@ export const createVoiceSession = <
     clearCallSilenceWatchdog();
     clearStuckCloseWatchdog();
     clearIdleRepromptWatchdog();
+    clearPauseTimeout();
     clearAmdEvaluationTimer();
     await closeTTSSession("complete");
     await closeAdapter("complete");
@@ -3159,6 +3244,23 @@ export const createVoiceSession = <
     // deadline so a normally-flowing call never auto-closes.
     kickStuckCloseWatchdog();
     kickIdleRepromptWatchdog(true);
+    // Caller-driven pause: the client stops sending audio, but if a straggler
+    // turn commits anyway (in-flight VAD/silence timer), don't answer it —
+    // a paused call must stay quiet.
+    if (callerPaused) {
+      await appendTrace({
+        payload: {
+          action: "turn.skipped",
+          reason: "caller-paused",
+          status: "skipped",
+        },
+        session,
+        turnId: turn.id,
+        type: "call.lifecycle",
+      });
+
+      return;
+    }
     const liveOpsControl = await options.liveOps?.getControl(options.id);
     if (liveOpsControl?.assistantPaused || liveOpsControl?.operatorTakeover) {
       await appendTrace({
@@ -4412,6 +4514,7 @@ export const createVoiceSession = <
     clearCallSilenceWatchdog();
     clearStuckCloseWatchdog();
     clearIdleRepromptWatchdog();
+    clearPauseTimeout();
     clearAmdEvaluationTimer();
     if (options.noiseSuppressor?.close) {
       try {
@@ -4489,9 +4592,17 @@ export const createVoiceSession = <
       runSerial("api.markVoicemail", async () => {
         await markVoicemailInternal(input);
       }),
+    pause: async () =>
+      runSerial("api.pause", async () => {
+        await pauseInternal();
+      }),
     receiveAudio: async (audio: ArrayBuffer | ArrayBufferView) =>
       runSerial("api.receiveAudio", async () => {
         await receiveAudioInternal(audio);
+      }),
+    resume: async () =>
+      runSerial("api.resume", async () => {
+        await resumeInternal();
       }),
     snapshot: async () => runSerial("api.snapshot", async () => readSession()),
     transfer: async (input) =>
