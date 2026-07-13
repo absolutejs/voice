@@ -19,7 +19,7 @@
   "license": "BSL-1.1",
   "author": "Alex Kahn",
   "scripts": {
-    "build": "rm -rf dist && bun build ./src/index.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts ./src/drizzle/index.ts --outdir dist --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute --external @absolutejs/ai --external @absolutejs/media --external drizzle-orm && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && bun build ./src/embed/index.ts --outfile dist/embed/voice-widget.js --target browser --format iife --minify && bun build ./src/embed/index.ts --outdir dist/embed --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json",
+    "build": "rm -rf dist && bun build ./src/index.ts ./src/manifest.ts ./src/client/index.ts ./src/react/index.ts ./src/vue/index.ts ./src/svelte/index.ts ./src/angular/index.ts ./src/testing/index.ts ./src/drizzle/index.ts --outdir dist --root ./src --target bun --external elysia --external react --external vue --external @angular/core --external @absolutejs/absolute --external @absolutejs/ai --external @absolutejs/media --external drizzle-orm && bun build ./src/client/htmxBootstrap.ts --outdir dist/client --target browser --format esm && bun build ./src/embed/index.ts --outfile dist/embed/voice-widget.js --target browser --format iife --minify && bun build ./src/embed/index.ts --outdir dist/embed --target browser --format esm && tsc --emitDeclarationOnly --project tsconfig.json && absolute-manifest emit",
     "config": "absolute config",
     "format": "absolute prettier --write",
     "knip": "knip",
@@ -75,7 +75,12 @@
       "import": "./dist/embed/index.js",
       "types": "./dist/embed/index.d.ts"
     },
-    "./embed/voice-widget.js": "./dist/embed/voice-widget.js"
+    "./embed/voice-widget.js": "./dist/embed/voice-widget.js",
+    "./manifest": {
+      "import": "./dist/manifest.js",
+      "types": "./dist/manifest.d.ts"
+    },
+    "./manifest.json": "./dist/manifest.json"
   },
   "typesVersions": {
     "*": {
@@ -102,6 +107,9 @@
       ],
       "embed": [
         "dist/embed/index.d.ts"
+      ],
+      "manifest": [
+        "dist/manifest.d.ts"
       ]
     }
   },
@@ -132,7 +140,9 @@
     }
   },
   "dependencies": {
-    "@absolutejs/media": "0.0.1-beta.19"
+    "@absolutejs/manifest": "^0.1.0",
+    "@absolutejs/media": "0.0.1-beta.19",
+    "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
     "@absolutejs/absolute": "0.19.0-beta.1009",
@@ -157,5 +167,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.2",
     "vue": "3.5.27"
+  },
+  "absolutejs": {
+    "manifestContract": 1
   }
 }
