@@ -5,6 +5,10 @@ import {
   type VoiceSTTAdapterHarnessResult,
 } from "./stt";
 import type { VoiceTestFixture } from "./fixtures";
+import {
+  scoreVoiceCriticalFields,
+  type VoiceCriticalFieldAccuracy,
+} from "./criticalFields";
 
 export type VoiceExpectedTermAccuracy = {
   allMatched: boolean;
@@ -43,6 +47,7 @@ export type VoiceSTTBenchmarkFixtureResult = {
   endOfTurnCount: number;
   errorCount: number;
   expectedTerms: VoiceExpectedTermAccuracy;
+  criticalFields?: VoiceCriticalFieldAccuracy;
   finalCount: number;
   finalText: string;
   fixtureId: string;
@@ -68,6 +73,8 @@ export type VoiceSTTBenchmarkSummary = {
   averageFinalCount: number;
   averageSpeakerTurnMatchRate?: number;
   averageTermRecall: number;
+  averageCriticalFieldAccuracy: number;
+  requiredCriticalFieldPassRate: number;
   averagePostSpeechTimeToEndOfTurnMs?: number;
   averagePostSpeechTimeToFirstFinalMs?: number;
   averageTimeToEndOfTurnMs?: number;
@@ -572,11 +579,16 @@ const toFixtureBenchmarkResult = (
     result.finalText,
     fixture.expectedTerms,
   );
+  const criticalFields = scoreVoiceCriticalFields(
+    result.finalText,
+    fixture.expectedCriticalFields,
+  );
   const speakerTurns = scoreSpeakerTurns(fixture, result);
 
   return {
     accuracy: result.accuracy,
     closeCount: result.closeEvents.length,
+    criticalFields,
     difficulty: fixture.difficulty,
     elapsedMs,
     endOfTurnCount: result.endOfTurnEvents.length,
@@ -591,6 +603,7 @@ const toFixtureBenchmarkResult = (
       result.errorEvents.length === 0 &&
       result.finalText.trim().length > 0 &&
       result.accuracy.passesThreshold &&
+      criticalFields.passesRequired &&
       (speakerTurns ? speakerTurns.passes : true),
     partialCount: result.partialEvents.length,
     speakerTurns,
@@ -823,6 +836,19 @@ export const summarizeSTTBenchmark = (
       roundMetric(
         average(fixtures.map((fixture) => fixture.expectedTerms.recall)),
       ) ?? 0,
+    averageCriticalFieldAccuracy:
+      roundMetric(
+        average(fixtures.map((fixture) => fixture.criticalFields?.accuracy ?? 1)),
+      ) ?? 0,
+    requiredCriticalFieldPassRate:
+      fixtureCount > 0
+        ? (roundMetric(
+            fixtures.filter(
+              (fixture) => fixture.criticalFields?.passesRequired ?? true,
+            )
+              .length / fixtureCount,
+          ) ?? 0)
+        : 0,
     averagePostSpeechTimeToEndOfTurnMs: roundMetric(
       average(fixtures.map((fixture) => fixture.postSpeechTimeToEndOfTurnMs)),
       2,

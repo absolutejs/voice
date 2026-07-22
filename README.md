@@ -5015,6 +5015,14 @@ That keeps HTMX pages declarative without inventing custom fragment endpoints fo
 
 Performance & accuracy benchmarks (STT, TTS, duplex, telephony, sessions) and head-to-head comparisons against Vapi live in a dedicated repo: **[absolutejs/benchmarks](https://github.com/absolutejs/benchmarks)**. They consume the published `@absolutejs/voice` package and provider adapters.
 
+Reusable eval contracts stay in `@absolutejs/voice/testing`: fixture manifests
+can label critical names, organizations, currency, percentages, phone numbers,
+and other exact fields; benchmark reports score those fields independently from
+WER; confidence calibration reports ECE/Brier scores; and routing reports expose
+fallback improvement and harm rates. Audio corpora and executable provider runs
+remain separate so applications can consume the same contracts without shipping
+benchmark media in the runtime package.
+
 ## Adapter Contract
 
 Adapters normalize vendor behavior into a core event model so the plugin never branches on vendor names.
@@ -5035,6 +5043,7 @@ type STTAdapterSession = {
     handler: (payload: STTSessionEventMap[K]) => void | Promise<void>,
   ) => () => void;
   send: (audio: AudioChunk) => Promise<void>;
+  configure?: (configuration: VoiceSTTSessionConfiguration) => Promise<void>;
   close: (reason?: string) => Promise<void>;
 };
 ```

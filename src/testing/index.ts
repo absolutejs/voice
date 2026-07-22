@@ -1,5 +1,7 @@
 export * from "./accuracy";
 export * from "./benchmark";
+export * from "./confidenceCalibration";
+export * from "./criticalFields";
 export * from "./corrected";
 export * from "./duplex";
 export * from "./fixtures";
@@ -7,6 +9,7 @@ export * from "./ioProviderSimulator";
 export * from "./providerSimulator";
 export * from "./resilience";
 export * from "./review";
+export * from "./routingBenchmark";
 export * from "./sessionBenchmark";
 export * from "./stt";
 export * from "./telephony";

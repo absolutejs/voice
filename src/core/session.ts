@@ -4624,6 +4624,11 @@ export const createVoiceSession = <
       runSerial("api.commitTurn", async () => {
         await commitTurnInternal(reason);
       }),
+    configureSTT: async (configuration) =>
+      runSerial("api.configureSTT", async () => {
+        const adapter = await ensureAdapter();
+        await adapter.configure?.(configuration);
+      }),
     complete: async (result?: unknown) =>
       runSerial("api.complete", async () => {
         await completeInternal(result);

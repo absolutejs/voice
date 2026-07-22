@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import type { AudioFormat, VoiceExpectedSpeakerTurn } from "../core/types";
+import type { VoiceExpectedCriticalField } from "./criticalFields";
 
 export type VoiceTestFixtureManifestEntry = {
   id: string;
@@ -7,6 +8,7 @@ export type VoiceTestFixtureManifestEntry = {
   audioPath: string;
   expectedText: string;
   expectedTerms?: string[];
+  expectedCriticalFields?: VoiceExpectedCriticalField[];
   expectedSpeakerTurns?: VoiceExpectedSpeakerTurn[];
   expectedTurnTexts?: string[];
   chunkDurationMs?: number;

@@ -129,6 +129,16 @@ export type TranscriptWord = {
   text: string;
 };
 
+/** Provider token evidence. Tokens are intentionally kept separate from words:
+ * subword log probabilities are useful for calibration and routing, but are not
+ * word-level timestamps or confidence scores. */
+export type TranscriptToken = {
+  bytes?: number[];
+  confidence?: number;
+  logProbability?: number;
+  text: string;
+};
+
 export type Transcript = {
   id: string;
   text: string;
@@ -140,7 +150,15 @@ export type Transcript = {
   startedAtMs?: number;
   endedAtMs?: number;
   vendor?: string;
+  tokens?: TranscriptToken[];
   words?: TranscriptWord[];
+};
+
+export type VoiceSTTSessionConfiguration = {
+  languageHints?: string[];
+  lexicon?: VoiceLexiconEntry[];
+  phraseHints?: VoicePhraseHint[];
+  turnDetection?: Partial<VoiceTurnDetectionConfig>;
 };
 
 export type VoiceTranscriptQuality = {
@@ -249,6 +267,8 @@ export type STTAdapterSession = {
     handler: (payload: STTSessionEventMap[K]) => void | Promise<void>,
   ) => () => void;
   send: (audio: AudioChunk) => Promise<void>;
+  /** Update provider-supported STT context without restarting the stream. */
+  configure?: (configuration: VoiceSTTSessionConfiguration) => Promise<void>;
   close: (reason?: string) => Promise<void>;
 };
 
@@ -328,6 +348,8 @@ export type RealtimeAdapterSession = {
     handler: (payload: RealtimeSessionEventMap[K]) => void | Promise<void>,
   ) => () => void;
   send: (input: AudioChunk | string) => Promise<void>;
+  /** Update provider-supported input transcription context in place. */
+  configure?: (configuration: VoiceSTTSessionConfiguration) => Promise<void>;
   close: (reason?: string) => Promise<void>;
 };
 
@@ -814,6 +836,9 @@ export type VoiceSessionHandle<
     speechThreshold: number;
     transcriptStabilityMs: number;
   }>;
+  /** Refresh vocabulary, language hints, or provider turn settings while a
+   * call is active. Unsupported fields are ignored by the active adapter. */
+  configureSTT: (configuration: VoiceSTTSessionConfiguration) => Promise<void>;
 };
 
 // Normalized conversational-LLM token usage for a turn, carried back on the turn

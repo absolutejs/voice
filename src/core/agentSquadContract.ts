@@ -183,6 +183,7 @@ const createContractApi = <
   id: session.id,
   attachUserMedia: async () => {},
   close: async () => {},
+  configureSTT: async () => {},
   commitTurn: async () => {},
   complete: async () => {},
   connect: async () => {},
