@@ -6,6 +6,10 @@ import {
 } from "./stt";
 import type { VoiceTestFixture } from "./fixtures";
 import {
+  calibrateVoiceConfidence,
+  type VoiceConfidenceCalibrationReport,
+} from "./confidenceCalibration";
+import {
   scoreVoiceCriticalFields,
   type VoiceCriticalFieldAccuracy,
 } from "./criticalFields";
@@ -62,6 +66,7 @@ export type VoiceSTTBenchmarkFixtureResult = {
   timeToEndOfTurnMs?: number;
   timeToFirstFinalMs?: number;
   timeToFirstPartialMs?: number;
+  transcriptConfidence?: number;
   title: string;
 };
 
@@ -89,6 +94,7 @@ export type VoiceSTTBenchmarkSummary = {
   totalErrorCount: number;
   wordAccuracyRate: number;
   groupSummaries: VoiceSTTBenchmarkFixtureSummary[];
+  confidenceCalibration: VoiceConfidenceCalibrationReport;
 };
 
 export type VoiceSTTBenchmarkFixtureSummary = {
@@ -584,6 +590,18 @@ const toFixtureBenchmarkResult = (
     fixture.expectedCriticalFields,
   );
   const speakerTurns = scoreSpeakerTurns(fixture, result);
+  const transcriptConfidence = average(
+    result.finalEvents.map((event) => {
+      if (typeof event.transcript.confidence === "number") {
+        return event.transcript.confidence;
+      }
+
+      return average([
+        ...(event.transcript.words ?? []).map((word) => word.confidence),
+        ...(event.transcript.tokens ?? []).map((token) => token.confidence),
+      ]);
+    }),
+  );
 
   return {
     accuracy: result.accuracy,
@@ -613,6 +631,7 @@ const toFixtureBenchmarkResult = (
     timeToEndOfTurnMs,
     timeToFirstFinalMs,
     timeToFirstPartialMs,
+    transcriptConfidence: roundMetric(transcriptConfidence),
     title: fixture.title,
   };
 };
@@ -812,6 +831,18 @@ export const summarizeSTTBenchmark = (
 
   return {
     adapterId,
+    confidenceCalibration: calibrateVoiceConfidence(
+      fixtures.flatMap((fixture) =>
+        typeof fixture.transcriptConfidence === "number"
+          ? [
+              {
+                confidence: fixture.transcriptConfidence,
+                correct: fixture.passes,
+              },
+            ]
+          : [],
+      ),
+    ),
     averageCharErrorRate:
       roundMetric(
         average(fixtures.map((fixture) => fixture.accuracy.charErrorRate)),
