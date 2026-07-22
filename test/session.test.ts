@@ -4078,6 +4078,7 @@ test("records conversational LLM usage from the turn result into the cost accoun
 
 test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and saves", async () => {
   const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
   const adapter = createFakeAdapter();
   const tts = createFakeTTSAdapter();
   const socket = createMockSocket();
@@ -4112,6 +4113,7 @@ test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and
       speechThreshold: 0.01,
       transcriptStabilityMs: 5,
     },
+    trace,
   });
 
   await session.connect(socket.socket);
@@ -4136,6 +4138,14 @@ test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and
   // And it ended as a COMPLETED call (not failed / abandoned) — status is set
   // synchronously at completion, ahead of the closing-audio drain.
   expect((await session.snapshot()).status).toBe("completed");
+
+  const errorEvents = await trace.list({ type: "session.error" });
+  expect(errorEvents).toHaveLength(1);
+  expect(errorEvents[0]?.payload).toEqual({
+    action: "stuck-call-close",
+    error: "no caller progress for 60ms",
+    reason: "no caller progress for 60ms",
+  });
 });
 
 test("stuckCallClose is reset by caller progress and never fires on a flowing call", async () => {

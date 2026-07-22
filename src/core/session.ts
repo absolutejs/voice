@@ -905,10 +905,12 @@ export const createVoiceSession = <
       ) {
         return;
       }
+      const error = `no caller progress for ${stuckCloseAfterMs}ms`;
       await appendTrace({
         payload: {
           action: "stuck-call-close",
-          reason: `no caller progress for ${stuckCloseAfterMs}ms`,
+          error,
+          reason: error,
         },
         session: snapshot,
         type: "session.error",
