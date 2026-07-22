@@ -1640,6 +1640,7 @@ test("voice session risk policy can route a high-value turn to fallback", async 
     stt: primaryAdapter.adapter,
     sttFallback: {
       adapter: fallbackAdapter.adapter,
+      preferFallbackOn: ["risk-policy"],
       riskPolicy: ({ text }) => text.includes("$50,000"),
       settleMs: 40,
       trigger: "low-confidence",
@@ -1671,10 +1672,10 @@ test("voice session risk policy can route a high-value turn to fallback", async 
     await fallbackAdapter.emitCurrent("final", {
       receivedAt: Date.now(),
       transcript: {
-        confidence: 0.99,
+        confidence: 0,
         id: "fallback-critical-entity",
         isFinal: true,
-        text: "Our target is $50,000 this quarter",
+        text: "Our target is $15,000",
       },
       type: "final",
     });
@@ -1686,6 +1687,11 @@ test("voice session risk policy can route a high-value turn to fallback", async 
   await Bun.sleep(40);
 
   expect(fallbackAdapter.getOpenCalls()).toBe(1);
+  const snapshot = await session.snapshot();
+  expect(snapshot.turns[0]?.text).toBe("Our target is $15,000");
+  expect(snapshot.turns[0]?.quality?.fallback?.selectionReason).toBe(
+    "policy-preference",
+  );
 });
 
 test("voice session stores primary-turn quality metrics", async () => {

@@ -631,6 +631,7 @@ export const createVoiceSession = <
           trigger: options.sttFallback.trigger ?? "empty-or-low-confidence",
           wordConfidenceThreshold: options.sttFallback.wordConfidenceThreshold,
           riskPolicy: options.sttFallback.riskPolicy,
+          preferFallbackOn: options.sttFallback.preferFallbackOn,
         }
       : undefined;
 
@@ -2435,7 +2436,16 @@ export const createVoiceSession = <
       text: primaryText,
       wordCount: countWords(normalizeText(primaryText)),
     };
-    const selection = selectBetterTurnText(primaryCandidate, fallbackCandidate);
+    const policyPrefersFallback =
+      fallbackCandidate.text.length > 0 &&
+      fallbackNeed.reason !== undefined &&
+      sttFallback.preferFallbackOn?.includes(fallbackNeed.reason);
+    const selection = policyPrefersFallback
+      ? {
+          reason: "policy-preference" as const,
+          winner: fallbackCandidate,
+        }
+      : selectBetterTurnText(primaryCandidate, fallbackCandidate);
     const diagnostics: VoiceFallbackDiagnostics = {
       attempted: true,
       fallbackConfidence: fallbackCandidate.confidence,

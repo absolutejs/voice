@@ -182,6 +182,7 @@ export type VoiceFallbackSelectionReason =
   | "word-count-margin"
   | "confidence-margin"
   | "word-count-tiebreak"
+  | "policy-preference"
   | "kept-primary";
 
 export type VoiceFallbackDiagnostics = {
@@ -660,6 +661,9 @@ export type VoiceSTTFallbackConfig = {
    * language that should receive a second transcription pass regardless of the
    * aggregate confidence. */
   riskPolicy?: VoiceSTTFallbackRiskPolicy;
+  /** Prefer a non-empty independent fallback for these audited trigger reasons,
+   * including providers that do not expose comparable confidence scores. */
+  preferFallbackOn?: VoiceFallbackTriggerReason[];
 };
 
 export type VoiceResolvedSTTFallbackConfig = {
@@ -673,6 +677,7 @@ export type VoiceResolvedSTTFallbackConfig = {
   maxAttemptsPerTurn: number;
   wordConfidenceThreshold?: number;
   riskPolicy?: VoiceSTTFallbackRiskPolicy;
+  preferFallbackOn?: VoiceFallbackTriggerReason[];
 };
 
 export type VoiceTurnDetectionConfig = {
