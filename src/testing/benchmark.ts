@@ -13,6 +13,10 @@ import {
   scoreVoiceCriticalFields,
   type VoiceCriticalFieldAccuracy,
 } from "./criticalFields";
+import {
+  evaluateSTTAdapterConformance,
+  type VoiceSTTConformanceReport,
+} from "./conformance";
 
 export type VoiceExpectedTermAccuracy = {
   allMatched: boolean;
@@ -46,6 +50,7 @@ export type VoiceSpeakerTurnAccuracy = {
 export type VoiceSTTBenchmarkFixtureResult = {
   accuracy: VoiceSTTAdapterHarnessResult["accuracy"];
   closeCount: number;
+  conformance?: VoiceSTTConformanceReport;
   difficulty?: VoiceTestFixture["difficulty"];
   elapsedMs: number;
   endOfTurnCount: number;
@@ -606,6 +611,7 @@ const toFixtureBenchmarkResult = (
   return {
     accuracy: result.accuracy,
     closeCount: result.closeEvents.length,
+    conformance: evaluateSTTAdapterConformance(result),
     criticalFields,
     difficulty: fixture.difficulty,
     elapsedMs,

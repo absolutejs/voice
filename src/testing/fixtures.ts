@@ -17,6 +17,7 @@ export type VoiceTestFixtureManifestEntry = {
   tags?: string[];
   tailPaddingMs?: number;
   format?: Partial<AudioFormat>;
+  provenance?: Omit<import("./provenance").VoiceCorpusFixtureProvenance, "audioSha256" | "fixtureId">;
 };
 
 export type VoiceTestFixture = Omit<
