@@ -221,6 +221,8 @@ const resolveBenchmarkFallbackConfig = (
     replayWindowMs: config.replayWindowMs ?? 8_000,
     settleMs: config.settleMs ?? 220,
     trigger: config.trigger ?? "empty-or-low-confidence",
+    wordConfidenceThreshold: config.wordConfidenceThreshold,
+    riskPolicy: config.riskPolicy,
   };
 };
 

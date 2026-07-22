@@ -129,7 +129,10 @@ const createEmptyCurrentTurn = (): VoiceSessionRecord["currentTurn"] => ({
   transcripts: [],
 });
 
-const cloneTranscript = (transcript: Transcript) => ({ ...transcript });
+const cloneTranscript = (transcript: Transcript): Transcript => ({
+  ...transcript,
+  words: transcript.words?.map((word) => ({ ...word })),
+});
 const encodeBase64 = (chunk: Uint8Array) =>
   Buffer.from(chunk).toString("base64");
 
@@ -232,6 +235,17 @@ const calculateMeanConfidence = (transcripts: Transcript[]) => {
   return sum / total;
 };
 
+const collectTranscriptWords = (transcripts: Transcript[]) =>
+  transcripts.flatMap((transcript) => transcript.words ?? []);
+
+const collectWordConfidences = (transcripts: Transcript[]) =>
+  collectTranscriptWords(transcripts)
+    .map((word) => word.confidence)
+    .filter(
+      (confidence): confidence is number =>
+        typeof confidence === "number" && Number.isFinite(confidence),
+    );
+
 const createTurnQuality = (
   transcripts: Transcript[],
   source: VoiceTranscriptQuality["source"],
@@ -244,6 +258,7 @@ const createTurnQuality = (
     (transcript) => typeof transcript.confidence === "number",
   );
   const confidenceSampleCount = sampledTranscripts.length;
+  const wordConfidences = collectWordConfidences(transcripts);
 
   return {
     averageConfidence:
@@ -265,6 +280,9 @@ const createTurnQuality = (
     ).length,
     selectedTranscriptCount: transcripts.length,
     source,
+    lowestWordConfidence:
+      wordConfidences.length > 0 ? Math.min(...wordConfidences) : undefined,
+    wordConfidenceSampleCount: wordConfidences.length,
   };
 };
 
@@ -302,7 +320,7 @@ type TurnTranscriptionSelection = {
 
 const normalizeCorrectionText = (text: string) => normalizeText(text);
 
-const isFallbackNeeded = (
+const evaluateFallbackNeed = (
   candidate: {
     text: string;
     transcripts: Transcript[];
@@ -311,27 +329,56 @@ const isFallbackNeeded = (
 ) => {
   const trimmed = normalizeText(candidate.text);
   const wordCount = countWords(trimmed);
+  const averageConfidence = calculateMeanConfidence(candidate.transcripts);
+  const words = collectTranscriptWords(candidate.transcripts);
+  const wordConfidences = collectWordConfidences(candidate.transcripts);
+  const lowestWordConfidence =
+    wordConfidences.length > 0 ? Math.min(...wordConfidences) : undefined;
+  const resolvedCandidate = {
+    averageConfidence,
+    lowestWordConfidence,
+    text: candidate.text,
+    transcripts: candidate.transcripts,
+    wordCount,
+    words,
+  };
 
   if (config.trigger === "always") {
-    return true;
+    return { needed: true, reason: "always" as const };
   }
 
-  if (config.trigger === "empty-turn") {
-    return wordCount < config.minTextLength;
+  if (
+    wordCount < config.minTextLength &&
+    (config.trigger === "empty-turn" ||
+      config.trigger === "empty-or-low-confidence")
+  ) {
+    return { needed: true, reason: "empty-turn" as const };
   }
 
-  const averageConfidence = calculateMeanConfidence(candidate.transcripts);
-
-  if (config.trigger === "low-confidence") {
-    return (
-      averageConfidence > 0 && averageConfidence < config.confidenceThreshold
-    );
+  if (config.riskPolicy?.(resolvedCandidate)) {
+    return { needed: true, reason: "risk-policy" as const };
   }
 
-  return (
-    (averageConfidence > 0 && averageConfidence < config.confidenceThreshold) ||
-    wordCount < config.minTextLength
-  );
+  if (
+    config.wordConfidenceThreshold !== undefined &&
+    lowestWordConfidence !== undefined &&
+    lowestWordConfidence < config.wordConfidenceThreshold
+  ) {
+    return { needed: true, reason: "word-confidence" as const };
+  }
+
+  const checksConfidence =
+    config.trigger === "low-confidence" ||
+    config.trigger === "empty-or-low-confidence";
+  if (
+    checksConfidence &&
+    averageConfidence > 0 &&
+    averageConfidence < config.confidenceThreshold
+  ) {
+    return { needed: true, reason: "transcript-confidence" as const };
+  }
+
+  return { needed: false, reason: undefined };
 };
 
 const selectBetterTurnText = (
@@ -582,6 +629,8 @@ export const createVoiceSession = <
             options.sttFallback.replayWindowMs ?? DEFAULT_FALLBACK_REPLAY_MS,
           settleMs: options.sttFallback.settleMs ?? DEFAULT_FALLBACK_SETTLE_MS,
           trigger: options.sttFallback.trigger ?? "empty-or-low-confidence",
+          wordConfidenceThreshold: options.sttFallback.wordConfidenceThreshold,
+          riskPolicy: options.sttFallback.riskPolicy,
         }
       : undefined;
 
@@ -924,7 +973,10 @@ export const createVoiceSession = <
     }
     idleRepromptWatchdog = setTimeout(() => {
       idleRepromptWatchdog = null;
-      if (idleRepromptConfig === undefined || idleRepromptsUsed >= idleRepromptMax) {
+      if (
+        idleRepromptConfig === undefined ||
+        idleRepromptsUsed >= idleRepromptMax
+      ) {
         return;
       }
       void runSerial("idle-reprompt", async () => {
@@ -2235,7 +2287,8 @@ export const createVoiceSession = <
       text: primaryText,
       transcripts: primaryTranscripts,
     };
-    if (!isFallbackNeeded(candidate, sttFallback)) {
+    const fallbackNeed = evaluateFallbackNeed(candidate, sttFallback);
+    if (!fallbackNeed.needed) {
       return null;
     }
 
@@ -2394,6 +2447,7 @@ export const createVoiceSession = <
       selected: selection.winner.text === fallbackCandidate.text,
       selectionReason: selection.reason,
       trigger: sttFallback.trigger,
+      triggerReason: fallbackNeed.reason,
     };
     if (selection.winner.text === primaryCandidate.text) {
       return {
@@ -4062,18 +4116,14 @@ export const createVoiceSession = <
   };
 
   const resolveSessionLine = async (
-    line:
-      | string
-      | ((input: { session: TSession }) => string | Promise<string>),
+    line: string | ((input: { session: TSession }) => string | Promise<string>),
     sessionForLine: TSession,
   ) => (typeof line === "function" ? line({ session: sessionForLine }) : line);
 
   // Resolve + speak a configured line, swallowing any error from the resolver
   // itself (speakAssistantLine already swallows synthesis errors).
   const speakResolvedLine = async (
-    line:
-      | string
-      | ((input: { session: TSession }) => string | Promise<string>),
+    line: string | ((input: { session: TSession }) => string | Promise<string>),
     sessionForLine: TSession,
   ) => {
     try {

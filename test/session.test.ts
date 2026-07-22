@@ -1518,6 +1518,176 @@ test("voice session prefers fallback transcript on low-confidence candidate", as
   expect(snapshot.turns[0]?.text).toBe("I am trying to book a demo call");
 });
 
+test("voice session falls back for one risky word hidden by a high turn average", async () => {
+  const primaryAdapter = createFakeAdapter();
+  const fallbackAdapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-fallback-word-confidence",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => {
+        expect(turn.text).toBe("Hello, but can you please talk faster now?");
+        expect(turn.quality?.fallback?.triggerReason).toBe("word-confidence");
+        expect(turn.quality?.lowestWordConfidence).toBe(0.99);
+        expect(turn.quality?.wordConfidenceSampleCount).toBe(8);
+      },
+    },
+    socket: socket.socket,
+    store: createVoiceMemoryStore(),
+    stt: primaryAdapter.adapter,
+    sttFallback: {
+      adapter: fallbackAdapter.adapter,
+      confidenceThreshold: 0.65,
+      replayWindowMs: 8_000,
+      settleMs: 40,
+      trigger: "low-confidence",
+      wordConfidenceThreshold: 0.8,
+    },
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  const emitted = withDeferred<void>();
+
+  await session.connect(socket.socket);
+  await primaryAdapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.992,
+      id: "primary-high-average",
+      isFinal: true,
+      text: "Hello Bill, can you please talk faster?",
+      words: [
+        { confidence: 0.999, text: "Hello" },
+        { confidence: 0.51, text: "Bill" },
+        { confidence: 0.999, text: "can" },
+        { confidence: 0.999, text: "you" },
+        { confidence: 0.999, text: "please" },
+        { confidence: 0.999, text: "talk" },
+        { confidence: 0.999, text: "faster" },
+      ],
+    },
+    type: "final",
+  });
+  await session.receiveAudio(createSpeechChunk(16_000));
+
+  void (async () => {
+    await Bun.sleep(20);
+    await fallbackAdapter.emitCurrent("final", {
+      receivedAt: Date.now(),
+      transcript: {
+        confidence: 0.99,
+        id: "fallback-word-correction",
+        isFinal: true,
+        text: "Hello, but can you please talk faster now?",
+        words: [
+          "Hello",
+          "but",
+          "can",
+          "you",
+          "please",
+          "talk",
+          "faster",
+          "now",
+        ].map((text) => ({ confidence: 0.99, text })),
+      },
+      type: "final",
+    });
+    emitted.resolve();
+  })();
+
+  await session.commitTurn("manual");
+  await emitted.promise;
+  await Bun.sleep(40);
+
+  expect(fallbackAdapter.getOpenCalls()).toBe(1);
+});
+
+test("voice session risk policy can route a high-value turn to fallback", async () => {
+  const primaryAdapter = createFakeAdapter();
+  const fallbackAdapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-fallback-risk-policy",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async ({ turn }) => {
+        expect(turn.quality?.fallback?.triggerReason).toBe("risk-policy");
+      },
+    },
+    socket: socket.socket,
+    store: createVoiceMemoryStore(),
+    stt: primaryAdapter.adapter,
+    sttFallback: {
+      adapter: fallbackAdapter.adapter,
+      riskPolicy: ({ text }) => text.includes("$50,000"),
+      settleMs: 40,
+      trigger: "low-confidence",
+    },
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  const emitted = withDeferred<void>();
+
+  await session.connect(socket.socket);
+  await primaryAdapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      confidence: 0.99,
+      id: "primary-critical-entity",
+      isFinal: true,
+      text: "Our target is $50,000",
+    },
+    type: "final",
+  });
+  await session.receiveAudio(createSpeechChunk(16_000));
+
+  void (async () => {
+    await Bun.sleep(20);
+    await fallbackAdapter.emitCurrent("final", {
+      receivedAt: Date.now(),
+      transcript: {
+        confidence: 0.99,
+        id: "fallback-critical-entity",
+        isFinal: true,
+        text: "Our target is $50,000 this quarter",
+      },
+      type: "final",
+    });
+    emitted.resolve();
+  })();
+
+  await session.commitTurn("manual");
+  await emitted.promise;
+  await Bun.sleep(40);
+
+  expect(fallbackAdapter.getOpenCalls()).toBe(1);
+});
+
 test("voice session stores primary-turn quality metrics", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();
@@ -3945,7 +4115,9 @@ test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and
   // onComplete (the persistence hook) ran exactly once, so the intake is saved.
   expect(completeCalls).toBe(1);
   // The warm sign-off was spoken (not dead air).
-  expect(tts.getSentTexts()).toContain("Thanks, I have what I need. Talk soon.");
+  expect(tts.getSentTexts()).toContain(
+    "Thanks, I have what I need. Talk soon.",
+  );
 
   const messages = socket.messages.map((message) => JSON.parse(message));
   expect(

@@ -82,10 +82,7 @@ export type VoiceLanguageStrategyResolver<TContext = unknown> = (input: {
   context: TContext;
   scenarioId?: string;
   sessionId: string;
-}) =>
-  | Promise<VoiceLanguageStrategy | void>
-  | VoiceLanguageStrategy
-  | void;
+}) => Promise<VoiceLanguageStrategy | void> | VoiceLanguageStrategy | void;
 
 export type VoicePhraseHint = {
   text: string;
@@ -119,6 +116,19 @@ export type VoiceTranscriptSentiment = {
   score?: number;
 };
 
+/** A provider-normalized word hypothesis. Keeping this evidence attached to the
+ * transcript lets applications detect a single risky name or number that would
+ * otherwise disappear inside a high turn-level average confidence. */
+export type TranscriptWord = {
+  confidence?: number;
+  endedAtMs?: number;
+  language?: string;
+  punctuatedText?: string;
+  speaker?: string | number;
+  startedAtMs?: number;
+  text: string;
+};
+
 export type Transcript = {
   id: string;
   text: string;
@@ -130,6 +140,7 @@ export type Transcript = {
   startedAtMs?: number;
   endedAtMs?: number;
   vendor?: string;
+  words?: TranscriptWord[];
 };
 
 export type VoiceTranscriptQuality = {
@@ -143,6 +154,8 @@ export type VoiceTranscriptQuality = {
   partialTranscriptCount: number;
   selectedTranscriptCount: number;
   source: "fallback" | "primary";
+  lowestWordConfidence?: number;
+  wordConfidenceSampleCount?: number;
 };
 
 export type VoiceTurnCorrectionDiagnostics = {
@@ -186,6 +199,7 @@ export type VoiceFallbackDiagnostics = {
     | "low-confidence"
     | "empty-or-low-confidence"
     | "always";
+  triggerReason?: VoiceFallbackTriggerReason;
 };
 
 export type VoicePartialEvent = {
@@ -611,6 +625,26 @@ export type VoiceTurnFallbackTrigger =
   | "empty-or-low-confidence"
   | "always";
 
+export type VoiceFallbackTriggerReason =
+  | "always"
+  | "empty-turn"
+  | "risk-policy"
+  | "transcript-confidence"
+  | "word-confidence";
+
+export type VoiceSTTFallbackCandidate = {
+  averageConfidence: number;
+  lowestWordConfidence?: number;
+  text: string;
+  transcripts: Transcript[];
+  wordCount: number;
+  words: TranscriptWord[];
+};
+
+export type VoiceSTTFallbackRiskPolicy = (
+  candidate: VoiceSTTFallbackCandidate,
+) => boolean;
+
 export type VoiceSTTFallbackConfig = {
   adapter: STTAdapter;
   trigger?: VoiceTurnFallbackTrigger;
@@ -620,6 +654,12 @@ export type VoiceSTTFallbackConfig = {
   settleMs?: number;
   completionTimeoutMs?: number;
   maxAttemptsPerTurn?: number;
+  /** Run the fallback when any provider word falls below this value. */
+  wordConfidenceThreshold?: number;
+  /** Application-specific routing for high-value turns, entities, or correction
+   * language that should receive a second transcription pass regardless of the
+   * aggregate confidence. */
+  riskPolicy?: VoiceSTTFallbackRiskPolicy;
 };
 
 export type VoiceResolvedSTTFallbackConfig = {
@@ -631,6 +671,8 @@ export type VoiceResolvedSTTFallbackConfig = {
   settleMs: number;
   completionTimeoutMs: number;
   maxAttemptsPerTurn: number;
+  wordConfidenceThreshold?: number;
+  riskPolicy?: VoiceSTTFallbackRiskPolicy;
 };
 
 export type VoiceTurnDetectionConfig = {
@@ -1256,9 +1298,7 @@ export type VoicePluginConfig<
    *  fires first. */
   idleReprompt?: {
     afterMs: number;
-    line:
-      | string
-      | ((input: { session: TSession }) => string | Promise<string>);
+    line: string | ((input: { session: TSession }) => string | Promise<string>);
     maxReprompts?: number;
   };
   languageStrategy?:
@@ -1614,9 +1654,7 @@ export type CreateVoiceSessionOptions<
    *  fires first. */
   idleReprompt?: {
     afterMs: number;
-    line:
-      | string
-      | ((input: { session: TSession }) => string | Promise<string>);
+    line: string | ((input: { session: TSession }) => string | Promise<string>);
     maxReprompts?: number;
   };
   /** Caller-driven in-call pause (VoiceSessionHandle.pause/resume). `maxMs`
