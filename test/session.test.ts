@@ -4139,13 +4139,119 @@ test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and
   // synchronously at completion, ahead of the closing-audio drain.
   expect((await session.snapshot()).status).toBe("completed");
 
+  expect(await trace.list({ type: "session.error" })).toHaveLength(0);
+  const lifecycleEvents = await trace.list({ type: "call.lifecycle" });
+  expect(lifecycleEvents.map((event) => event.payload)).toContainEqual({
+    action: "stuck-call-close",
+    classification: "caller-idle",
+    lastAudioAt: undefined,
+    lastSpeechAt: undefined,
+    lastTranscriptAt: undefined,
+    reason: "no caller progress for 60ms",
+    turnCount: 0,
+  });
+});
+
+test("stuckCallClose reports an STT error when caller speech produces no transcript", async () => {
+  const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-stuck-stt-deaf",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    stuckCallClose: { afterMs: 60 },
+    trace,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await Bun.sleep(90);
+
   const errorEvents = await trace.list({ type: "session.error" });
   expect(errorEvents).toHaveLength(1);
-  expect(errorEvents[0]?.payload).toEqual({
+  expect(errorEvents[0]?.payload).toMatchObject({
     action: "stuck-call-close",
-    error: "no caller progress for 60ms",
+    classification: "stt-deaf",
+    error: "caller speech received but STT produced no transcript for 60ms",
     reason: "no caller progress for 60ms",
+    turnCount: 0,
   });
+});
+
+test("stuckCallClose gives the caller a full response window after a slow assistant turn", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  let completeCalls = 0;
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-stuck-slow-assistant",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {
+        completeCalls += 1;
+      },
+      onTurn: async () => {
+        await Bun.sleep(90);
+
+        return { assistantText: "Thanks for waiting." };
+      },
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    stuckCallClose: { afterMs: 60 },
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: {
+      id: "slow-assistant-final",
+      isFinal: true,
+      text: "Here is my answer",
+    },
+    type: "final",
+  });
+  const commit = session.commitTurn("manual");
+  await Bun.sleep(75);
+  expect(completeCalls).toBe(0);
+  await commit;
+  await Bun.sleep(40);
+  expect(completeCalls).toBe(0);
+  await Bun.sleep(40);
+  expect(completeCalls).toBe(1);
 });
 
 test("stuckCallClose is reset by caller progress and never fires on a flowing call", async () => {

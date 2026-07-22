@@ -884,6 +884,7 @@ export const createVoiceSession = <
       : undefined;
   let stuckCloseWatchdog: ReturnType<typeof setTimeout> | null = null;
   let stuckCloseFired = false;
+  let assistantTurnInProgress = false;
   const clearStuckCloseWatchdog = () => {
     if (stuckCloseWatchdog) {
       clearTimeout(stuckCloseWatchdog);
@@ -895,7 +896,15 @@ export const createVoiceSession = <
     if (stuckCloseFired) {
       return;
     }
-    stuckCloseFired = true;
+    // Caller-idle time must not include time Voice itself spends generating or
+    // speaking the response. In particular, route.onTurn can legitimately run
+    // longer than this deadline (or hit its own hard timeout). Closing as soon
+    // as that work leaves the serial queue cuts off an active conversation.
+    if (assistantTurnInProgress) {
+      stuckCloseWatchdog = setTimeout(fireStuckClose, stuckCloseAfterMs);
+
+      return;
+    }
     void runSerial("stuck-call-close", async () => {
       const snapshot = await readSession();
       if (
@@ -905,16 +914,38 @@ export const createVoiceSession = <
       ) {
         return;
       }
-      const error = `no caller progress for ${stuckCloseAfterMs}ms`;
-      await appendTrace({
-        payload: {
-          action: "stuck-call-close",
-          error,
-          reason: error,
-        },
-        session: snapshot,
-        type: "session.error",
-      });
+      stuckCloseFired = true;
+      const reason = `no caller progress for ${stuckCloseAfterMs}ms`;
+      const { lastSpeechAt, lastTranscriptAt } = snapshot.currentTurn;
+      const speechWithoutTranscript =
+        lastSpeechAt !== undefined &&
+        (lastTranscriptAt === undefined || lastSpeechAt > lastTranscriptAt);
+      const diagnostic = {
+        action: "stuck-call-close",
+        classification: speechWithoutTranscript ? "stt-deaf" : "caller-idle",
+        lastAudioAt: snapshot.currentTurn.lastAudioAt,
+        lastSpeechAt,
+        lastTranscriptAt,
+        reason,
+        turnCount: snapshot.turns.length,
+      };
+      if (speechWithoutTranscript) {
+        const error = `caller speech received but STT produced no transcript for ${stuckCloseAfterMs}ms`;
+        await appendTrace({
+          payload: { ...diagnostic, error },
+          session: snapshot,
+          type: "session.error",
+        });
+      } else {
+        // A caller who simply stops responding is an expected call outcome, not
+        // an application error. Preserve the diagnostic trail without creating
+        // an issue/pager event.
+        await appendTrace({
+          payload: diagnostic,
+          session: snapshot,
+          type: "call.lifecycle",
+        });
+      }
       if (stuckCloseConfig?.line) {
         await speakResolvedLine(stuckCloseConfig.line, snapshot);
       }
@@ -3293,7 +3324,7 @@ export const createVoiceSession = <
     };
   };
 
-  const completeTurn = async (
+  const completeTurnInternal = async (
     session: TSession,
     turn: VoiceTurnRecord<TResult>,
   ) => {
@@ -3306,9 +3337,9 @@ export const createVoiceSession = <
     if (options.normalizeNumbers && turn.text) {
       turn.text = normalizeSpokenNumbers(turn.text);
     }
-    // A committed turn is real conversational progress — reset the wedged-call
-    // deadline so a normally-flowing call never auto-closes.
-    kickStuckCloseWatchdog();
+    // A committed turn is real conversational progress. The caller-idle clock
+    // stays suspended until this assistant turn finishes below.
+    clearStuckCloseWatchdog();
     kickIdleRepromptWatchdog(true);
     // Caller-driven pause: the client stops sending audio, but if a straggler
     // turn commits anyway (in-flight VAD/silence timer), don't answer it —
@@ -3856,6 +3887,29 @@ export const createVoiceSession = <
 
     if (output?.complete) {
       await completeInternal(output.result);
+    }
+  };
+
+  const completeTurn = async (
+    session: TSession,
+    turn: VoiceTurnRecord<TResult>,
+  ) => {
+    assistantTurnInProgress = true;
+    clearStuckCloseWatchdog();
+    try {
+      await completeTurnInternal(session, turn);
+    } finally {
+      assistantTurnInProgress = false;
+      const latest = await readSession();
+      if (
+        latest.status !== "completed" &&
+        latest.status !== "failed" &&
+        !latest.call?.endedAt
+      ) {
+        // Give the caller a full response window measured from when Voice
+        // finishes its own work, not from when their previous turn committed.
+        kickStuckCloseWatchdog();
+      }
     }
   };
 
