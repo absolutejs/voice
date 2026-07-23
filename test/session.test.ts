@@ -4215,7 +4215,7 @@ test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and
   });
 });
 
-test("stuckCallClose reports an STT error when caller speech produces no transcript", async () => {
+test("stuckCallClose treats a brief untranscribed audio spike as caller idle", async () => {
   const store = createVoiceMemoryStore();
   const trace = createVoiceMemoryTraceEventStore();
   const adapter = createFakeAdapter();
@@ -4251,11 +4251,14 @@ test("stuckCallClose reports an STT error when caller speech produces no transcr
   await Bun.sleep(90);
 
   const errorEvents = await trace.list({ type: "session.error" });
-  expect(errorEvents).toHaveLength(1);
-  expect(errorEvents[0]?.payload).toMatchObject({
+  expect(errorEvents).toHaveLength(0);
+  const lifecycleEvents = await trace.list({ type: "call.lifecycle" });
+  expect(lifecycleEvents.map((event) => event.payload)).toContainEqual({
     action: "stuck-call-close",
-    classification: "stt-deaf",
-    error: "caller speech received but STT produced no transcript for 60ms",
+    classification: "caller-idle",
+    lastAudioAt: expect.any(Number),
+    lastSpeechAt: expect.any(Number),
+    lastTranscriptAt: undefined,
     reason: "no caller progress for 60ms",
     turnCount: 0,
   });

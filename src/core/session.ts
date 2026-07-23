@@ -701,6 +701,10 @@ export const createVoiceSession = <
   // STT-health watchdog state (see STT_HEALTH_STALE_MS).
   let lastSpeechEnergyAt = 0;
   let sttHealthPhaseStart = 0;
+  // Set only after the health watchdog observes a sustained speech phase with
+  // no transcript. Raw audio energy alone is not proof of caller speech: echo,
+  // line noise, and the tail of assistant playback can all cross the threshold.
+  let sttDeafConfirmedAt = 0;
   // Wall-clock of the last spoken STT-deaf recovery line, so we re-prompt at most
   // once per stale episode rather than on every reconnect attempt in a flap.
   let lastSttRecoverySpokenAt = 0;
@@ -917,35 +921,27 @@ export const createVoiceSession = <
       stuckCloseFired = true;
       const reason = `no caller progress for ${stuckCloseAfterMs}ms`;
       const { lastSpeechAt, lastTranscriptAt } = snapshot.currentTurn;
-      const speechWithoutTranscript =
-        lastSpeechAt !== undefined &&
-        (lastTranscriptAt === undefined || lastSpeechAt > lastTranscriptAt);
+      const sttDeafConfirmed =
+        sttDeafConfirmedAt > 0 &&
+        (lastTranscriptAt === undefined ||
+          sttDeafConfirmedAt > lastTranscriptAt);
       const diagnostic = {
         action: "stuck-call-close",
-        classification: speechWithoutTranscript ? "stt-deaf" : "caller-idle",
+        classification: sttDeafConfirmed ? "stt-deaf" : "caller-idle",
         lastAudioAt: snapshot.currentTurn.lastAudioAt,
         lastSpeechAt,
         lastTranscriptAt,
         reason,
         turnCount: snapshot.turns.length,
       };
-      if (speechWithoutTranscript) {
-        const error = `caller speech received but STT produced no transcript for ${stuckCloseAfterMs}ms`;
-        await appendTrace({
-          payload: { ...diagnostic, error },
-          session: snapshot,
-          type: "session.error",
-        });
-      } else {
-        // A caller who simply stops responding is an expected call outcome, not
-        // an application error. Preserve the diagnostic trail without creating
-        // an issue/pager event.
-        await appendTrace({
-          payload: diagnostic,
-          session: snapshot,
-          type: "call.lifecycle",
-        });
-      }
+      // Confirmed STT deafness was already reported by the health watchdog at
+      // the point it forced a reconnect. The eventual graceful close is an
+      // outcome, not a second error. Brief untranscribed energy is caller-idle.
+      await appendTrace({
+        payload: diagnostic,
+        session: snapshot,
+        type: "call.lifecycle",
+      });
       if (stuckCloseConfig?.line) {
         await speakResolvedLine(stuckCloseConfig.line, snapshot);
       }
@@ -2668,6 +2664,7 @@ export const createVoiceSession = <
   };
 
   const handlePartial = async (transcript: Transcript) => {
+    sttDeafConfirmedAt = 0;
     // A partial with real text means STT is alive and the caller is getting
     // through — reset the wedged-call deadline (raw audio energy does not, so a
     // deaf stream that produces no transcripts still trips it).
@@ -2811,6 +2808,7 @@ export const createVoiceSession = <
     // A real final transcript means STT is healthy again — clear the reconnect
     // flap budget so an earlier benign drop never counts against a later one.
     sttReconnectCount = 0;
+    sttDeafConfirmedAt = 0;
 
     // P4: this is the final for a listening cue we suppressed mid-TTS (and it's
     // still a pure cue, within the drop window) — discard it entirely so it never
@@ -4565,6 +4563,7 @@ export const createVoiceSession = <
         lastTranscriptAt < sttHealthPhaseStart &&
         nowMs - sttHealthPhaseStart >= STT_HEALTH_STALE_MS
       ) {
+        sttDeafConfirmedAt = nowMs;
         sttReconnectCount =
           nowMs - lastSttReconnectAt < STT_RECONNECT_FLAP_WINDOW_MS
             ? sttReconnectCount + 1
@@ -4582,6 +4581,7 @@ export const createVoiceSession = <
             payload: {
               action: "stt-health-reconnect",
               attempt: sttReconnectCount,
+              classification: "stt-deaf",
               reason: `no transcript for ${STT_HEALTH_STALE_MS}ms of continuous speech`,
             },
             session: latest,
