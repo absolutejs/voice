@@ -1787,7 +1787,7 @@ export const createVoiceSession = <
     await commitTurnInternal(reason);
   };
 
-  const failInternal = async (error: unknown) => {
+  const failInternal = async (error: unknown, code?: string) => {
     clearSilenceTimer();
     let didFail = false;
 
@@ -1813,6 +1813,7 @@ export const createVoiceSession = <
     const resolvedError = toError(error);
     await appendTrace({
       payload: {
+        ...(code === undefined ? {} : { code }),
         error: resolvedError.message,
         recoverable: false,
       },
@@ -2228,6 +2229,16 @@ export const createVoiceSession = <
   };
 
   const handleError = async (event: VoiceErrorEvent) => {
+    // An unrecoverable adapter error is terminal. Let failInternal own its one
+    // session.error trace, client error message, and route onError callback.
+    // Emitting here first used to report the same provider failure twice before
+    // the host application's onError boundary saw it a third time.
+    if (!event.recoverable) {
+      await failInternal(event.error, event.code);
+
+      return;
+    }
+
     await appendTrace({
       payload: {
         code: event.code,
@@ -2241,10 +2252,6 @@ export const createVoiceSession = <
       recoverable: event.recoverable,
       type: "error",
     });
-
-    if (!event.recoverable) {
-      await failInternal(event.error);
-    }
   };
 
   const handleClose = async (event: VoiceCloseEvent) => {

@@ -383,6 +383,69 @@ const createMockSocket = () => {
 
 const createSpeechChunk = (sample: number) => new Int16Array(160).fill(sample);
 
+test("unrecoverable STT errors emit one terminal trace and one client error", async () => {
+  const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const routeErrors: Error[] = [];
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-terminal-stt-error",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onError: ({ error }) => {
+        routeErrors.push(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      },
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    trace,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.receiveAudio(createSpeechChunk(16_000));
+  await adapter.emitCurrent("error", {
+    code: "INACTIVE_CLIENT",
+    error: new Error("Deepgram websocket became inactive"),
+    recoverable: false,
+    type: "error",
+  });
+  await Bun.sleep(20);
+
+  const errorEvents = await trace.list({ type: "session.error" });
+  const clientErrors = socket.messages
+    .map((message) => JSON.parse(message) as { type?: string })
+    .filter((message) => message.type === "error");
+
+  expect(errorEvents).toHaveLength(1);
+  expect(errorEvents[0]?.payload).toMatchObject({
+    code: "INACTIVE_CLIENT",
+    error: "Deepgram websocket became inactive",
+    recoverable: false,
+  });
+  expect(clientErrors).toHaveLength(1);
+  expect(routeErrors).toHaveLength(1);
+  expect(routeErrors[0]?.message).toBe("Deepgram websocket became inactive");
+  expect((await session.snapshot()).status).toBe("failed");
+});
+
 test("voice session stores initial session metadata before onSession", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();
