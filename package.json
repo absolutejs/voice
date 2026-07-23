@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/voice",
-  "version": "0.0.22-beta.644",
+  "version": "0.0.22-beta.645",
   "description": "Voice primitives and Elysia plugin for AbsoluteJS",
   "repository": {
     "type": "git",
@@ -140,7 +140,7 @@
     }
   },
   "dependencies": {
-    "@absolutejs/manifest": "^0.1.0",
+    "@absolutejs/manifest": "^0.4.0",
     "@absolutejs/media": "0.0.1-beta.19",
     "@sinclair/typebox": "^0.34.0"
   },
@@ -169,6 +169,6 @@
     "vue": "3.5.27"
   },
   "absolutejs": {
-    "manifestContract": 1
+    "manifestContract": 2
   }
 }

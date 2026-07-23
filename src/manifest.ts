@@ -18,7 +18,7 @@ const MAX_TRANSCRIPT_TURNS = 20;
  * stt/tts/realtime adapters and the session store are instance-valued →
  * slots; onTurn (the assistant's brain) is a function → wiring concern. */
 export const manifest = defineManifest<VoicePluginConfig, VoiceSessionStore>()({
-  contract: 1,
+  contract: 2,
   identity: {
     accent: "#f43f5e",
     category: "voice",
@@ -255,6 +255,15 @@ export const manifest = defineManifest<VoicePluginConfig, VoiceSessionStore>()({
   tools: {
     delete_session: tool.runtime({
       annotations: { destructiveHint: true, idempotentHint: true },
+      authorization: {
+        approval: "policy",
+        audience: "owner",
+        effects: ["delete"],
+        idempotency: { mode: "resource" },
+        requiredScopes: ["voice:sessions:delete"],
+        resource: { idField: "id", type: "voice-session" },
+        reversible: false,
+      },
       description:
         "Delete one call session (its transcript and state) by id. Deleting an unknown id succeeds.",
       input: Type.Object({ id: Type.String({ minLength: 1 }) }),
@@ -266,6 +275,13 @@ export const manifest = defineManifest<VoicePluginConfig, VoiceSessionStore>()({
     }),
     get_session: tool.runtime({
       annotations: { readOnlyHint: true },
+      authorization: {
+        approval: "never",
+        audience: "owner",
+        effects: ["read"],
+        requiredScopes: ["voice:sessions:read"],
+        resource: { idField: "id", type: "voice-session" },
+      },
       description:
         "Fetch one call session by id: status, timing, and the committed conversation turns (caller text and assistant reply), most recent last.",
       input: Type.Object({
@@ -297,6 +313,12 @@ export const manifest = defineManifest<VoicePluginConfig, VoiceSessionStore>()({
     }),
     list_sessions: tool.runtime({
       annotations: { readOnlyHint: true },
+      authorization: {
+        approval: "never",
+        audience: "owner",
+        effects: ["read"],
+        requiredScopes: ["voice:sessions:read"],
+      },
       description:
         "List call sessions with status, creation time, last activity, and turn count — most recently active first.",
       input: Type.Object({
