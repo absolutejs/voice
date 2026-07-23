@@ -1116,6 +1116,8 @@ export const createVoiceSession = <
   };
   const recordingFormats: Partial<Record<"assistant" | "user", AudioFormat>> =
     {};
+  const recordingStartedAt = Date.now();
+  let assistantRecordingEndsAtMs = 0;
   let recordingPersisted = false;
   const captureRecordingChunk = (
     channel: "assistant" | "user",
@@ -1135,12 +1137,45 @@ export const createVoiceSession = <
     if (currentTotal >= recordingMaxBytes) {
       return;
     }
-    const remaining = recordingMaxBytes - currentTotal;
+    const bytesPerSample = 2;
+    const bytesPerSecond =
+      format.sampleRateHz * format.channels * bytesPerSample;
+    let chunkStartMs = (currentTotal / bytesPerSecond) * 1_000;
+    if (channel === "assistant" || currentTotal === 0) {
+      const wallClockOffsetMs = Math.max(0, Date.now() - recordingStartedAt);
+      chunkStartMs =
+        channel === "assistant"
+          ? Math.max(wallClockOffsetMs, assistantRecordingEndsAtMs)
+          : wallClockOffsetMs;
+      const targetByteOffset =
+        Math.floor(
+          (chunkStartMs * bytesPerSecond) / 1_000 / bytesPerSample,
+        ) * bytesPerSample;
+      const silenceByteLength = Math.min(
+        Math.max(0, targetByteOffset - currentTotal),
+        recordingMaxBytes - currentTotal,
+      );
+      if (silenceByteLength > 0) {
+        recordingBuffers[channel].push(new Uint8Array(silenceByteLength));
+        recordingByteTotals[channel] += silenceByteLength;
+      }
+      if (channel === "assistant") {
+        assistantRecordingEndsAtMs =
+          chunkStartMs + (bytes.byteLength / bytesPerSecond) * 1_000;
+      }
+    }
+    const updatedTotal = recordingByteTotals[channel];
+    if (updatedTotal >= recordingMaxBytes) {
+      recordingFormats[channel] = format;
+      return;
+    }
+    const remaining = recordingMaxBytes - updatedTotal;
     const slice =
       bytes.byteLength <= remaining ? bytes : bytes.subarray(0, remaining);
     recordingBuffers[channel].push(new Uint8Array(slice));
     recordingByteTotals[channel] += slice.byteLength;
     recordingFormats[channel] = format;
+    return { byteLength: slice.byteLength, startMs: chunkStartMs };
   };
 
   const pruneTurnAudio = () => {
@@ -1609,7 +1644,11 @@ export const createVoiceSession = <
               ),
             );
 
-    captureRecordingChunk("assistant", normalizedChunk, input.format);
+    const recordingChunk = captureRecordingChunk(
+      "assistant",
+      normalizedChunk,
+      input.format,
+    );
     kickCallSilenceWatchdog();
 
     await send({
@@ -1635,6 +1674,12 @@ export const createVoiceSession = <
     if (activeTTSTurnId) {
       await appendTurnLatencyStage({
         at: input.receivedAt,
+        metadata: recordingChunk
+          ? {
+              recordingByteLength: recordingChunk.byteLength,
+              recordingStartMs: recordingChunk.startMs,
+            }
+          : undefined,
         stage: "assistant_audio_received",
         turnId: activeTTSTurnId,
       });
