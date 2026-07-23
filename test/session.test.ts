@@ -550,7 +550,7 @@ test("voice session commits a turn after silence and only once", async () => {
   ).toBe(true);
 });
 
-test("semantic veto defers a mid-thought silence commit until the cap", async () => {
+test("low semantic confidence uses the full adaptive silence ceiling", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();
   const socket = createMockSocket();
@@ -577,16 +577,19 @@ test("semantic veto defers a mid-thought silence commit until the cap", async ()
       evaluate: () => {
         evaluateCalls += 1;
 
-        return { endOfTurn: false, reason: "test-mid-thought" };
+        return {
+          confidence: 0,
+          endOfTurn: false,
+          reason: "test-mid-thought",
+        };
       },
     },
     socket: socket.socket,
     store,
     stt: adapter.adapter,
     turnDetection: {
-      semanticVetoMaxMs: 200,
-      semanticVetoRecheckMs: 30,
-      silenceMs: 20,
+      minSilenceMs: 20,
+      silenceMs: 200,
       speechThreshold: 0.01,
       transcriptStabilityMs: 5,
     },
@@ -605,13 +608,13 @@ test("semantic veto defers a mid-thought silence commit until the cap", async ()
   await session.receiveAudio(createSpeechChunk(16_000));
   await session.receiveAudio(createSpeechChunk(0));
 
-  // Past silenceMs (20ms) but well under the veto cap (200ms): the silence
-  // timer fired, the detector vetoed, and the commit was deferred.
+  // Past the 20ms floor but below the 200ms ceiling: low completion
+  // confidence keeps the adaptive endpointing window at its maximum.
   await Bun.sleep(70);
   expect(turnTexts).toEqual([]);
   expect(evaluateCalls).toBeGreaterThan(0);
 
-  // Past the cap: the detector can no longer hold the turn — it commits once.
+  // Past the adaptive ceiling, the turn commits once.
   await Bun.sleep(300);
   const snapshot = await session.snapshot();
   expect(turnTexts).toEqual(["we provide"]);

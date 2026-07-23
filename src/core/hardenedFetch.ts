@@ -62,25 +62,29 @@ const oneAttempt = async (
 // Wrap a fetch (default: global) so every request opts out of Bun's keep-alive
 // pool and survives a single stale-socket hang. Drop-in: same call signature as
 // `fetch`, including `preconnect`.
-export const hardenFetch = (baseFetch = globalThis.fetch) =>
-  Object.assign(
-    async (
-      input: Parameters<typeof fetch>[0],
-      init: Parameters<typeof fetch>[1],
-    ) => {
-      try {
-        return await oneAttempt(baseFetch, input, init);
-      } catch (error) {
-        // A real caller abort (turn ended) must NOT be retried.
-        if (init?.signal?.aborted) throw error;
-        console.warn(
-          `[voice] hardened fetch retrying on a fresh connection: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+export const hardenFetch = (baseFetch = globalThis.fetch) => {
+  const hardenedFetch = async (
+    input: Parameters<typeof fetch>[0],
+    init: Parameters<typeof fetch>[1],
+  ) => {
+    try {
+      return await oneAttempt(baseFetch, input, init);
+    } catch (error) {
+      // A real caller abort (turn ended) must NOT be retried.
+      if (init?.signal?.aborted) throw error;
+      console.warn(
+        `[voice] hardened fetch retrying on a fresh connection: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
 
-        return oneAttempt(baseFetch, input, init);
-      }
-    },
-    { preconnect: baseFetch.preconnect.bind(baseFetch) },
-  );
+      return oneAttempt(baseFetch, input, init);
+    }
+  };
+
+  return typeof baseFetch.preconnect === "function"
+    ? Object.assign(hardenedFetch, {
+        preconnect: baseFetch.preconnect.bind(baseFetch),
+      })
+    : hardenedFetch;
+};
