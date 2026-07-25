@@ -4,7 +4,7 @@
   "description": "Voice primitives and Elysia plugin for AbsoluteJS",
   "repository": {
     "type": "git",
-    "url": "https://github.com/absolutejs/voice.git"
+    "url": "git+https://github.com/absolutejs/voice.git"
   },
   "homepage": "https://github.com/absolutejs/voice",
   "bugs": {
