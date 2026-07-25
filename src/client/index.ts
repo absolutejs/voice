@@ -7,6 +7,14 @@ export type {
   VoiceSseReactiveSourceOptions,
 } from "./reactiveSource";
 export { createVoiceConnection } from "./connection";
+export {
+  checkBrowserVoiceSupport,
+  probeBrowserVoiceSupport,
+} from "./browserVoiceSupport";
+export type {
+  BrowserVoiceSupportProbe,
+  BrowserVoiceSupportReport,
+} from "./browserVoiceSupport";
 export { createVoiceAudioPlayer, decodeVoiceAudioChunk } from "./audioPlayer";
 export { createTimeStretcher, type TimeStretcher } from "./timeStretch";
 export { createVoiceStream } from "./createVoiceStream";
