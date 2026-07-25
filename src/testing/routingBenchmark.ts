@@ -33,7 +33,8 @@ export const evaluateVoiceSTTRouting = (
   return {
     fallbackAttemptRate:
       fixtures.length > 0 ? attempted.length / fixtures.length : 0,
-    fallbackHarmRate: attempted.length > 0 ? harmed.length / attempted.length : 0,
+    fallbackHarmRate:
+      attempted.length > 0 ? harmed.length / attempted.length : 0,
     fallbackImprovementRate:
       attempted.length > 0 ? improved.length / attempted.length : 0,
     fixtureCount: fixtures.length,

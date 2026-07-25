@@ -60,7 +60,10 @@ const matchesCandidate = (
 ) => {
   if (kind === "phone") {
     const expectedDigits = normalizeDigits(candidate);
-    return expectedDigits.length > 0 && normalizeDigits(actual).includes(expectedDigits);
+    return (
+      expectedDigits.length > 0 &&
+      normalizeDigits(actual).includes(expectedDigits)
+    );
   }
 
   if (kind === "currency" || kind === "number" || kind === "percentage") {
@@ -104,7 +107,9 @@ export const scoreVoiceCriticalFields = (
     missingFieldIds: fields
       .filter((field) => !field.matched)
       .map((field) => field.id),
-    passesRequired: fields.every((field) => field.required === false || field.matched),
+    passesRequired: fields.every(
+      (field) => field.required === false || field.matched,
+    ),
     totalCount,
   };
 };

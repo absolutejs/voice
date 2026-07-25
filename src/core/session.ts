@@ -1148,9 +1148,8 @@ export const createVoiceSession = <
           ? Math.max(wallClockOffsetMs, assistantRecordingEndsAtMs)
           : wallClockOffsetMs;
       const targetByteOffset =
-        Math.floor(
-          (chunkStartMs * bytesPerSecond) / 1_000 / bytesPerSample,
-        ) * bytesPerSample;
+        Math.floor((chunkStartMs * bytesPerSecond) / 1_000 / bytesPerSample) *
+        bytesPerSample;
       const silenceByteLength = Math.min(
         Math.max(0, targetByteOffset - currentTotal),
         recordingMaxBytes - currentTotal,

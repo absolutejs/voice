@@ -1,5 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { sql } from "drizzle-orm";
 import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pglite";
@@ -15,6 +15,17 @@ import {
   createVoiceDrizzleRuntimeStorage,
   voiceDrizzleSchema,
 } from "../src/drizzle";
+
+const testClients = new Set<PGlite>();
+
+afterEach(async () => {
+  await Promise.all(
+    [...testClients].map(async (client) => {
+      await client.close();
+    }),
+  );
+  testClients.clear();
+});
 
 // Build accurate DDL from each Drizzle table's config so every shape (the
 // document tables and the composite-key assistant-memory table) is created
@@ -43,6 +54,7 @@ const createTableSql = (table: PgTable) => {
 
 const createDrizzleTestDb = async () => {
   const client = new PGlite();
+  testClients.add(client);
   const db = drizzle(client, { schema: voiceDrizzleSchema });
 
   for (const table of Object.values(voiceDrizzleSchema)) {

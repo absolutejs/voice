@@ -13,10 +13,7 @@ describe("normalizeSpokenNumbers", () => {
     ["five thousand users", "5,000 users"],
     ["two point five million ARR", "2.5 million ARR"],
     // ranges read correctly (each side parsed independently)
-    [
-      "we do ten to a hundred million in ARR",
-      "we do 10 to 100 million in ARR",
-    ],
+    ["we do ten to a hundred million in ARR", "we do 10 to 100 million in ARR"],
     ["three to five accounts", "3 to 5 accounts"],
     // percent + currency units fold to symbols
     ["a forty percent improvement", "a 40% improvement"],

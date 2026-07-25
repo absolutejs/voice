@@ -6,7 +6,12 @@ describe("scoreVoiceCriticalFields", () => {
     const result = scoreVoiceCriticalFields(
       "This is ACME Holdings. Revenue was twenty five dollars, growth was 12 percent, and call 212-555-0199.",
       [
-        { id: "company", kind: "organization", value: "Acme, Inc.", aliases: ["ACME Holdings"] },
+        {
+          id: "company",
+          kind: "organization",
+          value: "Acme, Inc.",
+          aliases: ["ACME Holdings"],
+        },
         { id: "revenue", kind: "currency", value: "$25", required: true },
         { id: "growth", kind: "percentage", value: "12%", required: true },
         { id: "phone", kind: "phone", value: "(212) 555-0199", required: true },

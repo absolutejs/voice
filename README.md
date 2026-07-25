@@ -1315,9 +1315,8 @@ The migration path should start by replacing hosted-dashboard concepts with moun
 bun add @absolutejs/voice @absolutejs/voice-deepgram
 ```
 
-Peer dependencies:
+Peer dependency:
 
-- `@absolutejs/absolute`
 - `elysia`
 
 Optional framework entrypoints:

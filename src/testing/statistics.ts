@@ -35,8 +35,14 @@ export const aggregateTranscriptAccuracy = (
   values: VoiceTranscriptAccuracy[],
 ): VoiceAggregateErrorMetrics => {
   const alignments = values.map((value) => value.alignment).filter(Boolean);
-  const sum = (key: "correct" | "deletions" | "insertions" | "referenceWordCount" | "substitutions") =>
-    alignments.reduce((total, alignment) => total + alignment![key], 0);
+  const sum = (
+    key:
+      | "correct"
+      | "deletions"
+      | "insertions"
+      | "referenceWordCount"
+      | "substitutions",
+  ) => alignments.reduce((total, alignment) => total + alignment![key], 0);
   const referenceWordCount = sum("referenceWordCount");
   const errors = sum("substitutions") + sum("deletions") + sum("insertions");
   return {
@@ -44,7 +50,8 @@ export const aggregateTranscriptAccuracy = (
     deletions: sum("deletions"),
     insertions: sum("insertions"),
     macroWordErrorRate: mean(values.map((value) => value.wordErrorRate)),
-    microWordErrorRate: referenceWordCount > 0 ? errors / referenceWordCount : 0,
+    microWordErrorRate:
+      referenceWordCount > 0 ? errors / referenceWordCount : 0,
     referenceWordCount,
     sentenceErrorRate:
       values.length > 0

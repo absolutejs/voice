@@ -4,7 +4,10 @@ export type VoiceBenchmarkPromptTrack =
   | "unprompted"
   | "production-context"
   | "oracle-seeded";
-export type VoiceCorpusSplit = "development" | "public-test" | "private-held-out";
+export type VoiceCorpusSplit =
+  | "development"
+  | "public-test"
+  | "private-held-out";
 
 export type VoiceCorpusFixtureProvenance = {
   audioSha256: string;
@@ -18,7 +21,12 @@ export type VoiceCorpusFixtureProvenance = {
 
 export type VoiceBenchmarkRunManifest = {
   adapter: { id: string; model?: string; provider?: string; version?: string };
-  corpus: { fixtures: VoiceCorpusFixtureProvenance[]; manifestSha256: string; name: string; version: string };
+  corpus: {
+    fixtures: VoiceCorpusFixtureProvenance[];
+    manifestSha256: string;
+    name: string;
+    version: string;
+  };
   createdAt: string;
   environment: Record<string, string | number | boolean>;
   git: Record<string, string>;
@@ -32,11 +40,15 @@ export const sha256Bytes = (value: Uint8Array | string) =>
   createHash("sha256").update(value).digest("hex");
 
 export const stableBenchmarkJson = (value: unknown): string => {
-  if (Array.isArray(value)) return `[${value.map(stableBenchmarkJson).join(",")}]`;
+  if (Array.isArray(value))
+    return `[${value.map(stableBenchmarkJson).join(",")}]`;
   if (value && typeof value === "object") {
     return `{${Object.entries(value as Record<string, unknown>)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${stableBenchmarkJson(entry)}`)
+      .map(
+        ([key, entry]) =>
+          `${JSON.stringify(key)}:${stableBenchmarkJson(entry)}`,
+      )
       .join(",")}}`;
   }
   return JSON.stringify(value);
@@ -47,7 +59,10 @@ export const buildVoiceBenchmarkArtifact = <T>(
   report: T,
 ) => {
   const payload = { manifest, report };
-  return { ...payload, artifactSha256: sha256Bytes(stableBenchmarkJson(payload)) };
+  return {
+    ...payload,
+    artifactSha256: sha256Bytes(stableBenchmarkJson(payload)),
+  };
 };
 
 export const verifyVoiceBenchmarkArtifact = (artifact: {
@@ -56,4 +71,9 @@ export const verifyVoiceBenchmarkArtifact = (artifact: {
   report: unknown;
 }) =>
   artifact.artifactSha256 ===
-  sha256Bytes(stableBenchmarkJson({ manifest: artifact.manifest, report: artifact.report }));
+  sha256Bytes(
+    stableBenchmarkJson({
+      manifest: artifact.manifest,
+      report: artifact.report,
+    }),
+  );

@@ -68,7 +68,10 @@ const isValueWord = (word: string) =>
   word in ONES || word in TENS || word === "hundred";
 const isScaleWord = (word: string) => word in SCALES;
 const isNumberWord = (word: string) =>
-  isValueWord(word) || isScaleWord(word) || word === "point" || FILLER.has(word);
+  isValueWord(word) ||
+  isScaleWord(word) ||
+  word === "point" ||
+  FILLER.has(word);
 
 const trimNumber = (value: number) => {
   if (Number.isInteger(value)) return value.toLocaleString("en-US");

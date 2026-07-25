@@ -875,15 +875,16 @@ export const summarizeSTTBenchmark = (
       ) ?? 0,
     averageCriticalFieldAccuracy:
       roundMetric(
-        average(fixtures.map((fixture) => fixture.criticalFields?.accuracy ?? 1)),
+        average(
+          fixtures.map((fixture) => fixture.criticalFields?.accuracy ?? 1),
+        ),
       ) ?? 0,
     requiredCriticalFieldPassRate:
       fixtureCount > 0
         ? (roundMetric(
             fixtures.filter(
               (fixture) => fixture.criticalFields?.passesRequired ?? true,
-            )
-              .length / fixtureCount,
+            ).length / fixtureCount,
           ) ?? 0)
         : 0,
     averagePostSpeechTimeToEndOfTurnMs: roundMetric(

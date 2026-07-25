@@ -29,7 +29,8 @@ export const evaluateSTTAdapterConformance = (
       id: "transcript-identity",
       passed: transcripts.every(
         (transcript) =>
-          transcript.id.trim().length > 0 && Number.isFinite(transcript.startedAtMs),
+          transcript.id.trim().length > 0 &&
+          Number.isFinite(transcript.startedAtMs),
       ),
     },
     {

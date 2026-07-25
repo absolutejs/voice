@@ -16,7 +16,9 @@ export const summarizeVoiceBenchmarkOutcomes = (
   const critical = fixtures
     .map((fixture) => fixture.criticalFields)
     .filter((value) => value !== undefined);
-  const passingFixtureCount = fixtures.filter((fixture) => fixture.passes).length;
+  const passingFixtureCount = fixtures.filter(
+    (fixture) => fixture.passes,
+  ).length;
   const requiredFields = critical.flatMap((value) =>
     value!.fields.filter((field) => field.required),
   );

@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
-import { voice } from "../src";
-import { createVoiceMemoryStore } from "../src/core/memoryStore";
-import type { STTAdapter, TTSAdapter } from "../src/core/types";
+import { voice } from "../../src";
+import { createVoiceMemoryStore } from "../../src/core/memoryStore";
+import type { STTAdapter, TTSAdapter } from "../../src/core/types";
 
 // Regression test for the "agent spammed the intro 2-3x" bug (Kyle 2026-06-17):
 // createManagedSession awaits (profile-switch guard / phrase hints / lexicon)
@@ -13,7 +13,43 @@ import type { STTAdapter, TTSAdapter } from "../src/core/types";
 // create + connect + greeting happen exactly once. These tests drive the real
 // plugin over a live socket and assert the greeting count.
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const waitForGreetingCount = async (
+  spoken: string[],
+  greeting: string,
+  expected: number,
+) => {
+  const deadline = Date.now() + 2_000;
+
+  while (
+    spoken.filter((line) => line === greeting).length < expected &&
+    Date.now() < deadline
+  ) {
+    await delay(10);
+  }
+};
+
+const listenOnAvailablePort = (app: ReturnType<typeof voice>) => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const port = 20_000 + Math.floor(Math.random() * 40_000);
+
+    try {
+      app.listen({ port, reusePort: false });
+
+      return port;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Unable to allocate a test server port");
+};
 
 const buildStt = (): STTAdapter => ({
   kind: "stt",
@@ -77,8 +113,7 @@ test("greets exactly once when the open handler races concurrent audio frames", 
     tts: buildTts(spoken),
   });
 
-  app.listen(0);
-  const port = app.server?.port;
+  const port = listenOnAvailablePort(app);
   cleanup = () => {
     // Force-close active sockets; app.stop() waits for drain and hangs the hook.
     app.server?.stop(true);
@@ -100,7 +135,7 @@ test("greets exactly once when the open handler races concurrent audio frames", 
   // audio handlers have entered session creation and are parked on the gate.
   await delay(100);
   releaseLexicon();
-  await delay(100);
+  await waitForGreetingCount(spoken, GREETING, 1);
 
   const greetingCount = spoken.filter((line) => line === GREETING).length;
   expect(greetingCount).toBe(1);
@@ -121,8 +156,7 @@ test("dedup is per-session: two distinct sessions each greet once", async () => 
     tts: buildTts(spoken),
   });
 
-  app.listen(0);
-  const port = app.server?.port;
+  const port = listenOnAvailablePort(app);
   cleanup = () => {
     app.server?.stop(true);
   };
@@ -130,7 +164,7 @@ test("dedup is per-session: two distinct sessions each greet once", async () => 
   const base = `ws://localhost:${String(port)}/voice?sessionId=`;
   const first = await openSocket(`${base}session-a`);
   const second = await openSocket(`${base}session-b`);
-  await delay(100);
+  await waitForGreetingCount(spoken, GREETING, 2);
 
   const greetingCount = spoken.filter((line) => line === GREETING).length;
   expect(greetingCount).toBe(2);
