@@ -42,7 +42,8 @@ type VoiceConnectionHandle = {
     message: Omit<VoiceClientMessage & { type: "call_control" }, "type">,
   ) => void;
   start: (input?: { sessionId?: string; scenarioId?: string }) => void;
-  close: () => void;
+  close: (reason?: string) => void;
+  disconnect: () => void;
   endTurn: () => void;
   getReadyState: () => number;
   getScenarioId: () => string;
@@ -59,6 +60,7 @@ const noopUnsubscribe = () => noop;
 const NOOP_CONNECTION: VoiceConnectionHandle = {
   callControl: noop,
   close: noop,
+  disconnect: noop,
   endTurn: noop,
   send: noop,
   sendAudio: noop,
@@ -76,6 +78,7 @@ const buildWsUrl = (
   path: string,
   sessionId: string,
   scenarioId: string | null,
+  query: Record<string, string>,
 ) => {
   const { hostname, port, protocol } = window.location;
   const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
@@ -85,6 +88,11 @@ const buildWsUrl = (
 
   if (scenarioId) {
     url.searchParams.set(DEFAULT_SCENARIO_QUERY_PARAM, scenarioId);
+  }
+  for (const [key, value] of Object.entries(query)) {
+    if (key !== "sessionId" && key !== DEFAULT_SCENARIO_QUERY_PARAM && value) {
+      url.searchParams.set(key, value);
+    }
   }
 
   return url.toString();
@@ -231,7 +239,7 @@ export const createVoiceConnection = (
 
   const connect = () => {
     const ws = new WebSocket(
-      buildWsUrl(path, state.sessionId, state.scenarioId),
+      buildWsUrl(path, state.sessionId, state.scenarioId, options.query ?? {}),
     );
     ws.binaryType = "arraybuffer";
 
@@ -357,14 +365,27 @@ export const createVoiceConnection = (
     });
   };
 
-  const close = () => {
+  const close = (reason = "client-close") => {
     clearTimers();
 
     if (state.ws) {
+      if (state.ws.readyState === WS_OPEN) {
+        state.ws.send(JSON.stringify({ reason, type: "close" }));
+      }
       state.ws.close(WS_NORMAL_CLOSURE);
       state.ws = null;
     }
 
+    state.isConnected = false;
+    listeners.clear();
+  };
+
+  const disconnect = () => {
+    clearTimers();
+    if (state.ws) {
+      state.ws.close(WS_NORMAL_CLOSURE);
+      state.ws = null;
+    }
     state.isConnected = false;
     listeners.clear();
   };
@@ -388,6 +409,7 @@ export const createVoiceConnection = (
   return {
     callControl,
     close,
+    disconnect,
     endTurn,
     send,
     sendAudio,

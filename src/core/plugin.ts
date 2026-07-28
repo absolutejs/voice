@@ -327,6 +327,11 @@ const resolveSessionId = (runtime: VoiceRuntime, ws: { data?: unknown }) => {
   return resolved;
 };
 
+const resolveSocketQuery = (ws: { data?: unknown }) =>
+  ws.data && typeof ws.data === "object" && "query" in ws.data
+    ? ((ws.data.query as Record<string, unknown> | undefined) ?? {})
+    : {};
+
 const resolveMaybeFunction = async <TInput, TValue>(
   value:
     | TValue
@@ -659,6 +664,45 @@ export const voice = <
     profileSwitchGuardAutoSwitchCounts: new Map(),
     profileSwitchGuardedSessions: new Set(),
     socketSessions: new WeakMap(),
+  };
+  const authorizedSockets = new WeakSet<object>();
+  const authorizeSocket = async (
+    ws: {
+      data?: unknown;
+      close: (code?: number, reason?: string) => void;
+    },
+    sessionId: string,
+    scenarioId?: string,
+  ) => {
+    if (!config.authorizeConnection) {
+      authorizedSockets.add(ws);
+
+      return true;
+    }
+    let authorized = false;
+    try {
+      authorized = await config.authorizeConnection({
+        context: ws.data as TContext,
+        path: config.path,
+        query: resolveSocketQuery(ws),
+        scenarioId,
+        sessionId,
+      });
+    } catch (error) {
+      runtime.logger.warn?.(
+        `[voice] connection authorization failed for session "${sessionId}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    if (!authorized) {
+      ws.close(4401, "unauthorized");
+
+      return false;
+    }
+    authorizedSockets.add(ws);
+
+    return true;
   };
   const { monitor } = config;
   const registerMonitorSession = (
@@ -1328,6 +1372,11 @@ export const voice = <
         }
       },
       message: async (ws, raw) => {
+        if (!authorizedSockets.has(ws)) {
+          ws.close(4401, "unauthorized");
+
+          return;
+        }
         const sessionState = resolveSessionId(runtime, ws);
         const current = runtime.activeSessions.get(sessionState.sessionId);
         const message = parseClientMessage(raw);
@@ -1455,6 +1504,15 @@ export const voice = <
       },
       open: async (ws) => {
         const sessionState = resolveSessionId(runtime, ws);
+        if (
+          !(await authorizeSocket(
+            ws,
+            sessionState.sessionId,
+            sessionState.scenarioId ?? undefined,
+          ))
+        ) {
+          return;
+        }
         const existing = runtime.activeSessions.get(sessionState.sessionId);
 
         // A genuinely new socket for a session that still has a live one (a

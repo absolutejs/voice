@@ -91,10 +91,17 @@ export const createVoiceStream = <TResult = unknown>(
     callControl(message) {
       connection.callControl(message);
     },
-    close() {
+    close(reason?: string) {
       unsubscribeConnection();
       browserMediaReporter?.close();
-      connection.close();
+      connection.close(reason);
+      store.dispatch({ type: "disconnected" });
+      notify();
+    },
+    disconnect() {
+      unsubscribeConnection();
+      browserMediaReporter?.close();
+      connection.disconnect();
       store.dispatch({ type: "disconnected" });
       notify();
     },

@@ -139,6 +139,7 @@ export const createVoiceController = <TResult = unknown>(
       };
       notify();
     } catch (error) {
+      capture?.stop();
       capture = null;
       state = {
         ...state,
@@ -150,14 +151,21 @@ export const createVoiceController = <TResult = unknown>(
     }
   };
 
-  const close = () => {
+  const close = (reason?: string) => {
     unsubscribeStream();
     stopRecording();
-    stream.close();
+    stream.close(reason);
+  };
+
+  const disconnect = () => {
+    unsubscribeStream();
+    stopRecording();
+    stream.disconnect();
   };
 
   return {
     close,
+    disconnect,
     startRecording,
     stopRecording,
     get assistantAudio() {

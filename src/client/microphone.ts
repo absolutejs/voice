@@ -129,43 +129,48 @@ export const createMicrophoneCapture = (
     // Reuse a host-provided stream (permission requested up front) when given,
     // so we never release-and-reacquire the mic — that second getUserMedia + the
     // pre-acquired track's stop can suspend playback and cut the greeting.
-    mediaStream =
-      options.stream ??
-      (await navigator.mediaDevices.getUserMedia({
-        audio: {
-          autoGainControl: true,
-          channelCount: options.channelCount ?? 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      }));
-    audioContext = new AudioContextCtor();
-    // iOS Safari (and some Chromium autoplay policies) create the AudioContext
-    // in a "suspended" state. While suspended, the ScriptProcessor's
-    // onaudioprocess never fires, so NO microphone audio is captured and the
-    // assistant hears silence. start() runs inside the user gesture that began
-    // capture, so resuming here unlocks it. Without this, voice intake is
-    // effectively broken on iOS.
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
+    try {
+      mediaStream =
+        options.stream ??
+        (await navigator.mediaDevices.getUserMedia({
+          audio: {
+            autoGainControl: true,
+            channelCount: options.channelCount ?? 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        }));
+      audioContext = new AudioContextCtor();
+      // iOS Safari (and some Chromium autoplay policies) create the AudioContext
+      // in a "suspended" state. While suspended, the ScriptProcessor's
+      // onaudioprocess never fires, so NO microphone audio is captured and the
+      // assistant hears silence. start() runs inside the user gesture that began
+      // capture, so resuming here unlocks it. Without this, voice intake is
+      // effectively broken on iOS.
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+      sourceNode = audioContext.createMediaStreamSource(mediaStream);
+      processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+
+      processorNode.onaudioprocess = (event) => {
+        const channel = event.inputBuffer.getChannelData(0);
+        const downsampled = downsampleBuffer(
+          channel,
+          audioContext?.sampleRate ?? 48_000,
+          options.sampleRateHz ?? 16_000,
+        );
+        const pcm = floatTo16BitPCM(downsampled);
+        options.onLevel?.(getPcmLevel(pcm));
+        options.onAudio(pcm);
+      };
+
+      sourceNode.connect(processorNode);
+      processorNode.connect(audioContext.destination);
+    } catch (error) {
+      stop();
+      throw error;
     }
-    sourceNode = audioContext.createMediaStreamSource(mediaStream);
-    processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-
-    processorNode.onaudioprocess = (event) => {
-      const channel = event.inputBuffer.getChannelData(0);
-      const downsampled = downsampleBuffer(
-        channel,
-        audioContext?.sampleRate ?? 48_000,
-        options.sampleRateHz ?? 16_000,
-      );
-      const pcm = floatTo16BitPCM(downsampled);
-      options.onLevel?.(getPcmLevel(pcm));
-      options.onAudio(pcm);
-    };
-
-    sourceNode.connect(processorNode);
-    processorNode.connect(audioContext.destination);
   };
 
   const stop = () => {

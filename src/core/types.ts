@@ -1275,6 +1275,19 @@ export type VoicePluginConfig<
   costTelephony?: { provider?: string };
   costTelemetry?: VoiceCostTelemetryConfig<TContext, TSession, TResult>;
   path: string;
+  /**
+   * Authorize a WebSocket before the plugin supersedes an existing session or
+   * creates provider-backed resources. Return false to close it with 4401.
+   * Applications can validate a short-lived admission credential from `query`
+   * without coupling Voice to a particular authentication implementation.
+   */
+  authorizeConnection?: (input: {
+    context: TContext;
+    path: string;
+    query: Record<string, unknown>;
+    scenarioId?: string;
+    sessionId: string;
+  }) => boolean | Promise<boolean>;
   // Spoken once, by the assistant, the moment a fresh session connects — before
   // the caller says anything ("assistant speaks first"). TTS'd via the configured
   // tts/realtime adapter and surfaced as the first assistant message. A function
@@ -1982,6 +1995,8 @@ export type VoiceConnectionOptions = {
    *  the caller losing the call. */
   reconnectMaxDelayMs?: number;
   pingInterval?: number;
+  /** Additional query values sent on every initial or reconnecting socket. */
+  query?: Record<string, string>;
   sessionId?: string;
 };
 
@@ -2207,7 +2222,9 @@ export type VoiceStreamState<TResult = unknown> = {
 export type VoiceStream<TResult = unknown> = {
   call: VoiceCallLifecycleState | null;
   callControl: (message: Omit<VoiceClientCallControlMessage, "type">) => void;
-  close: () => void;
+  close: (reason?: string) => void;
+  /** Release the transport without terminally completing the server session. */
+  disconnect: () => void;
   start: (input?: { scenarioId?: string; sessionId?: string }) => Promise<void>;
   endTurn: () => void;
   error: string | null;
@@ -2315,7 +2332,9 @@ export type VoiceController<TResult = unknown> = {
   bindHTMX: (options: VoiceHTMXBindingOptions) => () => void;
   call: VoiceCallLifecycleState | null;
   callControl: (message: Omit<VoiceClientCallControlMessage, "type">) => void;
-  close: () => void;
+  close: (reason?: string) => void;
+  /** Release the transport while leaving the server session resumable. */
+  disconnect: () => void;
   endTurn: () => void;
   start: (input?: { scenarioId?: string; sessionId?: string }) => Promise<void>;
   error: string | null;
