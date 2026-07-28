@@ -1832,7 +1832,13 @@ export const createVoiceSession = <
     let didFail = false;
 
     const session = await writeSession((currentSession) => {
-      if (currentSession.status === "failed") {
+      // Completed and failed are both terminal. A provider can deliver a late
+      // error after its stream has been closed; never rewrite a successfully
+      // completed call as failed or emit a second terminal lifecycle event.
+      if (
+        currentSession.status === "completed" ||
+        currentSession.status === "failed"
+      ) {
         return;
       }
 

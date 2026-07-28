@@ -446,6 +446,68 @@ test("unrecoverable STT errors emit one terminal trace and one client error", as
   expect((await session.snapshot()).status).toBe("failed");
 });
 
+test("late failures cannot rewrite a completed session as failed", async () => {
+  const store = createVoiceMemoryStore();
+  const trace = createVoiceMemoryTraceEventStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const routeErrors: Error[] = [];
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-late-error-after-complete",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {},
+      onError: ({ error }) => {
+        routeErrors.push(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      },
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    trace,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await session.complete();
+  await session.fail(
+    new Error(
+      "Server is going away. Please reconnect. (code=SERVER_GOING_AWAY)",
+    ),
+  );
+
+  const lifecycleEvents = (await trace.list({ type: "call.lifecycle" })).filter(
+    (event) => event.payload.type === "end",
+  );
+  expect((await session.snapshot()).status).toBe("completed");
+  expect(await trace.list({ type: "session.error" })).toHaveLength(0);
+  expect(lifecycleEvents).toHaveLength(1);
+  expect(lifecycleEvents[0]?.payload).toMatchObject({
+    disposition: "completed",
+    type: "end",
+  });
+  expect(routeErrors).toHaveLength(0);
+  expect(
+    socket.messages
+      .map((message) => JSON.parse(message) as { type?: string })
+      .filter((message) => message.type === "error"),
+  ).toHaveLength(0);
+});
+
 test("voice session stores initial session metadata before onSession", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();
