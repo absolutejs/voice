@@ -12,6 +12,7 @@ const WS_NORMAL_CLOSURE = 1000;
 // mid-intake reconnects to their resumed session instead of losing the call.
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 15;
 const DEFAULT_PING_INTERVAL = 30_000;
+const DEFAULT_RECONNECT_RESET_AFTER_MS = 30_000;
 const RECONNECT_BASE_DELAY_MS = 500;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 8_000;
 
@@ -32,6 +33,7 @@ type VoiceConnectionState = {
   pingInterval: ReturnType<typeof setInterval> | null;
   scenarioId: string | null;
   reconnectAttempts: number;
+  reconnectResetTimeout: ReturnType<typeof setTimeout> | null;
   reconnectTimeout: ReturnType<typeof setTimeout> | null;
   sessionId: string;
   ws: WebSocket | null;
@@ -151,6 +153,8 @@ export const createVoiceConnection = (
   const reconnectMaxDelayMs =
     options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
   const pingInterval = options.pingInterval ?? DEFAULT_PING_INTERVAL;
+  const reconnectResetAfterMs =
+    options.reconnectResetAfterMs ?? DEFAULT_RECONNECT_RESET_AFTER_MS;
 
   // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, 8s… capped at reconnectMaxDelayMs.
   // A short first retry recovers instantly from a blip; the cap keeps later
@@ -168,6 +172,7 @@ export const createVoiceConnection = (
     scenarioId: options.scenarioId ?? null,
     pingInterval: null,
     reconnectAttempts: 0,
+    reconnectResetTimeout: null,
     reconnectTimeout: null,
     sessionId: options.sessionId ?? createSessionId(),
     ws: null,
@@ -188,6 +193,11 @@ export const createVoiceConnection = (
     if (state.reconnectTimeout) {
       clearTimeout(state.reconnectTimeout);
       state.reconnectTimeout = null;
+    }
+
+    if (state.reconnectResetTimeout) {
+      clearTimeout(state.reconnectResetTimeout);
+      state.reconnectResetTimeout = null;
     }
   };
 
@@ -244,6 +254,11 @@ export const createVoiceConnection = (
     ws.binaryType = "arraybuffer";
 
     ws.onopen = () => {
+      if (state.ws !== ws) {
+        ws.close(WS_NORMAL_CLOSURE);
+
+        return;
+      }
       const wasReconnecting = state.reconnectAttempts > 0;
       state.isConnected = true;
       flushPendingMessages();
@@ -258,7 +273,12 @@ export const createVoiceConnection = (
           },
           type: "connection",
         });
-        state.reconnectAttempts = 0;
+        state.reconnectResetTimeout = setTimeout(() => {
+          if (state.ws === ws && ws.readyState === WS_OPEN) {
+            state.reconnectAttempts = 0;
+          }
+          state.reconnectResetTimeout = null;
+        }, reconnectResetAfterMs);
       }
 
       listeners.forEach((listener) =>
@@ -278,6 +298,7 @@ export const createVoiceConnection = (
     };
 
     ws.onmessage = (event) => {
+      if (state.ws !== ws) return;
       const parsed = parseServerMessage(event);
       if (!parsed) {
         return;
@@ -292,6 +313,8 @@ export const createVoiceConnection = (
     };
 
     ws.onclose = (event) => {
+      if (state.ws !== ws) return;
+      state.ws = null;
       state.isConnected = false;
       clearTimers();
 
@@ -369,11 +392,12 @@ export const createVoiceConnection = (
     clearTimers();
 
     if (state.ws) {
-      if (state.ws.readyState === WS_OPEN) {
-        state.ws.send(JSON.stringify({ reason, type: "close" }));
-      }
-      state.ws.close(WS_NORMAL_CLOSURE);
+      const ws = state.ws;
       state.ws = null;
+      if (ws.readyState === WS_OPEN) {
+        ws.send(JSON.stringify({ reason, type: "close" }));
+      }
+      ws.close(WS_NORMAL_CLOSURE);
     }
 
     state.isConnected = false;
@@ -383,8 +407,9 @@ export const createVoiceConnection = (
   const disconnect = () => {
     clearTimers();
     if (state.ws) {
-      state.ws.close(WS_NORMAL_CLOSURE);
+      const ws = state.ws;
       state.ws = null;
+      ws.close(WS_NORMAL_CLOSURE);
     }
     state.isConnected = false;
     listeners.clear();

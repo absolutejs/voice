@@ -89,6 +89,58 @@ test("recoverable disconnect closes without sending a terminal message", () => {
   expect(sent).toEqual([]);
 });
 
+test("a flapping accepted socket exhausts its reconnect budget", async () => {
+  let sockets = 0;
+  const reconnectStates: string[] = [];
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onopen: (() => void) | null = null;
+    readyState = 0;
+
+    constructor(readonly url: string) {
+      sockets += 1;
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        queueMicrotask(() => {
+          this.readyState = 3;
+          this.onclose?.({ code: 4000 } as CloseEvent);
+        });
+      });
+    }
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+
+  const connection = createVoiceConnection("/voice", {
+    maxReconnectAttempts: 2,
+    reconnectMaxDelayMs: 1,
+    reconnectResetAfterMs: 100,
+  });
+  connection.subscribe((message) => {
+    if (message.type === "connection") {
+      reconnectStates.push(message.reconnect.status);
+    }
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  expect(sockets).toBe(3);
+  expect(reconnectStates.at(-1)).toBe("exhausted");
+});
+
 test("partial microphone startup failure releases the supplied stream and context", async () => {
   let contextClosed = false;
   let trackStopped = false;

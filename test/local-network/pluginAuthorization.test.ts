@@ -82,10 +82,12 @@ test("rejects an unauthorized socket before creating provider resources", async 
 
 test("admits a valid socket and passes its query to authorization", async () => {
   let authorizedSession = "";
+  let authorizedHost = "";
   const app = voice({
-    authorizeConnection: ({ query, sessionId }) => {
+    authorizeConnection: ({ headers, query, sessionId }) => {
       authorizedSession =
         query.admission === "valid" ? sessionId : "invalid-query";
+      authorizedHost = headers.get("host") ?? "";
 
       return true;
     },
@@ -106,5 +108,6 @@ test("admits a valid socket and passes its query to authorization", async () => 
   });
 
   expect(authorizedSession).toBe("allowed");
+  expect(authorizedHost).toBe(`localhost:${String(port)}`);
   ws.close();
 });

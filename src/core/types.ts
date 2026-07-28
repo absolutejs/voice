@@ -1283,6 +1283,7 @@ export type VoicePluginConfig<
    */
   authorizeConnection?: (input: {
     context: TContext;
+    headers: Headers;
     path: string;
     query: Record<string, unknown>;
     scenarioId?: string;
@@ -1994,6 +1995,10 @@ export type VoiceConnectionOptions = {
    *  attempts that's a ~95s window, enough to ride out a server redeploy without
    *  the caller losing the call. */
   reconnectMaxDelayMs?: number;
+  /** A reconnected socket must remain open this long before its retry budget is
+   *  reset. This prevents a server that accepts and immediately drops sockets
+   *  from creating an unbounded reconnect loop. Default 30000. */
+  reconnectResetAfterMs?: number;
   pingInterval?: number;
   /** Additional query values sent on every initial or reconnecting socket. */
   query?: Record<string, string>;

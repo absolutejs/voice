@@ -119,6 +119,7 @@ import type {
 } from "./types";
 
 type VoiceRuntime = {
+  activeSockets: Map<string, object>;
   activeSessions: Map<
     string,
     VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>
@@ -331,6 +332,27 @@ const resolveSocketQuery = (ws: { data?: unknown }) =>
   ws.data && typeof ws.data === "object" && "query" in ws.data
     ? ((ws.data.query as Record<string, unknown> | undefined) ?? {})
     : {};
+
+const resolveSocketHeaders = (ws: { data?: unknown }) => {
+  if (!ws.data || typeof ws.data !== "object") return new Headers();
+  if ("request" in ws.data && ws.data.request instanceof Request) {
+    return ws.data.request.headers;
+  }
+  if ("headers" in ws.data) {
+    const { headers } = ws.data;
+    if (headers instanceof Headers) return headers;
+    if (headers && typeof headers === "object") {
+      const resolved = new Headers();
+      for (const [key, value] of Object.entries(headers)) {
+        if (typeof value === "string") resolved.set(key, value);
+      }
+
+      return resolved;
+    }
+  }
+
+  return new Headers();
+};
 
 const resolveMaybeFunction = async <TInput, TValue>(
   value:
@@ -658,6 +680,7 @@ export const voice = <
     ReturnType<NonNullable<VoicePluginConfig["monitor"]>["registerSession"]>
   >();
   const runtime: VoiceRuntime = {
+    activeSockets: new Map(),
     activeSessions: new Map(),
     pendingSessions: new Map(),
     logger: resolveLogger(config.logger),
@@ -683,6 +706,7 @@ export const voice = <
     try {
       authorized = await config.authorizeConnection({
         context: ws.data as TContext,
+        headers: resolveSocketHeaders(ws),
         path: config.path,
         query: resolveSocketQuery(ws),
         scenarioId,
@@ -1351,10 +1375,14 @@ export const voice = <
     .ws(config.path, {
       close: async (ws, code, reason) => {
         const socketState = runtime.socketSessions.get(ws);
-        if (!socketState) {
+        if (
+          !socketState ||
+          runtime.activeSockets.get(socketState.sessionId) !== ws
+        ) {
           return;
         }
 
+        runtime.activeSockets.delete(socketState.sessionId);
         const session = runtime.activeSessions.get(socketState.sessionId);
         runtime.activeSessions.delete(socketState.sessionId);
         deregisterMonitorSession(
@@ -1392,6 +1420,7 @@ export const voice = <
 
           if (message.type === "close" && current) {
             await current.close(message.reason);
+            runtime.activeSockets.delete(sessionState.sessionId);
             runtime.activeSessions.delete(sessionState.sessionId);
             deregisterMonitorSession(sessionState.sessionId, message.reason);
           }
@@ -1461,6 +1490,7 @@ export const voice = <
 
             if (currentSession) {
               await currentSession.close("session-switch");
+              runtime.activeSockets.delete(sessionState.sessionId);
               runtime.activeSessions.delete(sessionState.sessionId);
               deregisterMonitorSession(
                 sessionState.sessionId,
@@ -1469,6 +1499,7 @@ export const voice = <
             }
 
             sessionState.sessionId = message.sessionId;
+            runtime.activeSockets.set(message.sessionId, ws);
             runtime.socketSessions.set(ws, {
               ...sessionState,
               sessionId: message.sessionId,
@@ -1514,12 +1545,18 @@ export const voice = <
           return;
         }
         const existing = runtime.activeSessions.get(sessionState.sessionId);
+        runtime.activeSockets.set(sessionState.sessionId, ws);
 
         // A genuinely new socket for a session that still has a live one (a
         // reconnect that raced the old close): retire the old session bound to
         // the dead socket before standing up the new one.
         if (existing) {
-          await existing.close("superseded");
+          await existing.disconnect({
+            code: 1006,
+            reason: "superseded",
+            recoverable: true,
+            type: "close",
+          });
           runtime.activeSessions.delete(sessionState.sessionId);
           deregisterMonitorSession(sessionState.sessionId, "superseded");
         }
