@@ -1628,6 +1628,23 @@ export const voice = <
                 if (message.action === "resume") {
                   await current.resume();
                 }
+                if (
+                  message.action === "pause" ||
+                  message.action === "resume"
+                ) {
+                  const snapshot = await current.snapshot();
+                  ws.send(
+                    JSON.stringify({
+                      pauseExpiresAt: snapshot.pause?.expiresAt,
+                      paused: Boolean(snapshot.pause),
+                      sessionId: snapshot.id,
+                      status: snapshot.status,
+                      sessionMetadata: snapshot.metadata,
+                      scenarioId: snapshot.scenarioId,
+                      type: "session",
+                    }),
+                  );
+                }
                 acknowledge(true);
               } catch (error) {
                 acknowledge(

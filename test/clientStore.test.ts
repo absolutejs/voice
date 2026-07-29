@@ -68,6 +68,33 @@ import {
 import { createVoiceWorkflowStatusStore } from "../src/client/workflowStatus";
 import { createVoiceStreamStore } from "../src/client/store";
 
+test("session messages expose authoritative pause state", () => {
+  const store = createVoiceStreamStore();
+  const pauseExpiresAt = Date.now() + 60_000;
+  store.dispatch(
+    serverMessageToAction({
+      pauseExpiresAt,
+      paused: true,
+      sessionId: "paused-session",
+      status: "active",
+      type: "session",
+    })!,
+  );
+
+  expect(store.getSnapshot()).toMatchObject({ paused: true, pauseExpiresAt });
+
+  store.dispatch(
+    serverMessageToAction({
+      paused: false,
+      sessionId: "paused-session",
+      status: "active",
+      type: "session",
+    })!,
+  );
+  expect(store.getSnapshot().paused).toBe(false);
+  expect(store.getSnapshot().pauseExpiresAt).toBeUndefined();
+});
+
 test("voice client store tracks call lifecycle server messages", () => {
   const store = createVoiceStreamStore();
   const start = serverMessageToAction({

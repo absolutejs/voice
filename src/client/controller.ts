@@ -19,6 +19,8 @@ const createInitialState = <TResult>(
   error: stream.error,
   isConnected: stream.isConnected,
   isRecording: false,
+  paused: stream.paused,
+  pauseExpiresAt: stream.pauseExpiresAt,
   partial: stream.partial,
   reconnect: stream.reconnect,
   recordingError: null,
@@ -60,6 +62,8 @@ export const createVoiceController = <TResult = unknown>(
       call: stream.call,
       error: stream.error,
       isConnected: stream.isConnected,
+      paused: stream.paused,
+      pauseExpiresAt: stream.pauseExpiresAt,
       partial: stream.partial,
       reconnect: stream.reconnect,
       sessionId: stream.sessionId,
@@ -231,6 +235,12 @@ export const createVoiceController = <TResult = unknown>(
     },
     get partial() {
       return state.partial;
+    },
+    get paused() {
+      return state.paused;
+    },
+    get pauseExpiresAt() {
+      return state.pauseExpiresAt;
     },
     get reconnect() {
       return state.reconnect;

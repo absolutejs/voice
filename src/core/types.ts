@@ -2239,6 +2239,8 @@ export type VoiceHTMXConfig<
 
 export type VoiceStreamState<TResult = unknown> = {
   call: VoiceCallLifecycleState | null;
+  paused: boolean;
+  pauseExpiresAt?: number;
   sessionMetadata: Record<string, unknown> | null;
   sessionId: string | null;
   scenarioId: string | null;
@@ -2260,6 +2262,8 @@ export type VoiceStreamState<TResult = unknown> = {
 
 export type VoiceStream<TResult = unknown> = {
   call: VoiceCallLifecycleState | null;
+  paused: boolean;
+  pauseExpiresAt?: number;
   callControl: (
     message: Omit<VoiceClientCallControlMessage, "requestId" | "type">,
   ) => Promise<void>;
@@ -2372,6 +2376,8 @@ export type VoiceBargeInBinding = {
 export type VoiceController<TResult = unknown> = {
   bindHTMX: (options: VoiceHTMXBindingOptions) => () => void;
   call: VoiceCallLifecycleState | null;
+  paused: boolean;
+  pauseExpiresAt?: number;
   callControl: (
     message: Omit<VoiceClientCallControlMessage, "requestId" | "type">,
   ) => Promise<void>;

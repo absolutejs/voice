@@ -127,6 +127,12 @@ export const createVoiceStream = <TResult = unknown>(
     get partial() {
       return store.getSnapshot().partial;
     },
+    get paused() {
+      return store.getSnapshot().paused;
+    },
+    get pauseExpiresAt() {
+      return store.getSnapshot().pauseExpiresAt;
+    },
     get reconnect() {
       return store.getSnapshot().reconnect;
     },

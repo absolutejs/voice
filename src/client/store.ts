@@ -45,6 +45,7 @@ const createInitialState = (): VoiceStreamState => ({
   call: null,
   error: null,
   isConnected: false,
+  paused: false,
   partial: "",
   reconnect: createInitialReconnectState(),
   scenarioId: null,
@@ -210,6 +211,8 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
         state = {
           ...state,
           error: null,
+          paused: action.paused ?? false,
+          pauseExpiresAt: action.pauseExpiresAt,
           scenarioId: action.scenarioId ?? state.scenarioId,
           isConnected: action.status === "active",
           sessionId: action.sessionId,

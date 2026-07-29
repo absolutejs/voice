@@ -110,6 +110,8 @@ export const serverMessageToAction = <TResult = unknown>(
       };
     case "session":
       return {
+        paused: message.paused,
+        pauseExpiresAt: message.pauseExpiresAt,
         sessionId: message.sessionId,
         sessionMetadata: message.sessionMetadata,
         scenarioId: message.scenarioId,
