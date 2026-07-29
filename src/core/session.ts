@@ -4420,13 +4420,14 @@ export const createVoiceSession = <
     kickIdleRepromptWatchdog(true);
     startAmdEvaluationTimer();
 
-    // Assistant speaks first (via the closure-scoped speakResolvedLine). With no
-    // committed turns the conversation hasn't started, so (re-)greet — covers a
-    // fresh call AND a restart that landed before the first answer. With turns
-    // already committed it's a resume after a real exchange: the in-flight audio
-    // was lost, so speak the (optional) re-orientation line instead of the
-    // greeting.
-    if (options.greeting && session.turns.length === 0) {
+    // Persist the initial greeting claim before emitting it. A transport flap
+    // before the caller's first answer must not replay the full introduction on
+    // every reconnect; the persisted marker survives both socket replacement and
+    // process restart. Mark-before-send gives the greeting at-most-once semantics
+    // even when the socket drops during delivery.
+    if (options.greeting && session.greetingDeliveredAt === undefined) {
+      session.greetingDeliveredAt = Date.now();
+      await options.store.set(options.id, session);
       await speakResolvedLine(options.greeting, session);
     } else if (isResume && options.resumeGreeting && session.turns.length > 0) {
       await speakResolvedLine(options.resumeGreeting, session);

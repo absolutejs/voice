@@ -436,6 +436,9 @@ export type VoiceSessionRecord<
 > = {
   id: string;
   createdAt: number;
+  /** Persisted before the initial assistant greeting is emitted so reconnects
+   *  cannot replay the full introduction when the caller has not answered yet. */
+  greetingDeliveredAt?: number;
   lastActivityAt?: number;
   status: VoiceSessionStatus;
   transcripts: Transcript[];

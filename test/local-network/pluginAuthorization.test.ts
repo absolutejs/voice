@@ -111,3 +111,36 @@ test("admits a valid socket and passes its query to authorization", async () => 
   expect(authorizedHost).toBe(`localhost:${String(port)}`);
   ws.close();
 });
+
+test("passes WebSocket upgrade cookies to authorization", async () => {
+  let admissionCookie = "";
+  const app = voice({
+    authorizeConnection: ({ headers }) => {
+      admissionCookie = headers.get("cookie") ?? "";
+
+      return admissionCookie === "voice_admission=valid";
+    },
+    onTurn: () => {},
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: buildStt(),
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => app.server?.stop(true);
+
+  const ws = new WebSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=allowed`,
+    {
+      headers: {
+        cookie: "voice_admission=valid",
+      },
+    },
+  );
+  await new Promise<void>((resolve, reject) => {
+    ws.addEventListener("open", () => resolve(), { once: true });
+    ws.addEventListener("error", reject, { once: true });
+  });
+
+  expect(admissionCookie).toBe("voice_admission=valid");
+  ws.close();
+});

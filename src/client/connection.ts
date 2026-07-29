@@ -7,6 +7,8 @@ import type {
 const WS_OPEN = 1;
 const WS_CLOSED = 3;
 const WS_NORMAL_CLOSURE = 1000;
+const WS_UNAUTHORIZED = 4401;
+const WS_FORBIDDEN = 4403;
 // 15 attempts of exponential backoff capped at 8s ≈ a 95s retry window — long
 // enough to ride out a server redeploy (build + drain + restart) so a caller
 // mid-intake reconnects to their resumed session instead of losing the call.
@@ -321,6 +323,8 @@ export const createVoiceConnection = (
       const reconnectable =
         shouldReconnect &&
         event.code !== WS_NORMAL_CLOSURE &&
+        event.code !== WS_UNAUTHORIZED &&
+        event.code !== WS_FORBIDDEN &&
         state.reconnectAttempts < maxReconnectAttempts;
 
       if (reconnectable) {

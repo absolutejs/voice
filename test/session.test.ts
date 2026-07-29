@@ -3767,7 +3767,7 @@ test("voice session speaks the resume re-orientation and fires onResume after a 
   expect(assistantTexts).not.toContain(greeting);
 });
 
-test("voice session re-greets when a restart lands before the first turn", async () => {
+test("voice session does not replay its greeting when a restart lands before the first turn", async () => {
   const persistent = createVoiceMemoryStore();
   const greeting = "Welcome — tell me about your work.";
   const resumeGreeting = "Sorry, you cut out — go on.";
@@ -3813,8 +3813,9 @@ test("voice session re-greets when a restart lands before the first turn", async
   await Bun.sleep(20);
   await first.store.flush();
 
-  // Process 2: restart landed before the first turn (turns === 0). Because the
-  // conversation hadn't started, re-greet from the top — not the resume line.
+  // Process 2: restart landed before the first turn (turns === 0). The initial
+  // greeting was already claimed durably, so a reconnect stays silent instead
+  // of replaying either the full introduction or the post-turn resume line.
   const second = build(createVoiceMemoryStore());
   await second.session.connect(second.socket.socket);
   await Bun.sleep(20);
@@ -3823,7 +3824,7 @@ test("voice session re-greets when a restart lands before the first turn", async
     .map((message) => JSON.parse(message))
     .filter((message) => message.type === "assistant")
     .map((message) => message.text);
-  expect(assistantTexts).toContain(greeting);
+  expect(assistantTexts).not.toContain(greeting);
   expect(assistantTexts).not.toContain(resumeGreeting);
 });
 
