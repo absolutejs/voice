@@ -3,6 +3,7 @@ import {
   createVoiceConnection,
   VoiceReconnectRejectedError,
 } from "../src/client/connection";
+import { createVoiceStream } from "../src/client/createVoiceStream";
 import { createMicrophoneCapture } from "../src/client/microphone";
 
 const originalWindow = globalThis.window;
@@ -579,4 +580,121 @@ test("partial microphone startup failure releases the supplied stream and contex
 
   expect(trackStopped).toBe(true);
   expect(contextClosed).toBe(true);
+});
+
+test("stopping while microphone permission is pending releases the eventual stream", async () => {
+  const permission = Promise.withResolvers<MediaStream>();
+  let trackStopped = false;
+  const stream = {
+    getTracks: () => [{ stop: () => (trackStopped = true) }],
+  } as unknown as MediaStream;
+  Object.assign(globalThis, {
+    navigator: {
+      mediaDevices: {
+        getUserMedia: () => permission.promise,
+      },
+    },
+    window: { AudioContext: class {} },
+  });
+  const capture = createMicrophoneCapture({ onAudio: () => {} });
+  const starting = capture.start();
+  capture.stop();
+  permission.resolve(stream);
+
+  await expect(starting).rejects.toThrow(
+    "Microphone capture stopped during startup",
+  );
+  expect(trackStopped).toBe(true);
+});
+
+test("deferred voice stream start is inert after close", async () => {
+  let mediaLookups = 0;
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose = null;
+    onmessage = null;
+    onopen = null;
+    readyState = 0;
+    close() {}
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+  const stream = createVoiceStream("/voice", {
+    browserMedia: {
+      getPeerConnection: () => {
+        mediaLookups += 1;
+
+        return null;
+      },
+    },
+  });
+  const starting = stream.start({ sessionId: "session" });
+  stream.close();
+  await starting;
+  await Promise.resolve();
+
+  expect(mediaLookups).toBe(0);
+});
+
+test("reconnect preparation timeout aborts the hook and exhausts normally", async () => {
+  let preparationAborted = false;
+  const errors: string[] = [];
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage = null;
+    onopen: (() => void) | null = null;
+    readyState = 0;
+    constructor() {
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        queueMicrotask(() => {
+          this.readyState = 3;
+          this.onclose?.({ code: 4000 } as CloseEvent);
+        });
+      });
+    }
+    close() {
+      this.readyState = 3;
+    }
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+  const connection = createVoiceConnection("/voice", {
+    maxReconnectAttempts: 1,
+    prepareReconnect: ({ signal }) =>
+      new Promise<void>(() => {
+        signal.addEventListener(
+          "abort",
+          () => {
+            preparationAborted = true;
+          },
+          { once: true },
+        );
+      }),
+    prepareReconnectTimeoutMs: 1,
+    reconnectMaxDelayMs: 1,
+  });
+  connection.subscribe((message) => {
+    if (message.type === "error") errors.push(message.message);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 15));
+
+  expect(preparationAborted).toBe(true);
+  expect(errors).toEqual([
+    "Voice authorization could not be renewed for reconnect.",
+  ]);
 });

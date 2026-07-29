@@ -27,8 +27,10 @@ export const createVoiceStream = <TResult = unknown>(
         })
       : null;
   const subscribers = new Set<() => void>();
+  let disposed = false;
   const start = (input?: { scenarioId?: string; sessionId?: string }) =>
     Promise.resolve().then(() => {
+      if (disposed) return;
       if (!input?.sessionId && !input?.scenarioId) {
         return;
       }
@@ -92,6 +94,7 @@ export const createVoiceStream = <TResult = unknown>(
       return connection.callControl(message);
     },
     close(reason?: string) {
+      disposed = true;
       unsubscribeConnection();
       browserMediaReporter?.close();
       connection.close(reason);
@@ -99,6 +102,7 @@ export const createVoiceStream = <TResult = unknown>(
       notify();
     },
     disconnect() {
+      disposed = true;
       unsubscribeConnection();
       browserMediaReporter?.close();
       connection.disconnect();

@@ -2020,7 +2020,11 @@ export type VoiceConnectionOptions = {
     path: string;
     scenarioId: string | null;
     sessionId: string;
+    signal: AbortSignal;
   }) => Promise<void> | void;
+  /** Maximum time allowed for one prepareReconnect hook. A hook that exceeds
+   * this deadline is aborted and consumes the attempt. Default 10000. */
+  prepareReconnectTimeoutMs?: number;
   pingInterval?: number;
   /** Additional query values sent on every initial or reconnecting socket. */
   query?: Record<string, string>;

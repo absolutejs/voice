@@ -16,6 +16,7 @@ const DEFAULT_MAX_RECONNECT_ATTEMPTS = 15;
 const DEFAULT_PING_INTERVAL = 30_000;
 const DEFAULT_RECONNECT_RESET_AFTER_MS = 30_000;
 const DEFAULT_CALL_CONTROL_ACK_TIMEOUT_MS = 5_000;
+const DEFAULT_PREPARE_RECONNECT_TIMEOUT_MS = 10_000;
 const MAX_PENDING_CONTROL_MESSAGES = 100;
 const RECONNECT_BASE_DELAY_MS = 500;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 8_000;
@@ -181,6 +182,7 @@ export const createVoiceConnection = (
     options.reconnectResetAfterMs ?? DEFAULT_RECONNECT_RESET_AFTER_MS;
   let lifecycleGeneration = 0;
   let disposed = false;
+  let reconnectPreparationAbort: AbortController | null = null;
 
   // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, 8s… capped at reconnectMaxDelayMs.
   // A short first retry recovers instantly from a blip; the cap keeps later
@@ -291,12 +293,40 @@ export const createVoiceConnection = (
       }
 
       try {
-        await options.prepareReconnect?.({
-          attempt: state.reconnectAttempts,
-          path,
-          scenarioId: state.scenarioId,
-          sessionId: state.sessionId,
-        });
+        if (options.prepareReconnect) {
+          const preparationAbort = new AbortController();
+          reconnectPreparationAbort = preparationAbort;
+          const timeout = setTimeout(
+            () =>
+              preparationAbort.abort("Voice reconnect preparation timed out"),
+            options.prepareReconnectTimeoutMs ??
+              DEFAULT_PREPARE_RECONNECT_TIMEOUT_MS,
+          );
+          try {
+            await Promise.race([
+              options.prepareReconnect({
+                attempt: state.reconnectAttempts,
+                path,
+                scenarioId: state.scenarioId,
+                sessionId: state.sessionId,
+                signal: preparationAbort.signal,
+              }),
+              new Promise<never>((_, reject) => {
+                preparationAbort.signal.addEventListener(
+                  "abort",
+                  () =>
+                    reject(new Error("Voice reconnect preparation timed out.")),
+                  { once: true },
+                );
+              }),
+            ]);
+          } finally {
+            clearTimeout(timeout);
+            if (reconnectPreparationAbort === preparationAbort) {
+              reconnectPreparationAbort = null;
+            }
+          }
+        }
       } catch (error) {
         if (disposed || lifecycleGeneration !== scheduledGeneration) return;
         if (error instanceof VoiceReconnectRejectedError) {
@@ -452,6 +482,7 @@ export const createVoiceConnection = (
   };
 
   const sendSerialized = (value: string | Uint8Array | ArrayBuffer) => {
+    if (disposed) return;
     if (state.ws?.readyState === WS_OPEN) {
       state.ws.send(value);
 
@@ -526,6 +557,8 @@ export const createVoiceConnection = (
 
   const close = (reason = "client-close") => {
     disposed = true;
+    reconnectPreparationAbort?.abort();
+    reconnectPreparationAbort = null;
     lifecycleGeneration += 1;
     clearTimers();
     rejectPendingCallControls("Voice connection closed");
@@ -546,6 +579,8 @@ export const createVoiceConnection = (
 
   const disconnect = () => {
     disposed = true;
+    reconnectPreparationAbort?.abort();
+    reconnectPreparationAbort = null;
     lifecycleGeneration += 1;
     clearTimers();
     rejectPendingCallControls("Voice connection disconnected");

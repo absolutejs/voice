@@ -102,82 +102,132 @@ export const createMicrophoneCapture = (
   let sourceNode: MediaStreamAudioSourceNode | null = null;
   let processorNode: ScriptProcessorNode | null = null;
   let mediaStream: MediaStream | null = null;
+  let lifecycleGeneration = 0;
+  let startPromise: Promise<void> | null = null;
 
-  const start = async () => {
-    if (
-      !options.stream &&
-      (typeof navigator === "undefined" ||
-        !navigator.mediaDevices?.getUserMedia)
-    ) {
-      throw new Error(
-        "Browser microphone capture requires navigator.mediaDevices.getUserMedia.",
-      );
-    }
+  const release = (resources: {
+    audioContext: AudioContext | null;
+    mediaStream: MediaStream | null;
+    processorNode: ScriptProcessorNode | null;
+    sourceNode: MediaStreamAudioSourceNode | null;
+  }) => {
+    resources.processorNode?.disconnect();
+    resources.sourceNode?.disconnect();
+    resources.mediaStream?.getTracks().forEach((track) => track.stop());
+    void resources.audioContext?.close();
+  };
 
-    const AudioContextCtor =
-      (typeof window !== "undefined"
-        ? ((window as WindowWithWebkitAudioContext).AudioContext ??
-          (window as WindowWithWebkitAudioContext).webkitAudioContext)
-        : undefined) ?? AudioContext;
-
-    if (!AudioContextCtor) {
-      throw new Error(
-        "Browser microphone capture requires AudioContext support.",
-      );
-    }
-
-    // Reuse a host-provided stream (permission requested up front) when given,
-    // so we never release-and-reacquire the mic — that second getUserMedia + the
-    // pre-acquired track's stop can suspend playback and cut the greeting.
-    try {
-      mediaStream =
-        options.stream ??
-        (await navigator.mediaDevices.getUserMedia({
-          audio: {
-            autoGainControl: true,
-            channelCount: options.channelCount ?? 1,
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-        }));
-      audioContext = new AudioContextCtor();
-      // iOS Safari (and some Chromium autoplay policies) create the AudioContext
-      // in a "suspended" state. While suspended, the ScriptProcessor's
-      // onaudioprocess never fires, so NO microphone audio is captured and the
-      // assistant hears silence. start() runs inside the user gesture that began
-      // capture, so resuming here unlocks it. Without this, voice intake is
-      // effectively broken on iOS.
-      if (audioContext.state === "suspended") {
-        await audioContext.resume();
-      }
-      sourceNode = audioContext.createMediaStreamSource(mediaStream);
-      processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-
-      processorNode.onaudioprocess = (event) => {
-        const channel = event.inputBuffer.getChannelData(0);
-        const downsampled = downsampleBuffer(
-          channel,
-          audioContext?.sampleRate ?? 48_000,
-          options.sampleRateHz ?? 16_000,
+  const start = () => {
+    if (mediaStream) return Promise.resolve();
+    if (startPromise) return startPromise;
+    const generation = ++lifecycleGeneration;
+    const operation = async () => {
+      if (
+        !options.stream &&
+        (typeof navigator === "undefined" ||
+          !navigator.mediaDevices?.getUserMedia)
+      ) {
+        throw new Error(
+          "Browser microphone capture requires navigator.mediaDevices.getUserMedia.",
         );
-        const pcm = floatTo16BitPCM(downsampled);
-        options.onLevel?.(getPcmLevel(pcm));
-        options.onAudio(pcm);
-      };
+      }
 
-      sourceNode.connect(processorNode);
-      processorNode.connect(audioContext.destination);
-    } catch (error) {
-      stop();
-      throw error;
-    }
+      const AudioContextCtor =
+        (typeof window !== "undefined"
+          ? ((window as WindowWithWebkitAudioContext).AudioContext ??
+            (window as WindowWithWebkitAudioContext).webkitAudioContext)
+          : undefined) ?? AudioContext;
+
+      if (!AudioContextCtor) {
+        throw new Error(
+          "Browser microphone capture requires AudioContext support.",
+        );
+      }
+
+      // Reuse a host-provided stream (permission requested up front) when given,
+      // so we never release-and-reacquire the mic — that second getUserMedia + the
+      // pre-acquired track's stop can suspend playback and cut the greeting.
+      let pendingAudioContext: AudioContext | null = null;
+      let pendingMediaStream: MediaStream | null = null;
+      let pendingProcessorNode: ScriptProcessorNode | null = null;
+      let pendingSourceNode: MediaStreamAudioSourceNode | null = null;
+      try {
+        pendingMediaStream =
+          options.stream ??
+          (await navigator.mediaDevices.getUserMedia({
+            audio: {
+              autoGainControl: true,
+              channelCount: options.channelCount ?? 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
+          }));
+        if (generation !== lifecycleGeneration) {
+          throw new Error("Microphone capture stopped during startup.");
+        }
+        pendingAudioContext = new AudioContextCtor();
+        // iOS Safari (and some Chromium autoplay policies) create the AudioContext
+        // in a "suspended" state. While suspended, the ScriptProcessor's
+        // onaudioprocess never fires, so NO microphone audio is captured and the
+        // assistant hears silence. start() runs inside the user gesture that began
+        // capture, so resuming here unlocks it. Without this, voice intake is
+        // effectively broken on iOS.
+        if (pendingAudioContext.state === "suspended") {
+          await pendingAudioContext.resume();
+        }
+        if (generation !== lifecycleGeneration) {
+          throw new Error("Microphone capture stopped during startup.");
+        }
+        pendingSourceNode =
+          pendingAudioContext.createMediaStreamSource(pendingMediaStream);
+        pendingProcessorNode = pendingAudioContext.createScriptProcessor(
+          4096,
+          1,
+          1,
+        );
+
+        pendingProcessorNode.onaudioprocess = (event) => {
+          const channel = event.inputBuffer.getChannelData(0);
+          const downsampled = downsampleBuffer(
+            channel,
+            pendingAudioContext?.sampleRate ?? 48_000,
+            options.sampleRateHz ?? 16_000,
+          );
+          const pcm = floatTo16BitPCM(downsampled);
+          options.onLevel?.(getPcmLevel(pcm));
+          options.onAudio(pcm);
+        };
+
+        pendingSourceNode.connect(pendingProcessorNode);
+        pendingProcessorNode.connect(pendingAudioContext.destination);
+        if (generation !== lifecycleGeneration) {
+          throw new Error("Microphone capture stopped during startup.");
+        }
+        audioContext = pendingAudioContext;
+        mediaStream = pendingMediaStream;
+        processorNode = pendingProcessorNode;
+        sourceNode = pendingSourceNode;
+      } catch (error) {
+        release({
+          audioContext: pendingAudioContext,
+          mediaStream: pendingMediaStream,
+          processorNode: pendingProcessorNode,
+          sourceNode: pendingSourceNode,
+        });
+        throw error;
+      }
+    };
+    const pending = operation().finally(() => {
+      if (startPromise === pending) startPromise = null;
+    });
+    startPromise = pending;
+
+    return pending;
   };
 
   const stop = () => {
-    processorNode?.disconnect();
-    sourceNode?.disconnect();
-    mediaStream?.getTracks().forEach((track) => track.stop());
-    void audioContext?.close();
+    lifecycleGeneration += 1;
+    release({ audioContext, mediaStream, processorNode, sourceNode });
     options.onLevel?.(0);
 
     audioContext = null;
