@@ -63,6 +63,13 @@ type VoiceConnectionHandle = {
   subscribe: (callback: (message: VoiceServerMessage) => void) => () => void;
 };
 
+export class VoiceReconnectRejectedError extends Error {
+  constructor(message = "Voice authorization could not be renewed.") {
+    super(message);
+    this.name = "VoiceReconnectRejectedError";
+  }
+}
+
 const noop = () => {};
 const noopAsync = () => Promise.resolve();
 const noopUnsubscribe = () => noop;
@@ -172,6 +179,8 @@ export const createVoiceConnection = (
   const pingInterval = options.pingInterval ?? DEFAULT_PING_INTERVAL;
   const reconnectResetAfterMs =
     options.reconnectResetAfterMs ?? DEFAULT_RECONNECT_RESET_AFTER_MS;
+  let lifecycleGeneration = 0;
+  let disposed = false;
 
   // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, 8s… capped at reconnectMaxDelayMs.
   // A short first retry recovers instantly from a blip; the cap keeps later
@@ -258,6 +267,8 @@ export const createVoiceConnection = (
   };
 
   const scheduleReconnect = () => {
+    if (disposed) return;
+    const scheduledGeneration = lifecycleGeneration;
     state.reconnectAttempts += 1;
     const delayMs = computeReconnectDelayMs(state.reconnectAttempts);
     const nextAttemptAt = Date.now() + delayMs;
@@ -272,6 +283,7 @@ export const createVoiceConnection = (
       type: "connection",
     });
     state.reconnectTimeout = setTimeout(async () => {
+      if (disposed || lifecycleGeneration !== scheduledGeneration) return;
       if (state.reconnectAttempts > maxReconnectAttempts) {
         emitTerminalFailure("Voice connection could not be restored.");
 
@@ -285,7 +297,13 @@ export const createVoiceConnection = (
           scenarioId: state.scenarioId,
           sessionId: state.sessionId,
         });
-      } catch {
+      } catch (error) {
+        if (disposed || lifecycleGeneration !== scheduledGeneration) return;
+        if (error instanceof VoiceReconnectRejectedError) {
+          emitTerminalFailure(error.message);
+
+          return;
+        }
         if (state.reconnectAttempts < maxReconnectAttempts) {
           scheduleReconnect();
         } else {
@@ -297,11 +315,13 @@ export const createVoiceConnection = (
         return;
       }
 
+      if (disposed || lifecycleGeneration !== scheduledGeneration) return;
       connect();
     }, delayMs);
   };
 
   const connect = () => {
+    if (disposed) return;
     const ws = new WebSocket(
       buildWsUrl(path, state.sessionId, state.scenarioId, options.query ?? {}),
     );
@@ -386,6 +406,7 @@ export const createVoiceConnection = (
       state.ws = null;
       state.isConnected = false;
       clearTimers();
+      rejectPendingCallControls("Voice connection interrupted");
 
       const reconnectable =
         shouldReconnect &&
@@ -480,6 +501,11 @@ export const createVoiceConnection = (
       "requestId" | "type"
     >,
   ) => {
+    if (state.ws?.readyState !== WS_OPEN) {
+      return Promise.reject(
+        new Error(`${message.action} is unavailable while disconnected`),
+      );
+    }
     const requestId = crypto.randomUUID();
     const { promise, reject, resolve } = Promise.withResolvers<void>();
     const timeout = setTimeout(() => {
@@ -487,18 +513,23 @@ export const createVoiceConnection = (
       reject(new Error(`${message.action} acknowledgement timed out`));
     }, DEFAULT_CALL_CONTROL_ACK_TIMEOUT_MS);
     pendingCallControls.set(requestId, { reject, resolve, timeout });
-    send({
-      ...message,
-      requestId,
-      type: "call_control",
-    });
+    state.ws.send(
+      JSON.stringify({
+        ...message,
+        requestId,
+        type: "call_control",
+      }),
+    );
 
     return promise;
   };
 
   const close = (reason = "client-close") => {
+    disposed = true;
+    lifecycleGeneration += 1;
     clearTimers();
     rejectPendingCallControls("Voice connection closed");
+    state.pendingMessages.length = 0;
 
     if (state.ws) {
       const ws = state.ws;
@@ -514,8 +545,11 @@ export const createVoiceConnection = (
   };
 
   const disconnect = () => {
+    disposed = true;
+    lifecycleGeneration += 1;
     clearTimers();
     rejectPendingCallControls("Voice connection disconnected");
+    state.pendingMessages.length = 0;
     if (state.ws) {
       const ws = state.ws;
       state.ws = null;

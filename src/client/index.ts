@@ -6,7 +6,10 @@ export type {
   VoiceReactiveSource,
   VoiceSseReactiveSourceOptions,
 } from "./reactiveSource";
-export { createVoiceConnection } from "./connection";
+export {
+  createVoiceConnection,
+  VoiceReconnectRejectedError,
+} from "./connection";
 export {
   checkBrowserVoiceSupport,
   probeBrowserVoiceSupport,
