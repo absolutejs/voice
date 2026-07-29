@@ -4439,3 +4439,68 @@ test("stuckCallClose is reset by caller progress and never fires on a flowing ca
   expect(tts.getSentTexts()).not.toContain("Should not be spoken.");
   expect((await session.snapshot()).status).not.toBe("completed");
 });
+
+test("caller pause survives disconnect and restores until explicitly resumed", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const firstSocket = createMockSocket();
+  const route = {
+    onComplete: async () => {},
+    onTurn: async () => ({}),
+  };
+  const first = createVoiceSession({
+    context: {},
+    id: "session-durable-pause",
+    logger: {},
+    pause: { maxMs: 5_000 },
+    reconnect: {
+      maxAttempts: 2,
+      strategy: "resume-last-turn" as const,
+      timeout: 5_000,
+    },
+    route,
+    socket: firstSocket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {},
+  });
+
+  await first.connect(firstSocket.socket);
+  await first.pause();
+  const paused = await first.snapshot();
+  expect(paused.pause?.expiresAt).toBeGreaterThan(Date.now());
+  await first.disconnect({
+    code: 1006,
+    reason: "deployment",
+    recoverable: true,
+    type: "close",
+  });
+
+  const secondSocket = createMockSocket();
+  const resumed = createVoiceSession({
+    context: {},
+    id: "session-durable-pause",
+    logger: {},
+    pause: { maxMs: 5_000 },
+    reconnect: {
+      maxAttempts: 2,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route,
+    socket: secondSocket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {},
+  });
+  await resumed.connect(secondSocket.socket);
+  await resumed.receiveAudio(createSpeechChunk(16_000));
+  expect(adapter.getSentAudioChunks()).toBe(0);
+  expect((await resumed.snapshot()).pause).toEqual(paused.pause);
+
+  await resumed.resume();
+  expect((await resumed.snapshot()).pause).toBeUndefined();
+  await resumed.receiveAudio(createSpeechChunk(16_000));
+  expect(adapter.getSentAudioChunks()).toBe(1);
+  await resumed.close("test-complete");
+});

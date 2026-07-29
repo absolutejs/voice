@@ -459,6 +459,12 @@ export type VoiceSessionRecord<
     attempts: number;
     lastDisconnectAt?: number;
   };
+  /** Durable caller pause state so a reconnect or process replacement restores
+   * the remaining pause window instead of rearming conversation watchdogs. */
+  pause?: {
+    expiresAt: number;
+    pausedAt: number;
+  };
   lastCommittedTurn?: {
     signature: string;
     text: string;

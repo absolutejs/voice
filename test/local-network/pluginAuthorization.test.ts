@@ -240,10 +240,11 @@ test("does not create provider resources after a socket closes during authorizat
 
 test("provider initialization failure closes once and is not retried by queued audio", async () => {
   let sttOpens = 0;
+  const store = createVoiceMemoryStore();
   const app = voice({
     onTurn: () => {},
     path: "/voice",
-    session: createVoiceMemoryStore(),
+    session: store,
     stt: {
       kind: "stt",
       open: () => {
@@ -274,9 +275,44 @@ test("provider initialization failure closes once and is not retried by queued a
     ws.addEventListener("error", reject, { once: true });
   });
 
-  expect((await closeEvent).code).toBe(1011);
+  expect((await closeEvent).code).toBe(4500);
   await delay(30);
   expect(sttOpens).toBe(1);
+  expect((await store.get("provider-failure"))?.status).toBe("failed");
+});
+
+test("partial provider initialization is rolled back and persisted as failed", async () => {
+  let providerCloses = 0;
+  const store = createVoiceMemoryStore();
+  const app = voice({
+    onTurn: () => {},
+    path: "/voice",
+    session: store,
+    stt: {
+      kind: "stt",
+      open: () => ({
+        close: async () => {
+          providerCloses += 1;
+        },
+        on: () => {
+          throw new Error("listener setup failed");
+        },
+        send: async () => {},
+      }),
+    },
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => app.server?.stop(true);
+  const ws = new WebSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=partial-provider-failure`,
+  );
+  const closeEvent = await new Promise<CloseEvent>((resolve) =>
+    ws.addEventListener("close", resolve, { once: true }),
+  );
+
+  expect(closeEvent.code).toBe(4500);
+  expect(providerCloses).toBe(1);
+  expect((await store.get("partial-provider-failure"))?.status).toBe("failed");
 });
 
 test("normalizes upgrade request headers without Request identity", () => {

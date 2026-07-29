@@ -210,6 +210,58 @@ test("an authorization rejection fails without reconnecting", async () => {
   ]);
 });
 
+test("provider initialization rejection fails without reconnecting", async () => {
+  let sockets = 0;
+  const errors: string[] = [];
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onopen: (() => void) | null = null;
+    readyState = 0;
+
+    constructor(readonly url: string) {
+      sockets += 1;
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        queueMicrotask(() => {
+          this.readyState = 3;
+          this.onclose?.({
+            code: 4500,
+            reason: "voice session initialization failed",
+          } as CloseEvent);
+        });
+      });
+    }
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+
+  const connection = createVoiceConnection("/voice", {
+    maxReconnectAttempts: 15,
+    reconnectMaxDelayMs: 1,
+  });
+  connection.subscribe((message) => {
+    if (message.type === "error") errors.push(message.message);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  expect(sockets).toBe(1);
+  expect(errors).toEqual(["Voice provider initialization failed."]);
+});
+
 test("reconnect preparation completes before a replacement socket opens", async () => {
   const events: string[] = [];
   let sockets = 0;
@@ -458,6 +510,31 @@ test("disconnected realtime audio is dropped while control messages remain bound
   expect(sent).toEqual([
     JSON.stringify({ sessionId: "session", type: "start" }),
   ]);
+});
+
+test("start rejects in-socket session switching", () => {
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    readyState = FakeWebSocket.OPEN;
+    constructor(readonly url: string) {}
+    close() {}
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+  const connection = createVoiceConnection("/voice", {
+    sessionId: "session-a",
+  });
+
+  expect(() => connection.start({ sessionId: "session-b" })).toThrow(
+    "Voice session switching requires a new connection instance.",
+  );
+  connection.disconnect();
 });
 
 test("call controls resolve only after the matching server acknowledgement", async () => {

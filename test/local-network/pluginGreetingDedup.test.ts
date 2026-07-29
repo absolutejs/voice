@@ -176,6 +176,7 @@ test("dedup is per-session: two distinct sessions each greet once", async () => 
 test("a replacement socket never inherits pending creation bound to the old socket", async () => {
   const GREETING = "REPLACEMENT_GREETING";
   const spoken: string[] = [];
+  let audioFrames = 0;
   const lexicon = Promise.withResolvers<void>();
   const app = voice({
     greeting: GREETING,
@@ -187,7 +188,16 @@ test("a replacement socket never inherits pending creation bound to the old sock
     onTurn: () => {},
     path: "/voice",
     session: createVoiceMemoryStore(),
-    stt: buildStt(),
+    stt: {
+      kind: "stt",
+      open: () => ({
+        close: async () => {},
+        on: () => () => {},
+        send: async () => {
+          audioFrames += 1;
+        },
+      }),
+    },
     tts: buildTts(spoken),
   });
   const port = listenOnAvailablePort(app);
@@ -208,6 +218,9 @@ test("a replacement socket never inherits pending creation bound to the old sock
   second.addEventListener("message", (event) => {
     secondMessages.push(String(event.data));
   });
+  if (first.readyState === WebSocket.OPEN) {
+    first.send(new Uint8Array(320));
+  }
 
   await delay(30);
   lexicon.resolve();
@@ -229,11 +242,68 @@ test("a replacement socket never inherits pending creation bound to the old sock
     secondMessages.some((message) => message.includes('"type":"session"')),
   ).toBe(true);
   expect(spoken.filter((line) => line === GREETING)).toHaveLength(1);
+  expect(first.readyState).toBe(WebSocket.CLOSED);
+  expect(audioFrames).toBe(0);
+
+  second.send(new Uint8Array(320));
+  for (let attempt = 0; attempt < 20 && audioFrames === 0; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop -- bounded delivery poll
+    await delay(10);
+  }
+  expect(audioFrames).toBe(1);
 
   const secondClosed = new Promise<void>((resolve) =>
     second.addEventListener("close", () => resolve(), { once: true }),
   );
-  if (first.readyState < WebSocket.CLOSING) first.close();
   second.close();
   await Promise.all([firstClosed, secondClosed]);
+});
+
+test("a start message cannot switch an admitted socket to another session", async () => {
+  let audioFrames = 0;
+  const store = createVoiceMemoryStore();
+  const app = voice({
+    onTurn: () => {},
+    path: "/voice",
+    session: store,
+    stt: {
+      kind: "stt",
+      open: () => ({
+        close: async () => {},
+        on: () => () => {},
+        send: async () => {
+          audioFrames += 1;
+        },
+      }),
+    },
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => {
+    app.server?.stop(true);
+  };
+  const socket = await openSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=session-a`,
+  );
+  const messages: string[] = [];
+  socket.addEventListener("message", (event) => {
+    messages.push(String(event.data));
+  });
+  socket.send(JSON.stringify({ sessionId: "session-b", type: "start" }));
+  await delay(30);
+  socket.send(new Uint8Array(320));
+  for (let attempt = 0; attempt < 20 && audioFrames === 0; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop -- bounded delivery poll
+    await delay(10);
+  }
+
+  expect(socket.readyState).toBe(WebSocket.OPEN);
+  expect(
+    messages.some((message) =>
+      message.includes("session switching requires a new WebSocket"),
+    ),
+  ).toBe(true);
+  expect(await store.get("session-b")).toBeUndefined();
+  expect((await store.get("session-a"))?.status).toBe("active");
+  expect(audioFrames).toBe(1);
+  socket.close();
 });

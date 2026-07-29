@@ -9,6 +9,7 @@ const WS_CLOSED = 3;
 const WS_NORMAL_CLOSURE = 1000;
 const WS_UNAUTHORIZED = 4401;
 const WS_FORBIDDEN = 4403;
+const WS_INITIALIZATION_FAILED = 4500;
 // 15 attempts of exponential backoff capped at 8s ≈ a 95s retry window — long
 // enough to ride out a server redeploy (build + drain + restart) so a caller
 // mid-intake reconnects to their resumed session instead of losing the call.
@@ -443,9 +444,11 @@ export const createVoiceConnection = (
         event.code !== WS_NORMAL_CLOSURE &&
         event.code !== WS_UNAUTHORIZED &&
         event.code !== WS_FORBIDDEN &&
+        event.code !== WS_INITIALIZATION_FAILED &&
         state.reconnectAttempts < maxReconnectAttempts;
       const authorizationFailure =
         event.code === WS_UNAUTHORIZED || event.code === WS_FORBIDDEN;
+      const initializationFailure = event.code === WS_INITIALIZATION_FAILED;
       if (authorizationFailure) {
         listeners.forEach((listener) =>
           listener({
@@ -453,6 +456,15 @@ export const createVoiceConnection = (
               event.code === WS_UNAUTHORIZED
                 ? "Voice authorization expired or was rejected."
                 : "Voice authorization was forbidden.",
+            recoverable: false,
+            type: "error",
+          }),
+        );
+      }
+      if (initializationFailure) {
+        listeners.forEach((listener) =>
+          listener({
+            message: "Voice provider initialization failed.",
             recoverable: false,
             type: "error",
           }),
@@ -472,7 +484,7 @@ export const createVoiceConnection = (
             },
             type: "connection",
           });
-        } else {
+        } else if (!initializationFailure) {
           emitTerminalFailure("Voice connection could not be restored.");
         }
       }
@@ -503,6 +515,11 @@ export const createVoiceConnection = (
   };
 
   const start = (input: { sessionId?: string; scenarioId?: string } = {}) => {
+    if (input.sessionId && input.sessionId !== state.sessionId) {
+      throw new Error(
+        "Voice session switching requires a new connection instance.",
+      );
+    }
     if (input.sessionId) {
       state.sessionId = input.sessionId;
     }

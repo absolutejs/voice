@@ -120,6 +120,13 @@ import type {
 
 type VoiceRuntime = {
   activeSockets: Map<string, object>;
+  activeSocketConnections: Map<
+    string,
+    {
+      close: (code?: number, reason?: string) => void;
+      identity: object;
+    }
+  >;
   activeSessions: Map<
     string,
     VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>
@@ -716,6 +723,7 @@ export const voice = <
     ReturnType<NonNullable<VoicePluginConfig["monitor"]>["registerSession"]>
   >();
   const runtime: VoiceRuntime = {
+    activeSocketConnections: new Map(),
     activeSockets: new Map(),
     activeSessions: new Map(),
     pendingSessions: new Map(),
@@ -1057,8 +1065,17 @@ export const voice = <
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      await session.fail(error).catch((failureError) => {
+        runtime.logger.warn?.(
+          `[voice] failed to persist initialization failure for "${sessionId}": ${
+            failureError instanceof Error
+              ? failureError.message
+              : String(failureError)
+          }`,
+        );
+      });
       closedSockets.add(identity);
-      ws.close(1011, "voice session initialization failed");
+      ws.close(4500, "voice session initialization failed");
       throw error;
     }
     if (
@@ -1489,6 +1506,7 @@ export const voice = <
         }
 
         runtime.activeSockets.delete(socketState.sessionId);
+        runtime.activeSocketConnections.delete(socketState.sessionId);
         const session = runtime.activeSessions.get(socketState.sessionId);
         runtime.activeSessions.delete(socketState.sessionId);
         deregisterMonitorSession(
@@ -1512,6 +1530,12 @@ export const voice = <
           return;
         }
         const sessionState = resolveSessionId(runtime, ws);
+        const identity = socketIdentity(ws);
+        if (runtime.activeSockets.get(sessionState.sessionId) !== identity) {
+          ws.close(1000, "superseded");
+
+          return;
+        }
         const current = runtime.activeSessions.get(sessionState.sessionId);
         const message = parseClientMessage(raw);
 
@@ -1527,6 +1551,7 @@ export const voice = <
           if (message.type === "close" && current) {
             await current.close(message.reason);
             runtime.activeSockets.delete(sessionState.sessionId);
+            runtime.activeSocketConnections.delete(sessionState.sessionId);
             runtime.activeSessions.delete(sessionState.sessionId);
             deregisterMonitorSession(sessionState.sessionId, message.reason);
           }
@@ -1606,27 +1631,16 @@ export const voice = <
             message.sessionId &&
             message.sessionId !== sessionState.sessionId
           ) {
-            const currentSession = runtime.activeSessions.get(
-              sessionState.sessionId,
+            ws.send(
+              JSON.stringify({
+                message:
+                  "Voice session switching requires a new WebSocket connection.",
+                recoverable: false,
+                type: "error",
+              }),
             );
 
-            if (currentSession) {
-              await currentSession.close("session-switch");
-              runtime.activeSockets.delete(sessionState.sessionId);
-              runtime.activeSessions.delete(sessionState.sessionId);
-              deregisterMonitorSession(
-                sessionState.sessionId,
-                "session-switch",
-              );
-            }
-
-            sessionState.sessionId = message.sessionId;
-            runtime.activeSockets.set(message.sessionId, socketIdentity(ws));
-            runtime.socketSessions.set(socketIdentity(ws), {
-              ...sessionState,
-              sessionId: message.sessionId,
-              scenarioId: sessionState.scenarioId,
-            });
+            return;
           }
 
           if (message.type === "start" && message.scenarioId) {
@@ -1674,7 +1688,17 @@ export const voice = <
           const identity = socketIdentity(ws);
           if (closedSockets.has(identity) || !socketIsOpen(ws)) return;
           const existing = runtime.activeSessions.get(sessionState.sessionId);
+          const displaced = runtime.activeSocketConnections.get(
+            sessionState.sessionId,
+          );
+          if (displaced && displaced.identity !== identity) {
+            displaced.close(1000, "superseded");
+          }
           runtime.activeSockets.set(sessionState.sessionId, identity);
+          runtime.activeSocketConnections.set(sessionState.sessionId, {
+            close: ws.close.bind(ws),
+            identity,
+          });
 
           // A genuinely new socket for a session that still has a live one (a
           // reconnect that raced the old close): retire the old session bound to

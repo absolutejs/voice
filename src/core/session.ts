@@ -1051,6 +1051,13 @@ export const createVoiceSession = <
       pauseTimeout = null;
     }
   };
+  const schedulePauseTimeout = (remainingMs: number) => {
+    clearPauseTimeout();
+    pauseTimeout = setTimeout(() => {
+      pauseTimeout = null;
+      void api.close("pause-timeout");
+    }, remainingMs);
+  };
   const pauseInternal = async () => {
     if (callerPaused) {
       return;
@@ -1067,14 +1074,17 @@ export const createVoiceSession = <
     clearCallSilenceWatchdog();
     clearStuckCloseWatchdog();
     clearIdleRepromptWatchdog();
-    clearPauseTimeout();
-    pauseTimeout = setTimeout(() => {
-      pauseTimeout = null;
-      void api.close("pause-timeout");
-    }, pauseMaxMs);
+    clearAmdEvaluationTimer();
+    const pausedAt = Date.now();
+    const expiresAt = pausedAt + pauseMaxMs;
+    snapshot.pause = { expiresAt, pausedAt };
+    snapshot.lastActivityAt = pausedAt;
+    await options.store.set(options.id, snapshot);
+    schedulePauseTimeout(pauseMaxMs);
     await appendTrace({
       payload: {
         action: "call.paused",
+        expiresAt,
         maxMs: pauseMaxMs,
       },
       session: snapshot,
@@ -1090,7 +1100,11 @@ export const createVoiceSession = <
     kickCallSilenceWatchdog();
     kickStuckCloseWatchdog();
     kickIdleRepromptWatchdog(true);
+    startAmdEvaluationTimer();
     const snapshot = await readSession();
+    snapshot.pause = undefined;
+    snapshot.lastActivityAt = Date.now();
+    await options.store.set(options.id, snapshot);
     await appendTrace({
       payload: {
         action: "call.resumed",
@@ -3044,45 +3058,50 @@ export const createVoiceSession = <
       });
     };
 
-    openedSession.on("partial", ({ transcript }) => {
-      const next = options.redact ? options.redact(transcript) : transcript;
-      runAdapterEvent("adapter.partial", () => handlePartial(next));
-    });
-    openedSession.on("final", ({ transcript }) => {
-      const next = options.redact ? options.redact(transcript) : transcript;
-      runAdapterEvent("adapter.final", () => handleFinal(next));
-    });
-    openedSession.on("endOfTurn", ({ reason }) => {
-      runAdapterEvent("adapter.endOfTurn", async () => {
-        clearSilenceTimer();
-        await requestTurnCommit(reason);
+    try {
+      openedSession.on("partial", ({ transcript }) => {
+        const next = options.redact ? options.redact(transcript) : transcript;
+        runAdapterEvent("adapter.partial", () => handlePartial(next));
       });
-    });
-    openedSession.on("error", (event) => {
-      runAdapterEvent("adapter.error", () => handleError(event));
-    });
-    openedSession.on("close", (event) => {
-      runAdapterEvent("adapter.close", () => handleClose(event));
-    });
-    if (options.realtime) {
-      (openedSession as RealtimeAdapterSession).on(
-        "audio",
-        ({ chunk, format, receivedAt }) => {
-          // Same dedicated audio chain as the TTS bridge — keep the realtime
-          // adapter's stale-generation guard so audio from a superseded STT
-          // session is dropped.
-          runAudioSerial(async () => {
-            if (activeAdapterGeneration !== generation) {
-              return;
-            }
+      openedSession.on("final", ({ transcript }) => {
+        const next = options.redact ? options.redact(transcript) : transcript;
+        runAdapterEvent("adapter.final", () => handleFinal(next));
+      });
+      openedSession.on("endOfTurn", ({ reason }) => {
+        runAdapterEvent("adapter.endOfTurn", async () => {
+          clearSilenceTimer();
+          await requestTurnCommit(reason);
+        });
+      });
+      openedSession.on("error", (event) => {
+        runAdapterEvent("adapter.error", () => handleError(event));
+      });
+      openedSession.on("close", (event) => {
+        runAdapterEvent("adapter.close", () => handleClose(event));
+      });
+      if (options.realtime) {
+        (openedSession as RealtimeAdapterSession).on(
+          "audio",
+          ({ chunk, format, receivedAt }) => {
+            // Same dedicated audio chain as the TTS bridge — keep the realtime
+            // adapter's stale-generation guard so audio from a superseded STT
+            // session is dropped.
+            runAudioSerial(async () => {
+              if (activeAdapterGeneration !== generation) {
+                return;
+              }
 
-            await sendAssistantAudio(chunk, {
-              format,
-              receivedAt,
+              await sendAssistantAudio(chunk, {
+                format,
+                receivedAt,
+              });
             });
-          });
-        },
-      );
+          },
+        );
+      }
+    } catch (error) {
+      await closeAdapter("initialization-failed");
+      throw error;
     }
 
     return openedSession;
@@ -4345,12 +4364,48 @@ export const createVoiceSession = <
       }
     }
 
+    const pauseRemainingMs = session.pause
+      ? session.pause.expiresAt - Date.now()
+      : 0;
+    callerPaused = pauseRemainingMs > 0;
+    if (!callerPaused) {
+      session.pause = undefined;
+    }
+
+    if (session.status === "completed" || session.status === "failed") {
+      await options.store.set(options.id, session);
+      await send({
+        sessionId: options.id,
+        status: session.status,
+        sessionMetadata:
+          session.metadata && typeof session.metadata === "object"
+            ? session.metadata
+            : undefined,
+        scenarioId: session.scenarioId,
+        type: "session",
+      });
+      if (session.status === "completed") {
+        await send({
+          sessionId: options.id,
+          type: "complete",
+        });
+      }
+
+      return;
+    }
+
+    // Provider setup is transactional from the caller's perspective: persist a
+    // resumable initializing snapshot, but do not emit an active session or
+    // lifecycle start until every provider listener is installed successfully.
+    session.status = "reconnecting";
+    await options.store.set(options.id, session);
+    await ensureAdapter();
+    session.status = "active";
     if (shouldFireOnSession) {
       pushCallLifecycleEvent(session, {
         type: "start",
       });
     }
-
     await options.store.set(options.id, session);
     if (shouldFireOnSession) {
       await appendTrace({
@@ -4399,37 +4454,42 @@ export const createVoiceSession = <
       });
     }
 
-    if (session.status === "completed") {
-      await send({
-        sessionId: options.id,
-        type: "complete",
-      });
-
-      return;
-    }
-
     resumePendingTurnCommit(session);
 
-    await ensureAdapter();
     warmTTSSession();
-    kickCallSilenceWatchdog();
-    // Start the wedged-call deadline at connect so the greeting + first answer
-    // window is covered; real caller progress (partials / committed turns) resets
-    // it, the assistant's own speech does not.
-    kickStuckCloseWatchdog();
-    kickIdleRepromptWatchdog(true);
-    startAmdEvaluationTimer();
+    if (callerPaused) {
+      schedulePauseTimeout(pauseRemainingMs);
+    } else {
+      kickCallSilenceWatchdog();
+      // Start the wedged-call deadline at connect so the greeting + first answer
+      // window is covered; real caller progress (partials / committed turns)
+      // resets it, the assistant's own speech does not.
+      kickStuckCloseWatchdog();
+      kickIdleRepromptWatchdog(true);
+    }
+    if (!callerPaused) {
+      startAmdEvaluationTimer();
+    }
 
     // Persist the initial greeting claim before emitting it. A transport flap
     // before the caller's first answer must not replay the full introduction on
     // every reconnect; the persisted marker survives both socket replacement and
     // process restart. Mark-before-send gives the greeting at-most-once semantics
     // even when the socket drops during delivery.
-    if (options.greeting && session.greetingDeliveredAt === undefined) {
+    if (
+      !callerPaused &&
+      options.greeting &&
+      session.greetingDeliveredAt === undefined
+    ) {
       session.greetingDeliveredAt = Date.now();
       await options.store.set(options.id, session);
       await speakResolvedLine(options.greeting, session);
-    } else if (isResume && options.resumeGreeting && session.turns.length > 0) {
+    } else if (
+      !callerPaused &&
+      isResume &&
+      options.resumeGreeting &&
+      session.turns.length > 0
+    ) {
       await speakResolvedLine(options.resumeGreeting, session);
     }
   };
@@ -4463,6 +4523,9 @@ export const createVoiceSession = <
   const receiveAudioInternal = async (audio: ArrayBuffer | ArrayBufferView) => {
     const session = await readSession();
     if (session.status === "completed" || session.status === "failed") {
+      return;
+    }
+    if (callerPaused) {
       return;
     }
 
