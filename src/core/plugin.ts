@@ -333,22 +333,29 @@ const resolveSocketQuery = (ws: { data?: unknown }) =>
     ? ((ws.data.query as Record<string, unknown> | undefined) ?? {})
     : {};
 
-const resolveSocketHeaders = (ws: { data?: unknown }) => {
+const normalizeSocketHeaders = (value: unknown) => {
+  if (!value || typeof value !== "object") return null;
+  try {
+    return new Headers(value as HeadersInit);
+  } catch {
+    return null;
+  }
+};
+
+export const resolveSocketHeaders = (ws: { data?: unknown }) => {
   if (!ws.data || typeof ws.data !== "object") return new Headers();
-  if ("request" in ws.data && ws.data.request instanceof Request) {
-    return ws.data.request.headers;
+  if (
+    "request" in ws.data &&
+    ws.data.request &&
+    typeof ws.data.request === "object" &&
+    "headers" in ws.data.request
+  ) {
+    const requestHeaders = normalizeSocketHeaders(ws.data.request.headers);
+    if (requestHeaders) return requestHeaders;
   }
   if ("headers" in ws.data) {
-    const { headers } = ws.data;
-    if (headers instanceof Headers) return headers;
-    if (headers && typeof headers === "object") {
-      const resolved = new Headers();
-      for (const [key, value] of Object.entries(headers)) {
-        if (typeof value === "string") resolved.set(key, value);
-      }
-
-      return resolved;
-    }
+    const directHeaders = normalizeSocketHeaders(ws.data.headers);
+    if (directHeaders) return directHeaders;
   }
 
   return new Headers();

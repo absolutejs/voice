@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { voice } from "../../src";
 import { createVoiceMemoryStore } from "../../src/core/memoryStore";
+import { resolveSocketHeaders } from "../../src/core/plugin";
 import type { STTAdapter, TTSAdapter } from "../../src/core/types";
 
 const delay = (ms: number) =>
@@ -143,4 +144,16 @@ test("passes WebSocket upgrade cookies to authorization", async () => {
 
   expect(admissionCookie).toBe("voice_admission=valid");
   ws.close();
+});
+
+test("normalizes upgrade request headers without Request identity", () => {
+  const headers = resolveSocketHeaders({
+    data: {
+      request: {
+        headers: new Headers({ cookie: "voice_admission=valid" }),
+      },
+    },
+  });
+
+  expect(headers.get("cookie")).toBe("voice_admission=valid");
 });
