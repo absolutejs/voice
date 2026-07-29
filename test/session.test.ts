@@ -4281,6 +4281,56 @@ test("stuckCallClose gracefully completes a wedged call: speaks the sign-off and
   });
 });
 
+test("stuckCallClose can end an interrupted call without invoking completion", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const tts = createFakeTTSAdapter();
+  let completeCalls = 0;
+
+  const session = createVoiceSession({
+    context: {},
+    id: "session-stuck-close-resumable",
+    logger: {},
+    reconnect: {
+      maxAttempts: 1,
+      strategy: "resume-last-turn",
+      timeout: 5_000,
+    },
+    route: {
+      onComplete: async () => {
+        completeCalls += 1;
+      },
+      onTurn: async () => ({}),
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    stuckCallClose: {
+      afterMs: 60,
+      invokeOnComplete: false,
+      line: "The call stopped responding, so I saved your place.",
+      reason: "stuck-resumable",
+    },
+    tts: tts.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 5,
+    },
+  });
+
+  await session.connect(socket.socket);
+  await Bun.sleep(160);
+
+  expect(completeCalls).toBe(0);
+  expect((await session.snapshot()).call?.events.at(-1)).toMatchObject({
+    disposition: "completed",
+    reason: "stuck-resumable",
+    type: "end",
+  });
+});
+
 test("stuckCallClose treats a brief untranscribed audio spike as caller idle", async () => {
   const store = createVoiceMemoryStore();
   const trace = createVoiceMemoryTraceEventStore();

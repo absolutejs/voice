@@ -1628,10 +1628,7 @@ export const voice = <
                 if (message.action === "resume") {
                   await current.resume();
                 }
-                if (
-                  message.action === "pause" ||
-                  message.action === "resume"
-                ) {
+                if (message.action === "pause" || message.action === "resume") {
                   const snapshot = await current.snapshot();
                   ws.send(
                     JSON.stringify({

@@ -1336,6 +1336,10 @@ export type VoicePluginConfig<
   // re-prompts can't keep deferring it forever. Unset = no auto-close.
   stuckCallClose?: {
     afterMs: number;
+    /** Whether this fault-driven close invokes the route completion hook.
+     * Defaults to true for backward compatibility. Set false when an
+     * interrupted conversation must remain resumable. */
+    invokeOnComplete?: boolean;
     line?:
       | string
       | ((input: { session: TSession }) => string | Promise<string>);
@@ -1692,6 +1696,9 @@ export type CreateVoiceSessionOptions<
    *  assistant's own speech, so STT recovery re-prompts can't defer it forever. */
   stuckCallClose?: {
     afterMs: number;
+    /** Whether this fault-driven close invokes the route completion hook.
+     * Defaults to true for backward compatibility. */
+    invokeOnComplete?: boolean;
     line?:
       | string
       | ((input: { session: TSession }) => string | Promise<string>);

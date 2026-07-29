@@ -947,6 +947,7 @@ export const createVoiceSession = <
       }
       await completeInternal(undefined, {
         disposition: "completed",
+        invokeOnComplete: stuckCloseConfig?.invokeOnComplete,
         reason: stuckCloseConfig?.reason ?? "stuck-call-close",
       });
     });
