@@ -258,6 +258,57 @@ test("reconnect preparation completes before a replacement socket opens", async 
   expect(events).toEqual(["socket:1", "prepare:1:session", "socket:2"]);
 });
 
+test("exhausted reconnect preparation emits a terminal failure", async () => {
+  const errors: string[] = [];
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onopen: (() => void) | null = null;
+    readyState = 0;
+
+    constructor(readonly url: string) {
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        queueMicrotask(() => {
+          this.readyState = 3;
+          this.onclose?.({ code: 4000 } as CloseEvent);
+        });
+      });
+    }
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+
+  const connection = createVoiceConnection("/voice", {
+    maxReconnectAttempts: 1,
+    prepareReconnect: () => {
+      throw new Error("renewal rejected");
+    },
+    reconnectMaxDelayMs: 1,
+  });
+  connection.subscribe((message) => {
+    if (message.type === "error") errors.push(message.message);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  expect(errors).toEqual([
+    "Voice authorization could not be renewed for reconnect.",
+  ]);
+});
+
 test("disconnected realtime audio is dropped while control messages remain bounded", () => {
   const sent: unknown[] = [];
   let socket: FakeWebSocket | null = null;

@@ -200,6 +200,23 @@ export const createVoiceConnection = (
   ) => {
     listeners.forEach((listener) => listener(reconnect));
   };
+  const emitTerminalFailure = (message: string) => {
+    listeners.forEach((listener) =>
+      listener({
+        message,
+        recoverable: false,
+        type: "error",
+      }),
+    );
+    emitConnection({
+      reconnect: {
+        attempts: state.reconnectAttempts,
+        maxAttempts: maxReconnectAttempts,
+        status: "exhausted",
+      },
+      type: "connection",
+    });
+  };
 
   const clearTimers = () => {
     if (state.pingInterval) {
@@ -256,14 +273,7 @@ export const createVoiceConnection = (
     });
     state.reconnectTimeout = setTimeout(async () => {
       if (state.reconnectAttempts > maxReconnectAttempts) {
-        emitConnection({
-          reconnect: {
-            attempts: state.reconnectAttempts,
-            maxAttempts: maxReconnectAttempts,
-            status: "exhausted",
-          },
-          type: "connection",
-        });
+        emitTerminalFailure("Voice connection could not be restored.");
 
         return;
       }
@@ -279,14 +289,9 @@ export const createVoiceConnection = (
         if (state.reconnectAttempts < maxReconnectAttempts) {
           scheduleReconnect();
         } else {
-          emitConnection({
-            reconnect: {
-              attempts: state.reconnectAttempts,
-              maxAttempts: maxReconnectAttempts,
-              status: "exhausted",
-            },
-            type: "connection",
-          });
+          emitTerminalFailure(
+            "Voice authorization could not be renewed for reconnect.",
+          );
         }
 
         return;
@@ -406,15 +411,19 @@ export const createVoiceConnection = (
       if (reconnectable) {
         scheduleReconnect();
       } else if (shouldReconnect && event.code !== WS_NORMAL_CLOSURE) {
-        emitConnection({
-          reconnect: {
-            attempts: state.reconnectAttempts,
-            lastDisconnectAt: Date.now(),
-            maxAttempts: maxReconnectAttempts,
-            status: "exhausted",
-          },
-          type: "connection",
-        });
+        if (authorizationFailure) {
+          emitConnection({
+            reconnect: {
+              attempts: state.reconnectAttempts,
+              lastDisconnectAt: Date.now(),
+              maxAttempts: maxReconnectAttempts,
+              status: "exhausted",
+            },
+            type: "connection",
+          });
+        } else {
+          emitTerminalFailure("Voice connection could not be restored.");
+        }
       }
     };
 
