@@ -147,6 +147,9 @@ type VoiceRuntime = {
   >;
 };
 
+const socketIdentity = (ws: object & { raw?: unknown }) =>
+  ws.raw && typeof ws.raw === "object" ? ws.raw : ws;
+
 const resolveQueryScenario = (query: Record<string, unknown> | undefined) => {
   if (typeof query?.scenarioId === "string" && query.scenarioId.trim()) {
     return query.scenarioId.trim();
@@ -308,12 +311,16 @@ const parseClientMessage = (raw: unknown) => {
   return null;
 };
 
-const resolveSessionId = (runtime: VoiceRuntime, ws: { data?: unknown }) => {
+const resolveSessionId = (
+  runtime: VoiceRuntime,
+  ws: { data?: unknown; raw?: unknown },
+) => {
   const query =
     ws.data && typeof ws.data === "object" && "query" in ws.data
       ? (ws.data.query as Record<string, unknown> | undefined)
       : undefined;
-  const existing = runtime.socketSessions.get(ws);
+  const identity = socketIdentity(ws);
+  const existing = runtime.socketSessions.get(identity);
   const providedSessionId =
     typeof query?.sessionId === "string" && query.sessionId.trim()
       ? query.sessionId.trim()
@@ -326,7 +333,7 @@ const resolveSessionId = (runtime: VoiceRuntime, ws: { data?: unknown }) => {
     sessionId: providedSessionId,
   };
 
-  runtime.socketSessions.set(ws, resolved);
+  runtime.socketSessions.set(identity, resolved);
 
   return resolved;
 };
@@ -707,7 +714,8 @@ export const voice = <
     socketSessions: new WeakMap(),
   };
   const authorizedSockets = new WeakSet<object>();
-  const authorizeSocket = async (
+  const pendingSocketAuthorizations = new WeakMap<object, Promise<boolean>>();
+  const authorizeSocket = (
     ws: {
       data?: unknown;
       close: (code?: number, reason?: string) => void;
@@ -715,36 +723,52 @@ export const voice = <
     sessionId: string,
     scenarioId?: string,
   ) => {
-    if (!config.authorizeConnection) {
-      authorizedSockets.add(ws);
+    const identity = socketIdentity(ws);
+    const existing = pendingSocketAuthorizations.get(identity);
+    if (existing) return existing;
+    const authorization = (async () => {
+      if (!config.authorizeConnection) {
+        authorizedSockets.add(identity);
+
+        return true;
+      }
+      let authorized = false;
+      try {
+        authorized = await config.authorizeConnection({
+          context: ws.data as TContext,
+          headers: resolveSocketHeaders(ws),
+          path: config.path,
+          query: resolveSocketQuery(ws),
+          scenarioId,
+          sessionId,
+        });
+      } catch (error) {
+        runtime.logger.warn?.(
+          `[voice] connection authorization failed for session "${sessionId}": ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      if (!authorized) {
+        ws.close(4401, "unauthorized");
+
+        return false;
+      }
+      authorizedSockets.add(identity);
 
       return true;
-    }
-    let authorized = false;
-    try {
-      authorized = await config.authorizeConnection({
-        context: ws.data as TContext,
-        headers: resolveSocketHeaders(ws),
-        path: config.path,
-        query: resolveSocketQuery(ws),
-        scenarioId,
-        sessionId,
-      });
-    } catch (error) {
-      runtime.logger.warn?.(
-        `[voice] connection authorization failed for session "${sessionId}": ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
-    if (!authorized) {
-      ws.close(4401, "unauthorized");
+    })();
+    pendingSocketAuthorizations.set(identity, authorization);
 
-      return false;
-    }
-    authorizedSockets.add(ws);
+    return authorization;
+  };
+  const waitForSocketAuthorization = async (ws: object & { raw?: unknown }) => {
+    const identity = socketIdentity(ws);
+    if (authorizedSockets.has(identity)) return true;
+    const pending = pendingSocketAuthorizations.get(identity);
+    if (!pending) return false;
 
-    return true;
+    return pending;
   };
   const { monitor } = config;
   const registerMonitorSession = (
@@ -1392,10 +1416,11 @@ export const voice = <
   return new Elysia({ name: "absolutejs-voice" })
     .ws(config.path, {
       close: async (ws, code, reason) => {
-        const socketState = runtime.socketSessions.get(ws);
+        const identity = socketIdentity(ws);
+        const socketState = runtime.socketSessions.get(identity);
         if (
           !socketState ||
-          runtime.activeSockets.get(socketState.sessionId) !== ws
+          runtime.activeSockets.get(socketState.sessionId) !== identity
         ) {
           return;
         }
@@ -1418,7 +1443,7 @@ export const voice = <
         }
       },
       message: async (ws, raw) => {
-        if (!authorizedSockets.has(ws)) {
+        if (!(await waitForSocketAuthorization(ws))) {
           ws.close(4401, "unauthorized");
 
           return;
@@ -1533,8 +1558,8 @@ export const voice = <
             }
 
             sessionState.sessionId = message.sessionId;
-            runtime.activeSockets.set(message.sessionId, ws);
-            runtime.socketSessions.set(ws, {
+            runtime.activeSockets.set(message.sessionId, socketIdentity(ws));
+            runtime.socketSessions.set(socketIdentity(ws), {
               ...sessionState,
               sessionId: message.sessionId,
               scenarioId: sessionState.scenarioId,
@@ -1543,7 +1568,7 @@ export const voice = <
 
           if (message.type === "start" && message.scenarioId) {
             sessionState.scenarioId = message.scenarioId;
-            runtime.socketSessions.set(ws, {
+            runtime.socketSessions.set(socketIdentity(ws), {
               ...sessionState,
               scenarioId: message.scenarioId,
             });
@@ -1579,7 +1604,7 @@ export const voice = <
           return;
         }
         const existing = runtime.activeSessions.get(sessionState.sessionId);
-        runtime.activeSockets.set(sessionState.sessionId, ws);
+        runtime.activeSockets.set(sessionState.sessionId, socketIdentity(ws));
 
         // A genuinely new socket for a session that still has a live one (a
         // reconnect that raced the old close): retire the old session bound to

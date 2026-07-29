@@ -146,6 +146,56 @@ test("passes WebSocket upgrade cookies to authorization", async () => {
   ws.close();
 });
 
+test("waits for pending authorization before handling the first audio frame", async () => {
+  const authorization = Promise.withResolvers<boolean>();
+  let audioFrames = 0;
+  let closeCode: number | null = null;
+  const app = voice({
+    authorizeConnection: () => authorization.promise,
+    onTurn: () => {},
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: {
+      kind: "stt",
+      open: () => ({
+        close: async () => {},
+        on: () => () => {},
+        send: async () => {
+          audioFrames += 1;
+        },
+      }),
+    },
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => app.server?.stop(true);
+
+  const ws = new WebSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=allowed`,
+  );
+  ws.addEventListener("close", (event) => {
+    closeCode = event.code;
+  });
+  await new Promise<void>((resolve, reject) => {
+    ws.addEventListener("open", () => resolve(), { once: true });
+    ws.addEventListener("error", reject, { once: true });
+  });
+  ws.send(new Uint8Array([0, 0]));
+  await delay(20);
+
+  expect(audioFrames).toBe(0);
+  expect(closeCode).toBeNull();
+
+  authorization.resolve(true);
+  for (let attempt = 0; attempt < 20 && audioFrames === 0; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop -- bounded async delivery poll
+    await delay(10);
+  }
+
+  expect(audioFrames).toBe(1);
+  expect(closeCode).toBeNull();
+  ws.close();
+});
+
 test("normalizes upgrade request headers without Request identity", () => {
   const headerValues = new Map([["cookie", "voice_admission=valid"]]);
   const headers = resolveSocketHeaders({
