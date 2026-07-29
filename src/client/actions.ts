@@ -81,8 +81,11 @@ export const serverMessageToAction = <TResult = unknown>(
         message: normalizeErrorMessage(
           (message as { message?: unknown }).message,
         ),
+        recoverable: message.recoverable,
         type: "error" as const,
       };
+    case "call_control_ack":
+      return null;
     case "final":
       return {
         transcript: message.transcript,

@@ -152,6 +152,9 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
         state = {
           ...state,
           error: action.message,
+          ...(action.recoverable === false
+            ? { isConnected: false, status: "failed" as const }
+            : {}),
         };
         break;
       case "final":

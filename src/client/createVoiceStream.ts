@@ -89,7 +89,7 @@ export const createVoiceStream = <TResult = unknown>(
       return store.getSnapshot().call;
     },
     callControl(message) {
-      connection.callControl(message);
+      return connection.callControl(message);
     },
     close(reason?: string) {
       unsubscribeConnection();

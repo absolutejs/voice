@@ -1865,6 +1865,7 @@ export type VoiceClientCloseMessage = {
 
 export type VoiceClientCallControlMessage = {
   type: "call_control";
+  requestId?: string;
   action:
     | "complete"
     | "escalate"
@@ -1876,6 +1877,14 @@ export type VoiceClientCallControlMessage = {
   metadata?: Record<string, unknown>;
   reason?: string;
   target?: string;
+};
+
+export type VoiceServerCallControlAckMessage = {
+  type: "call_control_ack";
+  action: VoiceClientCallControlMessage["action"];
+  message?: string;
+  ok: boolean;
+  requestId: string;
 };
 
 export type VoiceClientPingMessage = {
@@ -1979,6 +1988,7 @@ export type VoiceServerMessage<TResult = unknown> =
   | VoiceServerAssistantMessage
   | VoiceServerAssistantDeltaMessage
   | VoiceServerAudioMessage
+  | VoiceServerCallControlAckMessage
   | VoiceServerCallLifecycleMessage
   | VoiceServerCompleteMessage
   | VoiceServerErrorMessage
@@ -2002,6 +2012,15 @@ export type VoiceConnectionOptions = {
    *  reset. This prevents a server that accepts and immediately drops sockets
    *  from creating an unbounded reconnect loop. Default 30000. */
   reconnectResetAfterMs?: number;
+  /** Refresh application-owned admission state before each reconnect attempt.
+   *  Throwing keeps the transport disconnected and consumes one bounded retry
+   *  attempt instead of opening a socket with stale credentials. */
+  prepareReconnect?: (input: {
+    attempt: number;
+    path: string;
+    scenarioId: string | null;
+    sessionId: string;
+  }) => Promise<void> | void;
   pingInterval?: number;
   /** Additional query values sent on every initial or reconnecting socket. */
   query?: Record<string, string>;
@@ -2229,7 +2248,9 @@ export type VoiceStreamState<TResult = unknown> = {
 
 export type VoiceStream<TResult = unknown> = {
   call: VoiceCallLifecycleState | null;
-  callControl: (message: Omit<VoiceClientCallControlMessage, "type">) => void;
+  callControl: (
+    message: Omit<VoiceClientCallControlMessage, "requestId" | "type">,
+  ) => Promise<void>;
   close: (reason?: string) => void;
   /** Release the transport without terminally completing the server session. */
   disconnect: () => void;
@@ -2339,7 +2360,9 @@ export type VoiceBargeInBinding = {
 export type VoiceController<TResult = unknown> = {
   bindHTMX: (options: VoiceHTMXBindingOptions) => () => void;
   call: VoiceCallLifecycleState | null;
-  callControl: (message: Omit<VoiceClientCallControlMessage, "type">) => void;
+  callControl: (
+    message: Omit<VoiceClientCallControlMessage, "requestId" | "type">,
+  ) => Promise<void>;
   close: (reason?: string) => void;
   /** Release the transport while leaving the server session resumable. */
   disconnect: () => void;
@@ -2447,6 +2470,7 @@ export type VoiceStoreAction<TResult = unknown> =
   | {
       type: "error";
       message: string;
+      recoverable?: boolean;
     }
   | {
       type: "connected";

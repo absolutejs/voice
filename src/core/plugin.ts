@@ -264,6 +264,9 @@ const isVoiceClientMessage = (value: unknown): value is VoiceClientMessage => {
         (!("metadata" in value) ||
           value.metadata === undefined ||
           (value.metadata !== null && typeof value.metadata === "object")) &&
+        (!("requestId" in value) ||
+          value.requestId === undefined ||
+          typeof value.requestId === "string") &&
         (!("reason" in value) ||
           value.reason === undefined ||
           typeof value.reason === "string") &&
@@ -1440,57 +1443,73 @@ export const voice = <
             deregisterMonitorSession(sessionState.sessionId, message.reason);
           }
 
-          if (message.type === "call_control" && current) {
-            if (message.action === "transfer") {
-              if (message.target) {
-                await current.transfer({
-                  metadata: message.metadata,
-                  reason: message.reason,
-                  target: message.target,
-                });
-              } else {
-                ws.send(
-                  JSON.stringify({
-                    message: "call_control transfer requires target",
-                    recoverable: true,
-                    type: "error",
-                  }),
+          if (message.type === "call_control") {
+            const acknowledge = (ok: boolean, responseMessage?: string) => {
+              if (!message.requestId) return;
+              ws.send(
+                JSON.stringify({
+                  action: message.action,
+                  ...(responseMessage ? { message: responseMessage } : {}),
+                  ok,
+                  requestId: message.requestId,
+                  type: "call_control_ack",
+                }),
+              );
+            };
+            if (!current) {
+              acknowledge(false, "voice session is not ready");
+            } else {
+              try {
+                if (message.action === "transfer") {
+                  if (!message.target) {
+                    throw new Error("call_control transfer requires target");
+                  }
+                  await current.transfer({
+                    metadata: message.metadata,
+                    reason: message.reason,
+                    target: message.target,
+                  });
+                }
+
+                if (message.action === "escalate") {
+                  await current.escalate({
+                    metadata: message.metadata,
+                    reason: message.reason ?? "client-requested-escalation",
+                  });
+                }
+
+                if (message.action === "voicemail") {
+                  await current.markVoicemail({
+                    metadata: message.metadata,
+                  });
+                }
+
+                if (message.action === "no-answer") {
+                  await current.markNoAnswer({
+                    metadata: message.metadata,
+                  });
+                }
+
+                if (message.action === "complete") {
+                  await current.complete();
+                }
+
+                // Caller-driven in-call pause/resume — the session stays live
+                // but its watchdogs sleep, so a paused caller is never nudged.
+                if (message.action === "pause") {
+                  await current.pause();
+                }
+
+                if (message.action === "resume") {
+                  await current.resume();
+                }
+                acknowledge(true);
+              } catch (error) {
+                acknowledge(
+                  false,
+                  error instanceof Error ? error.message : String(error),
                 );
               }
-            }
-
-            if (message.action === "escalate") {
-              await current.escalate({
-                metadata: message.metadata,
-                reason: message.reason ?? "client-requested-escalation",
-              });
-            }
-
-            if (message.action === "voicemail") {
-              await current.markVoicemail({
-                metadata: message.metadata,
-              });
-            }
-
-            if (message.action === "no-answer") {
-              await current.markNoAnswer({
-                metadata: message.metadata,
-              });
-            }
-
-            if (message.action === "complete") {
-              await current.complete();
-            }
-
-            // Caller-driven in-call pause/resume — the session stays live but
-            // its watchdogs sleep, so a paused caller is never nudged or
-            // hung up on (see VoiceSessionHandle.pause).
-            if (message.action === "pause") {
-              await current.pause();
-            }
-
-            if (message.action === "resume") {
-              await current.resume();
             }
           }
 

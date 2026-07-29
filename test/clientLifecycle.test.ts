@@ -144,6 +144,7 @@ test("a flapping accepted socket exhausts its reconnect budget", async () => {
 test("an authorization rejection fails without reconnecting", async () => {
   let sockets = 0;
   const reconnectStates: string[] = [];
+  const errors: Array<{ message: string; recoverable?: boolean }> = [];
   class FakeWebSocket {
     static OPEN = 1;
     binaryType = "";
@@ -188,11 +189,165 @@ test("an authorization rejection fails without reconnecting", async () => {
     if (message.type === "connection") {
       reconnectStates.push(message.reconnect.status);
     }
+    if (message.type === "error") {
+      errors.push(message);
+    }
   });
   await new Promise((resolve) => setTimeout(resolve, 10));
 
   expect(sockets).toBe(1);
   expect(reconnectStates).toEqual(["exhausted"]);
+  expect(errors).toEqual([
+    {
+      message: "Voice authorization expired or was rejected.",
+      recoverable: false,
+      type: "error",
+    },
+  ]);
+});
+
+test("reconnect preparation completes before a replacement socket opens", async () => {
+  const events: string[] = [];
+  let sockets = 0;
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onopen: (() => void) | null = null;
+    readyState = 0;
+
+    constructor(readonly url: string) {
+      sockets += 1;
+      events.push(`socket:${sockets}`);
+      queueMicrotask(() => {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        if (sockets === 1) {
+          queueMicrotask(() => {
+            this.readyState = 3;
+            this.onclose?.({ code: 4000 } as CloseEvent);
+          });
+        }
+      });
+    }
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+
+  createVoiceConnection("/voice", {
+    maxReconnectAttempts: 1,
+    prepareReconnect: async ({ attempt, sessionId }) => {
+      events.push(`prepare:${attempt}:${sessionId}`);
+    },
+    reconnectMaxDelayMs: 1,
+    sessionId: "session",
+  });
+  await new Promise((resolve) => setTimeout(resolve, 15));
+
+  expect(events).toEqual(["socket:1", "prepare:1:session", "socket:2"]);
+});
+
+test("disconnected realtime audio is dropped while control messages remain bounded", () => {
+  const sent: unknown[] = [];
+  let socket: FakeWebSocket | null = null;
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onopen: (() => void) | null = null;
+    readyState = 0;
+
+    constructor(readonly url: string) {
+      socket = this;
+    }
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send(value: unknown) {
+      sent.push(value);
+    }
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+
+  const connection = createVoiceConnection("/voice", {
+    sessionId: "session",
+  });
+  connection.sendAudio(new Uint8Array([1, 2, 3]));
+  connection.start({ sessionId: "session" });
+  if (!socket) throw new Error("socket was not created");
+  socket.readyState = FakeWebSocket.OPEN;
+  socket.onopen?.();
+
+  expect(sent).toEqual([
+    JSON.stringify({ sessionId: "session", type: "start" }),
+  ]);
+});
+
+test("call controls resolve only after the matching server acknowledgement", async () => {
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onopen: (() => void) | null = null;
+    readyState = FakeWebSocket.OPEN;
+
+    constructor(readonly url: string) {}
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send(value: unknown) {
+      const message = JSON.parse(String(value)) as {
+        action: string;
+        requestId: string;
+      };
+      queueMicrotask(() => {
+        this.onmessage?.({
+          data: JSON.stringify({
+            action: message.action,
+            ok: true,
+            requestId: message.requestId,
+            type: "call_control_ack",
+          }),
+        } as MessageEvent);
+      });
+    }
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+
+  const connection = createVoiceConnection("/voice", {
+    sessionId: "session",
+  });
+
+  await expect(
+    connection.callControl({ action: "pause" }),
+  ).resolves.toBeUndefined();
 });
 
 test("partial microphone startup failure releases the supplied stream and context", async () => {
