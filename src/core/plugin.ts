@@ -1043,12 +1043,19 @@ export const voice = <
     scenarioId?: string,
   ) => {
     const identity = socketIdentity(ws);
-    const session = await createManagedSession(ws, sessionId, scenarioId);
-    const typedSession = session as VoiceSessionHandle<
-      unknown,
-      VoiceSessionRecord,
-      unknown
-    >;
+    let session: VoiceSessionHandle<TContext, TSession, TResult> | undefined;
+    try {
+      session = await createManagedSession(ws, sessionId, scenarioId);
+    } catch (error) {
+      runtime.logger.warn?.(
+        `[voice] session initialization failed for "${sessionId}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      closedSockets.add(identity);
+      ws.close(4500, "voice session initialization failed");
+      throw error;
+    }
     if (
       closedSockets.has(identity) ||
       !socketIsOpen(ws) ||
@@ -1078,6 +1085,11 @@ export const voice = <
       ws.close(4500, "voice session initialization failed");
       throw error;
     }
+    const typedSession = session as VoiceSessionHandle<
+      unknown,
+      VoiceSessionRecord,
+      unknown
+    >;
     if (
       closedSockets.has(identity) ||
       !socketIsOpen(ws) ||

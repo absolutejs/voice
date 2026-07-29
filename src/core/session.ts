@@ -4375,6 +4375,8 @@ export const createVoiceSession = <
     if (session.status === "completed" || session.status === "failed") {
       await options.store.set(options.id, session);
       await send({
+        pauseExpiresAt: session.pause?.expiresAt,
+        paused: Boolean(session.pause),
         sessionId: options.id,
         status: session.status,
         sessionMetadata:
@@ -4418,6 +4420,8 @@ export const createVoiceSession = <
       await sendCallLifecycle(session);
     }
     await send({
+      pauseExpiresAt: session.pause?.expiresAt,
+      paused: callerPaused,
       sessionId: options.id,
       status: session.status,
       sessionMetadata:

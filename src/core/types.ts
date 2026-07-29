@@ -1906,6 +1906,8 @@ export type VoiceClientMessage =
 
 export type VoiceServerSessionMessage = {
   type: "session";
+  paused?: boolean;
+  pauseExpiresAt?: number;
   sessionId: string;
   status: VoiceSessionStatus;
   scenarioId?: string;
@@ -2423,6 +2425,8 @@ export type VoiceHTMXBindingOptions = {
 export type VoiceStoreAction<TResult = unknown> =
   | {
       type: "session";
+      paused?: boolean;
+      pauseExpiresAt?: number;
       sessionId: string;
       sessionMetadata?: Record<string, unknown>;
       scenarioId?: string;

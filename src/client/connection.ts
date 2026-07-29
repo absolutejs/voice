@@ -386,15 +386,6 @@ export const createVoiceConnection = (
         }, reconnectResetAfterMs);
       }
 
-      listeners.forEach((listener) =>
-        listener({
-          scenarioId: state.scenarioId ?? undefined,
-          sessionId: state.sessionId,
-          status: "active",
-          type: "session",
-        }),
-      );
-
       state.pingInterval = setInterval(() => {
         if (ws.readyState === WS_OPEN) {
           ws.send(JSON.stringify({ type: "ping" }));

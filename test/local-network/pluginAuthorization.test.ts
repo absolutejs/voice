@@ -281,6 +281,53 @@ test("provider initialization failure closes once and is not retried by queued a
   expect((await store.get("provider-failure"))?.status).toBe("failed");
 });
 
+test("pre-provider resolver failure closes once without opening or retrying providers", async () => {
+  let lexiconCalls = 0;
+  let sttOpens = 0;
+  const app = voice({
+    lexicon: async () => {
+      lexiconCalls += 1;
+      throw new Error("lexicon database unavailable");
+    },
+    onTurn: () => {},
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: {
+      kind: "stt",
+      open: () => {
+        sttOpens += 1;
+
+        return buildStt().open({});
+      },
+    },
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => app.server?.stop(true);
+  const ws = new WebSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=resolver-failure`,
+  );
+  const closeEvent = new Promise<CloseEvent>((resolve) =>
+    ws.addEventListener("close", resolve, { once: true }),
+  );
+  await new Promise<void>((resolve, reject) => {
+    ws.addEventListener(
+      "open",
+      () => {
+        const frame = new Uint8Array(320);
+        for (let index = 0; index < 5; index += 1) ws.send(frame);
+        resolve();
+      },
+      { once: true },
+    );
+    ws.addEventListener("error", reject, { once: true });
+  });
+
+  expect((await closeEvent).code).toBe(4500);
+  await delay(30);
+  expect(lexiconCalls).toBe(1);
+  expect(sttOpens).toBe(0);
+});
+
 test("partial provider initialization is rolled back and persisted as failed", async () => {
   let providerCloses = 0;
   const store = createVoiceMemoryStore();

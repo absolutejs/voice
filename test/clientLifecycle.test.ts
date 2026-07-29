@@ -262,6 +262,56 @@ test("provider initialization rejection fails without reconnecting", async () =>
   expect(errors).toEqual(["Voice provider initialization failed."]);
 });
 
+test("raw WebSocket open does not advertise an active session before server initialization", async () => {
+  const statuses: string[] = [];
+  let socket: FakeWebSocket | null = null;
+  class FakeWebSocket {
+    static OPEN = 1;
+    binaryType = "";
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onopen: (() => void) | null = null;
+    readyState = 0;
+
+    constructor(readonly url: string) {
+      socket = this;
+    }
+
+    close() {
+      this.readyState = 3;
+    }
+
+    send() {}
+  }
+  Object.assign(globalThis, {
+    WebSocket: FakeWebSocket,
+    window: {
+      location: { hostname: "example.test", port: "", protocol: "https:" },
+    },
+  });
+  const connection = createVoiceConnection("/voice", {
+    sessionId: "initializing",
+  });
+  connection.subscribe((message) => {
+    if (message.type === "session") statuses.push(message.status);
+  });
+  if (!socket) throw new Error("socket was not created");
+  socket.readyState = FakeWebSocket.OPEN;
+  socket.onopen?.();
+  expect(statuses).toEqual([]);
+  socket.onmessage?.({
+    data: JSON.stringify({
+      paused: true,
+      pauseExpiresAt: Date.now() + 1_000,
+      sessionId: "initializing",
+      status: "active",
+      type: "session",
+    }),
+  } as MessageEvent);
+  expect(statuses).toEqual(["active"]);
+  connection.close();
+});
+
 test("reconnect preparation completes before a replacement socket opens", async () => {
   const events: string[] = [];
   let sockets = 0;
