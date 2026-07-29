@@ -172,3 +172,68 @@ test("dedup is per-session: two distinct sessions each greet once", async () => 
   first.close();
   second.close();
 });
+
+test("a replacement socket never inherits pending creation bound to the old socket", async () => {
+  const GREETING = "REPLACEMENT_GREETING";
+  const spoken: string[] = [];
+  const lexicon = Promise.withResolvers<void>();
+  const app = voice({
+    greeting: GREETING,
+    lexicon: async () => {
+      await lexicon.promise;
+
+      return [];
+    },
+    onTurn: () => {},
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: buildStt(),
+    tts: buildTts(spoken),
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => {
+    app.server?.stop(true);
+  };
+  const url = `ws://localhost:${String(port)}/voice?sessionId=replaced`;
+  const first = await openSocket(url);
+  const firstClosed = new Promise<void>((resolve) =>
+    first.addEventListener("close", () => resolve(), { once: true }),
+  );
+  const firstMessages: string[] = [];
+  first.addEventListener("message", (event) => {
+    firstMessages.push(String(event.data));
+  });
+  const second = await openSocket(url);
+  const secondMessages: string[] = [];
+  second.addEventListener("message", (event) => {
+    secondMessages.push(String(event.data));
+  });
+
+  await delay(30);
+  lexicon.resolve();
+  await waitForGreetingCount(spoken, GREETING, 1);
+  for (
+    let attempt = 0;
+    attempt < 20 &&
+    !secondMessages.some((message) => message.includes('"type":"session"'));
+    attempt += 1
+  ) {
+    // eslint-disable-next-line no-await-in-loop -- bounded delivery poll
+    await delay(10);
+  }
+
+  expect(
+    firstMessages.some((message) => message.includes('"type":"session"')),
+  ).toBe(false);
+  expect(
+    secondMessages.some((message) => message.includes('"type":"session"')),
+  ).toBe(true);
+  expect(spoken.filter((line) => line === GREETING)).toHaveLength(1);
+
+  const secondClosed = new Promise<void>((resolve) =>
+    second.addEventListener("close", () => resolve(), { once: true }),
+  );
+  if (first.readyState < WebSocket.CLOSING) first.close();
+  second.close();
+  await Promise.all([firstClosed, secondClosed]);
+});

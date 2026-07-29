@@ -196,6 +196,89 @@ test("waits for pending authorization before handling the first audio frame", as
   ws.close();
 });
 
+test("does not create provider resources after a socket closes during authorization", async () => {
+  const authorization = Promise.withResolvers<boolean>();
+  let sttOpens = 0;
+  const app = voice({
+    authorizeConnection: () => authorization.promise,
+    onTurn: () => {},
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: {
+      kind: "stt",
+      open: () => {
+        sttOpens += 1;
+
+        return {
+          close: async () => {},
+          on: () => () => {},
+          send: async () => {},
+        };
+      },
+    },
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => app.server?.stop(true);
+
+  const ws = new WebSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=closed-during-auth`,
+  );
+  await new Promise<void>((resolve, reject) => {
+    ws.addEventListener("open", () => resolve(), { once: true });
+    ws.addEventListener("error", reject, { once: true });
+  });
+  ws.close();
+  await new Promise<void>((resolve) =>
+    ws.addEventListener("close", () => resolve(), { once: true }),
+  );
+  await delay(30);
+  authorization.resolve(true);
+  await delay(30);
+
+  expect(sttOpens).toBe(0);
+});
+
+test("provider initialization failure closes once and is not retried by queued audio", async () => {
+  let sttOpens = 0;
+  const app = voice({
+    onTurn: () => {},
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: {
+      kind: "stt",
+      open: () => {
+        sttOpens += 1;
+        throw new Error("provider unavailable");
+      },
+    },
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => app.server?.stop(true);
+
+  const ws = new WebSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=provider-failure`,
+  );
+  const closeEvent = new Promise<CloseEvent>((resolve) =>
+    ws.addEventListener("close", resolve, { once: true }),
+  );
+  await new Promise<void>((resolve, reject) => {
+    ws.addEventListener(
+      "open",
+      () => {
+        const frame = new Uint8Array(320);
+        for (let index = 0; index < 5; index += 1) ws.send(frame);
+        resolve();
+      },
+      { once: true },
+    );
+    ws.addEventListener("error", reject, { once: true });
+  });
+
+  expect((await closeEvent).code).toBe(1011);
+  await delay(30);
+  expect(sttOpens).toBe(1);
+});
+
 test("normalizes upgrade request headers without Request identity", () => {
   const headerValues = new Map([["cookie", "voice_admission=valid"]]);
   const headers = resolveSocketHeaders({

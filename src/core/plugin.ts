@@ -133,7 +133,12 @@ type VoiceRuntime = {
   // shared promise instead, so create + connect + greeting happen exactly once.
   pendingSessions: Map<
     string,
-    Promise<VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>>
+    {
+      identity: object;
+      promise: Promise<
+        VoiceSessionHandle<unknown, VoiceSessionRecord, unknown>
+      >;
+    }
   >;
   logger: ReturnType<typeof resolveLogger>;
   profileSwitchGuardAutoSwitchCounts: Map<string, number>;
@@ -149,6 +154,12 @@ type VoiceRuntime = {
 
 const socketIdentity = (ws: object & { raw?: unknown }) =>
   ws.raw && typeof ws.raw === "object" ? ws.raw : ws;
+
+const socketIsOpen = (ws: object & { raw?: unknown }) => {
+  const identity = socketIdentity(ws) as { readyState?: unknown };
+
+  return identity.readyState === undefined || identity.readyState === 1;
+};
 
 const resolveQueryScenario = (query: Record<string, unknown> | undefined) => {
   if (typeof query?.scenarioId === "string" && query.scenarioId.trim()) {
@@ -714,6 +725,7 @@ export const voice = <
     socketSessions: new WeakMap(),
   };
   const authorizedSockets = new WeakSet<object>();
+  const closedSockets = new WeakSet<object>();
   const pendingSocketAuthorizations = new WeakMap<object, Promise<boolean>>();
   const authorizeSocket = (
     ws: {
@@ -727,6 +739,7 @@ export const voice = <
     const existing = pendingSocketAuthorizations.get(identity);
     if (existing) return existing;
     const authorization = (async () => {
+      if (closedSockets.has(identity) || !socketIsOpen(ws)) return false;
       if (!config.authorizeConnection) {
         authorizedSockets.add(identity);
 
@@ -749,6 +762,7 @@ export const voice = <
           }`,
         );
       }
+      if (closedSockets.has(identity) || !socketIsOpen(ws)) return false;
       if (!authorized) {
         ws.close(4401, "unauthorized");
 
@@ -764,11 +778,12 @@ export const voice = <
   };
   const waitForSocketAuthorization = async (ws: object & { raw?: unknown }) => {
     const identity = socketIdentity(ws);
+    if (closedSockets.has(identity) || !socketIsOpen(ws)) return false;
     if (authorizedSockets.has(identity)) return true;
     const pending = pendingSocketAuthorizations.get(identity);
     if (!pending) return false;
 
-    return pending;
+    return (await pending) && !closedSockets.has(identity) && socketIsOpen(ws);
   };
   const { monitor } = config;
   const registerMonitorSession = (
@@ -1019,15 +1034,49 @@ export const voice = <
     sessionId: string,
     scenarioId?: string,
   ) => {
+    const identity = socketIdentity(ws);
     const session = await createManagedSession(ws, sessionId, scenarioId);
     const typedSession = session as VoiceSessionHandle<
       unknown,
       VoiceSessionRecord,
       unknown
     >;
+    if (
+      closedSockets.has(identity) ||
+      !socketIsOpen(ws) ||
+      runtime.activeSockets.get(sessionId) !== identity
+    ) {
+      ws.close(1000, "superseded");
+      throw new Error("Voice socket was superseded during session creation");
+    }
+    try {
+      await session.connect(buildSocketAdapter(ws, sessionId));
+    } catch (error) {
+      runtime.logger.warn?.(
+        `[voice] session initialization failed for "${sessionId}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      closedSockets.add(identity);
+      ws.close(1011, "voice session initialization failed");
+      throw error;
+    }
+    if (
+      closedSockets.has(identity) ||
+      !socketIsOpen(ws) ||
+      runtime.activeSockets.get(sessionId) !== identity
+    ) {
+      await session.disconnect({
+        code: 1000,
+        reason: "superseded",
+        recoverable: true,
+        type: "close",
+      });
+      ws.close(1000, "superseded");
+      throw new Error("Voice socket was superseded during session connection");
+    }
     runtime.activeSessions.set(sessionId, typedSession);
     registerMonitorSession(sessionId, typedSession);
-    await session.connect(buildSocketAdapter(ws, sessionId));
 
     return typedSession;
   };
@@ -1041,20 +1090,33 @@ export const voice = <
     sessionId: string,
     scenarioId?: string,
   ) => {
+    const identity = socketIdentity(ws);
+    if (
+      closedSockets.has(identity) ||
+      !socketIsOpen(ws) ||
+      runtime.activeSockets.get(sessionId) !== identity
+    ) {
+      throw new Error("Voice socket is no longer active");
+    }
     const active = runtime.activeSessions.get(sessionId);
     if (active) {
       return active;
     }
     const inFlight = runtime.pendingSessions.get(sessionId);
-    if (inFlight) {
-      return inFlight;
+    if (inFlight?.identity === identity) {
+      return inFlight.promise;
     }
     const creation = createAndConnectSession(ws, sessionId, scenarioId);
-    runtime.pendingSessions.set(sessionId, creation);
+    runtime.pendingSessions.set(sessionId, {
+      identity,
+      promise: creation,
+    });
     try {
       return await creation;
     } finally {
-      runtime.pendingSessions.delete(sessionId);
+      if (runtime.pendingSessions.get(sessionId)?.promise === creation) {
+        runtime.pendingSessions.delete(sessionId);
+      }
     }
   };
 
@@ -1417,6 +1479,7 @@ export const voice = <
     .ws(config.path, {
       close: async (ws, code, reason) => {
         const identity = socketIdentity(ws);
+        closedSockets.add(identity);
         const socketState = runtime.socketSessions.get(identity);
         if (
           !socketState ||
@@ -1592,42 +1655,57 @@ export const voice = <
 
         await session.receiveAudio(audio);
       },
-      open: async (ws) => {
+      open: (ws) => {
         const sessionState = resolveSessionId(runtime, ws);
-        if (
-          !(await authorizeSocket(
+        // Do not hold Elysia's open callback pending while admission or session
+        // setup awaits external work. Bun serializes lifecycle delivery behind
+        // that callback, which otherwise prevents `close` from cancelling a
+        // browser that disconnects during authorization.
+        void (async () => {
+          if (
+            !(await authorizeSocket(
+              ws,
+              sessionState.sessionId,
+              sessionState.scenarioId ?? undefined,
+            ))
+          ) {
+            return;
+          }
+          const identity = socketIdentity(ws);
+          if (closedSockets.has(identity) || !socketIsOpen(ws)) return;
+          const existing = runtime.activeSessions.get(sessionState.sessionId);
+          runtime.activeSockets.set(sessionState.sessionId, identity);
+
+          // A genuinely new socket for a session that still has a live one (a
+          // reconnect that raced the old close): retire the old session bound to
+          // the dead socket before standing up the new one.
+          if (existing) {
+            await existing.disconnect({
+              code: 1006,
+              reason: "superseded",
+              recoverable: true,
+              type: "close",
+            });
+            runtime.activeSessions.delete(sessionState.sessionId);
+            deregisterMonitorSession(sessionState.sessionId, "superseded");
+          }
+
+          // Single deduped creation path: if the first mic-audio frames already
+          // kicked off (or completed) session creation, await that instead of
+          // creating a second session and re-firing the greeting.
+          await ensureManagedSession(
             ws,
             sessionState.sessionId,
             sessionState.scenarioId ?? undefined,
-          ))
-        ) {
-          return;
-        }
-        const existing = runtime.activeSessions.get(sessionState.sessionId);
-        runtime.activeSockets.set(sessionState.sessionId, socketIdentity(ws));
-
-        // A genuinely new socket for a session that still has a live one (a
-        // reconnect that raced the old close): retire the old session bound to
-        // the dead socket before standing up the new one.
-        if (existing) {
-          await existing.disconnect({
-            code: 1006,
-            reason: "superseded",
-            recoverable: true,
-            type: "close",
-          });
-          runtime.activeSessions.delete(sessionState.sessionId);
-          deregisterMonitorSession(sessionState.sessionId, "superseded");
-        }
-
-        // Single deduped creation path: if the first mic-audio frames already
-        // kicked off (or completed) session creation, await that instead of
-        // creating a second session and re-firing the greeting.
-        await ensureManagedSession(
-          ws,
-          sessionState.sessionId,
-          sessionState.scenarioId ?? undefined,
-        );
+          );
+        })().catch((error) => {
+          if (closedSockets.has(socketIdentity(ws))) return;
+          runtime.logger.warn?.(
+            `[voice] session initialization failed for "${sessionState.sessionId}": ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
       },
     })
     .use(htmxRoutes())
