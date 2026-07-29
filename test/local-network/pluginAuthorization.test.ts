@@ -147,10 +147,14 @@ test("passes WebSocket upgrade cookies to authorization", async () => {
 });
 
 test("normalizes upgrade request headers without Request identity", () => {
+  const headerValues = new Map([["cookie", "voice_admission=valid"]]);
   const headers = resolveSocketHeaders({
     data: {
       request: {
-        headers: new Headers({ cookie: "voice_admission=valid" }),
+        headers: {
+          entries: () => headerValues.entries(),
+          get: (name: string) => headerValues.get(name) ?? null,
+        },
       },
     },
   });

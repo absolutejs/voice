@@ -335,6 +335,14 @@ const resolveSocketQuery = (ws: { data?: unknown }) =>
 
 const normalizeSocketHeaders = (value: unknown) => {
   if (!value || typeof value !== "object") return null;
+  if (
+    "get" in value &&
+    typeof value.get === "function" &&
+    "entries" in value &&
+    typeof value.entries === "function"
+  ) {
+    return value as Headers;
+  }
   try {
     return new Headers(value as HeadersInit);
   } catch {
