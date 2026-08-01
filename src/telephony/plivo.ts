@@ -189,9 +189,8 @@ export type PlivoVoiceSmokeOptions = {
 };
 
 export type VoicePlivoWebhookNonceStore = {
-  claim?: (nonce: string) => Promise<boolean> | boolean;
-  has: (nonce: string) => Promise<boolean> | boolean;
-  set: (nonce: string) => Promise<void> | void;
+  /** Atomically accepts an unseen signature nonce and rejects every replay. */
+  claim: (nonce: string) => Promise<boolean> | boolean;
 };
 
 export type VoicePlivoWebhookNonceStoreOptions = {
@@ -215,10 +214,7 @@ export type VoicePostgresPlivoWebhookNonceStoreOptions =
     tablePrefix?: string;
   };
 
-export type VoiceRedisPlivoWebhookNonceClient = Pick<
-  RedisClient,
-  "exists" | "set"
->;
+export type VoiceRedisPlivoWebhookNonceClient = Pick<RedisClient, "set">;
 
 export type VoiceRedisPlivoWebhookNonceStoreOptions =
   VoicePlivoWebhookNonceStoreOptions & {
@@ -647,10 +643,6 @@ export const createMemoryVoicePlivoWebhookNonceStore =
 
         return true;
       },
-      has: (nonce) => nonces.has(nonce),
-      set: (nonce) => {
-        nonces.add(nonce);
-      },
     };
   };
 export const verifyVoicePlivoWebhookSignature = async (input: {
@@ -734,15 +726,8 @@ export const createVoiceSQLitePlivoWebhookNonceStore = (
   const pruneExpired = database.query(
     `DELETE FROM "${tableName}" WHERE expires_at IS NOT NULL AND expires_at <= ?1`,
   );
-  const select = database.query(
-    `SELECT nonce FROM "${tableName}" WHERE nonce = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1`,
-  );
   const insert = database.query(
     `INSERT OR IGNORE INTO "${tableName}" (nonce, created_at, expires_at) VALUES (?1, ?2, ?3)`,
-  );
-  const upsert = database.query(
-    `INSERT INTO "${tableName}" (nonce, created_at, expires_at) VALUES (?1, ?2, ?3)
-		 ON CONFLICT(nonce) DO UPDATE SET expires_at = excluded.expires_at`,
   );
 
   return {
@@ -756,10 +741,6 @@ export const createVoiceSQLitePlivoWebhookNonceStore = (
       );
 
       return result.changes > 0;
-    },
-    has: (nonce) => Boolean(select.get(nonce, Date.now())),
-    set: (nonce) => {
-      upsert.run(nonce, Date.now(), getPlivoNonceExpiresAt(options.ttlSeconds));
     },
   };
 };
@@ -844,28 +825,6 @@ export const createVoicePostgresPlivoWebhookNonceStore = (
 
       return rows.length > 0;
     },
-    has: async (nonce) => {
-      await initialized;
-      const sql = await client;
-      const rows = await sql.unsafe(
-        `SELECT nonce FROM ${qualifiedTableName}
-				 WHERE nonce = $1 AND (expires_at IS NULL OR expires_at > $2)
-				 LIMIT 1`,
-        [nonce, Date.now()],
-      );
-
-      return rows.length > 0;
-    },
-    set: async (nonce) => {
-      await initialized;
-      const sql = await client;
-      await sql.unsafe(
-        `INSERT INTO ${qualifiedTableName} (nonce, created_at, expires_at)
-				 VALUES ($1, $2, $3)
-				 ON CONFLICT (nonce) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
-        [nonce, Date.now(), getPlivoNonceExpiresAt(options.ttlSeconds)],
-      );
-    },
   };
 };
 
@@ -907,19 +866,9 @@ export const createVoicePlivoWebhookVerifier =
       return { ok: false, reason: "invalid-signature" };
     }
 
-    if (nonceStore.claim) {
-      if (!(await nonceStore.claim(nonce))) {
-        return { ok: false, reason: "invalid-signature" };
-      }
-
-      return verification;
-    }
-
-    if (await nonceStore.has(nonce)) {
+    if (!(await nonceStore.claim(nonce))) {
       return { ok: false, reason: "invalid-signature" };
     }
-
-    await nonceStore.set(nonce);
 
     return verification;
   };
@@ -947,11 +896,6 @@ export const createVoiceRedisPlivoWebhookNonceStore = (
 
   return {
     claim: async (nonce) => (await setNonce(nonce, true)) === "OK",
-    has: async (nonce) =>
-      Boolean(await client.exists(getPlivoRedisNonceKey(keyPrefix, nonce))),
-    set: async (nonce) => {
-      await setNonce(nonce, false);
-    },
   };
 };
 

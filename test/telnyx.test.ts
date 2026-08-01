@@ -302,7 +302,7 @@ test("SQLite Telnyx webhook event store persists replay claims across instances"
   });
 
   expect(await firstStore.claim?.("sqlite-event")).toBe(true);
-  expect(await secondStore.has("sqlite-event")).toBe(true);
+  expect(await secondStore.claim("sqlite-event")).toBe(false);
   expect(await secondStore.claim?.("sqlite-event")).toBe(false);
 });
 
@@ -318,7 +318,7 @@ test("Postgres Telnyx webhook event store atomically claims event ids", async ()
   });
 
   expect(await firstStore.claim?.("postgres-event")).toBe(true);
-  await expect(secondStore.has("postgres-event")).resolves.toBe(true);
+  await expect(secondStore.claim("postgres-event")).resolves.toBe(false);
   expect(await secondStore.claim?.("postgres-event")).toBe(false);
 });
 
@@ -336,7 +336,7 @@ test("Redis Telnyx webhook event store uses SET NX for replay claims", async () 
   });
 
   expect(await firstStore.claim?.("redis-event")).toBe(true);
-  await expect(secondStore.has("redis-event")).resolves.toBe(true);
+  await expect(secondStore.claim("redis-event")).resolves.toBe(false);
   expect(await secondStore.claim?.("redis-event")).toBe(false);
 });
 

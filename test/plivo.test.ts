@@ -256,7 +256,7 @@ test("SQLite Plivo webhook nonce store persists replay claims across instances",
   });
 
   expect(await firstStore.claim?.("sqlite-nonce")).toBe(true);
-  expect(await secondStore.has("sqlite-nonce")).toBe(true);
+  expect(await secondStore.claim("sqlite-nonce")).toBe(false);
   expect(await secondStore.claim?.("sqlite-nonce")).toBe(false);
 });
 
@@ -272,7 +272,7 @@ test("Postgres Plivo webhook nonce store atomically claims nonces", async () => 
   });
 
   expect(await firstStore.claim?.("postgres-nonce")).toBe(true);
-  await expect(secondStore.has("postgres-nonce")).resolves.toBe(true);
+  await expect(secondStore.claim("postgres-nonce")).resolves.toBe(false);
   expect(await secondStore.claim?.("postgres-nonce")).toBe(false);
 });
 
@@ -290,7 +290,7 @@ test("Redis Plivo webhook nonce store uses SET NX for replay claims", async () =
   });
 
   expect(await firstStore.claim?.("redis-nonce")).toBe(true);
-  await expect(secondStore.has("redis-nonce")).resolves.toBe(true);
+  await expect(secondStore.claim("redis-nonce")).resolves.toBe(false);
   expect(await secondStore.claim?.("redis-nonce")).toBe(false);
 });
 

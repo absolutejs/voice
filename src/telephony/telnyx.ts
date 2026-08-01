@@ -225,9 +225,8 @@ export type TelnyxVoiceRoutesOptions<
 };
 
 export type VoiceTelnyxWebhookEventStore = {
-  claim?: (eventId: string) => Promise<boolean> | boolean;
-  has: (eventId: string) => Promise<boolean> | boolean;
-  set: (eventId: string) => Promise<void> | void;
+  /** Atomically accepts an unseen event id and rejects every duplicate. */
+  claim: (eventId: string) => Promise<boolean> | boolean;
 };
 
 export type VoiceTelnyxWebhookEventStoreOptions = {
@@ -251,10 +250,7 @@ export type VoicePostgresTelnyxWebhookEventStoreOptions =
     tablePrefix?: string;
   };
 
-export type VoiceRedisTelnyxWebhookEventClient = Pick<
-  RedisClient,
-  "exists" | "set"
->;
+export type VoiceRedisTelnyxWebhookEventClient = Pick<RedisClient, "set">;
 
 export type VoiceRedisTelnyxWebhookEventStoreOptions =
   VoiceTelnyxWebhookEventStoreOptions & {
@@ -517,10 +513,6 @@ export const createMemoryVoiceTelnyxWebhookEventStore =
 
         return true;
       },
-      has: (eventId) => eventIds.has(eventId),
-      set: (eventId) => {
-        eventIds.add(eventId);
-      },
     };
   };
 export const verifyVoiceTelnyxWebhookSignature = async (input: {
@@ -619,15 +611,8 @@ export const createVoiceSQLiteTelnyxWebhookEventStore = (
   const pruneExpired = database.query(
     `DELETE FROM "${tableName}" WHERE expires_at IS NOT NULL AND expires_at <= ?1`,
   );
-  const select = database.query(
-    `SELECT event_id FROM "${tableName}" WHERE event_id = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1`,
-  );
   const insert = database.query(
     `INSERT OR IGNORE INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)`,
-  );
-  const upsert = database.query(
-    `INSERT INTO "${tableName}" (event_id, created_at, expires_at) VALUES (?1, ?2, ?3)
-		 ON CONFLICT(event_id) DO UPDATE SET expires_at = excluded.expires_at`,
   );
 
   return {
@@ -641,14 +626,6 @@ export const createVoiceSQLiteTelnyxWebhookEventStore = (
       );
 
       return result.changes > 0;
-    },
-    has: (eventId) => Boolean(select.get(eventId, Date.now())),
-    set: (eventId) => {
-      upsert.run(
-        eventId,
-        Date.now(),
-        getTelnyxEventExpiresAt(options.ttlSeconds),
-      );
     },
   };
 };
@@ -733,28 +710,6 @@ export const createVoicePostgresTelnyxWebhookEventStore = (
 
       return rows.length > 0;
     },
-    has: async (eventId) => {
-      await initialized;
-      const sql = await client;
-      const rows = await sql.unsafe(
-        `SELECT event_id FROM ${qualifiedTableName}
-				 WHERE event_id = $1 AND (expires_at IS NULL OR expires_at > $2)
-				 LIMIT 1`,
-        [eventId, Date.now()],
-      );
-
-      return rows.length > 0;
-    },
-    set: async (eventId) => {
-      await initialized;
-      const sql = await client;
-      await sql.unsafe(
-        `INSERT INTO ${qualifiedTableName} (event_id, created_at, expires_at)
-				 VALUES ($1, $2, $3)
-				 ON CONFLICT (event_id) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
-        [eventId, Date.now(), getTelnyxEventExpiresAt(options.ttlSeconds)],
-      );
-    },
   };
 };
 
@@ -785,11 +740,6 @@ export const createVoiceRedisTelnyxWebhookEventStore = (
 
   return {
     claim: async (eventId) => (await setEvent(eventId, true)) === "OK",
-    has: async (eventId) =>
-      Boolean(await client.exists(getTelnyxRedisEventKey(keyPrefix, eventId))),
-    set: async (eventId) => {
-      await setEvent(eventId, false);
-    },
   };
 };
 
@@ -841,18 +791,9 @@ export const createVoiceTelnyxWebhookVerifier =
       return { ok: false, reason: "invalid-signature" };
     }
 
-    if (eventStore.claim) {
-      return (await eventStore.claim(eventId))
-        ? verification
-        : { ok: false, reason: "invalid-signature" };
-    }
-    if (await eventStore.has(eventId)) {
-      return { ok: false, reason: "invalid-signature" };
-    }
-
-    await eventStore.set(eventId);
-
-    return verification;
+    return (await eventStore.claim(eventId))
+      ? verification
+      : { ok: false, reason: "invalid-signature" };
   };
 
 const buildTelnyxVoiceSetupStatus = async <
