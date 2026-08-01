@@ -2703,6 +2703,7 @@ export type {
   TwilioVoiceSetupOptions,
   TwilioVoiceSetupStatus,
   TwilioVoiceRoutesOptions,
+  TwilioVoiceSecurityOptions,
 } from "./telephony/twilio";
 export type {
   VoiceTelephonyWebhookSecurityOptions,

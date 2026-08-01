@@ -14,6 +14,7 @@ import {
   transcodeTwilioInboundPayloadToPCM16,
 } from "../src/telephony/twilio";
 import { createVoiceMemoryStore } from "../src/core/memoryStore";
+import { signVoiceTwilioWebhook } from "../src/core/telephonyOutcome";
 import type {
   AudioChunk,
   AudioFormat,
@@ -31,6 +32,9 @@ const DEFAULT_PCM16_FORMAT: AudioFormat = {
   encoding: "pcm_s16le",
   sampleRateHz: 16_000,
 };
+
+const TWILIO_AUTH_TOKEN = "twilio-test-auth-token";
+const TWILIO_PUBLIC_ORIGIN = "https://voice.example.test";
 
 const DEFAULT_MULAW_FORMAT: AudioFormat = {
   channels: 1,
@@ -412,6 +416,10 @@ test("createTwilioVoiceRoutes exposes TwiML and signed webhook routes together",
     context: {},
     onComplete: async () => {},
     onTurn: async () => undefined,
+    security: {
+      authToken: TWILIO_AUTH_TOKEN,
+      publicOrigin: TWILIO_PUBLIC_ORIGIN,
+    },
     session: createVoiceMemoryStore(),
     stt: createFakeSTTAdapter([]),
     twiml: {
@@ -433,15 +441,18 @@ test("createTwilioVoiceRoutes exposes TwiML and signed webhook routes together",
     },
   });
 
+  const twimlUrl =
+    "https://voice.example.test/voice/twilio?scenarioId=demo&sessionId=CA123";
   const twiml = await routes.handle(
-    new Request(
-      "https://voice.example.test/voice/twilio?scenarioId=demo&sessionId=CA123",
-      {
-        headers: {
-          "x-forwarded-proto": "https",
-        },
+    new Request(twimlUrl, {
+      headers: {
+        "x-forwarded-host": "attacker.example",
+        "x-twilio-signature": await signVoiceTwilioWebhook({
+          authToken: TWILIO_AUTH_TOKEN,
+          url: twimlUrl,
+        }),
       },
-    ),
+    }),
   );
   const xml = await twiml.text();
 
@@ -480,11 +491,66 @@ test("createTwilioVoiceRoutes exposes TwiML and signed webhook routes together",
   ]);
 });
 
+test("createTwilioVoiceRoutes rejects untrusted TwiML ingress", async () => {
+  const expectedAccountSid = `AC${"1".repeat(32)}`;
+  const routes = createTwilioVoiceRoutes({
+    context: {},
+    onComplete: async () => {},
+    onTurn: async () => undefined,
+    security: {
+      authToken: TWILIO_AUTH_TOKEN,
+      expectedAccountSid,
+      publicOrigin: TWILIO_PUBLIC_ORIGIN,
+    },
+    session: createVoiceMemoryStore(),
+    stt: createFakeSTTAdapter([]),
+  });
+  const url = `${TWILIO_PUBLIC_ORIGIN}/api/voice/twilio`;
+  const unsigned = await routes.handle(new Request(url));
+  expect(unsigned.status).toBe(403);
+
+  const wrongAccountBody = {
+    AccountSid: `AC${"2".repeat(32)}`,
+    CallSid: "CA123",
+  };
+  const wrongAccount = await routes.handle(
+    new Request(url, {
+      body: new URLSearchParams(wrongAccountBody),
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-twilio-signature": await signVoiceTwilioWebhook({
+          authToken: TWILIO_AUTH_TOKEN,
+          body: wrongAccountBody,
+          url,
+        }),
+      },
+      method: "POST",
+    }),
+  );
+  expect(wrongAccount.status).toBe(403);
+
+  const oversized = await routes.handle(
+    new Request(url, {
+      body: "x=1",
+      headers: {
+        "content-length": String(65 * 1024),
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      method: "POST",
+    }),
+  );
+  expect(oversized.status).toBe(413);
+});
+
 test("createTwilioVoiceRoutes exposes carrier setup status", async () => {
   const routes = createTwilioVoiceRoutes({
     context: {},
     onComplete: async () => {},
     onTurn: async () => undefined,
+    security: {
+      authToken: TWILIO_AUTH_TOKEN,
+      publicOrigin: TWILIO_PUBLIC_ORIGIN,
+    },
     session: createVoiceMemoryStore(),
     setup: {
       path: "/voice/twilio/setup",
@@ -542,6 +608,10 @@ test("createTwilioVoiceRoutes exposes a local telephony smoke test", async () =>
     context: {},
     onComplete: async () => {},
     onTurn: async () => undefined,
+    security: {
+      authToken: TWILIO_AUTH_TOKEN,
+      publicOrigin: TWILIO_PUBLIC_ORIGIN,
+    },
     session: createVoiceMemoryStore(),
     setup: {
       requiredEnv: {

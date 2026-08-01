@@ -1454,6 +1454,11 @@ export const app = new Elysia()
           options: {
             context: {},
             outcomePolicy,
+            security: {
+              authToken: process.env.TWILIO_AUTH_TOKEN!,
+              expectedAccountSid: process.env.TWILIO_ACCOUNT_SID!,
+              publicOrigin: "https://voice.example.com",
+            },
             session: runtime.session,
             stt: deepgram({ apiKey: process.env.DEEPGRAM_API_KEY! }),
             streamPath: "/api/voice/twilio/stream",
@@ -4273,6 +4278,14 @@ await bridge.handleMessage(mediaMessageFromTwilio);
 ```
 
 The bridge also sends Twilio `clear` events on new inbound media after assistant audio has started streaming, so telephony barge-in can stop queued outbound playback.
+
+When mounting `createTwilioVoiceRoutes(...)` or the Twilio carrier in
+`createVoicePhoneAgent(...)`, `security` is required. The package validates
+signed GET/POST TwiML requests against the fixed `publicOrigin`, validates the
+Media Streams WebSocket signature, and can bind both ingress paths to
+`expectedAccountSid`. It never derives the signed URL from forwarded host or
+protocol headers. Set `streamVerificationUrl` only when the exact WebSocket URL
+Twilio signs differs from `wss://<publicOrigin><streamPath>`.
 
 ## Recommended Production Path
 

@@ -141,6 +141,10 @@ test("evaluateVoicePhoneAssistantEvidence gates carrier setup and dialer proof",
       },
       {
         options: {
+          security: {
+            authToken: "present",
+            publicOrigin: "https://voice.example.test",
+          },
           setup: {
             requiredEnv: {
               TWILIO_AUTH_TOKEN: "present",
@@ -200,6 +204,10 @@ test("evaluateVoicePhoneCallControlEvidence gates concrete lifecycle outcomes", 
     carriers: [
       {
         options: {
+          security: {
+            authToken: "present",
+            publicOrigin: "https://voice.example.test",
+          },
           setup: {
             requiredEnv: {
               TWILIO_AUTH_TOKEN: "present",

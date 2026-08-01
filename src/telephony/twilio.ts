@@ -14,6 +14,7 @@ import {
   createVoiceTelephonyOutcomePolicy,
   createVoiceTelephonyWebhookRoutes,
   signVoiceTwilioWebhook,
+  verifyVoiceTwilioWebhookSignature,
   type VoiceTelephonyOutcomePolicy,
   type VoiceTelephonyWebhookRoutesOptions,
 } from "../core/telephonyOutcome";
@@ -324,6 +325,7 @@ export type TwilioVoiceRoutesOptions<
 > = TwilioMediaStreamBridgeOptions<TContext, TSession, TResult> & {
   name?: string;
   outcomePolicy?: VoiceTelephonyOutcomePolicy;
+  security: TwilioVoiceSecurityOptions;
   smoke?: TwilioVoiceSmokeOptions;
   setup?: TwilioVoiceSetupOptions;
   streamPath?: string;
@@ -349,6 +351,17 @@ export type TwilioVoiceRoutesOptions<
   };
 };
 
+export type TwilioVoiceSecurityOptions = {
+  /** Twilio account Auth Token used only to validate inbound signatures. */
+  authToken: string;
+  /** Optional account binding for TwiML requests and Media Stream start events. */
+  expectedAccountSid?: string;
+  /** Fixed public HTTPS origin configured in Twilio. Proxy headers are never trusted. */
+  publicOrigin: string;
+  /** Exact WebSocket URL Twilio signs when it differs from the generated stream URL. */
+  streamVerificationUrl?: string;
+};
+
 const escapeXml = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -357,14 +370,34 @@ const escapeXml = (value: string) =>
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 
-const resolveRequestOrigin = (request: Request) => {
-  const url = new URL(request.url);
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const forwardedProto = request.headers.get("x-forwarded-proto");
-  const host = forwardedHost ?? request.headers.get("host") ?? url.host;
-  const protocol = forwardedProto ?? url.protocol.replace(":", "");
+const TWILIO_ACCOUNT_SID = /^AC[0-9a-fA-F]{32}$/;
+const MAX_TWILIO_VOICE_BODY_BYTES = 64 * 1024;
 
-  return `${protocol}://${host}`;
+const resolveTwilioPublicOrigin = (security: TwilioVoiceSecurityOptions) => {
+  if (security.authToken.trim().length === 0) {
+    throw new Error("Twilio voice security.authToken must not be empty.");
+  }
+  if (
+    security.expectedAccountSid !== undefined &&
+    !TWILIO_ACCOUNT_SID.test(security.expectedAccountSid)
+  ) {
+    throw new Error(
+      "Twilio voice security.expectedAccountSid must be an AC SID.",
+    );
+  }
+  const origin = new URL(security.publicOrigin);
+  if (
+    origin.protocol !== "https:" ||
+    origin.pathname !== "/" ||
+    origin.search.length > 0 ||
+    origin.hash.length > 0
+  ) {
+    throw new Error(
+      "Twilio voice security.publicOrigin must be an HTTPS origin without a path, query, or fragment.",
+    );
+  }
+
+  return origin.origin;
 };
 
 const resolveTwilioStreamUrl = async <
@@ -387,10 +420,95 @@ const resolveTwilioStreamUrl = async <
     return options.twiml.streamUrl;
   }
 
-  const origin = resolveRequestOrigin(input.request);
+  const origin = resolveTwilioPublicOrigin(options.security);
   const wsOrigin = origin.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 
   return `${wsOrigin}${input.streamPath}`;
+};
+
+const resolveTrustedTwilioRequestUrl = (
+  security: TwilioVoiceSecurityOptions,
+  request: Request,
+) => {
+  const requestUrl = new URL(request.url);
+
+  return `${resolveTwilioPublicOrigin(security)}${requestUrl.pathname}${requestUrl.search}`;
+};
+
+const resolveTwilioSocketHeaders = (socket: { data?: unknown }) => {
+  if (!socket.data || typeof socket.data !== "object") return new Headers();
+  const data = socket.data as {
+    headers?: unknown;
+    request?: { headers?: unknown };
+  };
+
+  for (const candidate of [data.request?.headers, data.headers]) {
+    if (!candidate) continue;
+    if (
+      typeof candidate === "object" &&
+      "get" in candidate &&
+      typeof candidate.get === "function"
+    ) {
+      return candidate as Headers;
+    }
+    try {
+      return new Headers(candidate as HeadersInit);
+    } catch {
+      // Try the next Elysia/Bun socket header representation.
+    }
+  }
+
+  return new Headers();
+};
+
+const readTwilioVoiceForm = async (request: Request) => {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_TWILIO_VOICE_BODY_BYTES
+  ) {
+    throw new Response("Twilio request body is too large.", { status: 413 });
+  }
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/x-www-form-urlencoded")) {
+    throw new Response("Expected a form-encoded Twilio request.", {
+      status: 415,
+    });
+  }
+  const text = await request.text();
+  if (Buffer.byteLength(text, "utf8") > MAX_TWILIO_VOICE_BODY_BYTES) {
+    throw new Response("Twilio request body is too large.", { status: 413 });
+  }
+
+  return Object.fromEntries(new URLSearchParams(text));
+};
+
+const verifyTwilioVoiceRequest = async (
+  request: Request,
+  security: TwilioVoiceSecurityOptions,
+) => {
+  const body =
+    request.method.toUpperCase() === "POST"
+      ? await readTwilioVoiceForm(request.clone())
+      : {};
+  const verification = await verifyVoiceTwilioWebhookSignature({
+    authToken: security.authToken,
+    body,
+    headers: request.headers,
+    url: resolveTrustedTwilioRequestUrl(security, request),
+  });
+  const requestUrl = new URL(request.url);
+  const accountSid =
+    typeof body.AccountSid === "string"
+      ? body.AccountSid
+      : requestUrl.searchParams.get("AccountSid");
+
+  return {
+    ok:
+      verification.ok &&
+      (security.expectedAccountSid === undefined ||
+        accountSid === security.expectedAccountSid),
+  };
 };
 
 const resolveTwilioStreamParameters = async (
@@ -446,7 +564,7 @@ const buildTwilioVoiceSetupStatus = async <
     webhookPath: string;
   },
 ): Promise<TwilioVoiceSetupStatus> => {
-  const origin = resolveRequestOrigin(input.request);
+  const origin = resolveTwilioPublicOrigin(options.security);
   const stream = await resolveTwilioStreamUrl(options, input);
   const twiml = joinUrlPath(origin, input.twimlPath);
   const webhook = joinUrlPath(origin, input.webhookPath);
@@ -583,9 +701,18 @@ const runTwilioVoiceSmokeTest = async <
     input.options.smoke?.sessionId ?? "smoke-session",
   );
 
+  const twimlHeaders = new Headers(input.request.headers);
+  twimlHeaders.set(
+    "x-twilio-signature",
+    await signVoiceTwilioWebhook({
+      authToken: input.options.security.authToken,
+      url: twimlUrl.toString(),
+    }),
+  );
+
   const twimlResponse = await input.app.handle(
     new Request(twimlUrl, {
-      headers: input.request.headers,
+      headers: twimlHeaders,
     }),
   );
   const twiml = await twimlResponse.text();
@@ -1527,6 +1654,7 @@ export const createTwilioVoiceRoutes = <
 >(
   options: TwilioVoiceRoutesOptions<TContext, TSession, TResult>,
 ) => {
+  resolveTwilioPublicOrigin(options.security);
   const streamPath = options.streamPath ?? "/api/voice/twilio/stream";
   const twimlPath = options.twiml?.path ?? "/api/voice/twilio";
   const webhookPath = options.webhook?.path ?? "/api/voice/twilio/webhook";
@@ -1539,69 +1667,59 @@ export const createTwilioVoiceRoutes = <
       ? false
       : (options.smoke?.path ?? "/api/voice/twilio/smoke");
   const bridges = new WeakMap<object, TwilioMediaStreamBridge>();
+  const admittedSockets = new WeakSet<object>();
+  const startedSockets = new WeakSet<object>();
   const webhookPolicy =
     options.webhook?.policy ??
     options.outcomePolicy ??
     createVoiceTelephonyOutcomePolicy();
+  const renderTwiml = async (input: {
+    query: Record<string, unknown>;
+    request: Request;
+  }) => {
+    try {
+      const verification = await verifyTwilioVoiceRequest(
+        input.request,
+        options.security,
+      );
+      if (!verification.ok) {
+        return new Response("Invalid Twilio signature.", { status: 403 });
+      }
+    } catch (error) {
+      if (error instanceof Response) return error;
+      throw error;
+    }
+    const streamUrl = await resolveTwilioStreamUrl(options, {
+      ...input,
+      streamPath,
+    });
+    const parameters = await resolveTwilioStreamParameters(
+      options.twiml?.parameters,
+      input,
+    );
+
+    return new Response(
+      createTwilioVoiceResponse({
+        parameters,
+        streamName: options.twiml?.streamName,
+        streamUrl,
+        track: options.twiml?.track,
+      }),
+      {
+        headers: {
+          "content-type": "text/xml; charset=utf-8",
+        },
+      },
+    );
+  };
+  const streamVerificationUrl =
+    options.security.streamVerificationUrl ??
+    `${resolveTwilioPublicOrigin(options.security).replace(/^https:/, "wss:")}${streamPath}`;
   const app = new Elysia({
     name: options.name ?? "absolutejs-voice-twilio",
   })
-    .get(twimlPath, async ({ query, request }) => {
-      const streamUrl = await resolveTwilioStreamUrl(options, {
-        query,
-        request,
-        streamPath,
-      });
-      const parameters = await resolveTwilioStreamParameters(
-        options.twiml?.parameters,
-        {
-          query,
-          request,
-        },
-      );
-
-      return new Response(
-        createTwilioVoiceResponse({
-          parameters,
-          streamName: options.twiml?.streamName,
-          streamUrl,
-          track: options.twiml?.track,
-        }),
-        {
-          headers: {
-            "content-type": "text/xml; charset=utf-8",
-          },
-        },
-      );
-    })
-    .post(twimlPath, async ({ query, request }) => {
-      const streamUrl = await resolveTwilioStreamUrl(options, {
-        query,
-        request,
-        streamPath,
-      });
-      const parameters = await resolveTwilioStreamParameters(
-        options.twiml?.parameters,
-        {
-          query,
-          request,
-        },
-      );
-
-      return new Response(
-        createTwilioVoiceResponse({
-          parameters,
-          streamName: options.twiml?.streamName,
-          streamUrl,
-          track: options.twiml?.track,
-        }),
-        {
-          headers: {
-            "content-type": "text/xml; charset=utf-8",
-          },
-        },
-      );
-    })
+    .get(twimlPath, renderTwiml)
+    .post(twimlPath, renderTwiml, { parse: "none" })
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
         // Elysia hands a fresh ElysiaWS wrapper per event; key the bridge map by
@@ -1609,10 +1727,42 @@ export const createTwilioVoiceRoutes = <
         const key = ws.raw ?? ws;
         const bridge = bridges.get(key);
         bridges.delete(key);
+        admittedSockets.delete(key);
+        startedSockets.delete(key);
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
         const key = ws.raw ?? ws;
+        if (!admittedSockets.has(key)) {
+          const verification = await verifyVoiceTwilioWebhookSignature({
+            authToken: options.security.authToken,
+            body: {},
+            headers: resolveTwilioSocketHeaders(ws),
+            url: streamVerificationUrl,
+          });
+          if (!verification.ok) {
+            ws.close(4403, "invalid Twilio signature");
+            return;
+          }
+          admittedSockets.add(key);
+        }
+
+        const message = parseTwilioMessage(raw as string);
+        if (message.event === "start") {
+          if (
+            startedSockets.has(key) ||
+            (options.security.expectedAccountSid !== undefined &&
+              message.start.accountSid !== options.security.expectedAccountSid)
+          ) {
+            ws.close(4403, "invalid Twilio stream start");
+            return;
+          }
+          startedSockets.add(key);
+        } else if (message.event !== "connected" && !startedSockets.has(key)) {
+          ws.close(4400, "Twilio stream must start before media");
+          return;
+        }
+
         let bridge = bridges.get(key);
         if (!bridge) {
           bridge = createTwilioMediaStreamBridge(
