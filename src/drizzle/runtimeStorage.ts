@@ -249,7 +249,7 @@ const createDrizzleTraceEventStore = <
 ): VoiceTraceEventStore<TEvent> => {
   const store = createVoiceDrizzleRecordStore<TEvent>({
     db,
-    decorate: (_id, value) => value,
+    decorate: (id, value) => ({ ...value, id }),
     getSortAt: (value) => value.at,
     table: voiceTracesTable,
   });

@@ -41,21 +41,25 @@ export const createVoiceDrizzleRecordStore = <
 }) => {
   const get = async (id: string) => {
     const rows = await input.db
-      .select({ payload: input.table.payload })
+      .select({ id: input.table.id, payload: input.table.payload })
       .from(input.table)
       .where(eq(input.table.id, id))
       .limit(1);
 
-    return rows[0]?.payload as T | undefined;
+    const row = rows[0];
+
+    return row === undefined
+      ? undefined
+      : input.decorate(row.id, row.payload as T);
   };
 
   const list = async () => {
     const rows = await input.db
-      .select({ payload: input.table.payload })
+      .select({ id: input.table.id, payload: input.table.payload })
       .from(input.table)
       .orderBy(desc(input.table.sortAt), desc(input.table.id));
 
-    return rows.map((row) => row.payload as T);
+    return rows.map((row) => input.decorate(row.id, row.payload as T));
   };
 
   const set = async (id: string, value: T) => {

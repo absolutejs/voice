@@ -14,6 +14,7 @@ import {
   createVoiceDrizzleRealCallProfileRecoveryJobStore,
   createVoiceDrizzleRuntimeStorage,
   voiceDrizzleSchema,
+  voiceTracesTable,
 } from "../src/drizzle";
 
 const testClients = new Set<PGlite>();
@@ -217,6 +218,29 @@ test("createVoiceDrizzleRuntimeStorage appends and filters trace + audit events"
   expect((await storage.audit.list()).map((event) => event.id)).toContain(
     audit.id,
   );
+});
+
+test("trace reads restore the canonical database id for historical payloads", async () => {
+  const db = await createDrizzleTestDb();
+  const storage = createVoiceDrizzleRuntimeStorage({ db });
+
+  await db.insert(voiceTracesTable).values({
+    id: "database-trace-id",
+    payload: {
+      at: 100,
+      payload: { source: "host-direct-write" },
+      sessionId: "session-legacy-payload",
+      type: "client.status",
+    },
+    sortAt: 100,
+  });
+
+  expect((await storage.traces.get("database-trace-id"))?.id).toBe(
+    "database-trace-id",
+  );
+  expect(
+    (await storage.traces.list({ sessionId: "session-legacy-payload" }))[0]?.id,
+  ).toBe("database-trace-id");
 });
 
 test("createVoiceDrizzleAssistantMemoryStore upserts by composite key and filters by namespace", async () => {
