@@ -4910,13 +4910,15 @@ export const createVoiceSession = <
           transcriptStabilityMs: turnDetection.transcriptStabilityMs,
         };
       }),
-    setPlaybackRate: async (rate) =>
-      runSerial("api.setPlaybackRate", async () => {
-        const clamped = Math.max(0.5, Math.min(2, Number(rate) || 1));
-        await send({ rate: clamped, type: "playback_rate" });
+    // This is deliberately not queued through runSerial: assistant tools run
+    // inside the session's serialized turn and must be able to await this
+    // transport-only control without deadlocking behind themselves.
+    setPlaybackRate: async (rate) => {
+      const clamped = Math.max(0.5, Math.min(2, Number(rate) || 1));
+      await send({ rate: clamped, type: "playback_rate" });
 
-        return clamped;
-      }),
+      return clamped;
+    },
   };
 
   return api;
