@@ -200,6 +200,7 @@ const createContractApi = <
     speechThreshold: 0,
     transcriptStabilityMs: 0,
   }),
+  setPlaybackRate: async (rate) => rate,
   snapshot: async () => session,
   transfer: async () => {},
 });

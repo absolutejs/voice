@@ -383,6 +383,140 @@ const createMockSocket = () => {
 
 const createSpeechChunk = (sample: number) => new Int16Array(160).fill(sample);
 
+test("setPlaybackRate sends a clamped live client control", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const socket = createMockSocket();
+  const session = createVoiceSession({
+    context: {},
+    id: "session-playback-rate",
+    logger: {},
+    reconnect: { maxAttempts: 1, strategy: "resume-last-turn", timeout: 5_000 },
+    route: { onComplete: async () => {}, onTurn: async () => ({}) },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 0,
+    },
+  });
+
+  await session.connect(socket.socket);
+  expect(await session.setPlaybackRate(1.3)).toBe(1.3);
+  expect(await session.setPlaybackRate(9)).toBe(2);
+
+  const controls = socket.messages
+    .map((message) => JSON.parse(message))
+    .filter((message) => message.type === "playback_rate");
+  expect(controls).toEqual([
+    { rate: 1.3, type: "playback_rate" },
+    { rate: 2, type: "playback_rate" },
+  ]);
+});
+
+test("committing a healthy turn resets the STT-deaf watchdog window", async () => {
+  const originalNow = Date.now;
+  let now = 10_000;
+  Date.now = () => now;
+  try {
+    const store = createVoiceMemoryStore();
+    const trace = createVoiceMemoryTraceEventStore();
+    const adapter = createFakeAdapter();
+    const socket = createMockSocket();
+    const session = createVoiceSession({
+      context: {},
+      id: "session-stt-health-turn-reset",
+      logger: {},
+      reconnect: {
+        maxAttempts: 1,
+        strategy: "resume-last-turn",
+        timeout: 5_000,
+      },
+      route: { onComplete: async () => {}, onTurn: async () => ({}) },
+      socket: socket.socket,
+      store,
+      stt: adapter.adapter,
+      trace,
+      turnDetection: {
+        silenceMs: 20,
+        speechThreshold: 0.01,
+        transcriptStabilityMs: 0,
+      },
+    });
+
+    await session.connect(socket.socket);
+    await session.receiveAudio(createSpeechChunk(16_000));
+    now = 11_000;
+    await adapter.emitCurrent("final", {
+      receivedAt: now,
+      transcript: { id: "healthy-final", isFinal: true, text: "healthy turn" },
+      type: "final",
+    });
+    now = 11_500;
+    await session.commitTurn();
+
+    // This is >6s from the old phase start. Before the reset it immediately
+    // produced a false stt-health-reconnect against the empty next turn.
+    now = 16_100;
+    await session.receiveAudio(createSpeechChunk(16_000));
+
+    expect(await trace.list({ type: "session.error" })).toHaveLength(0);
+    expect(adapter.getCloseCalls()).toBe(0);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("STT health reconnect traces are explicitly recoverable", async () => {
+  const originalNow = Date.now;
+  let now = 10_000;
+  Date.now = () => now;
+  try {
+    const store = createVoiceMemoryStore();
+    const trace = createVoiceMemoryTraceEventStore();
+    const adapter = createFakeAdapter();
+    const socket = createMockSocket();
+    const session = createVoiceSession({
+      context: {},
+      id: "session-stt-health-recoverable",
+      logger: {},
+      reconnect: {
+        maxAttempts: 1,
+        strategy: "resume-last-turn",
+        timeout: 5_000,
+      },
+      route: { onComplete: async () => {}, onTurn: async () => ({}) },
+      socket: socket.socket,
+      store,
+      stt: adapter.adapter,
+      trace,
+      turnDetection: {
+        silenceMs: 20,
+        speechThreshold: 0.01,
+        transcriptStabilityMs: 0,
+      },
+    });
+
+    await session.connect(socket.socket);
+    await session.receiveAudio(createSpeechChunk(16_000));
+    for (const packetAt of [11_500, 13_000, 14_500, 16_100]) {
+      now = packetAt;
+      await session.receiveAudio(createSpeechChunk(16_000));
+    }
+
+    const errors = await trace.list({ type: "session.error" });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.payload).toMatchObject({
+      action: "stt-health-reconnect",
+      recoverable: true,
+    });
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("unrecoverable STT errors emit one terminal trace and one client error", async () => {
   const store = createVoiceMemoryStore();
   const trace = createVoiceMemoryTraceEventStore();

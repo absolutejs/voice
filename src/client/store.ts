@@ -47,6 +47,7 @@ const createInitialState = (): VoiceStreamState => ({
   isConnected: false,
   paused: false,
   partial: "",
+  playbackRate: null,
   reconnect: createInitialReconnectState(),
   scenarioId: null,
   sessionId: null,
@@ -176,6 +177,12 @@ export const createVoiceStreamStore = <TResult = unknown>() => {
         state = {
           ...state,
           partial: joinPartial(turnFinalText, action.transcript.text),
+        };
+        break;
+      case "playback_rate":
+        state = {
+          ...state,
+          playbackRate: Math.max(0.5, Math.min(2, action.rate)),
         };
         break;
       case "replay":

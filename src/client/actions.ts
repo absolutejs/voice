@@ -96,6 +96,11 @@ export const serverMessageToAction = <TResult = unknown>(
         transcript: message.transcript,
         type: "partial" as const,
       };
+    case "playback_rate":
+      return {
+        rate: message.rate,
+        type: "playback_rate" as const,
+      };
     case "replay":
       return {
         assistantTexts: message.assistantTexts,

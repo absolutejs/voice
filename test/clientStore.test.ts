@@ -95,6 +95,18 @@ test("session messages expose authoritative pause state", () => {
   expect(store.getSnapshot().pauseExpiresAt).toBeUndefined();
 });
 
+test("playback-rate messages are clamped and exposed to clients", () => {
+  const store = createVoiceStreamStore();
+  const action = serverMessageToAction({ rate: 1.35, type: "playback_rate" });
+
+  expect(action).toEqual({ rate: 1.35, type: "playback_rate" });
+  store.dispatch(action!);
+  expect(store.getSnapshot().playbackRate).toBe(1.35);
+
+  store.dispatch({ rate: 8, type: "playback_rate" });
+  expect(store.getSnapshot().playbackRate).toBe(2);
+});
+
 test("voice client store tracks call lifecycle server messages", () => {
   const store = createVoiceStreamStore();
   const start = serverMessageToAction({

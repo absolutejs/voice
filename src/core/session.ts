@@ -705,6 +705,11 @@ export const createVoiceSession = <
   // no transcript. Raw audio energy alone is not proof of caller speech: echo,
   // line noise, and the tail of assistant playback can all cross the threshold.
   let sttDeafConfirmedAt = 0;
+  const resetSttHealthWindow = () => {
+    lastSpeechEnergyAt = 0;
+    sttHealthPhaseStart = 0;
+    sttDeafConfirmedAt = 0;
+  };
   // Wall-clock of the last spoken STT-deaf recovery line, so we re-prompt at most
   // once per stale episode rather than on every reconnect attempt in a flap.
   let lastSttRecoverySpokenAt = 0;
@@ -4148,6 +4153,11 @@ export const createVoiceSession = <
       markTurnCommitted(currentSession, finalText, transcripts);
     });
     speechDetected = false;
+    // `currentTurn` was replaced above, including lastTranscriptAt. A health
+    // phase from the committed turn must not survive that reset: otherwise the
+    // next packet compares an old phase start with an empty new turn and falsely
+    // declares STT deaf immediately after a healthy transcript.
+    resetSttHealthWindow();
     rewindFallbackTurnAudio();
 
     logger.info("voice turn committed", {
@@ -4671,44 +4681,50 @@ export const createVoiceSession = <
       // Only the discrete-STT path can wedge like this; realtime adapters manage
       // their own transport.
       const nowMs = Date.now();
-      if (nowMs - lastSpeechEnergyAt > STT_HEALTH_SPEECH_GAP_MS) {
-        sttHealthPhaseStart = nowMs;
-      }
-      lastSpeechEnergyAt = nowMs;
-      const lastTranscriptAt = latest.currentTurn.lastTranscriptAt ?? 0;
-      if (
-        !options.realtime &&
-        sttSession &&
-        lastTranscriptAt < sttHealthPhaseStart &&
-        nowMs - sttHealthPhaseStart >= STT_HEALTH_STALE_MS
-      ) {
-        sttDeafConfirmedAt = nowMs;
-        sttReconnectCount =
-          nowMs - lastSttReconnectAt < STT_RECONNECT_FLAP_WINDOW_MS
-            ? sttReconnectCount + 1
-            : 1;
-        lastSttReconnectAt = nowMs;
-        sttHealthPhaseStart = nowMs; // give the fresh stream a clean window
-        // Audibly re-prompt the caller so a deaf stream doesn't leave them
-        // talking into silence. Fired even when the reconnect budget below is
-        // spent (the worst case for silent abandonment). Speech is TTS —
-        // independent of the STT adapter we're about to close — so it plays
-        // while the stream re-opens.
-        maybeSpeakSttRecovery(nowMs, latest);
-        if (sttReconnectCount <= MAX_STT_RECONNECTS_IN_FLAP_WINDOW) {
-          await appendTrace({
-            payload: {
-              action: "stt-health-reconnect",
-              attempt: sttReconnectCount,
-              classification: "stt-deaf",
-              reason: `no transcript for ${STT_HEALTH_STALE_MS}ms of continuous speech`,
-            },
-            session: latest,
-            type: "session.error",
-          });
-          await closeAdapter("stt stale; health-reconnect");
+      // Assistant work is not caller speech. Some transports feed silence or
+      // echo energy through the inbound stream during TTS; neither may advance
+      // an STT-deaf window or trigger a recovery prompt over the active reply.
+      if (assistantTurnInProgress) {
+        resetSttHealthWindow();
+      } else {
+        if (nowMs - lastSpeechEnergyAt > STT_HEALTH_SPEECH_GAP_MS) {
+          sttHealthPhaseStart = nowMs;
+        }
+        lastSpeechEnergyAt = nowMs;
+        const lastTranscriptAt = latest.currentTurn.lastTranscriptAt ?? 0;
+        if (
+          !options.realtime &&
+          sttSession &&
+          lastTranscriptAt < sttHealthPhaseStart &&
+          nowMs - sttHealthPhaseStart >= STT_HEALTH_STALE_MS
+        ) {
+          sttDeafConfirmedAt = nowMs;
+          sttReconnectCount =
+            nowMs - lastSttReconnectAt < STT_RECONNECT_FLAP_WINDOW_MS
+              ? sttReconnectCount + 1
+              : 1;
+          lastSttReconnectAt = nowMs;
+          sttHealthPhaseStart = nowMs; // give the fresh stream a clean window
+          // Audibly re-prompt the caller so a deaf stream doesn't leave them
+          // talking into silence. This cannot overlap a normal assistant turn:
+          // assistantTurnInProgress resets the window above.
+          maybeSpeakSttRecovery(nowMs, latest);
+          if (sttReconnectCount <= MAX_STT_RECONNECTS_IN_FLAP_WINDOW) {
+            await appendTrace({
+              payload: {
+                action: "stt-health-reconnect",
+                attempt: sttReconnectCount,
+                classification: "stt-deaf",
+                recoverable: true,
+                reason: `no transcript for ${STT_HEALTH_STALE_MS}ms of continuous speech`,
+              },
+              session: latest,
+              type: "session.error",
+            });
+            await closeAdapter("stt stale; health-reconnect");
 
-          return; // skip the send into the now-closed stream; next packet re-opens
+            return; // skip the send into the now-closed stream; next packet re-opens
+          }
         }
       }
     } else if (speechDetected) {
@@ -4893,6 +4909,13 @@ export const createVoiceSession = <
           speechThreshold: turnDetection.speechThreshold,
           transcriptStabilityMs: turnDetection.transcriptStabilityMs,
         };
+      }),
+    setPlaybackRate: async (rate) =>
+      runSerial("api.setPlaybackRate", async () => {
+        const clamped = Math.max(0.5, Math.min(2, Number(rate) || 1));
+        await send({ rate: clamped, type: "playback_rate" });
+
+        return clamped;
       }),
   };
 

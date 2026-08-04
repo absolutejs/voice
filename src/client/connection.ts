@@ -132,6 +132,7 @@ const isVoiceServerMessage = (value: unknown): value is VoiceServerMessage => {
     case "error":
     case "final":
     case "partial":
+    case "playback_rate":
     case "pong":
     case "replay":
     case "session":

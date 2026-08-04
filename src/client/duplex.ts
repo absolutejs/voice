@@ -109,11 +109,22 @@ export const createVoiceDuplexController = <TResult = unknown>(
     },
   });
   const audioPlayer = createVoiceAudioPlayer(controller, options.audioPlayer);
+  let appliedPlaybackRate = controller.playbackRate;
+  const unsubscribePlaybackRate = controller.subscribe(() => {
+    if (
+      controller.playbackRate !== null &&
+      controller.playbackRate !== appliedPlaybackRate
+    ) {
+      appliedPlaybackRate = controller.playbackRate;
+      audioPlayer.setPlaybackRate(controller.playbackRate);
+    }
+  });
   bargeInBinding = bindVoiceBargeIn(controller, audioPlayer, options.bargeIn);
 
   const close = () => {
     bargeInBinding?.close();
     bargeInBinding = null;
+    unsubscribePlaybackRate();
     void audioPlayer.close();
     controller.close();
   };

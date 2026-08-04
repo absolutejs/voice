@@ -833,6 +833,8 @@ export type VoiceSessionHandle<
   /** Lift a caller-driven pause: watchdogs re-arm and turns process again. */
   resume: () => Promise<void>;
   snapshot: () => Promise<TSession>;
+  /** Ask connected browser clients to change assistant-audio playback speed. */
+  setPlaybackRate: (rate: number) => Promise<number>;
   /**
    * Mutate the live turn-detection config for this session — useful when a
    * tool call wants to dial silenceMs up ("the caller asked for more time")
@@ -1968,6 +1970,12 @@ export type VoiceServerAudioMessage = {
   turnId?: string;
 };
 
+/** Requests a live assistant-audio playback-rate change in browser clients. */
+export type VoiceServerPlaybackRateMessage = {
+  type: "playback_rate";
+  rate: number;
+};
+
 export type VoiceServerCompleteMessage = {
   type: "complete";
   sessionId: string;
@@ -2003,6 +2011,7 @@ export type VoiceServerMessage<TResult = unknown> =
   | VoiceServerAssistantMessage
   | VoiceServerAssistantDeltaMessage
   | VoiceServerAudioMessage
+  | VoiceServerPlaybackRateMessage
   | VoiceServerCallControlAckMessage
   | VoiceServerCallLifecycleMessage
   | VoiceServerCompleteMessage
@@ -2265,6 +2274,8 @@ export type VoiceStreamState<TResult = unknown> = {
   }>;
   error: string | null;
   isConnected: boolean;
+  /** Latest server-requested assistant playback rate, or null if unchanged. */
+  playbackRate: number | null;
 };
 
 export type VoiceStream<TResult = unknown> = {
@@ -2284,6 +2295,7 @@ export type VoiceStream<TResult = unknown> = {
   getSnapshot: () => VoiceStreamState<TResult>;
   isConnected: boolean;
   partial: string;
+  playbackRate: number | null;
   reconnect: VoiceReconnectClientState;
   sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
   simulateDisconnect: () => void;
@@ -2399,6 +2411,7 @@ export type VoiceController<TResult = unknown> = {
   isConnected: boolean;
   isRecording: boolean;
   partial: string;
+  playbackRate: number | null;
   reconnect: VoiceReconnectClientState;
   recordingError: string | null;
   sendAudio: (audio: Uint8Array | ArrayBuffer) => void;
@@ -2498,6 +2511,10 @@ export type VoiceStoreAction<TResult = unknown> =
       type: "error";
       message: string;
       recoverable?: boolean;
+    }
+  | {
+      type: "playback_rate";
+      rate: number;
     }
   | {
       type: "connected";

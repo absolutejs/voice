@@ -22,6 +22,7 @@ const createInitialState = <TResult>(
   paused: stream.paused,
   pauseExpiresAt: stream.pauseExpiresAt,
   partial: stream.partial,
+  playbackRate: stream.playbackRate,
   reconnect: stream.reconnect,
   recordingError: null,
   sessionId: stream.sessionId,
@@ -65,6 +66,7 @@ export const createVoiceController = <TResult = unknown>(
       paused: stream.paused,
       pauseExpiresAt: stream.pauseExpiresAt,
       partial: stream.partial,
+      playbackRate: stream.playbackRate,
       reconnect: stream.reconnect,
       sessionId: stream.sessionId,
       sessionMetadata: stream.sessionMetadata,
@@ -235,6 +237,9 @@ export const createVoiceController = <TResult = unknown>(
     },
     get partial() {
       return state.partial;
+    },
+    get playbackRate() {
+      return state.playbackRate;
     },
     get paused() {
       return state.paused;
