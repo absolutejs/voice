@@ -85,6 +85,11 @@ export type VoiceAgentToolResult<TResult = unknown> = {
   toolName: string;
 };
 
+export type VoiceAgentToolPolicyDecision = {
+  allowed: boolean;
+  reason?: string;
+};
+
 export type VoiceAgentTool<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -102,6 +107,22 @@ export type VoiceAgentTool<
   }) => Promise<TToolResult> | TToolResult;
   name: string;
   parameters?: Record<string, unknown>;
+  /** Authorize a model-requested side effect before `execute` runs. Unlike
+   *  post-turn guardrails, this policy sees the assistant text produced in the
+   *  same model round and can prevent an unsafe tool from mutating call state.
+   *  A blocked terminal tool still ends the conversational turn so the already
+   *  streamed reply is not followed by a second model response. */
+  policy?: (input: {
+    api: VoiceSessionHandle<TContext, TSession, TRouteResult>;
+    args: TArgs;
+    assistantText?: string;
+    context: TContext;
+    messages: ReadonlyArray<VoiceAgentMessage>;
+    round: number;
+    session: TSession;
+    toolCall: VoiceAgentToolCall<TArgs>;
+    turn: VoiceTurnRecord;
+  }) => Promise<VoiceAgentToolPolicyDecision> | VoiceAgentToolPolicyDecision;
   resultToMessage?: (result: TToolResult) => string;
   /** End the turn after this tool runs — do NOT loop back to the model for
    *  another generation. Use for tools that wrap up the call (an app-defined
@@ -810,6 +831,66 @@ export const createVoiceAgent = <
             role: "tool",
             toolCallId: toolCall.id,
           });
+          continue;
+        }
+
+        const policyDecision = await tool.policy?.({
+          api: input.api,
+          args: toolCall.args,
+          assistantText: output.assistantText,
+          context: input.context,
+          messages,
+          round,
+          session: input.session,
+          toolCall,
+          turn: input.turn,
+        });
+        if (policyDecision && !policyDecision.allowed) {
+          const error =
+            policyDecision.reason ??
+            `Voice agent tool policy blocked ${tool.name}.`;
+          const blockedResult: VoiceAgentToolResult = {
+            error,
+            status: "error",
+            toolCallId: toolCall.id,
+            toolName: tool.name,
+          };
+          toolResults.push(blockedResult);
+          await appendVoiceAgentTrace({
+            agentId: options.id,
+            event: {
+              error,
+              policyBlocked: true,
+              status: "error",
+              toolCallId: toolCall.id,
+              toolName: tool.name,
+            },
+            session: input.session,
+            trace: options.trace,
+            turn: input.turn,
+            type: "agent.tool",
+          });
+          await audit?.toolCall({
+            actor: {
+              id: options.id,
+              kind: "agent",
+            },
+            error,
+            metadata: { policyBlocked: true },
+            outcome: "error",
+            sessionId: input.session.id,
+            toolCallId: toolCall.id,
+            toolName: tool.name,
+          });
+          messages.push({
+            content: error,
+            name: tool.name,
+            role: "tool",
+            toolCallId: toolCall.id,
+          });
+          if (tool.endsTurn) {
+            endTurnAfterDispatch = true;
+          }
           continue;
         }
 

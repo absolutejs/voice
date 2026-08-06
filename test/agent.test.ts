@@ -139,6 +139,59 @@ test("createVoiceAgent stops after an endsTurn tool — no second closing", asyn
   expect(result.assistantText).toBe("Closing #1. Talk to you soon!");
 });
 
+test("createVoiceAgent blocks a terminal tool before its side effect", async () => {
+  let executeCalls = 0;
+  let generateCalls = 0;
+  let policyText: string | undefined;
+  const endCall = createVoiceAgentTool({
+    endsTurn: true,
+    execute: () => {
+      executeCalls += 1;
+
+      return { ended: true };
+    },
+    name: "end_call",
+    parameters: { properties: {}, type: "object" },
+    policy: ({ assistantText }) => {
+      policyText = assistantText;
+
+      return {
+        allowed: false,
+        reason: "A closing question still expects a caller response.",
+      };
+    },
+  });
+  const model: VoiceAgentModel = {
+    generate: () => {
+      generateCalls += 1;
+
+      return {
+        assistantText: "Before I wrap up, is there anything else?",
+        toolCalls: [{ args: {}, id: "unsafe-end", name: "end_call" }],
+      };
+    },
+  };
+  const agent = createVoiceAgent({ id: "intake", model, tools: [endCall] });
+
+  const result = await agent.run({
+    api: createApi(),
+    context: {},
+    session: createVoiceSessionRecord("session-policy-block"),
+    turn: createTurn("I can get in anywhere."),
+  });
+
+  expect(policyText).toBe("Before I wrap up, is there anything else?");
+  expect(executeCalls).toBe(0);
+  expect(generateCalls).toBe(1);
+  expect(result.toolResults).toEqual([
+    expect.objectContaining({
+      error: "A closing question still expects a caller response.",
+      status: "error",
+      toolName: "end_call",
+    }),
+  ]);
+});
+
 test("createVoiceAgent can run tools through reliability runtime retries", async () => {
   let attempts = 0;
   const agent = createVoiceAgent({
