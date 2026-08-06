@@ -175,6 +175,7 @@ export type VoiceAssistantAgentSource<
       model?: never;
       selectAgent?: never;
       system?: never;
+      toolPolicy?: never;
       tools?: never;
     }
   | {
@@ -190,6 +191,7 @@ export type VoiceAssistantAgentSource<
         TResult
       >["selectAgent"];
       system?: never;
+      toolPolicy?: never;
       tools?: never;
     }
   | {
@@ -201,6 +203,7 @@ export type VoiceAssistantAgentSource<
       model: VoiceAgentModel<TContext, TSession, TResult>;
       selectAgent?: never;
       system?: VoiceAgentOptions<TContext, TSession, TResult>["system"];
+      toolPolicy?: VoiceAgentOptions<TContext, TSession, TResult>["toolPolicy"];
       tools?: Array<
         VoiceAgentTool<
           TContext,
@@ -425,6 +428,7 @@ export const createVoiceAssistant = <
           maxToolRounds: options.maxToolRounds,
           model: options.model,
           system: options.system,
+          toolPolicy: options.toolPolicy,
           tools: options.tools,
         }
       : undefined;
@@ -446,6 +450,7 @@ export const createVoiceAssistant = <
       maxToolRounds: options.maxToolRounds,
       model: options.model,
       system: options.system,
+      toolPolicy: options.toolPolicy,
       tools: options.tools,
       trace: options.trace,
     });
@@ -529,6 +534,7 @@ export const createVoiceAssistant = <
               variant.maxToolRounds ?? baseModelOptions.maxToolRounds,
             model: variant.model ?? baseModelOptions.model,
             system: variant.system ?? baseModelOptions.system,
+            toolPolicy: baseModelOptions.toolPolicy,
             tools: variant.tools ?? baseModelOptions.tools,
             trace: options.trace,
           })

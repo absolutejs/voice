@@ -90,6 +90,21 @@ export type VoiceAgentToolPolicyDecision = {
   reason?: string;
 };
 
+export type VoiceAgentToolPolicy<
+  TContext = unknown,
+  TSession extends VoiceSessionRecord = VoiceSessionRecord,
+  TResult = unknown,
+> = (input: {
+  api: VoiceSessionHandle<TContext, TSession, TResult>;
+  assistantText?: string;
+  context: TContext;
+  messages: ReadonlyArray<VoiceAgentMessage>;
+  round: number;
+  session: TSession;
+  toolCall: VoiceAgentToolCall;
+  turn: VoiceTurnRecord;
+}) => Promise<VoiceAgentToolPolicyDecision> | VoiceAgentToolPolicyDecision;
+
 export type VoiceAgentTool<
   TContext = unknown,
   TSession extends VoiceSessionRecord = VoiceSessionRecord,
@@ -283,6 +298,9 @@ export type VoiceAgentOptions<
         turn: VoiceTurnRecord;
       }) => Promise<string | undefined> | string | undefined);
   trace?: VoiceTraceEventStore;
+  /** Authorize every model-requested tool before dispatch, including built-in
+   *  lifecycle tools such as `complete` and `transfer_call`. */
+  toolPolicy?: VoiceAgentToolPolicy<TContext, TSession, TResult>;
   toolRuntime?: VoiceToolRuntime<TContext, TSession, TResult>;
   tools?: Array<
     VoiceAgentTool<
@@ -680,6 +698,50 @@ export const createVoiceAgent = <
         .filter((value): value is string => Boolean(value?.trim()))
         .join("\n\n") || undefined;
     stamp("agent.system-resolved", { systemChars: system?.length ?? 0 });
+    const recordPolicyBlock = async (
+      toolCall: VoiceAgentToolCall,
+      reason: string,
+    ) => {
+      const blockedResult: VoiceAgentToolResult = {
+        error: reason,
+        status: "error",
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+      };
+      toolResults.push(blockedResult);
+      await appendVoiceAgentTrace({
+        agentId: options.id,
+        event: {
+          error: reason,
+          policyBlocked: true,
+          status: "error",
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+        },
+        session: input.session,
+        trace: options.trace,
+        turn: input.turn,
+        type: "agent.tool",
+      });
+      await audit?.toolCall({
+        actor: {
+          id: options.id,
+          kind: "agent",
+        },
+        error: reason,
+        metadata: { policyBlocked: true },
+        outcome: "error",
+        sessionId: input.session.id,
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+      });
+      messages.push({
+        content: reason,
+        name: toolCall.name,
+        role: "tool",
+        toolCallId: toolCall.id,
+      });
+    };
     let output: VoiceAgentModelOutput<TResult> = {};
     // Sum LLM token usage across every tool round so the session meters the whole
     // turn's conversational cost, not just the final round.
@@ -753,6 +815,32 @@ export const createVoiceAgent = <
         turn: input.turn,
         type: "agent.model",
       });
+
+      if (options.toolPolicy && output.toolCalls?.length) {
+        const allowedToolCalls: VoiceAgentToolCall[] = [];
+        for (const toolCall of output.toolCalls) {
+          const decision = await options.toolPolicy({
+            api: input.api,
+            assistantText: output.assistantText,
+            context: input.context,
+            messages,
+            round,
+            session: input.session,
+            toolCall,
+            turn: input.turn,
+          });
+          if (decision.allowed) {
+            allowedToolCalls.push(toolCall);
+          } else {
+            await recordPolicyBlock(
+              toolCall,
+              decision.reason ??
+                `Voice agent tool policy blocked ${toolCall.name}.`,
+            );
+          }
+        }
+        output.toolCalls = allowedToolCalls;
+      }
 
       if (output.assistantText?.trim()) {
         messages.push({
@@ -849,45 +937,7 @@ export const createVoiceAgent = <
           const error =
             policyDecision.reason ??
             `Voice agent tool policy blocked ${tool.name}.`;
-          const blockedResult: VoiceAgentToolResult = {
-            error,
-            status: "error",
-            toolCallId: toolCall.id,
-            toolName: tool.name,
-          };
-          toolResults.push(blockedResult);
-          await appendVoiceAgentTrace({
-            agentId: options.id,
-            event: {
-              error,
-              policyBlocked: true,
-              status: "error",
-              toolCallId: toolCall.id,
-              toolName: tool.name,
-            },
-            session: input.session,
-            trace: options.trace,
-            turn: input.turn,
-            type: "agent.tool",
-          });
-          await audit?.toolCall({
-            actor: {
-              id: options.id,
-              kind: "agent",
-            },
-            error,
-            metadata: { policyBlocked: true },
-            outcome: "error",
-            sessionId: input.session.id,
-            toolCallId: toolCall.id,
-            toolName: tool.name,
-          });
-          messages.push({
-            content: error,
-            name: tool.name,
-            role: "tool",
-            toolCallId: toolCall.id,
-          });
+          await recordPolicyBlock(toolCall, error);
           if (tool.endsTurn) {
             endTurnAfterDispatch = true;
           }

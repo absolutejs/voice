@@ -192,6 +192,39 @@ test("createVoiceAgent blocks a terminal tool before its side effect", async () 
   ]);
 });
 
+test("createVoiceAgent policy blocks built-in lifecycle tools", async () => {
+  const model: VoiceAgentModel = {
+    generate: () => ({
+      assistantText: "Before I wrap up, is there anything else?",
+      toolCalls: [{ args: {}, id: "unsafe-complete", name: "complete" }],
+    }),
+  };
+  const agent = createVoiceAgent({
+    id: "intake",
+    model,
+    toolPolicy: ({ assistantText, toolCall }) => ({
+      allowed: false,
+      reason: `${toolCall.name} rejected for: ${assistantText}`,
+    }),
+  });
+
+  const result = await agent.run({
+    api: createApi(),
+    context: {},
+    session: createVoiceSessionRecord("session-lifecycle-policy"),
+    turn: createTurn("I can get in anywhere."),
+  });
+
+  expect(result.complete).toBeUndefined();
+  expect(result.toolResults).toEqual([
+    expect.objectContaining({
+      error: "complete rejected for: Before I wrap up, is there anything else?",
+      status: "error",
+      toolName: "complete",
+    }),
+  ]);
+});
+
 test("createVoiceAgent can run tools through reliability runtime retries", async () => {
   let attempts = 0;
   const agent = createVoiceAgent({

@@ -2320,6 +2320,7 @@ export type {
   VoiceAgentSquadStateHandoff,
   VoiceAgentTool,
   VoiceAgentToolCall,
+  VoiceAgentToolPolicy,
   VoiceAgentToolPolicyDecision,
   VoiceAgentToolResult,
 } from "./core/agent";
