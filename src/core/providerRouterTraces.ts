@@ -72,13 +72,18 @@ export const buildVoiceIOProviderRouterTraceEvent = <
   metadata: options.metadata,
   payload: {
     ...options.event,
+    recoverable:
+      options.event.status === "error" &&
+      options.event.fallbackProvider !== undefined,
     ...(options.payload ?? {}),
     providerStatus: options.event.status,
   },
   scenarioId: options.scenarioId,
   sessionId: options.sessionId,
   turnId: options.turnId,
-  type: options.type ?? "session.error",
+  type:
+    options.type ??
+    (options.event.status === "error" ? "session.error" : "provider.decision"),
 });
 export const buildVoiceProviderRouterTraceEvent = <
   TProvider extends string = string,
@@ -92,11 +97,16 @@ export const buildVoiceProviderRouterTraceEvent = <
   metadata: options.metadata,
   payload: {
     ...options.event,
+    recoverable:
+      options.event.status === "error" &&
+      options.event.fallbackProvider !== undefined,
     ...(options.payload ?? {}),
     providerStatus: options.event.status,
   },
   scenarioId: options.scenarioId,
   sessionId: options.sessionId,
   turnId: options.turnId,
-  type: options.type ?? "session.error",
+  type:
+    options.type ??
+    (options.event.status === "error" ? "session.error" : "provider.decision"),
 });

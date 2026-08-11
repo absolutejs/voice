@@ -72,6 +72,8 @@ export type OpenAIVoiceAssistantModelOptions = {
   model?: string;
   onUsage?: (usage: Record<string, unknown>) => Promise<void> | void;
   temperature?: number;
+  /** Maximum silence between SSE body chunks. Default 10 seconds. */
+  streamInactivityMs?: number;
   /**
    * Hard cap on a single /responses stream. Aborts via AbortController if
    * the stream doesn't complete in time. Default 60s — generous for typical
@@ -124,6 +126,9 @@ export type VoiceProviderRouterEvent<TProvider extends string = string> = {
   suppressedUntil?: number;
   status: "error" | "fallback" | "success";
   timedOut?: boolean;
+  timeoutKind?: "latency-budget" | "stream-inactivity";
+  timeoutMs?: number;
+  totalElapsedMs?: number;
 };
 
 export type VoiceProviderRouterFallbackMode =
@@ -555,6 +560,16 @@ class VoiceProviderTimeoutError extends Error {
     this.name = "VoiceProviderTimeoutError";
     this.provider = provider;
     this.timeoutMs = timeoutMs;
+  }
+}
+
+class VoiceProviderStreamInactivityError extends Error {
+  inactivityMs: number;
+
+  constructor(inactivityMs: number) {
+    super(`SSE read inactivity timeout (${inactivityMs}ms with no chunk)`);
+    this.name = "VoiceProviderStreamInactivityError";
+    this.inactivityMs = inactivityMs;
   }
 }
 
@@ -1034,6 +1049,7 @@ export const createVoiceProviderRouter = <
     index: number,
     selectedProvider: TProvider,
     startedAt: number,
+    routingStartedAt: number,
   ) => {
     let output = await runProvider(provider, model, input);
     let emptyAttempt = 0;
@@ -1052,6 +1068,7 @@ export const createVoiceProviderRouter = <
           provider,
           selectedProvider,
           status: "success",
+          totalElapsedMs: Date.now() - routingStartedAt,
         },
         input,
       );
@@ -1069,6 +1086,7 @@ export const createVoiceProviderRouter = <
         throw new Error("Voice provider router has no available providers.");
       }
 
+      const routingStartedAt = Date.now();
       let lastError: unknown;
       for (const [index, provider] of order.entries()) {
         const model = options.providers[provider];
@@ -1084,6 +1102,7 @@ export const createVoiceProviderRouter = <
             index,
             selectedProvider,
             startedAt,
+            routingStartedAt,
           );
           const providerHealth = recordProviderSuccess(provider);
           await emit(
@@ -1099,6 +1118,7 @@ export const createVoiceProviderRouter = <
               recovered: provider !== selectedProvider,
               selectedProvider,
               status: provider === selectedProvider ? "success" : "fallback",
+              totalElapsedMs: Date.now() - routingStartedAt,
             },
             input,
           );
@@ -1111,7 +1131,8 @@ export const createVoiceProviderRouter = <
             options.isProviderError?.(error, provider) ?? true;
           const timedOut =
             options.isTimeoutError?.(error, provider) ??
-            error instanceof VoiceProviderTimeoutError;
+            (error instanceof VoiceProviderTimeoutError ||
+              error instanceof VoiceProviderStreamInactivityError);
           const rateLimited =
             options.isRateLimitError?.(error, provider) ??
             defaultIsRateLimitError(error);
@@ -1144,6 +1165,19 @@ export const createVoiceProviderRouter = <
               suppressedUntil: providerHealth?.suppressedUntil,
               status: "error",
               timedOut,
+              timeoutKind:
+                error instanceof VoiceProviderStreamInactivityError
+                  ? "stream-inactivity"
+                  : error instanceof VoiceProviderTimeoutError
+                    ? "latency-budget"
+                    : undefined,
+              timeoutMs:
+                error instanceof VoiceProviderStreamInactivityError
+                  ? error.inactivityMs
+                  : error instanceof VoiceProviderTimeoutError
+                    ? error.timeoutMs
+                    : undefined,
+              totalElapsedMs: Date.now() - routingStartedAt,
             },
             input,
           );
@@ -1431,11 +1465,7 @@ const readServerSentEvents = async (
         reader.cancel().catch(() => {
           /* best-effort */
         });
-        reject(
-          new Error(
-            `SSE read inactivity timeout (${inactivityMs}ms with no chunk)`,
-          ),
-        );
+        reject(new VoiceProviderStreamInactivityError(inactivityMs));
       }, inactivityMs);
       if (signal) {
         onAbort = () => {
@@ -1711,7 +1741,7 @@ export const createOpenAIVoiceAssistantModel = <
           // generous, kill the read if the server stalls for >10s with
           // no chunk. Catches the post-barge-in OpenAI hang where the
           // connection stays open but no events arrive.
-          inactivityMs: 10_000,
+          inactivityMs: options.streamInactivityMs ?? 10_000,
         }));
         stamp("openai.stream-done", {
           textChars: assistantText?.length ?? 0,

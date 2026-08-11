@@ -135,6 +135,54 @@ test("createVoiceProviderRouter falls back on provider errors", async () => {
       status: "fallback",
     },
   ]);
+  expect(events[0].totalElapsedMs).toBeNumber();
+  expect(events[1].totalElapsedMs).toBeNumber();
+  expect(Number(events[1].totalElapsedMs)).toBeGreaterThanOrEqual(
+    Number(events[0].totalElapsedMs),
+  );
+});
+
+test("createVoiceProviderRouter classifies OpenAI SSE inactivity and recovers", async () => {
+  const events: Array<Record<string, unknown>> = [];
+  const stalledOpenAI = createOpenAIVoiceAssistantModel({
+    apiKey: "test-key",
+    fetch: async () =>
+      new Response(new ReadableStream({ start() {} }), {
+        headers: { "content-type": "text/event-stream" },
+        status: 200,
+      }),
+    streamInactivityMs: 5,
+  });
+  const model = createVoiceProviderRouter({
+    fallback: ["openai", "backup"],
+    onProviderEvent: (event) => events.push(event),
+    providers: {
+      backup: {
+        generate: async () => ({ assistantText: "recovered" }),
+      },
+      openai: stalledOpenAI,
+    } satisfies Record<string, VoiceAgentModel>,
+    selectProvider: () => "openai",
+  });
+
+  expect(await model.generate(createInput())).toMatchObject({
+    assistantText: "recovered",
+  });
+  expect(events).toMatchObject([
+    {
+      fallbackProvider: "backup",
+      provider: "openai",
+      status: "error",
+      timedOut: true,
+      timeoutKind: "stream-inactivity",
+      timeoutMs: 5,
+    },
+    {
+      provider: "backup",
+      recovered: true,
+      status: "fallback",
+    },
+  ]);
 });
 
 test("createVoiceProviderRouter does not fall back on fatal errors", async () => {

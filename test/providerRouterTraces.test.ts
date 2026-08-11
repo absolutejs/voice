@@ -7,7 +7,7 @@ import {
 } from "../src/core/providerRouterTraces";
 import { createVoiceMemoryTraceEventStore } from "../src/core/trace";
 
-test("buildVoiceProviderRouterTraceEvent maps model router events to session error traces", () => {
+test("buildVoiceProviderRouterTraceEvent maps recovered model routing to provider decisions", () => {
   const trace = buildVoiceProviderRouterTraceEvent({
     event: {
       at: 1_000,
@@ -37,7 +37,7 @@ test("buildVoiceProviderRouterTraceEvent maps model router events to session err
     scenarioId: "provider-routing-contract",
     sessionId: "session-1",
     turnId: "turn-1",
-    type: "session.error",
+    type: "provider.decision",
   });
 });
 
@@ -68,6 +68,7 @@ test("appendVoiceProviderRouterTraceEvent appends model provider router traces",
       payload: {
         provider: "openai",
         providerStatus: "error",
+        recoverable: false,
         routing: "fastest",
         timedOut: true,
       },
@@ -78,7 +79,7 @@ test("appendVoiceProviderRouterTraceEvent appends model provider router traces",
   ]);
 });
 
-test("buildVoiceIOProviderRouterTraceEvent maps STT and TTS router events to session error traces", () => {
+test("buildVoiceIOProviderRouterTraceEvent maps recovered IO routing to provider decisions", () => {
   const trace = buildVoiceIOProviderRouterTraceEvent({
     event: {
       at: 3_000,
@@ -107,7 +108,7 @@ test("buildVoiceIOProviderRouterTraceEvent maps STT and TTS router events to ses
     },
     scenarioId: "stt-provider-routing-contract",
     sessionId: "session-3",
-    type: "session.error",
+    type: "provider.decision",
   });
 });
 
