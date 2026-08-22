@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { Database } from "bun:sqlite";
 import type { RedisClient } from "bun";
 import { Elysia } from "elysia";
+import { websocket } from "elysia/websocket";
 import {
   evaluateVoiceTelephonyContract,
   type VoiceTelephonyContractReport,
@@ -1123,6 +1124,10 @@ export const createPlivoVoiceRoutes = <
       ? false
       : (options.smoke?.path ?? "/api/voice/plivo/smoke");
   const bridges = new WeakMap<object, PlivoMediaStreamBridge>();
+  const socketKey = (socket: object) =>
+    "raw" in socket && socket.raw && typeof socket.raw === "object"
+      ? socket.raw
+      : socket;
   const webhookPolicy =
     options.webhook?.policy ??
     options.outcomePolicy ??
@@ -1139,6 +1144,7 @@ export const createPlivoVoiceRoutes = <
   const app = new Elysia({
     name: options.name ?? "absolutejs-voice-plivo",
   })
+    .use(websocket())
     .get(answerPath, async ({ query, request }) => {
       const streamUrl = await resolvePlivoStreamUrl(options, {
         query,
@@ -1181,7 +1187,7 @@ export const createPlivoVoiceRoutes = <
       close: async (ws, _code, reason) => {
         // Key by the stable underlying socket (ws.raw); Elysia recreates the
         // ElysiaWS wrapper per event, so keying by ws would miss/leak the bridge.
-        const key = ws.raw ?? ws;
+        const key = socketKey(ws);
         const bridge = bridges.get(key);
         bridges.delete(key);
         await bridge?.close(reason);
@@ -1193,7 +1199,7 @@ export const createPlivoVoiceRoutes = <
           return;
         }
 
-        const key = ws.raw ?? ws;
+        const key = socketKey(ws);
         let bridge = bridges.get(key);
         if (!bridge) {
           bridge = createPlivoMediaStreamBridge(

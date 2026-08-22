@@ -78,7 +78,7 @@ const isBypassed = (
 export const createVoiceRouteAuth = (options: VoiceRouteAuthOptions) => {
   const bypassPaths = options.bypassPaths ?? [];
 
-  return new Elysia({ name: options.name ?? "voice-route-auth" }).onRequest(
+  return new Elysia({ name: options.name ?? "voice-route-auth" }).request(
     async ({ request, set }) => {
       const { url } = request;
       if (isBypassed(bypassPaths, url)) return;

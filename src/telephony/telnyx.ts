@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { Database } from "bun:sqlite";
 import type { RedisClient } from "bun";
 import { Elysia } from "elysia";
+import { websocket } from "elysia/websocket";
 import {
   evaluateVoiceTelephonyContract,
   type VoiceTelephonyContractReport,
@@ -1024,6 +1025,10 @@ export const createTelnyxVoiceRoutes = <
       ? false
       : (options.smoke?.path ?? "/api/voice/telnyx/smoke");
   const bridges = new WeakMap<object, TelnyxMediaStreamBridge>();
+  const socketKey = (socket: object) =>
+    "raw" in socket && socket.raw && typeof socket.raw === "object"
+      ? socket.raw
+      : socket;
   const webhookPolicy =
     options.webhook?.policy ??
     options.outcomePolicy ??
@@ -1040,6 +1045,7 @@ export const createTelnyxVoiceRoutes = <
   const app = new Elysia({
     name: options.name ?? "absolutejs-voice-telnyx",
   })
+    .use(websocket())
     .get(texmlPath, async ({ query, request }) => {
       const streamUrl = await resolveTelnyxStreamUrl(options, {
         query,
@@ -1082,7 +1088,7 @@ export const createTelnyxVoiceRoutes = <
       close: async (ws, _code, reason) => {
         // Key by the stable underlying socket (ws.raw); Elysia recreates the
         // ElysiaWS wrapper per event, so keying by ws would miss/leak the bridge.
-        const key = ws.raw ?? ws;
+        const key = socketKey(ws);
         const bridge = bridges.get(key);
         bridges.delete(key);
         await bridge?.close(reason);
@@ -1094,7 +1100,7 @@ export const createTelnyxVoiceRoutes = <
           return;
         }
 
-        const key = ws.raw ?? ws;
+        const key = socketKey(ws);
         let bridge = bridges.get(key);
         if (!bridge) {
           bridge = createTelnyxMediaStreamBridge(

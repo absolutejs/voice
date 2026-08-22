@@ -4624,6 +4624,18 @@ test("stuckCallClose is reset by caller progress and never fires on a flowing ca
   expect((await session.snapshot()).status).not.toBe("completed");
 });
 
+test("stuckCallClose rechecks recent transcript progress before closing", async () => {
+  const source = await Bun.file("src/core/session.ts").text();
+  const closeGuard = source.slice(
+    source.indexOf('void runSerial("stuck-call-close"'),
+    source.indexOf("stuckCloseFired = true;"),
+  );
+
+  expect(closeGuard).toContain("Date.now() - lastTranscriptAt");
+  expect(closeGuard).toContain("kickStuckCloseWatchdog()");
+  expect(closeGuard).toContain("return;");
+});
+
 test("caller pause survives disconnect and restores until explicitly resumed", async () => {
   const store = createVoiceMemoryStore();
   const adapter = createFakeAdapter();

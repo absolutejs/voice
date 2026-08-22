@@ -1537,6 +1537,9 @@ export const createVoiceTelephonyWebhookRoutes = <
     name: options.name ?? "absolutejs-voice-telephony-webhooks",
   }).post(
     path,
+    {
+      parse: "none",
+    },
     async ({ query, request }) => {
       try {
         return await handler({ query, request });
@@ -1552,9 +1555,6 @@ export const createVoiceTelephonyWebhookRoutes = <
 
         throw error;
       }
-    },
-    {
-      parse: "none",
     },
   );
 };

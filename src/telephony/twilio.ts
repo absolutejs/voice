@@ -1,6 +1,7 @@
 import { escapeHtml } from "../internal/html";
 import { Buffer } from "node:buffer";
 import { Elysia } from "elysia";
+import { websocket } from "elysia/websocket";
 import { resolveAudioConditioningConfig } from "../core/audioConditioning";
 import { resolveLogger } from "../core/logger";
 import { resolveVoiceRuntimePreset } from "../core/presets";
@@ -435,14 +436,27 @@ const resolveTrustedTwilioRequestUrl = (
   return `${resolveTwilioPublicOrigin(security)}${requestUrl.pathname}${requestUrl.search}`;
 };
 
-const resolveTwilioSocketHeaders = (socket: { data?: unknown }) => {
-  if (!socket.data || typeof socket.data !== "object") return new Headers();
-  const data = socket.data as {
-    headers?: unknown;
-    request?: { headers?: unknown };
-  };
+const resolveTwilioSocketHeaders = (socket: {
+  data?: unknown;
+  headers?: unknown;
+  request?: unknown;
+}) => {
+  const data =
+    socket.data && typeof socket.data === "object"
+      ? (socket.data as {
+          headers?: unknown;
+          request?: { headers?: unknown };
+        })
+      : {
+          headers: socket.headers,
+          request:
+            socket.request && typeof socket.request === "object"
+              ? (socket.request as { headers?: unknown })
+              : undefined,
+        };
+  const candidates: unknown[] = [data.request?.headers, data.headers];
 
-  for (const candidate of [data.request?.headers, data.headers]) {
+  for (const candidate of candidates) {
     if (!candidate) continue;
     if (
       typeof candidate === "object" &&
@@ -460,6 +474,11 @@ const resolveTwilioSocketHeaders = (socket: { data?: unknown }) => {
 
   return new Headers();
 };
+
+const socketKey = (socket: object) =>
+  "raw" in socket && socket.raw && typeof socket.raw === "object"
+    ? socket.raw
+    : socket;
 
 const readTwilioVoiceForm = async (request: Request) => {
   const declaredLength = Number(request.headers.get("content-length"));
@@ -1718,13 +1737,14 @@ export const createTwilioVoiceRoutes = <
   const app = new Elysia({
     name: options.name ?? "absolutejs-voice-twilio",
   })
+    .use(websocket())
     .get(twimlPath, renderTwiml)
-    .post(twimlPath, renderTwiml, { parse: "none" })
+    .post(twimlPath, { parse: "none" }, renderTwiml)
     .ws(streamPath, {
       close: async (ws, _code, reason) => {
         // Elysia hands a fresh ElysiaWS wrapper per event; key the bridge map by
         // the stable underlying socket (ws.raw) so one bridge persists per call.
-        const key = ws.raw ?? ws;
+        const key = socketKey(ws);
         const bridge = bridges.get(key);
         bridges.delete(key);
         admittedSockets.delete(key);
@@ -1732,7 +1752,7 @@ export const createTwilioVoiceRoutes = <
         await bridge?.close(reason);
       },
       message: async (ws, raw) => {
-        const key = ws.raw ?? ws;
+        const key = socketKey(ws);
         if (!admittedSockets.has(key)) {
           const verification = await verifyVoiceTwilioWebhookSignature({
             authToken: options.security.authToken,

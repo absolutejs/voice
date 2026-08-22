@@ -1,5 +1,6 @@
 import { resolveAudioConditioningConfig } from "./audioConditioning";
 import { Elysia } from "elysia";
+import { websocket } from "elysia/websocket";
 import { resolve } from "node:path";
 import {
   buildVoiceHTMXResponse,
@@ -331,12 +332,9 @@ const parseClientMessage = (raw: unknown) => {
 
 const resolveSessionId = (
   runtime: VoiceRuntime,
-  ws: { data?: unknown; raw?: unknown },
+  ws: { data?: unknown; query?: unknown; raw?: unknown },
 ) => {
-  const query =
-    ws.data && typeof ws.data === "object" && "query" in ws.data
-      ? (ws.data.query as Record<string, unknown> | undefined)
-      : undefined;
+  const query = resolveSocketQuery(ws);
   const identity = socketIdentity(ws);
   const existing = runtime.socketSessions.get(identity);
   const providedSessionId =
@@ -356,10 +354,28 @@ const resolveSessionId = (
   return resolved;
 };
 
-const resolveSocketQuery = (ws: { data?: unknown }) =>
-  ws.data && typeof ws.data === "object" && "query" in ws.data
-    ? ((ws.data.query as Record<string, unknown> | undefined) ?? {})
-    : {};
+const resolveSocketQuery = (ws: { data?: unknown; query?: unknown }) => {
+  if (ws.query && typeof ws.query === "object") {
+    return ws.query as Record<string, unknown>;
+  }
+  if (ws.data && typeof ws.data === "object" && "query" in ws.data) {
+    return (ws.data.query as Record<string, unknown> | undefined) ?? {};
+  }
+
+  return {};
+};
+
+const resolveSocketContext = (ws: { data?: unknown }) => {
+  if (
+    ws.data &&
+    typeof ws.data === "object" &&
+    ("headers" in ws.data || "query" in ws.data || "request" in ws.data)
+  ) {
+    return ws.data;
+  }
+
+  return ws;
+};
 
 const normalizeSocketHeaders = (value: unknown) => {
   if (!value || typeof value !== "object") return null;
@@ -378,7 +394,17 @@ const normalizeSocketHeaders = (value: unknown) => {
   }
 };
 
-export const resolveSocketHeaders = (ws: { data?: unknown }) => {
+export const resolveSocketHeaders = (ws: {
+  data?: unknown;
+  headers?: unknown;
+  request?: unknown;
+}) => {
+  if (ws.request && typeof ws.request === "object" && "headers" in ws.request) {
+    const requestHeaders = normalizeSocketHeaders(ws.request.headers);
+    if (requestHeaders) return requestHeaders;
+  }
+  const directContextHeaders = normalizeSocketHeaders(ws.headers);
+  if (directContextHeaders) return directContextHeaders;
   if (!ws.data || typeof ws.data !== "object") return new Headers();
   if (
     "request" in ws.data &&
@@ -756,7 +782,7 @@ export const voice = <
       let authorized = false;
       try {
         authorized = await config.authorizeConnection({
-          context: ws.data as TContext,
+          context: resolveSocketContext(ws) as TContext,
           headers: resolveSocketHeaders(ws),
           path: config.path,
           query: resolveSocketQuery(ws),
@@ -884,7 +910,7 @@ export const voice = <
     sessionId: string,
     scenarioId?: string,
   ) => {
-    const context = ws.data as TContext;
+    const context = resolveSocketContext(ws) as TContext;
     const profileSwitchDecision = await resolveProfileSwitchGuard(
       config,
       runtime,
@@ -1505,6 +1531,7 @@ export const voice = <
   };
 
   return new Elysia({ name: "absolutejs-voice" })
+    .use(websocket())
     .ws(config.path, {
       close: async (ws, code, reason) => {
         const identity = socketIdentity(ws);

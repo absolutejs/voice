@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { websocket } from "elysia/websocket";
 import type {
   AudioFormat,
   VoiceMonitorRuntimeBinding,
@@ -558,7 +559,7 @@ export const createVoiceLiveMonitorRoutes = (
       buildDefaultControlHandler("voicemail"),
   };
 
-  const app = new Elysia({ name: "absolutejs-voice-monitor" });
+  const app = new Elysia({ name: "absolutejs-voice-monitor" }).use(websocket());
   const unsubscribers = new WeakMap<object, Array<() => void>>();
 
   if (listenPath !== false && listenPath.length > 0) {

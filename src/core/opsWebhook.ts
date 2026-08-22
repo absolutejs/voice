@@ -209,6 +209,9 @@ export const createVoiceOpsWebhookReceiverRoutes = (
 
   return new Elysia().post(
     path,
+    {
+      parse: "text",
+    },
     async ({ body, request, set }) => {
       const bodyText = typeof body === "string" ? body : JSON.stringify(body);
       if (options.signingSecret) {
@@ -240,9 +243,6 @@ export const createVoiceOpsWebhookReceiverRoutes = (
         ok: true,
         type: envelope.event?.type,
       };
-    },
-    {
-      parse: "text",
     },
   );
 };

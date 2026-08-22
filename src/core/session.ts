@@ -923,9 +923,22 @@ export const createVoiceSession = <
       ) {
         return;
       }
+      const { lastSpeechAt, lastTranscriptAt } = snapshot.currentTurn;
+      // A prior timer can already be queued when a fresh partial resets the
+      // watchdog. Re-check authoritative transcript progress after entering the
+      // serial section so that stale callback cannot close a caller who is
+      // actively delivering a long answer.
+      if (
+        lastTranscriptAt !== undefined &&
+        stuckCloseAfterMs !== undefined &&
+        Date.now() - lastTranscriptAt < stuckCloseAfterMs
+      ) {
+        kickStuckCloseWatchdog();
+
+        return;
+      }
       stuckCloseFired = true;
       const reason = `no caller progress for ${stuckCloseAfterMs}ms`;
-      const { lastSpeechAt, lastTranscriptAt } = snapshot.currentTurn;
       const sttDeafConfirmed =
         sttDeafConfirmedAt > 0 &&
         (lastTranscriptAt === undefined ||
