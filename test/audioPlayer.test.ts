@@ -327,7 +327,11 @@ test("getIntegritySummary reports a clean single-player call as ok", async () =>
   expect(integrity.maxConcurrentPlayers).toBe(1);
   expect(integrity.chunksReceived).toBe(2);
   expect(integrity.chunksScheduled).toBe(2);
+  expect(integrity.buffersScheduled).toBe(2);
   expect(integrity.errorCount).toBe(0);
+  expect(integrity.audioFormatCount).toBe(1);
+  expect(integrity.formatChangeCount).toBe(0);
+  expect(integrity.pendingPartialFrameBytes).toBe(0);
   expect(integrity.ok).toBe(true);
 
   await player.close();
@@ -368,4 +372,90 @@ test("getIntegritySummary flags overlapping players (the two-voices garble)", as
   await playerC.start();
   expect(playerC.getIntegritySummary().maxConcurrentPlayers).toBe(1);
   await playerC.close();
+});
+
+test("getIntegritySummary excludes expected silence between assistant turns", async () => {
+  const fixture = createSource();
+  const context = new FakeAudioContext();
+  const player = createVoiceAudioPlayer(fixture.source, {
+    createAudioContext: () => context as never,
+  });
+
+  fixture.push(pcmChunk("turn-1"));
+  await player.start();
+  context.currentTime = 2;
+  fixture.push(pcmChunk("turn-2"));
+  await Bun.sleep(0);
+  expect(player.getIntegritySummary().gapCount).toBe(0);
+
+  context.currentTime = 3;
+  fixture.push(pcmChunk("turn-2"));
+  await Bun.sleep(0);
+  expect(player.getIntegritySummary().gapCount).toBe(1);
+
+  await player.close();
+});
+
+test("player carries incomplete PCM frames across chunks without dropping bytes", async () => {
+  const fixture = createSource();
+  const context = new FakeAudioContext();
+  const player = createVoiceAudioPlayer(fixture.source, {
+    createAudioContext: () => context as never,
+  });
+  const format = pcmChunk("turn-1").format;
+
+  fixture.push({
+    chunk: new Uint8Array([1]),
+    format,
+    receivedAt: 1,
+    turnId: "turn-1",
+  });
+  await player.start();
+  fixture.push({
+    chunk: new Uint8Array([0, 2, 0]),
+    format,
+    receivedAt: 2,
+    turnId: "turn-1",
+  });
+  await Bun.sleep(0);
+
+  const integrity = player.getIntegritySummary();
+  expect(context.buffers).toHaveLength(1);
+  expect(context.buffers[0]?.length).toBe(2);
+  expect(integrity.incompleteFrameChunkCount).toBe(1);
+  expect(integrity.discardedPartialFrameBytes).toBe(0);
+  expect(integrity.pendingPartialFrameBytes).toBe(0);
+  expect(integrity.ok).toBe(true);
+
+  await player.close();
+});
+
+test("player reports a partial PCM frame discarded at a turn boundary", async () => {
+  const fixture = createSource();
+  const context = new FakeAudioContext();
+  const player = createVoiceAudioPlayer(fixture.source, {
+    createAudioContext: () => context as never,
+  });
+  const format = pcmChunk("turn-1").format;
+
+  fixture.push({
+    chunk: new Uint8Array([1]),
+    format,
+    receivedAt: 1,
+    turnId: "turn-1",
+  });
+  await player.start();
+  fixture.push({
+    chunk: new Uint8Array([2, 0]),
+    format,
+    receivedAt: 2,
+    turnId: "turn-2",
+  });
+  await Bun.sleep(0);
+
+  const integrity = player.getIntegritySummary();
+  expect(integrity.discardedPartialFrameBytes).toBe(1);
+  expect(integrity.ok).toBe(false);
+
+  await player.close();
 });

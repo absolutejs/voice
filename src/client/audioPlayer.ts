@@ -202,6 +202,66 @@ export const createVoiceAudioPlayer = (
   let maxGapMs = 0;
   let errorCount = 0;
   let hasScheduledAnyChunk = false;
+  let buffersScheduled = 0;
+  let lastScheduledTurnId: string | undefined;
+  const audioFormats = new Set<string>();
+  let lastAudioFormat: string | null = null;
+  let formatChangeCount = 0;
+  let incompleteFrameChunkCount = 0;
+  let discardedPartialFrameBytes = 0;
+  let pendingFrameBytes = new Uint8Array();
+  let pendingFrameFormat: string | null = null;
+  let pendingFrameTurnId: string | undefined;
+
+  const formatKey = (format: AudioFormat) =>
+    `${format.container}/${format.encoding}/${String(format.channels)}ch/${String(format.sampleRateHz)}hz`;
+
+  const frameAlignedChunk = (chunk: VoiceAudioChunk) => {
+    const format = formatKey(chunk.format);
+    audioFormats.add(format);
+    if (lastAudioFormat !== null && lastAudioFormat !== format) {
+      formatChangeCount += 1;
+    }
+    lastAudioFormat = format;
+
+    if (
+      pendingFrameBytes.byteLength > 0 &&
+      (pendingFrameFormat !== format || pendingFrameTurnId !== chunk.turnId)
+    ) {
+      discardedPartialFrameBytes += pendingFrameBytes.byteLength;
+      pendingFrameBytes = new Uint8Array();
+    }
+
+    const joined =
+      pendingFrameBytes.byteLength === 0
+        ? chunk.chunk
+        : (() => {
+            const bytes = new Uint8Array(
+              pendingFrameBytes.byteLength + chunk.chunk.byteLength,
+            );
+            bytes.set(pendingFrameBytes);
+            bytes.set(chunk.chunk, pendingFrameBytes.byteLength);
+
+            return bytes;
+          })();
+    const frameBytes = Math.max(1, chunk.format.channels) * 2;
+    const completeBytes = joined.byteLength - (joined.byteLength % frameBytes);
+    const remainderBytes = joined.byteLength - completeBytes;
+    if (remainderBytes > 0) {
+      incompleteFrameChunkCount += 1;
+      pendingFrameBytes = joined.slice(completeBytes);
+      pendingFrameFormat = format;
+      pendingFrameTurnId = chunk.turnId;
+    } else {
+      pendingFrameBytes = new Uint8Array();
+      pendingFrameFormat = null;
+      pendingFrameTurnId = undefined;
+    }
+
+    return completeBytes > 0
+      ? { ...chunk, chunk: joined.subarray(0, completeBytes) }
+      : null;
+  };
 
   const sampleConcurrency = () => {
     if (activeAudioPlayers.size > observedPeakConcurrency) {
@@ -363,6 +423,7 @@ export const createVoiceAudioPlayer = (
     context: MinimalAudioContext,
     buffer: MinimalAudioBuffer,
     rate: number,
+    turnId: string | undefined,
   ) => {
     const node = context.createBufferSource();
     node.buffer = buffer;
@@ -385,13 +446,20 @@ export const createVoiceAudioPlayer = (
     // Integrity: if the queue had already drained (earliestStart is past where
     // the last chunk ended) AND we'd played before, there was an audible gap —
     // a late/dropped packet. (First chunk has no preceding audio, so skip it.)
-    if (hasScheduledAnyChunk && earliestStart > queueEndTime + GAP_EPSILON_S) {
+    if (
+      hasScheduledAnyChunk &&
+      turnId !== undefined &&
+      turnId === lastScheduledTurnId &&
+      earliestStart > queueEndTime + GAP_EPSILON_S
+    ) {
       const gapMs = (earliestStart - queueEndTime) * 1_000;
       gapCount += 1;
       totalGapMs += gapMs;
       maxGapMs = Math.max(maxGapMs, gapMs);
     }
     hasScheduledAnyChunk = true;
+    lastScheduledTurnId = turnId;
+    buffersScheduled += 1;
     scheduledDurationMs += (buffer.duration / rate) * 1_000;
     sampleConcurrency();
     // At rate r the buffer plays in buffer.duration / r real seconds, so the
@@ -408,14 +476,16 @@ export const createVoiceAudioPlayer = (
 
   const scheduleChunk = async (chunk: VoiceAudioChunk) => {
     const context = await ensureAudioContext();
-    const buffer = decodePCM16LEChunk(context, chunk);
+    const alignedChunk = frameAlignedChunk(chunk);
+    if (!alignedChunk) return;
+    const buffer = decodePCM16LEChunk(context, alignedChunk);
 
     // Bypass: at (near) unity speed play the decoded buffer as-is so the common
     // case is untouched. Resampling via playbackRate would shift pitch, so any
     // real speed change instead time-stretches below at a fixed node rate of 1.
     if (Math.abs(playbackRate - 1) <= STRETCH_BYPASS_EPSILON) {
       stretcher?.reset();
-      scheduleBuffer(context, buffer, playbackRate);
+      scheduleBuffer(context, buffer, playbackRate, chunk.turnId);
 
       return;
     }
@@ -449,7 +519,7 @@ export const createVoiceAudioPlayer = (
       if (!channelOut) continue;
       outBuffer.getChannelData(channelIndex).set(channelOut);
     }
-    scheduleBuffer(context, outBuffer, 1);
+    scheduleBuffer(context, outBuffer, 1, chunk.turnId);
   };
 
   const stopQueuedPlayback = (options?: { forceClear?: boolean }) => {
@@ -457,6 +527,7 @@ export const createVoiceAudioPlayer = (
       node.stop?.();
     }
     queueEndTime = audioContext ? audioContext.currentTime : 0;
+    lastScheduledTurnId = undefined;
 
     if (options?.forceClear) {
       for (const node of sourceNodes) {
@@ -575,19 +646,26 @@ export const createVoiceAudioPlayer = (
       const chunksReceived = source.assistantAudio.length;
       const chunksScheduled = state.processedChunkCount;
       return {
+        audioFormatCount: audioFormats.size,
+        buffersScheduled,
         chunksReceived,
         chunksScheduled,
+        discardedPartialFrameBytes,
         errorCount,
+        formatChangeCount,
         gapCount,
+        incompleteFrameChunkCount,
         maxConcurrentPlayers: observedPeakConcurrency,
         maxGapMs: Math.round(maxGapMs),
-        // All-clear: every received chunk played, nothing overlapped, no errors.
-        // (Gaps alone don't fail it — a slow network can cause benign underruns —
-        // but they're reported for inspection.)
+        pendingPartialFrameBytes: pendingFrameBytes.byteLength,
+        // All-clear for delivery/scheduling only. Waveform quality requires a
+        // playback-path recording and must not be inferred from this flag.
         ok:
           observedPeakConcurrency <= 1 &&
           errorCount === 0 &&
-          chunksScheduled >= chunksReceived,
+          chunksScheduled >= chunksReceived &&
+          discardedPartialFrameBytes === 0 &&
+          pendingFrameBytes.byteLength === 0,
         scheduledDurationMs: Math.round(scheduledDurationMs),
         totalGapMs: Math.round(totalGapMs),
       };

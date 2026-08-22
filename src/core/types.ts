@@ -2337,22 +2337,30 @@ export type VoiceAudioPlayerSource = {
   subscribe: (subscriber: () => void) => () => void;
 };
 
-/** Post-call playback integrity, for verifying the assistant audio actually
- *  played cleanly (no overlap, no dropped/stalled packets) — emit it as a trace
- *  so a garbled call is provable, not guessed. `ok` is the all-clear roll-up. */
+/** Post-call playback-pipeline integrity. This proves what the browser player
+ *  received and scheduled; it does not claim that the resulting waveform
+ *  sounded clean. A browser-side replay is required for that stronger claim. */
 export type VoiceAudioIntegrity = {
   ok: boolean;
-  // assistant audio chunks the player received vs actually scheduled to play.
-  // A gap means the source delivered chunks the player never got to (drop/stall).
+  // Assistant chunks received vs consumed by the playback pipeline.
   chunksReceived: number;
   chunksScheduled: number;
+  // Actual Web Audio buffers scheduled. This can be lower than chunksScheduled
+  // when a transport chunk only contains a partial PCM frame.
+  buffersScheduled: number;
   // Total real-time audio scheduled, ms.
   scheduledDurationMs: number;
-  // Underruns: the playback queue drained before the next chunk arrived → an
-  // audible gap / choppy playback.
+  // Intra-turn underruns only. Expected silence between assistant turns is not
+  // counted as a playback gap.
   gapCount: number;
   totalGapMs: number;
   maxGapMs: number;
+  // Format/framing diagnostics for corruption that chunk counts cannot expose.
+  audioFormatCount: number;
+  formatChangeCount: number;
+  incompleteFrameChunkCount: number;
+  discardedPartialFrameBytes: number;
+  pendingPartialFrameBytes: number;
   // Peak number of audio players live AT ONCE while this one was active. >1 means
   // two assistant streams overlapped (the "overlapping voices" garble).
   maxConcurrentPlayers: number;
