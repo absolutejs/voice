@@ -4524,6 +4524,8 @@ export const createVoiceSession = <
 
   const disconnectInternal = async (event?: VoiceCloseEvent) => {
     clearSilenceTimer();
+    clearStuckCloseWatchdog();
+    clearIdleRepromptWatchdog();
     await closeTTSSession(event?.reason);
     await closeAdapter(event?.reason);
     rewindFallbackTurnAudio();

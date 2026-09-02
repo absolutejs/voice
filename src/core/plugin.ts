@@ -160,6 +160,18 @@ type VoiceRuntime = {
   >;
 };
 
+class VoiceSocketCancelledError extends Error {
+  constructor() {
+    super("Voice socket connection was cancelled");
+    this.name = "VoiceSocketCancelledError";
+  }
+}
+
+const isVoiceSocketCancelledError = (
+  error: unknown,
+): error is VoiceSocketCancelledError =>
+  error instanceof VoiceSocketCancelledError;
+
 const socketIdentity = (ws: object & { raw?: unknown }) =>
   ws.raw && typeof ws.raw === "object" ? ws.raw : ws;
 
@@ -1088,7 +1100,7 @@ export const voice = <
       runtime.activeSockets.get(sessionId) !== identity
     ) {
       ws.close(1000, "superseded");
-      throw new Error("Voice socket was superseded during session creation");
+      throw new VoiceSocketCancelledError();
     }
     try {
       await session.connect(buildSocketAdapter(ws, sessionId));
@@ -1128,7 +1140,7 @@ export const voice = <
         type: "close",
       });
       ws.close(1000, "superseded");
-      throw new Error("Voice socket was superseded during session connection");
+      throw new VoiceSocketCancelledError();
     }
     runtime.activeSessions.set(sessionId, typedSession);
     registerMonitorSession(sessionId, typedSession);
@@ -1718,7 +1730,12 @@ export const voice = <
             ws,
             sessionState.sessionId,
             sessionState.scenarioId ?? undefined,
-          ));
+          ).catch((error: unknown) => {
+            if (isVoiceSocketCancelledError(error)) return undefined;
+            throw error;
+          }));
+
+        if (!session) return;
 
         await session.receiveAudio(audio);
       },
@@ -1776,7 +1793,11 @@ export const voice = <
             sessionState.scenarioId ?? undefined,
           );
         })().catch((error) => {
-          if (closedSockets.has(socketIdentity(ws))) return;
+          if (
+            isVoiceSocketCancelledError(error) ||
+            closedSockets.has(socketIdentity(ws))
+          )
+            return;
           runtime.logger.warn?.(
             `[voice] session initialization failed for "${sessionState.sessionId}": ${
               error instanceof Error ? error.message : String(error)

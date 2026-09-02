@@ -259,6 +259,54 @@ test("a replacement socket never inherits pending creation bound to the old sock
   await Promise.all([firstClosed, secondClosed]);
 });
 
+test("closing during greeting cancels queued audio and idle watchdogs", async () => {
+  const GREETING = "SLOW_GREETING";
+  const IDLE_REPROMPT = "ARE_YOU_THERE";
+  const greeting = Promise.withResolvers<void>();
+  const spoken: string[] = [];
+  const app = voice({
+    greeting: GREETING,
+    idleReprompt: {
+      afterMs: 20,
+      line: IDLE_REPROMPT,
+      maxReprompts: 1,
+    },
+    onTurn: () => {},
+    path: "/voice",
+    session: createVoiceMemoryStore(),
+    stt: buildStt(),
+    tts: {
+      kind: "tts",
+      open: () => ({
+        close: async () => {},
+        on: () => () => {},
+        send: async (text: string) => {
+          spoken.push(text);
+          if (text === GREETING) await greeting.promise;
+        },
+      }),
+    },
+  });
+  const port = listenOnAvailablePort(app);
+  cleanup = () => app.server?.stop(true);
+  const socket = await openSocket(
+    `ws://localhost:${String(port)}/voice?sessionId=closed-during-greeting`,
+  );
+  const frame = new Uint8Array(320);
+  for (let index = 0; index < 5; index += 1) socket.send(frame);
+  await waitForGreetingCount(spoken, GREETING, 1);
+
+  const closed = new Promise<void>((resolve) =>
+    socket.addEventListener("close", () => resolve(), { once: true }),
+  );
+  socket.close();
+  await closed;
+  greeting.resolve();
+  await delay(80);
+
+  expect(spoken).toEqual([GREETING]);
+});
+
 test("a start message cannot switch an admitted socket to another session", async () => {
   let audioFrames = 0;
   const store = createVoiceMemoryStore();
