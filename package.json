@@ -35,7 +35,8 @@
     "test:openai": "bun test ./test/live/openai.live.test.ts",
     "typecheck": "absolute typecheck",
     "verify-package": "absolute-manifest verify-package",
-    "check:package": "bun run format && bun run typecheck && bun run test && bun run verify-package && bun run build && absolute-changelog check"
+    "check:package": "bun run format && bun run typecheck && bun run test && bun run verify-package && bun run build && absolute-changelog check",
+    "prepublishOnly": "absolute-changelog check"
   },
   "exports": {
     ".": {
@@ -150,7 +151,7 @@
   "devDependencies": {
     "@absolutejs/absolute": "0.20.0-beta.0",
     "@absolutejs/ai": "0.0.47",
-    "@absolutejs/changelog": "^0.1.2",
+    "@absolutejs/changelog": "^0.2.0",
     "@angular/core": "22.0.8",
     "@electric-sql/pglite": "^0.4.5",
     "@eslint/js": "^10.0.1",
