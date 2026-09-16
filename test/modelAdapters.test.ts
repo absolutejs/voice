@@ -1223,6 +1223,10 @@ test.each(["server_error", "rate_limit_exceeded"])(
 test.each([
   {
     type: "error",
+    error: { code: "rate_limit_exceeded", message: "Token quota exceeded" },
+  },
+  {
+    type: "error",
     code: "rate_limit_exceeded",
     message: "Rate limit exceeded",
   },
@@ -1256,3 +1260,57 @@ test.each([
     );
   },
 );
+
+test("nested Responses token limits retain their reason and activate rate-limit-only fallback", async () => {
+  const events: Array<{
+    status: string;
+    error?: string;
+    rateLimited?: boolean;
+  }> = [];
+  const router = createVoiceProviderRouter({
+    selectProvider: () => "openai",
+    fallback: ["backup"],
+    fallbackMode: "rate-limit",
+    providerHealth: true,
+    providers: {
+      openai: createOpenAIVoiceAssistantModel({
+        apiKey: "test-key",
+        fetch: async () =>
+          sseResponse([
+            {
+              type: "error",
+              error: {
+                type: "tokens",
+                code: "rate_limit_exceeded",
+                message: "Token quota exceeded: limit 30000 TPM",
+              },
+            },
+            {
+              type: "response.failed",
+              response: {
+                status: "failed",
+                error: {
+                  code: "rate_limit_exceeded",
+                  message: "Token quota exceeded: limit 30000 TPM",
+                },
+              },
+            },
+          ]),
+      }),
+      backup: { generate: async () => ({ assistantText: "We can continue." }) },
+    },
+    onProviderEvent: (event) => {
+      events.push(event);
+    },
+  });
+  expect(await router.generate(createInput())).toMatchObject({
+    assistantText: "We can continue.",
+  });
+  expect(events[0]).toMatchObject({
+    status: "error",
+    rateLimited: true,
+    error:
+      "OpenAI voice assistant model failed: rate_limit_exceeded: Token quota exceeded: limit 30000 TPM",
+  });
+  expect(events[1]).toMatchObject({ status: "fallback" });
+});

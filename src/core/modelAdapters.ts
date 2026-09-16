@@ -1561,12 +1561,24 @@ const consumeOpenAIResponsesStream = async (
       const type = typeof event.type === "string" ? event.type : "";
       const item = event.item as Record<string, unknown> | undefined;
       if (type === "error") {
+        // Responses can nest provider errors (including token rate limits).
+        // Preserve the code so rate-limit-only routing and cooldowns work.
+        const nested =
+          event.error && typeof event.error === "object"
+            ? (event.error as Record<string, unknown>)
+            : undefined;
         const code =
-          typeof event.code === "string" ? event.code : "stream_error";
+          typeof event.code === "string"
+            ? event.code
+            : typeof nested?.code === "string"
+              ? nested.code
+              : "stream_error";
         const message =
           typeof event.message === "string"
             ? event.message
-            : "Provider stream failed";
+            : typeof nested?.message === "string"
+              ? nested.message
+              : "Provider stream failed";
         streamError = new Error(
           `OpenAI voice assistant model failed: ${code}: ${message}`,
         );
