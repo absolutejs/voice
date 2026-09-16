@@ -1,5 +1,19 @@
 {
 	"contract": 1,
 	"name": "@absolutejs/voice",
-	"releases": []
+	"releases": [
+		{
+			"changes": [
+				{
+					"kind": "fixed",
+					"summary": "Surface failed and incomplete OpenAI response streams as errors so voice provider fallback can recover without executing partial tool calls.",
+					"symbols": [
+						"createOpenAIVoiceAssistantModel"
+					]
+				}
+			],
+			"date": "2026-09-16",
+			"version": "0.0.22-beta.676"
+		}
+	]
 }

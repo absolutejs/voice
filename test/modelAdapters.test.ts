@@ -1165,3 +1165,94 @@ test("createGeminiVoiceAssistantModel sends function responses", async () => {
     role: "user",
   });
 });
+
+test.each(["server_error", "rate_limit_exceeded"])(
+  "failed Responses streams fall back instead of succeeding with an empty reply: %s",
+  async (code) => {
+    let primaryCalls = 0;
+    let backupCalls = 0;
+    const usage: Record<string, unknown>[] = [];
+    const events: string[] = [];
+    const primary = createOpenAIVoiceAssistantModel({
+      apiKey: "test-key",
+      fetch: async () => {
+        primaryCalls += 1;
+        return sseResponse([
+          {
+            type: "response.failed",
+            response: {
+              status: "failed",
+              error: { code, message: "Generation failed" },
+              usage: { input_tokens: 12, output_tokens: 0 },
+            },
+          },
+        ]);
+      },
+      onUsage: (value) => {
+        usage.push(value);
+      },
+    });
+    const router = createVoiceProviderRouter({
+      selectProvider: () => "openai",
+      fallback: ["backup"],
+      fallbackMode:
+        code === "rate_limit_exceeded" ? "rate-limit" : "provider-error",
+      providers: {
+        openai: primary,
+        backup: {
+          generate: async () => {
+            backupCalls += 1;
+            return { assistantText: "We can continue." };
+          },
+        },
+      },
+      onProviderEvent: (event) => {
+        events.push(event.status);
+      },
+    });
+    expect(await router.generate(createInput())).toMatchObject({
+      assistantText: "We can continue.",
+    });
+    expect(primaryCalls).toBe(1);
+    expect(backupCalls).toBe(1);
+    expect(events).toEqual(["error", "fallback"]);
+    expect(usage).toEqual([{ input_tokens: 12, output_tokens: 0 }]);
+  },
+);
+
+test.each([
+  {
+    type: "error",
+    code: "rate_limit_exceeded",
+    message: "Rate limit exceeded",
+  },
+  { type: "response.failed", response: { error: { code: "server_error" } } },
+  {
+    type: "response.incomplete",
+    response: { incomplete_details: { reason: "max_output_tokens" } },
+  },
+])(
+  "Responses stream failures do not return partial tool calls: %j",
+  async (terminal) => {
+    const model = createOpenAIVoiceAssistantModel({
+      apiKey: "test-key",
+      fetch: async () =>
+        sseResponse([
+          {
+            type: "response.output_item.added",
+            item: {
+              type: "function_call",
+              id: "fc_1",
+              call_id: "call_1",
+              name: "lookup_order",
+              arguments: '{"orderId":"123"}',
+            },
+          },
+          terminal,
+        ]),
+    });
+    await expect(model.generate(createInput())).rejects.toThrow(
+      "OpenAI voice assistant model",
+    );
+  },
+);

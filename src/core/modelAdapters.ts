@@ -602,7 +602,7 @@ const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 const defaultIsRateLimitError = (error: unknown) =>
-  /(\b429\b|rate limit|quota|too many requests)/i.test(errorMessage(error));
+  /(\b429\b|rate[ _-]limit|quota|too many requests)/i.test(errorMessage(error));
 
 const normalizeRouteOutput = <TResult>(
   output: Record<string, unknown>,
@@ -1515,6 +1515,26 @@ const finalizeToolCalls = (
 
 // Parse the OpenAI Responses SSE stream: forward text deltas + accumulate
 // function (tool) calls and usage.
+const openAIResponseError = (response: {
+  status: string;
+  code?: string;
+  message?: string;
+  incompleteReason?: string;
+}) => {
+  if (response.status === "failed") {
+    return new Error(
+      `OpenAI voice assistant model failed: ${response.code ?? "response_failed"}: ${response.message ?? "Provider response failed"}`,
+    );
+  }
+  if (response.status === "incomplete") {
+    return new Error(
+      `OpenAI voice assistant model incomplete: ${response.incompleteReason ?? "unknown reason"}`,
+    );
+  }
+
+  return undefined;
+};
+
 const consumeOpenAIResponsesStream = async (
   response: Response,
   onTextDelta?: (delta: string) => void,
@@ -1531,6 +1551,7 @@ const consumeOpenAIResponsesStream = async (
   let incompleteReason: string | undefined;
   let refusal = "";
   let failureMessage: string | undefined;
+  let streamError: Error | undefined;
   let outputItems = 0;
   const calls = new Map<string, StreamedToolCall>();
 
@@ -1539,6 +1560,17 @@ const consumeOpenAIResponsesStream = async (
     (event) => {
       const type = typeof event.type === "string" ? event.type : "";
       const item = event.item as Record<string, unknown> | undefined;
+      if (type === "error") {
+        const code =
+          typeof event.code === "string" ? event.code : "stream_error";
+        const message =
+          typeof event.message === "string"
+            ? event.message
+            : "Provider stream failed";
+        streamError = new Error(
+          `OpenAI voice assistant model failed: ${code}: ${message}`,
+        );
+      }
       if (type === "response.output_item.added") {
         outputItems += 1;
       }
@@ -1590,9 +1622,10 @@ const consumeOpenAIResponsesStream = async (
         if (completed?.usage && typeof completed.usage === "object") {
           usage = completed.usage as Record<string, unknown>;
         }
-        if (typeof completed?.status === "string") {
-          status = completed.status;
-        }
+        status =
+          typeof completed?.status === "string"
+            ? completed.status
+            : type.slice("response.".length);
         const incomplete = completed?.incomplete_details as
           | Record<string, unknown>
           | undefined;
@@ -1603,6 +1636,15 @@ const consumeOpenAIResponsesStream = async (
         if (typeof failure?.message === "string") {
           failureMessage = failure.message;
         }
+        streamError ??= openAIResponseError({
+          code: typeof failure?.code === "string" ? failure.code : undefined,
+          incompleteReason,
+          message: failureMessage,
+          status:
+            type === "response.completed"
+              ? status
+              : type.slice("response.".length),
+        });
       }
     },
     abortOptions,
@@ -1615,6 +1657,7 @@ const consumeOpenAIResponsesStream = async (
     outputItems,
     refusal: refusal || undefined,
     status,
+    streamError,
     toolCalls: finalizeToolCalls(calls),
     usage,
   };
@@ -1708,6 +1751,7 @@ export const createOpenAIVoiceAssistantModel = <
       let refusal: string | undefined;
       let failureMessage: string | undefined;
       let outputItems = 0;
+      let streamError: Error | undefined;
       // Stamp the FIRST text delta so we can separate "OpenAI is slow to first
       // token" from "the stream is slow to drain".
       let firstDeltaSeen = false;
@@ -1730,6 +1774,7 @@ export const createOpenAIVoiceAssistantModel = <
           refusal,
           failureMessage,
           outputItems,
+          streamError,
         } = await consumeOpenAIResponsesStream(response, onTextDelta, {
           // Pass the abort signal to the stream reader so my parent
           // timeout actually interrupts a stalled reader.read(). Without
@@ -1765,6 +1810,11 @@ export const createOpenAIVoiceAssistantModel = <
       if (usage) {
         await options.onUsage?.(usage);
       }
+
+      // HTTP 200 only establishes the stream. Its terminal event can still
+      // fail; surface that failure so the router can use the fallback provider.
+      // Report available usage first, including unsuccessful generations.
+      if (streamError) throw streamError;
 
       return {
         ...(assistantText ? { assistantText } : {}),
