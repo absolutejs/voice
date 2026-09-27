@@ -6,6 +6,23 @@
 			"changes": [
 				{
 					"kind": "fixed",
+					"summary": "Classify exhausted fetch header deadlines as timeouts with per-attempt metadata, preserve caller cancellation, and expose a configurable header deadline without changing the six-second default.",
+					"symbols": [
+						"hardenFetch",
+						"VoiceFetchHeadersTimeoutError",
+						"HardenFetchOptions",
+						"createVoiceProviderRouter",
+						"VoiceProviderRouterEvent"
+					]
+				}
+			],
+			"date": "2026-09-27",
+			"version": "0.0.22-beta.678"
+		},
+		{
+			"changes": [
+				{
+					"kind": "fixed",
 					"summary": "Preserve nested OpenAI stream error codes and messages so token rate limits activate provider fallback and cooldowns.",
 					"symbols": [
 						"createOpenAIVoiceAssistantModel"

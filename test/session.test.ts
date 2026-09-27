@@ -4700,3 +4700,50 @@ test("caller pause survives disconnect and restores until explicitly resumed", a
   expect(adapter.getSentAudioChunks()).toBe(1);
   await resumed.close("test-complete");
 });
+
+test("failed provider generation speaks the recovery prompt and preserves the user turn", async () => {
+  const store = createVoiceMemoryStore();
+  const adapter = createFakeAdapter();
+  const tts = createFakeTTSAdapter();
+  const socket = createMockSocket();
+  const trace = createVoiceMemoryTraceEventStore();
+  const recovery =
+    "I couldn't finish that answer just now. Please ask me again.";
+  const session = createVoiceSession({
+    context: {},
+    id: "session-provider-exhaustion",
+    logger: {},
+    defaultSilentTurnAck: recovery,
+    reconnect: { maxAttempts: 1, strategy: "resume-last-turn", timeout: 5000 },
+    route: {
+      onComplete: async () => {},
+      onTurn: async () => {
+        throw new Error("provider retries exhausted");
+      },
+    },
+    socket: socket.socket,
+    store,
+    stt: adapter.adapter,
+    tts: tts.adapter,
+    trace,
+    turnDetection: {
+      silenceMs: 20,
+      speechThreshold: 0.01,
+      transcriptStabilityMs: 0,
+    },
+  });
+  await session.connect(socket.socket);
+  await adapter.emitCurrent("final", {
+    receivedAt: Date.now(),
+    transcript: { id: "failure-final", isFinal: true, text: "Keep my answer" },
+    type: "final",
+  });
+  await session.commitTurn("manual");
+  expect(tts.getSentTexts()).toContain(recovery);
+  expect((await trace.list({ type: "session.error" })).length).toBeGreaterThan(
+    0,
+  );
+  expect(
+    (await trace.list({ type: "turn.committed" }))[0]?.payload,
+  ).toMatchObject({ text: "Keep my answer" });
+});

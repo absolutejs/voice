@@ -19,19 +19,37 @@
 //   2. Backstop (all runtimes): bound each attempt's time-to-headers and retry
 //      once on a fresh connection, in case a socket pooled by another code path
 //      is still handed to us. A retry only happens when NO response was received
-//      (timeout/network error before headers), so re-sending is safe.
+//      (timeout/network error before headers). A provider may still have
+//      received the request; callers must use replayable operations.
 //
 // `fetch()` resolves on response HEADERS; the body is streamed afterwards. The
 // attempt timeout therefore bounds connection/time-to-headers only and never
 // truncates a long streaming body.
 
 const ATTEMPT_TIMEOUT_MS = 6_000;
+export class VoiceFetchHeadersTimeoutError extends Error {
+  readonly timeoutMs: number;
+  readonly attempt: number;
+  constructor(timeoutMs: number, attempt: number) {
+    super(
+      `fetch attempt ${attempt} exceeded ${timeoutMs}ms before response headers`,
+    );
+    this.name = "VoiceFetchHeadersTimeoutError";
+    this.timeoutMs = timeoutMs;
+    this.attempt = attempt;
+  }
+}
+
+export type HardenFetchOptions = { attemptTimeoutMs?: number };
+
 const isBun = "Bun" in globalThis;
 
 const oneAttempt = async (
   baseFetch: typeof fetch,
   input: Parameters<typeof fetch>[0],
   init: Parameters<typeof fetch>[1],
+  timeoutMs: number,
+  attempt: number,
 ) => {
   const controller = new AbortController();
   const callerSignal = init?.signal ?? undefined;
@@ -39,12 +57,8 @@ const oneAttempt = async (
   if (callerSignal?.aborted) controller.abort(callerSignal.reason);
   else callerSignal?.addEventListener("abort", onCallerAbort, { once: true });
   const timer = setTimeout(() => {
-    controller.abort(
-      new Error(
-        `fetch exceeded ${ATTEMPT_TIMEOUT_MS}ms before response headers (stale Bun keep-alive socket?)`,
-      ),
-    );
-  }, ATTEMPT_TIMEOUT_MS);
+    controller.abort(new VoiceFetchHeadersTimeoutError(timeoutMs, attempt));
+  }, timeoutMs);
   const headers = new Headers(init?.headers);
   if (isBun) headers.set("Connection", "close");
   try {
@@ -53,6 +67,11 @@ const oneAttempt = async (
       headers,
       signal: controller.signal,
     });
+  } catch (error) {
+    if (callerSignal?.aborted) throw callerSignal.reason;
+    if (controller.signal.reason instanceof VoiceFetchHeadersTimeoutError)
+      throw controller.signal.reason;
+    throw error;
   } finally {
     clearTimeout(timer);
     callerSignal?.removeEventListener("abort", onCallerAbort);
@@ -62,13 +81,19 @@ const oneAttempt = async (
 // Wrap a fetch (default: global) so every request opts out of Bun's keep-alive
 // pool and survives a single stale-socket hang. Drop-in: same call signature as
 // `fetch`, including `preconnect`.
-export const hardenFetch = (baseFetch = globalThis.fetch) => {
+export const hardenFetch = (
+  baseFetch = globalThis.fetch,
+  options: HardenFetchOptions = {},
+) => {
+  const timeoutMs = options.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
+    throw new RangeError("attemptTimeoutMs must be finite and positive");
   const hardenedFetch = async (
     input: Parameters<typeof fetch>[0],
     init: Parameters<typeof fetch>[1],
   ) => {
     try {
-      return await oneAttempt(baseFetch, input, init);
+      return await oneAttempt(baseFetch, input, init, timeoutMs, 1);
     } catch (error) {
       // A real caller abort (turn ended) must NOT be retried.
       if (init?.signal?.aborted) throw error;
@@ -78,7 +103,7 @@ export const hardenFetch = (baseFetch = globalThis.fetch) => {
         }`,
       );
 
-      return oneAttempt(baseFetch, input, init);
+      return oneAttempt(baseFetch, input, init, timeoutMs, 2);
     }
   };
 

@@ -7,7 +7,7 @@ import type {
 } from "./agent";
 import type { VoiceLLMUsage, VoiceSessionRecord } from "./types";
 import { startVoiceTimer } from "./debugTiming";
-import { hardenFetch } from "./hardenedFetch";
+import { hardenFetch, VoiceFetchHeadersTimeoutError } from "./hardenedFetch";
 
 // Normalize a provider's raw usage object into VoiceLLMUsage so the session can
 // meter LLM cost. Handles Anthropic + OpenAI (input_tokens/output_tokens, with
@@ -126,7 +126,9 @@ export type VoiceProviderRouterEvent<TProvider extends string = string> = {
   suppressedUntil?: number;
   status: "error" | "fallback" | "success";
   timedOut?: boolean;
-  timeoutKind?: "latency-budget" | "stream-inactivity";
+  timeoutKind?: "latency-budget" | "stream-inactivity" | "response-headers";
+  /** Fetch attempt number within this provider attempt. */
+  fetchAttempt?: number;
   timeoutMs?: number;
   totalElapsedMs?: number;
 };
@@ -1132,7 +1134,8 @@ export const createVoiceProviderRouter = <
           const timedOut =
             options.isTimeoutError?.(error, provider) ??
             (error instanceof VoiceProviderTimeoutError ||
-              error instanceof VoiceProviderStreamInactivityError);
+              error instanceof VoiceProviderStreamInactivityError ||
+              error instanceof VoiceFetchHeadersTimeoutError);
           const rateLimited =
             options.isRateLimitError?.(error, provider) ??
             defaultIsRateLimitError(error);
@@ -1165,18 +1168,26 @@ export const createVoiceProviderRouter = <
               suppressedUntil: providerHealth?.suppressedUntil,
               status: "error",
               timedOut,
+              fetchAttempt:
+                error instanceof VoiceFetchHeadersTimeoutError
+                  ? error.attempt
+                  : undefined,
               timeoutKind:
-                error instanceof VoiceProviderStreamInactivityError
-                  ? "stream-inactivity"
-                  : error instanceof VoiceProviderTimeoutError
-                    ? "latency-budget"
-                    : undefined,
+                error instanceof VoiceFetchHeadersTimeoutError
+                  ? "response-headers"
+                  : error instanceof VoiceProviderStreamInactivityError
+                    ? "stream-inactivity"
+                    : error instanceof VoiceProviderTimeoutError
+                      ? "latency-budget"
+                      : undefined,
               timeoutMs:
-                error instanceof VoiceProviderStreamInactivityError
-                  ? error.inactivityMs
-                  : error instanceof VoiceProviderTimeoutError
-                    ? error.timeoutMs
-                    : undefined,
+                error instanceof VoiceFetchHeadersTimeoutError
+                  ? error.timeoutMs
+                  : error instanceof VoiceProviderStreamInactivityError
+                    ? error.inactivityMs
+                    : error instanceof VoiceProviderTimeoutError
+                      ? error.timeoutMs
+                      : undefined,
               totalElapsedMs: Date.now() - routingStartedAt,
             },
             input,

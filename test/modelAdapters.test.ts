@@ -1,3 +1,4 @@
+import { VoiceFetchHeadersTimeoutError } from "../src/core/hardenedFetch";
 import { expect, test } from "bun:test";
 import {
   createAnthropicVoiceAssistantModel,
@@ -1313,4 +1314,38 @@ test("nested Responses token limits retain their reason and activate rate-limit-
       "OpenAI voice assistant model failed: rate_limit_exceeded: Token quota exceeded: limit 30000 TPM",
   });
   expect(events[1]).toMatchObject({ status: "fallback" });
+});
+
+test("primary rate limit then backup header timeout remains a classified terminal failure", async () => {
+  const events: Array<Record<string, unknown>> = [];
+  const terminal = new VoiceFetchHeadersTimeoutError(6000, 2);
+  const model = createVoiceProviderRouter({
+    fallback: ["anthropic"],
+    fallbackMode: "provider-error",
+    onProviderEvent: (event) => events.push(event),
+    providers: {
+      openai: {
+        generate: async () => {
+          throw new Error("HTTP 429 rate limit exceeded");
+        },
+      },
+      anthropic: {
+        generate: async () => {
+          throw terminal;
+        },
+      },
+    } satisfies Record<string, VoiceAgentModel>,
+    selectProvider: () => "openai",
+  });
+  await expect(model.generate(createInput())).rejects.toBe(terminal);
+  expect(events).toMatchObject([
+    { provider: "openai", rateLimited: true, fallbackProvider: "anthropic" },
+    {
+      provider: "anthropic",
+      timedOut: true,
+      timeoutKind: "response-headers",
+      timeoutMs: 6000,
+      fetchAttempt: 2,
+    },
+  ]);
 });
