@@ -1713,6 +1713,7 @@ export type {
   VoiceScribeEventMap,
   VoiceScribePartialEvent,
   VoiceScribeTurnEvent,
+  VoiceScribeEndOfTurnEvent,
 } from "./core/scribe";
 export {
   createVoiceCallReviewFromSession,
