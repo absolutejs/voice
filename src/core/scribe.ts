@@ -29,9 +29,19 @@ export type VoiceScribeTurnEvent = {
   turn: VoiceScribeTurn;
 };
 
+/** The speaker stopped (the STT vendor's end-of-turn, e.g. Deepgram's
+ *  speech_final or UtteranceEnd). `turns` are the finalized turns since the
+ *  previous end of turn: one spoken utterance, which vendors often finalize in
+ *  several pieces while the person is still talking. */
+export type VoiceScribeEndOfTurnEvent = {
+  type: "endOfTurn";
+  turns: VoiceScribeTurn[];
+};
+
 export type VoiceScribeEventMap = {
   partial: VoiceScribePartialEvent;
   turn: VoiceScribeTurnEvent;
+  endOfTurn: VoiceScribeEndOfTurnEvent;
   error: VoiceErrorEvent;
   close: VoiceCloseEvent;
 };
@@ -87,10 +97,13 @@ export const createVoiceScribe = async (
     >;
   } = {
     close: new Set(),
+    endOfTurn: new Set(),
     error: new Set(),
     partial: new Set(),
     turn: new Set(),
   };
+  // Finalized turns since the last end of turn.
+  let utterance: VoiceScribeTurn[] = [];
   const emit = <K extends keyof VoiceScribeEventMap>(
     event: K,
     payload: VoiceScribeEventMap[K],
@@ -110,7 +123,14 @@ export const createVoiceScribe = async (
       text,
     };
     turns.push(turn);
+    utterance.push(turn);
     emit("turn", { turn, type: "turn" });
+  });
+  session.on("endOfTurn", () => {
+    if (!utterance.length) return;
+    const ended = utterance;
+    utterance = [];
+    emit("endOfTurn", { turns: ended, type: "endOfTurn" });
   });
   session.on("partial", ({ transcript }) =>
     emit("partial", { transcript, type: "partial" }),

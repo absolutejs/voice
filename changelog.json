@@ -5,6 +5,21 @@
 		{
 			"changes": [
 				{
+					"kind": "added",
+					"summary": "Scribes emit endOfTurn when the STT vendor says the speaker stopped, with the turns finalized since the previous end of turn, so listeners can act on a whole utterance that the vendor finalized in pieces.",
+					"symbols": [
+						"createVoiceScribe",
+						"VoiceScribeEventMap",
+						"VoiceScribeEndOfTurnEvent"
+					]
+				}
+			],
+			"date": "2026-09-28",
+			"version": "0.0.22-beta.679"
+		},
+		{
+			"changes": [
+				{
 					"kind": "fixed",
 					"summary": "Classify exhausted fetch header deadlines as timeouts with per-attempt metadata, preserve caller cancellation, and expose a configurable header deadline without changing the six-second default.",
 					"symbols": [
