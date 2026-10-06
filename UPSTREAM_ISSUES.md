@@ -9,9 +9,24 @@ upstream fix ships. Grep the codebase for the entry's anchor (e.g.
 
 ## bun-fetch-stale-keepalive — Bun `fetch()` hangs on a stale keep-alive socket
 
-**Status:** open (as of 2026-06-05) · **Runtime:** Bun (confirmed 1.3.14) ·
-**Severity:** high — silently breaks long-running voice sessions ·
-**Filed:** [oven-sh/bun#31894](https://github.com/oven-sh/bun/issues/31894).
+**Status:** **still reproduces on Bun 1.4.2** (re-checked 2026-10-05) ·
+**Runtime:** Bun (confirmed 1.3.14 and 1.4.2) · **Severity:** high — silently
+breaks long-running voice sessions · **Filed:**
+[oven-sh/bun#31894](https://github.com/oven-sh/bun/issues/31894), **closed
+2026-06-05 as not planned** ("unable to reproduce"), although the closing
+comment itself reports the repro's half-open case timing out.
+
+Re-run on Bun 1.4.2 (`bun run test/repro/bun-fetch-stale-pool.ts`):
+
+```
+A graceful-FIN : reconnected/responded in 5ms  ✅
+B half-open    : HUNG 10s+ on the reused pooled socket  ❌
+```
+
+Neither 1.4.1 nor 1.4.2 lists a fix for pooled-socket liveness (1.4.1 changed
+Unix-socket reuse and how discarded responses close their connections, not
+this). **Action:** comment on #31894 with the 1.4.2 output and ask for it to be
+reopened, or file a fresh issue linking it.
 
 ### Symptom
 
@@ -65,7 +80,8 @@ direct provider fetches (e.g. a warmup ping) the same way.
 
 ### Tracking
 
-- **oven-sh/bun#31894** — our dedicated report: a reused keep-alive socket isn't
+- **oven-sh/bun#31894** — our dedicated report (closed "not planned"
+  2026-06-05; still reproduces on 1.4.2 — see Status above): a reused keep-alive socket isn't
   liveness-checked, so a half-open pooled connection hangs the request (up to
   Bun's 5-min ceiling) instead of reconnecting. Includes a deterministic
   two-server repro (graceful-FIN reconnects ✅ vs half-open hangs ❌):
